@@ -29,6 +29,10 @@ function M.close()
 end
 
 function M.open()
+  if #config.config.api_key == 0 then
+    require('notify').notify('api_key is required!', 'WarningMsg')
+    return
+  end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
   local start_col = math.floor(vim.o.columns * (1 - config.config.width) / 2)
   local screen_height = math.floor(vim.o.lines * config.config.height)
@@ -90,7 +94,8 @@ function M.open()
           vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
         end
         requestObj.content = table.concat(content)
-        require('chat.providers.deepseek').request(requestObj)
+        requestObj.api_key = config.config.api_key
+        require('chat.providers.' .. config.config.provider).request(requestObj)
       end,
       silent = true,
     })
