@@ -44,10 +44,13 @@ function M.close()
   end
 end
 
-function M.open()
+function M.open(opt)
   if #config.config.api_key == 0 then
     require('notify').notify('api_key is required!', 'WarningMsg')
     return
+  end
+  if opt and opt.session then
+    requestObj.history = opt.session.messages
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
   local start_col = math.floor(vim.o.columns * (1 - config.config.width) / 2)

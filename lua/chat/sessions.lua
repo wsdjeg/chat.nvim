@@ -2,7 +2,6 @@ local sessions = {}
 
 ---@class chat.session
 ---@field id string
----@field system_prompt string
 ---@field messages table
 
 function sessions.write_cache(session)
