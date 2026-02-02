@@ -1,13 +1,6 @@
 local M = {}
 
 function M.request(requestObj)
-  local messages = {}
-  if requestObj.history then
-    for _, v in ipairs(requestObj.history) do
-      table.insert(messages, v)
-    end
-  end
-  table.insert(messages, { role = 'user', content = requestObj.content })
   local cmd = {
     'curl',
     '-s',
@@ -21,7 +14,7 @@ function M.request(requestObj)
     '-d',
     vim.json.encode({
       model = 'deepseek-chat',
-      messages = messages,
+      messages = requestObj.messages,
       stream = false,
     }),
   }

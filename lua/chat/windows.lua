@@ -1,6 +1,7 @@
 local M = {}
 
 local config = require('chat.config')
+local sessions = require('chat.sessions')
 
 local winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator'
 local prompt_win = -1
@@ -8,7 +9,7 @@ local prompt_buf = -1
 local result_win = -1
 local result_buf = -1
 local requestObj = {}
-requestObj.history = {}
+requestObj.messages = {}
 requestObj.callback = function(result, error)
   local message
   if not result then
@@ -26,13 +27,14 @@ requestObj.callback = function(result, error)
     vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
     return
   end
-  table.insert(requestObj.history, result.choices[1].message)
+  table.insert(requestObj.messages, result.choices[1].message)
   message = { '[' .. os.date('%H:%M') .. '] 🤖 Bot:', '' }
   local rst = vim.split(result.choices[1].message.content, '\n')
   for _, v in ipairs(rst) do
     table.insert(message, v)
   end
   vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
+  sessions.write_cache(requestObj.session)
 end
 
 function M.close()
@@ -44,13 +46,44 @@ function M.close()
   end
 end
 
+function M.generate_message(message, time)
+  if message.role == 'assistant' then
+    local msg = { '[' .. os.date('%H:%M', time) .. '] 🤖 Bot:', '' }
+    for _, line in ipairs(vim.split(message.content, '\n')) do
+      table.insert(msg, line)
+    end
+    return msg
+  elseif message.role == 'user' then
+    local content = vim.split(message.content, '\n')
+    local msg =
+      { '[' .. os.date('%H:%M', time) .. '] 👤 You:' .. content[1] }
+    if #content > 1 then
+      for i = 2, #content do
+        table.insert(msg, content[i])
+      end
+    end
+    table.insert(msg, '')
+    return msg
+  end
+end
+
+function M.generate_buffer(messages)
+  local lines = {}
+  for _, m in ipairs(messages) do
+    for _, l in ipairs(M.generate_message(m)) do
+      table.insert(lines, l)
+    end
+  end
+  return lines
+end
+
 function M.open(opt)
   if #config.config.api_key == 0 then
     require('notify').notify('api_key is required!', 'WarningMsg')
     return
   end
   if opt and opt.session then
-    requestObj.history = opt.session.messages
+    requestObj.messages = require('chat.sessions').get_messages(opt.session)
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
   local start_col = math.floor(vim.o.columns * (1 - config.config.width) / 2)
@@ -64,6 +97,15 @@ function M.open(opt)
       callback = M.close,
       silent = true,
     })
+    if #requestObj.messages > 0 then
+      vim.api.nvim_buf_set_lines(
+        result_buf,
+        0,
+        -1,
+        false,
+        M.generate_buffer(requestObj.messages)
+      )
+    end
   end
 
   if not vim.api.nvim_win_is_valid(result_win) then
@@ -112,11 +154,17 @@ function M.open(opt)
           )
           vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
         end
-        requestObj.content = table.concat(content)
         requestObj.api_key = config.config.api_key
         local ok, provider =
           pcall(require, 'chat.providers.' .. config.config.provider)
         if ok then
+          if #requestObj.messages == 0 then
+            requestObj.session, requestObj.messages = sessions.new()
+          end
+          table.insert(
+            requestObj.messages,
+            { role = 'user', content = table.concat(content) }
+          )
           provider.request(requestObj)
         else
           requestObj.callback(
