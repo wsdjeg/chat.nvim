@@ -7,10 +7,10 @@ local default = {
   api_key = ''
 }
 
-M.config = vim.tbl_deep_extend('keep', default, {})
+M.config = vim.tbl_deep_extend('force', default, {})
 
 function M.setup(opt)
-  M.config = vim.tbl_deep_extend('keep', default, opt)
+  M.config = vim.tbl_deep_extend('force', default, opt)
 end
 
 return M
