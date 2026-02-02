@@ -15,7 +15,7 @@ function M.request(requestObj)
     '-H',
     'Content-Type: application/json',
     '-H',
-    'Authorization: Bearer ' .. vim.env.DEEPSEEK_API_KEY,
+    'Authorization: Bearer ' .. requestObj.api_key,
     '-X',
     'POST',
     '-d',
