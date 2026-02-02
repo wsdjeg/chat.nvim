@@ -27,14 +27,17 @@ function M.request(requestObj)
   }
 
   vim.system(cmd, { text = true }, function(obj)
-    if obj.stdout then
-      local result = vim.json.decode(obj.stdout)
-      vim.schedule(function()
-        requestObj.callback(result)
-      end)
+    if obj.code ~= 0 then
+      requestObj.callback(nil, 'HTTP Error:' .. obj.stderr)
+    else
+      if obj.stdout then
+        local result = vim.json.decode(obj.stdout)
+        vim.schedule(function()
+          requestObj.callback(result)
+        end)
+      end
     end
   end)
 end
 
 return M
-
