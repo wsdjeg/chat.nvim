@@ -1,7 +1,7 @@
 local M = {}
 
-function M.open()
-  require('chat.windows').open()
+function M.open(opt)
+  require('chat.windows').open(opt)
 end
 
 function M.setup(opt)

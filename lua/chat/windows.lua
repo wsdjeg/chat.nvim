@@ -82,7 +82,8 @@ function M.open(opt)
     require('notify').notify('api_key is required!', 'WarningMsg')
     return
   end
-  if opt and opt.session then
+  if opt and opt.session and opt.session ~= requestObj.session then
+    requestObj.session = opt.session
     requestObj.messages = require('chat.sessions').get_messages(opt.session)
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
