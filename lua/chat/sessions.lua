@@ -20,6 +20,11 @@ function M.write_cache(session)
   end
 end
 
+function M.delete(session)
+  vim.fn.delete(cache_dir .. session ..'.json')
+  sessions[session] = nil
+end
+
 function M.get()
   local files = vim.fn.globpath(cache_dir, '*.json', 0, 1)
   for _, v in ipairs(files) do
