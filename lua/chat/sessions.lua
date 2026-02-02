@@ -6,7 +6,9 @@ local sessions = {}
 
 local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
 
-function sessions.write_cache(session)
+local M = {}
+
+function M.write_cache(session)
   if vim.fn.isdirectory(cache_dir) == 0 then
     vim.fn.mkdir(cache_dir, 'p')
   end
@@ -18,8 +20,8 @@ function sessions.write_cache(session)
   end
 end
 
-function sessions.get()
-  local files = vim.fn.globpath(cache_dir, '*.json')
+function M.get()
+  local files = vim.fn.globpath(cache_dir, '*.json', 0, 1)
   for _, v in ipairs(files) do
     local file = io.open(v, 'r')
     if file then
@@ -29,13 +31,14 @@ function sessions.get()
       sessions[vim.fn.fnamemodify(v, ':t:r')] = obj
     end
   end
+  return sessions
 end
 
-function sessions.get_messages(session)
+function M.get_messages(session)
   return sessions[session]
 end
 
-function sessions.new()
+function M.new()
   local NOTE_ID_STRFTIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
   local id = os.date(NOTE_ID_STRFTIME_FORMAT, os.time())
   sessions[id] = {}
@@ -43,4 +46,4 @@ function sessions.new()
   return id, sessions[id]
 end
 
-return sessions
+return M
