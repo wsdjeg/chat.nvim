@@ -85,6 +85,17 @@ function M.open(opt)
   if opt and opt.session and opt.session ~= requestObj.session then
     requestObj.session = opt.session
     requestObj.messages = require('chat.sessions').get_messages(opt.session)
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      if #requestObj.messages > 0 then
+        vim.api.nvim_buf_set_lines(
+          result_buf,
+          0,
+          -1,
+          false,
+          M.generate_buffer(requestObj.messages)
+        )
+      end
+    end
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
   local start_col = math.floor(vim.o.columns * (1 - config.config.width) / 2)
