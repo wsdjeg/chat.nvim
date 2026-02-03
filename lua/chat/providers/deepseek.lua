@@ -24,10 +24,19 @@ function M.request(requestObj)
       requestObj.callback(nil, 'HTTP Error:' .. obj.stderr)
     else
       if obj.stdout then
-        local result = vim.json.decode(obj.stdout)
-        vim.schedule(function()
-          requestObj.callback(result)
-        end)
+        local response = vim.trim(obj.stdout)
+        if response == '' then
+          requestObj.callback(nil, 'empty response')
+          return
+        end
+        local ok, result = pcall(vim.json.decode, response)
+        if ok then
+          if result.error then
+            requestObj.callback(nil, vim.inspect(result.error))
+          else
+            requestObj.callback(result)
+          end
+        end
       end
     end
   end)

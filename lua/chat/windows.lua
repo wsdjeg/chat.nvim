@@ -10,31 +10,35 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 requestObj.messages = {}
-requestObj.callback = function(result, error)
-  local message
-  if not result then
-    message = {
-      string.format('[%s] ❌ Error:', os.date('%H:%M')),
-      '',
-    }
 
-    local lines =
-      vim.split(tostring(error or 'unknown error'), '\n', { plain = true })
-    for _, v in ipairs(lines) do
+-- callback function is called on uv callback, we need schedule
+requestObj.callback = function(result, error)
+  vim.schedule(function()
+    local message
+    if not result then
+      message = {
+        string.format('[%s] ❌ Error:', os.date('%H:%M')),
+        '',
+      }
+
+      local lines =
+        vim.split(tostring(error or 'unknown error'), '\n', { plain = true })
+      for _, v in ipairs(lines) do
+        table.insert(message, v)
+      end
+
+      vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
+      return
+    end
+    table.insert(requestObj.messages, result.choices[1].message)
+    message = { '[' .. os.date('%H:%M') .. '] 🤖 Bot:', '' }
+    local rst = vim.split(result.choices[1].message.content, '\n')
+    for _, v in ipairs(rst) do
       table.insert(message, v)
     end
-
     vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
-    return
-  end
-  table.insert(requestObj.messages, result.choices[1].message)
-  message = { '[' .. os.date('%H:%M') .. '] 🤖 Bot:', '' }
-  local rst = vim.split(result.choices[1].message.content, '\n')
-  for _, v in ipairs(rst) do
-    table.insert(message, v)
-  end
-  vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
-  sessions.write_cache(requestObj.session)
+    sessions.write_cache(requestObj.session)
+  end)
 end
 
 function M.close()
