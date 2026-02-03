@@ -145,6 +145,7 @@ function M.open(opt)
       winhighlight,
       { win = result_win }
     )
+    vim.api.nvim_set_option_value('wrap', true, { win = result_win })
   end
 
   if not vim.api.nvim_buf_is_valid(prompt_buf) then
