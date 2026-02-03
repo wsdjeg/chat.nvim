@@ -2,6 +2,7 @@ local M = {}
 
 local config = require('chat.config')
 local sessions = require('chat.sessions')
+local log = require('chat.log')
 
 local winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator'
 local prompt_win = -1
@@ -83,7 +84,7 @@ end
 
 function M.open(opt)
   if #config.config.api_key == 0 then
-    require('notify').notify('api_key is required!', 'WarningMsg')
+    log.notify('api_key is required!', 'WarningMsg')
     return
   end
   if opt and opt.session and opt.session ~= requestObj.session then
