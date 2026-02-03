@@ -10,7 +10,18 @@ A lightweight and extensible pure-Lua chat plugin for Neovim,
 
 ![chat.nvim](https://github.com/user-attachments/assets/bc51314c-a983-4b9e-9056-e1bf4dc51acc)
 
-## Installation
+<!-- vim-markdown-toc GFM -->
+
+- [📦 Installation](#-installation)
+- [⚙️ Usage](#-usage)
+- [🔍 Picker source](#-picker-source)
+- [📣 Self-Promotion](#-self-promotion)
+- [💬 Feedback](#-feedback)
+- [📄 License](#-license)
+
+<!-- vim-markdown-toc -->
+
+## 📦 Installation
 
 Using nvim-plug:
 
@@ -29,7 +40,7 @@ require('plug').add({
 })
 ```
 
-## Usage
+## ⚙️ Usage
 
 Use `:Chat` command to open this plugin.
 
@@ -60,3 +71,19 @@ These sources allow you to quickly access and manage your chat sessions, provide
 3. `chat_model` - Select available models for the current provider
    - Lists all compatible models for your selected provider
    - Intelligent filtering based on provider capabilities
+
+## 📣 Self-Promotion
+
+Like this plugin? Star the repository on
+GitHub.
+
+Love this plugin? Follow [me](https://wsdjeg.net/) on
+[GitHub](https://github.com/wsdjeg).
+
+## 💬 Feedback
+
+If you encounter any bugs or have suggestions, please file an issue in the [issue tracker](https://github.com/wsdjeg/chat.nvim/issues).
+
+## 📄 License
+
+This project is licensed under the GPL-3.0 License.
