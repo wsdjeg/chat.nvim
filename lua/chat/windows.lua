@@ -95,7 +95,16 @@ function M.set_model(model)
 end
 
 function M.open(opt)
-  if #config.config.api_key == 0 then
+  if
+    (
+      type(config.config.api_key) == 'table'
+      and vim.tbl_isempty(config.config.api_key)
+    )
+    or (
+      type(config.config.api_key) == 'string'
+      and #config.config.api_key == 0
+    )
+  then
     log.notify('api_key is required!', 'WarningMsg')
     return
   end
@@ -191,7 +200,11 @@ function M.open(opt)
           )
           vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
         end
-        requestObj.api_key = config.config.api_key
+        if type(config.config.api_key) == 'string' then
+          requestObj.api_key = config.config.api_key
+        elseif type(config.config.api_key) == 'table' then
+          requestObj.api_key = config.config.api_key[config.config.provider]
+        end
         local ok, provider =
           pcall(require, 'chat.providers.' .. config.config.provider)
         if ok then

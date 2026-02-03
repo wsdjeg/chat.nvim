@@ -12,7 +12,7 @@ local default = {
 M.config = vim.tbl_deep_extend('force', default, {})
 
 function M.setup(opt)
-  M.config = vim.tbl_deep_extend('force', default, opt)
+  M.config = vim.tbl_deep_extend('force', M.config, opt)
 end
 
 return M

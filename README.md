@@ -41,4 +41,20 @@ Use `:Chat` command to open this plugin.
 
 ## 🔍 Picker source
 
-Use `:Picker chat` to fuzzy find chat sessions.
+chat.nvim provides built-in picker sources for seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim).
+These sources allow you to quickly access and manage your chat sessions, providers, and models.
+
+**Available Sources:**
+
+1. `chat` - Search through your chat history sessions
+   - Uses the **first message** of each session as the search string
+   - Quickly resume previous conversations
+   - Supports filtering and session management
+
+2. `chat_provider` - Switch between different AI providers
+   - Dynamically change between supported providers (DeepSeek, OpenAI, etc.)
+   - Real-time switching without restarting Neovim
+
+3. `chat_model` - Select available models for the current provider
+   - Lists all compatible models for your selected provider
+   - Intelligent filtering based on provider capabilities
