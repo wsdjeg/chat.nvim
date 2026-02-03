@@ -23,6 +23,7 @@ require('plug').add({
       api_key = 'your api key',
       width = 0.8, -- 80% of vim.o.columns
       height = 0.8, -- 80% of vim.o.lines
+      border = 'rounded',
     },
   },
 })
@@ -32,10 +33,11 @@ require('plug').add({
 
 Use `:Chat` command to open this plugin.
 
-| mode     | key binding | description        |
-| -------- | ----------- | ------------------ |
-| `Normal` | `<Enter>`   | Sent message       |
-| `Normal` | `q`         | Close chat windows |
+| mode     | key binding | description                                   |
+| -------- | ----------- | --------------------------------------------- |
+| `Normal` | `<Enter>`   | Sent message                                  |
+| `Normal` | `q`         | Close chat windows                            |
+| `Normal` | `<Tab>`     | Switch between input window and result window |
 
 ## 🔍 Picker source
 

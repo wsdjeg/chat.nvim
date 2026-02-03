@@ -113,6 +113,11 @@ function M.open(opt)
       callback = M.close,
       silent = true,
     })
+    vim.api.nvim_buf_set_keymap(result_buf, 'n', '<Tab>', '', {
+      callback = function()
+        vim.api.nvim_set_current_win(prompt_win)
+      end
+    })
     if #requestObj.messages > 0 then
       vim.api.nvim_buf_set_lines(
         result_buf,
@@ -131,7 +136,7 @@ function M.open(opt)
       col = start_col,
       height = screen_height - 5,
       width = screen_width,
-      border = 'rounded',
+      border = config.config.border,
     })
     vim.api.nvim_set_option_value(
       'winhighlight',
@@ -195,11 +200,16 @@ function M.open(opt)
       callback = M.close,
       silent = true,
     })
+    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Tab>', '', {
+      callback = function()
+        vim.api.nvim_set_current_win(result_win)
+      end
+    })
   end
   if not vim.api.nvim_win_is_valid(prompt_win) then
     prompt_win = vim.api.nvim_open_win(prompt_buf, true, {
       relative = 'editor',
-      border = 'rounded',
+      border = config.config.border,
       col = start_col,
       row = start_row + screen_height - 3,
       width = screen_width,
