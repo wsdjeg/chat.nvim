@@ -1,8 +1,8 @@
 local M = {}
+local config = require('chat.config')
 
 function M.get()
   local items = {}
-  local config = require('chat.config')
   local ok, provider =
     pcall(require, 'chat.providers.' .. config.config.provider)
   if ok and provider.available_models then
@@ -17,7 +17,7 @@ function M.get()
 end
 
 function M.default_action(item)
-  require('chat').setup({ model = item.value })
+  config.config.model = item.value
   require('chat.windows').set_model(item.model)
 end
 
