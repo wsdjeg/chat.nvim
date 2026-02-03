@@ -175,7 +175,7 @@ function M.open(opt)
           end
           table.insert(
             requestObj.messages,
-            { role = 'user', content = table.concat(content) }
+            { role = 'user', content = table.concat(content, '\n') }
           )
           provider.request(requestObj)
         else
