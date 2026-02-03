@@ -1,5 +1,12 @@
 local M = {}
 
+function M.available_models()
+  return {
+    'deepseek-chat',
+    'deepseek-reasoner',
+  }
+end
+
 function M.request(requestObj)
   local cmd = {
     'curl',
@@ -13,7 +20,7 @@ function M.request(requestObj)
     'POST',
     '-d',
     vim.json.encode({
-      model = 'deepseek-chat',
+      model = requestObj.model,
       messages = requestObj.messages,
       stream = false,
     }),

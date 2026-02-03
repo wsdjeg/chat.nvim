@@ -82,6 +82,18 @@ function M.generate_buffer(messages)
   return lines
 end
 
+function M.set_model(model)
+  if vim.api.nvim_win_is_valid(prompt_win) then
+    vim.api.nvim_win_set_config(prompt_win, {
+      title = ' Input ' .. string.format(
+        '( %s %s)',
+        config.config.provider,
+        config.config.model
+      ),
+    })
+  end
+end
+
 function M.open(opt)
   if #config.config.api_key == 0 then
     log.notify('api_key is required!', 'WarningMsg')
@@ -190,6 +202,7 @@ function M.open(opt)
             requestObj.messages,
             { role = 'user', content = table.concat(content, '\n') }
           )
+          requestObj.model = config.config.model
           provider.request(requestObj)
         else
           requestObj.callback(
@@ -214,7 +227,11 @@ function M.open(opt)
     prompt_win = vim.api.nvim_open_win(prompt_buf, true, {
       relative = 'editor',
       border = config.config.border,
-      title = ' Input ',
+      title = ' Input ' .. string.format(
+        '( %s %s)',
+        config.config.provider,
+        config.config.model
+      ),
       title_pos = 'center',
       col = start_col,
       row = start_row + screen_height - 3,

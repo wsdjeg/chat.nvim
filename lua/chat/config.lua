@@ -4,6 +4,7 @@ local default = {
   width = 0.8, -- 80% of screen
   height = 0.8,
   provider = 'deepseek',
+  model = 'deepseek-chat',
   border = 'rounded',
   api_key = '',
 }
