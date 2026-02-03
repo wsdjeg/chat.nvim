@@ -36,6 +36,8 @@ function M.request(requestObj)
           else
             requestObj.callback(result)
           end
+        else
+          requestObj.callback(nil, 'JSON parse error: ' .. result)
         end
       end
     end
