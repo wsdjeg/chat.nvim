@@ -21,6 +21,8 @@ require('plug').add({
     opt = {
       provider = 'deepseek',
       api_key = 'your api key',
+      width = 0.8, -- 80% of vim.o.columns
+      height = 0.8, -- 80% of vim.o.lines
     },
   },
 })
