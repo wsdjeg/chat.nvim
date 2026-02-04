@@ -14,6 +14,7 @@ A lightweight and extensible pure-Lua chat plugin for Neovim,
 
 - [📦 Installation](#-installation)
 - [⚙️ Usage](#-usage)
+- [🤖 Providers](#-providers)
 - [🔍 Picker source](#-picker-source)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
@@ -49,6 +50,72 @@ Use `:Chat` command to open this plugin.
 | `Normal` | `<Enter>`   | Sent message                                  |
 | `Normal` | `q`         | Close chat windows                            |
 | `Normal` | `<Tab>`     | Switch between input window and result window |
+
+## 🤖 Providers
+
+currently chat.nvim provides following built-in providers:
+
+1. `github` - github.ai
+2. `deepseek` - deepseek.com
+
+chat.nvim also supports custom provider, just create `lua/chat/providers/<provider_name>.lua`, this lua module
+should provides two functions `request` and `available_models`, here is an example for using [free_chatgpt_api](https://github.com/popjane/free_chatgpt_api)
+
+```lua
+local M = {}
+
+function M.available_models()
+  return {
+    'gpt-4o-mini',
+  }
+end
+
+function M.request(requestObj)
+  local cmd = {
+    'curl',
+    '-s',
+    'https://free.v36.cm/v1/chat/completions',
+    '-H',
+    'Content-Type: application/json',
+    '-H',
+    'Authorization: Bearer ' .. requestObj.api_key,
+    '-X',
+    'POST',
+    '-d',
+    vim.json.encode({
+      model = requestObj.model,
+      messages = requestObj.messages,
+      stream = false,
+    }),
+  }
+
+  vim.system(cmd, { text = true }, function(obj)
+    if obj.code ~= 0 then
+      requestObj.callback(nil, 'HTTP Error:' .. obj.stderr)
+    else
+      if obj.stdout then
+        local response = vim.trim(obj.stdout)
+        if response == '' then
+          requestObj.callback(nil, 'empty response')
+          return
+        end
+        local ok, result = pcall(vim.json.decode, response)
+        if ok then
+          if result.error then
+            requestObj.callback(nil, vim.inspect(result.error))
+          else
+            requestObj.callback(result)
+          end
+        else
+          requestObj.callback(nil, 'JSON parse error: ' .. result)
+        end
+      end
+    end
+  end)
+end
+
+return M
+```
 
 ## 🔍 Picker source
 
