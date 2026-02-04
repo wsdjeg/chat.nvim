@@ -10,36 +10,99 @@ local prompt_buf = -1
 local result_win = -1
 local result_buf = -1
 local requestObj = {}
-requestObj.messages = {}
 
--- callback function is called on uv callback, we need schedule
-requestObj.callback = function(result, error)
+function requestObj.on_stream(chunk)
+  if vim.api.nvim_buf_is_valid(result_buf) then
+    local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
+    local lines = vim.split(chunk.content, '\n')
+    lines[1] = last_line .. lines[1]
+    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
+    end
+  end
+end
+
+-- on_stdout 被每一个 request job 的 stdout 回调，
+-- 根据 ID 判断是哪一个 request，并且更新当前 session
+-- 的窗口内容。
+function requestObj.on_stdout(id, data)
   vim.schedule(function()
-    local message
-    if not result then
-      message = {
-        string.format('[%s] ❌ Error:', os.date('%H:%M')),
+    local session = sessions.get_progress_session(id)
+    for _, line in ipairs(data) do
+      if line == 'data: [DONE]' then
+        if session == requestObj.session then
+          requestObj.on_complete()
+        end
+      elseif vim.startswith(line, 'data: ') then
+        local text = string.sub(line, 7)
+        local ok, chuck = pcall(vim.json.decode, text)
+        if ok and chuck.choices and #chuck.choices > 0 then
+          local content = chuck.choices[1].delta.content
+          if content then
+            if session == requestObj.session then
+              requestObj.on_stream({
+                content = content,
+              })
+            end
+            sessions.on_progress(id, content)
+          end
+        end
+      end
+    end
+  end)
+end
+
+function requestObj.on_exit(id, code, signal)
+  local session = sessions.get_progress_session(id)
+  if requestObj.session == session then
+    if signal == 2 then
+      local message = {
+        '',
+        string.format(
+          '[%s] ❌ : Request cancelled by user.',
+          os.date('%H:%M')
+        ),
         '',
       }
-
-      local lines =
-        vim.split(tostring(error or 'unknown error'), '\n', { plain = true })
-      for _, v in ipairs(lines) do
-        table.insert(message, v)
+      if vim.api.nvim_buf_is_valid(result_buf) then
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
       end
+      if vim.api.nvim_win_is_valid(result_win) then
+        vim.api.nvim_win_set_cursor(
+          result_win,
+          { vim.api.nvim_buf_line_count(result_buf), 0 }
+        )
+      end
+    end
+  end
+  sessions.on_progress_done(id, code, signal)
+end
 
-      vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
-      return
-    end
-    table.insert(requestObj.messages, result.choices[1].message)
-    message = { '[' .. os.date('%H:%M') .. '] 🤖 Bot:', '' }
-    local rst = vim.split(result.choices[1].message.content, '\n')
-    for _, v in ipairs(rst) do
-      table.insert(message, v)
-    end
-    vim.api.nvim_buf_set_lines(result_buf, -4, -1, false, message)
-    sessions.write_cache(requestObj.session)
-  end)
+function M.test(text)
+  requestObj.on_stream({
+    content = text,
+  })
+end
+
+function requestObj.on_complete()
+  local message = {
+    '',
+    '[' .. os.date('%H:%M') .. '] 🤖 Bot: ------ ✅ 已完成 ------',
+    '',
+  }
+  if vim.api.nvim_buf_is_valid(result_buf) then
+    vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+  end
+  if vim.api.nvim_win_is_valid(result_win) then
+    vim.api.nvim_win_set_cursor(
+      result_win,
+      { vim.api.nvim_buf_line_count(result_buf), 0 }
+    )
+  end
 end
 
 function M.close()
@@ -108,6 +171,9 @@ function M.open(opt)
     log.notify('api_key is required!', 'WarningMsg')
     return
   end
+  if not requestObj.session then
+    requestObj.session, requestObj.messages = sessions.new()
+  end
   if opt and opt.session and opt.session ~= requestObj.session then
     requestObj.session = opt.session
     requestObj.messages = require('chat.sessions').get_messages(opt.session)
@@ -119,6 +185,20 @@ function M.open(opt)
         false,
         M.generate_buffer(requestObj.messages)
       )
+      if sessions.is_in_progress(requestObj.session) then
+        local message = sessions.get_progress_message(requestObj.session)
+        if message then
+          local lines = { '' }
+          for _, l in
+            ipairs(
+              M.generate_message({ role = 'assistant', content = message })
+            )
+          do
+            table.insert(lines, l)
+          end
+          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+        end
+      end
     end
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
@@ -147,6 +227,20 @@ function M.open(opt)
         M.generate_buffer(requestObj.messages)
       )
     end
+    if sessions.is_in_progress(requestObj.session) then
+      local message = sessions.get_progress_message(requestObj.session)
+      if message then
+        local lines = { '' }
+        for _, l in
+          ipairs(
+            M.generate_message({ role = 'assistant', content = message })
+          )
+        do
+          table.insert(lines, l)
+        end
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+      end
+    end
   end
 
   if not vim.api.nvim_win_is_valid(result_win) then
@@ -171,12 +265,21 @@ function M.open(opt)
   if not vim.api.nvim_buf_is_valid(prompt_buf) then
     prompt_buf = vim.api.nvim_create_buf(false, false)
     vim.api.nvim_set_option_value('buftype', 'nofile', { buf = prompt_buf })
+    --- 回车这操作是进行发送请求，需要判断
+    --- 当前session，有没有正在进行的请求未完成？
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Enter>', '', {
       callback = function()
         local content = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
         if #content == 1 and content[1] == '' then
           return
         else
+          if sessions.is_in_progress(requestObj.session) then
+            log.notify(
+              { 'Request in progress.', 'Press Ctrl-C to cancel.' },
+              'WarningMsg'
+            )
+            return
+          end
           local message =
             { '[' .. os.date('%H:%M') .. '] 👤 You:' .. content[1] }
           if #content > 1 then
@@ -206,9 +309,6 @@ function M.open(opt)
         local ok, provider =
           pcall(require, 'chat.providers.' .. config.config.provider)
         if ok then
-          if #requestObj.messages == 0 then
-            requestObj.session, requestObj.messages = sessions.new()
-          end
           table.insert(
             requestObj.messages,
             { role = 'user', content = table.concat(content, '\n') }
@@ -216,9 +316,9 @@ function M.open(opt)
           requestObj.model = config.config.model
           provider.request(requestObj)
         else
-          requestObj.callback(
-            nil,
-            'failed to load provider:' .. config.config.provider
+          log.notify(
+            'failed to load provider:' .. config.config.provider,
+            'WarningMsg'
           )
         end
       end,
@@ -231,6 +331,11 @@ function M.open(opt)
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Tab>', '', {
       callback = function()
         vim.api.nvim_set_current_win(result_win)
+      end,
+    })
+    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-c>', '', {
+      callback = function()
+        require('chat.sessions').cancel_progress(requestObj.session)
       end,
     })
   end

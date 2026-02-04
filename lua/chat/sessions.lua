@@ -21,7 +21,7 @@ function M.write_cache(session)
 end
 
 function M.delete(session)
-  vim.fn.delete(cache_dir .. session ..'.json')
+  vim.fn.delete(cache_dir .. session .. '.json')
   sessions[session] = nil
 end
 
@@ -37,6 +37,77 @@ function M.get()
     end
   end
   return sessions
+end
+
+local jobid_session = {}
+
+-- 以 session 为 key，存储未完成的消息
+local progress_messages = {}
+
+---@param jobid integer
+---@return string
+function M.on_progress_done(jobid, code, single)
+  local session = M.get_progress_session(jobid)
+  if code == 0 and single == 0 then
+    table.insert(sessions[session], {
+      role = 'assistant',
+      content = progress_messages[session],
+    })
+    progress_messages[session] = nil
+    jobid_session[jobid] = nil
+    M.write_cache(session)
+  else
+    progress_messages[session] = nil
+    jobid_session[jobid] = nil
+  end
+end
+
+function M.is_in_progress(session)
+  for _, v in pairs(jobid_session) do
+    if v == session then
+      return true
+    end
+  end
+end
+
+function M.cancel_progress(session)
+  for jobid, v in pairs(jobid_session) do
+    if v == session then
+      -- 1. Ctrl-C 对应的信号
+      --
+      -- 在类 Unix 系统里：
+      --
+      -- 操作	信号名称	信号编号
+      -- Ctrl-C	SIGINT	2
+      -- kill -9	SIGKILL	9
+      -- kill -15	SIGTERM	15
+      --
+      -- 所以，按 Ctrl-C 会发送 SIGINT，它对应的 数字是 2。
+      require('job').stop(jobid, 2)
+    end
+  end
+end
+
+-- 不处理 role，AI 回复的 message role 都是 assistant
+function M.on_progress(id, text)
+  local session = jobid_session[id]
+  if session then
+    progress_messages[session] = (progress_messages[session] or '') .. text
+  end
+end
+
+function M.get_progress_message(session)
+  return progress_messages[session]
+end
+
+function M.get_progress_session(id)
+  return jobid_session[id]
+end
+
+function M.set_session_jobid(session, jobid)
+  if jobid > 0 then
+    jobid_session[jobid] = session
+  end
 end
 
 function M.get_messages(session)

@@ -6,12 +6,25 @@ function M.get()
   local sessions = require('chat.sessions').get()
   local items = {}
 
-  for id, session in pairs(sessions) do
-    local str = vim.split(session[1].content, '\n')[1]
-    table.insert(items, {
-      str = str,
-      value = id,
-    })
+  local ids = {}
+
+  for id, _ in pairs(sessions) do
+    table.insert(ids, id)
+  end
+
+  table.sort(ids, function(a, b)
+    return a > b
+  end)
+
+  for _, id in ipairs(ids) do
+    local messages = sessions[id]
+    if #messages > 1 then
+      local str = vim.split(messages[1].content, '\n')[1]
+      table.insert(items, {
+        str = str,
+        value = id,
+      })
+    end
   end
 
   return items
