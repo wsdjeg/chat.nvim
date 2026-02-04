@@ -40,7 +40,7 @@ function M.get()
 end
 
 function M.get_messages(session)
-  return sessions[session]
+  return sessions[session] or {}
 end
 
 function M.new()
