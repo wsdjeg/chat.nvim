@@ -361,6 +361,9 @@ function M.open(opt)
     )
     vim.api.nvim_set_option_value('wrap', true, { win = prompt_win })
   else
+    if vim.api.nvim_win_get_buf(prompt_win) ~= prompt_buf then
+      vim.api.nvim_win_set_buf(prompt_win, prompt_buf)
+    end
     vim.api.nvim_set_current_win(prompt_win)
   end
 end
