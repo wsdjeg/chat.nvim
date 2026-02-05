@@ -1,6 +1,7 @@
 # chat.nvim
 
-A lightweight and extensible pure-Lua chat plugin for Neovim,
+A lightweight, extensible chat plugin for Neovim with AI integration.
+Chat with AI assistants directly in your editor using a clean, floating window interface.
 
 [![GitHub License](https://img.shields.io/github/license/wsdjeg/chat.nvim)](LICENSE)
 [![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/issues)
@@ -12,16 +13,28 @@ A lightweight and extensible pure-Lua chat plugin for Neovim,
 
 <!-- vim-markdown-toc GFM -->
 
+- [✨ Features](#-features)
 - [📦 Installation](#-installation)
 - [⚙️ Usage](#-usage)
     - [Key Bindings](#key-bindings)
 - [🤖 Providers](#-providers)
-- [🔍 Picker source](#-picker-source)
+    - [Built-in Providers](#built-in-providers)
+    - [Custom Providers](#custom-providers)
+- [🔍 Picker Integration](#-picker-integration)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
 
 <!-- vim-markdown-toc -->
+## ✨ Features
+
+- **Multiple AI Providers**: Built-in support for GitHub AI and DeepSeek
+- **Custom Provider Support**: Easily add your own AI providers
+- **Floating Window Interface**: Clean, non-intrusive chat interface
+- **Session Management**: Resume previous conversations
+- **Picker Integration**: Seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim)
+- **Streaming Responses**: Real-time AI responses with cancellation support
+- **Lightweight**: Pure Lua implementation with minimal dependencies
 
 ## 📦 Installation
 
@@ -70,10 +83,17 @@ The following key bindings are available in the **Result** window:
 
 ## 🤖 Providers
 
-currently chat.nvim provides following built-in providers:
+### Built-in Providers
 
-1. `github` - github.ai
-2. `deepseek` - deepseek.com
+1. **`deepseek`** - [DeepSeek AI](https://platform.deepseek.com/)
+   - Models: `deepseek-chat`, `deepseek-coder`
+   - Requires: API key from DeepSeek platform
+
+2. **`github`** - [GitHub AI](https://github.com/features/ai)
+   - Models: Provider-specific models
+   - Requires: GitHub AI access token
+
+### Custom Providers
 
 chat.nvim also supports custom provider, just create `lua/chat/providers/<provider_name>.lua`, this lua module
 should provides two functions `request` and `available_models`,
@@ -119,7 +139,7 @@ end
 return M
 ```
 
-## 🔍 Picker source
+## 🔍 Picker Integration
 
 chat.nvim provides built-in picker sources for seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim).
 These sources allow you to quickly access and manage your chat sessions, providers, and models.
