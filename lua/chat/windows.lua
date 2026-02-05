@@ -26,6 +26,24 @@ function requestObj.on_stream(chunk)
   end
 end
 
+local function on_api_error(session, error) end
+-- local function handle_api_error(error_obj, session, requestObj, id)
+--   local error_msg = error_obj.message or "Unknown error"
+--   local error_code = error_obj.code or error_obj.type or "unknown"
+--
+--   vim.notify("API Error (" .. error_code .. "): " .. error_msg, vim.log.levels.ERROR)
+--
+--   if session == requestObj.session then
+--     requestObj.on_error({
+--       message = error_msg,
+--       code = error_code,
+--       type = error_obj.type,
+--       param = error_obj.param
+--     })
+--   end
+--   sessions.clear_progress_session(id)
+-- end
+
 -- on_stdout 被每一个 request job 的 stdout 回调，
 -- 根据 ID 判断是哪一个 request，并且更新当前 session
 -- 的窗口内容。
@@ -33,6 +51,7 @@ function requestObj.on_stdout(id, data)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
     for _, line in ipairs(data) do
+      log.info(line)
       if line == 'data: [DONE]' then
         if session == requestObj.session then
           requestObj.on_complete()
@@ -40,7 +59,9 @@ function requestObj.on_stdout(id, data)
       elseif vim.startswith(line, 'data: ') then
         local text = string.sub(line, 7)
         local ok, chuck = pcall(vim.json.decode, text)
-        if ok and chuck.choices and #chuck.choices > 0 then
+        if not ok then
+          -- log error
+        elseif chuck.choices and #chuck.choices > 0 then
           local content = chuck.choices[1].delta.content
           if content then
             if session == requestObj.session then
@@ -51,12 +72,50 @@ function requestObj.on_stdout(id, data)
             sessions.on_progress(id, content)
           end
         end
+      elseif vim.startswith(line, '{"error":') then
+        local ok, chuck = pcall(vim.json.decode, line)
+        if ok and chuck.error then
+          local error_msg = chuck.error.message or 'Unknown error'
+          local error_code = chuck.error.code or chuck.type or 'unknown'
+          if session == requestObj.session then
+            local message = {
+              '',
+              string.format(
+                '[%s] ❌ : API Error (%s): %s',
+                os.date('%H:%M'),
+                error_code,
+                error_msg
+              ),
+              '',
+            }
+            if vim.api.nvim_buf_is_valid(result_buf) then
+              vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+            end
+            if vim.api.nvim_win_is_valid(result_win) then
+              vim.api.nvim_win_set_cursor(
+                result_win,
+                { vim.api.nvim_buf_line_count(result_buf), 0 }
+              )
+            end
+          end
+        end
       end
     end
   end)
 end
 
+function requestObj.on_stderr(id, data)
+  vim.schedule(function()
+    for _, line in ipairs(data) do
+      log.info(line)
+    end
+  end)
+end
+
 function requestObj.on_exit(id, code, signal)
+  vim.schedule(function()
+    log.info(string.format('job exit code %d signal %d', code, signal))
+  end)
   local session = sessions.get_progress_session(id)
   if requestObj.session == session then
     if signal == 2 then

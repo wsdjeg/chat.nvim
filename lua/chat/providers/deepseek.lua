@@ -31,6 +31,7 @@ function M.request(requestObj)
 
   local jobid = job.start(cmd, {
     on_stdout = requestObj.on_stdout,
+    on_stderr = requestObj.on_stderr,
     on_exit = requestObj.on_exit,
   })
   sessions.set_session_jobid(requestObj.session, jobid)
