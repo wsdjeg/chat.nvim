@@ -9,7 +9,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 [![GitHub Release](https://img.shields.io/github/v/release/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/releases)
 [![luarocks](https://img.shields.io/luarocks/v/wsdjeg/chat.nvim)](https://luarocks.org/modules/wsdjeg/chat.nvim)
 
-![chat.nvim](https://github.com/user-attachments/assets/bc51314c-a983-4b9e-9056-e1bf4dc51acc)
+![chat.nvim](https://wsdjeg.net/images/chat-nvim-intro.png)
 
 <!-- vim-markdown-toc GFM -->
 
@@ -151,15 +151,18 @@ These sources allow you to quickly access and manage your chat sessions, provide
    - Uses the **first message** of each session as the search string
    - Quickly resume previous conversations
    - Supports filtering and session management
+   ![picker-chat](https://wsdjeg.net/images/picker-chat.png)
 
 2. `chat_provider` - Switch between different AI providers
 
    - Dynamically change between supported providers (DeepSeek, OpenAI, etc.)
    - Real-time switching without restarting Neovim
+   ![picker-chat](https://wsdjeg.net/images/picker-chat-provider.png)
 
 3. `chat_model` - Select available models for the current provider
    - Lists all compatible models for your selected provider
    - Intelligent filtering based on provider capabilities
+   ![picker-chat](https://wsdjeg.net/images/picker-chat-model.png)
 
 ## 📣 Self-Promotion
 
