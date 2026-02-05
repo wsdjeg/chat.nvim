@@ -14,6 +14,7 @@ A lightweight and extensible pure-Lua chat plugin for Neovim,
 
 - [📦 Installation](#-installation)
 - [⚙️ Usage](#-usage)
+    - [Key Bindings](#key-bindings)
 - [🤖 Providers](#-providers)
 - [🔍 Picker source](#-picker-source)
 - [📣 Self-Promotion](#-self-promotion)
@@ -46,13 +47,26 @@ require('plug').add({
 
 ## ⚙️ Usage
 
-Use `:Chat` command to open this plugin.
+Use the `:Chat` command to launch this plugin.
 
-| mode     | key binding | description                                   |
-| -------- | ----------- | --------------------------------------------- |
-| `Normal` | `<Enter>`   | Sent message                                  |
-| `Normal` | `q`         | Close chat windows                            |
-| `Normal` | `<Tab>`     | Switch between input window and result window |
+### Key Bindings
+
+The following key bindings are available in the **Input** window:
+
+| Mode     | Key Binding | Description                           |
+| -------- | ----------- | ------------------------------------- |
+| `Normal` | `<Enter>`   | Send message                          |
+| `Normal` | `q`         | Close chat window                     |
+| `Normal` | `<Tab>`     | Switch between input and result windows |
+| `Normal` | `Ctrl-C`    | Cancel current request                |
+| `Normal` | `r`         | Retry last cancelled request          |
+
+The following key bindings are available in the **Result** window:
+
+| Mode     | Key Binding | Description                           |
+| -------- | ----------- | ------------------------------------- |
+| `Normal` | `q`         | Close chat window                     |
+| `Normal` | `<Tab>`     | Switch between input and result windows |
 
 ## 🤖 Providers
 
