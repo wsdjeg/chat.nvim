@@ -54,14 +54,18 @@ function requestObj.on_stdout(id, data)
       log.info(line)
       if line == 'data: [DONE]' then
         if session == requestObj.session then
-          requestObj.on_complete()
+          requestObj.on_complete(sessions.get_progress_usage(id))
         end
       elseif vim.startswith(line, 'data: ') then
         local text = string.sub(line, 7)
         local ok, chuck = pcall(vim.json.decode, text)
         if not ok then
           -- log error
-        elseif chuck.choices and #chuck.choices > 0 then
+        elseif
+          chuck.choices
+          and #chuck.choices > 0
+          and chuck.choices[1].delta.content ~= ''
+        then
           local content = chuck.choices[1].delta.content
           if content then
             if session == requestObj.session then
@@ -71,6 +75,8 @@ function requestObj.on_stdout(id, data)
             end
             sessions.on_progress(id, content)
           end
+        elseif chuck.usage then
+          sessions.set_progress_usage(id, chuck.usage)
         end
       elseif vim.startswith(line, '{"error":') then
         local ok, chuck = pcall(vim.json.decode, line)
@@ -147,10 +153,34 @@ function M.test(text)
   })
 end
 
-function requestObj.on_complete()
+function requestObj.on_complete(usage)
+  local complete_str = '------ ✅ 已完成 ------'
+  if usage then
+    -- ```json
+    -- {
+    --   "id": "chatcmpl-xxx",
+    --   "object": "chat.completion",
+    --   "created": 1234567890,
+    --   "model": "deepseek-chat",
+    --   "choices": [...],
+    --   "usage": {
+    --     "prompt_tokens": 100,      // 输入token数
+    --     "completion_tokens": 200,  // 输出token数
+    --     "total_tokens": 300        // 总token数
+    --   }
+    -- }
+    -- ```
+    complete_str = complete_str
+      .. string.format(
+        ' token usage: Input %d, Output %d, Total %d',
+        usage.prompt_tokens,
+        usage.completion_tokens,
+        usage.total_tokens
+      )
+  end
   local message = {
     '',
-    '[' .. os.date('%H:%M') .. '] 🤖 Bot: ------ ✅ 已完成 ------',
+    '[' .. os.date('%H:%M') .. '] 🤖 Bot: ' .. complete_str,
     '',
   }
   if vim.api.nvim_buf_is_valid(result_buf) then

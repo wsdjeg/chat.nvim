@@ -104,6 +104,16 @@ function M.get_progress_session(id)
   return jobid_session[id]
 end
 
+local progress_usage = {}
+
+function M.set_progress_usage(id, usage)
+  progress_usage[id] = usage
+end
+
+function M.get_progress_usage(id)
+  return progress_usage[id]
+end
+
 function M.set_session_jobid(session, jobid)
   if jobid > 0 then
     jobid_session[jobid] = session
