@@ -63,7 +63,7 @@ function requestObj.on_exit(id, code, signal)
       local message = {
         '',
         string.format(
-          '[%s] ❌ : Request cancelled by user.',
+          '[%s] ❌ : Request cancelled by user. Press r to retry.',
           os.date('%H:%M')
         ),
         '',
@@ -336,6 +336,39 @@ function M.open(opt)
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-c>', '', {
       callback = function()
         require('chat.sessions').cancel_progress(requestObj.session)
+      end,
+    })
+    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', 'r', '', {
+      callback = function()
+        if sessions.is_in_progress(requestObj.session) then
+          log.notify('Request is in progress.')
+          return
+        end
+        local ok, provider =
+          pcall(require, 'chat.providers.' .. config.config.provider)
+        if ok then
+          if
+            #requestObj.messages > 0
+            and requestObj.messages[#requestObj.messages].role == 'user'
+          then
+            local message = {}
+            table.insert(message, '')
+            table.insert(
+              message,
+              '[' .. os.date('%H:%M') .. '] 🤖 Bot: thinking ...'
+            )
+            table.insert(message, '')
+            table.insert(message, '')
+            vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+            requestObj.model = config.config.model
+            provider.request(requestObj)
+          end
+        else
+          log.notify(
+            'failed to load provider:' .. config.config.provider,
+            'WarningMsg'
+          )
+        end
       end,
     })
   end
