@@ -25,6 +25,9 @@ function M.request(requestObj)
     vim.json.encode({
       model = requestObj.model,
       messages = requestObj.messages,
+      thinking = {
+        type = 'enabled'
+      },
       stream = true,
       stream_options = { include_usage = true },
       tools = require('chat.tools').available_tools(),

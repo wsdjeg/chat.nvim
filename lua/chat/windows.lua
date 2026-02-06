@@ -101,6 +101,7 @@ function requestObj.on_stdout(id, data)
         elseif
           chuck.choices
           and #chuck.choices > 0
+          and chuck.choices[1].delta.reasoning_content
           and chuck.choices[1].delta.reasoning_content ~= vim.NIL
         then
           local content = chuck.choices[1].delta.reasoning_content
@@ -115,7 +116,8 @@ function requestObj.on_stdout(id, data)
         elseif
           chuck.choices
           and #chuck.choices > 0
-          and chuck.choices[1].delta.content ~= ''
+          and chuck.choices[1].delta.content
+          and chuck.choices[1].delta.content ~= vim.NIL
         then
           local content = chuck.choices[1].delta.content
           if content and content ~= vim.NIL then
