@@ -11,13 +11,22 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 
+-- 此函数只会被当前 session 的数据流调用。
+-- 设定一个变量，分割 content and reasoning_content
+local is_thinking
 function requestObj.on_stream(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
     if chunk.content then
       local last_line =
         vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
       local lines = vim.split(chunk.content, '\n')
-      lines[1] = last_line .. lines[1]
+      if is_thinking then
+        table.insert(lines, 1, '')
+        table.insert(lines, 1, last_line)
+        is_thinking = false
+      else
+        lines[1] = last_line .. lines[1]
+      end
       vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
       if vim.api.nvim_win_is_valid(result_win) then
         vim.api.nvim_win_set_cursor(
@@ -28,11 +37,13 @@ function requestObj.on_stream(chunk)
     elseif chunk.reasoning_content then
       local last_line =
         vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
-      if last_line == '' then
-        last_line = '> '
-      end
       local lines = vim.split(chunk.reasoning_content, '\n')
-      lines[1] = last_line .. lines[1]
+      if not is_thinking then
+        table.insert(lines, 1, last_line)
+        is_thinking = true
+      else
+        lines[1] = last_line .. lines[1]
+      end
       for i = 2, #lines do
         lines[i] = '> ' .. lines[i]
       end
@@ -79,32 +90,32 @@ function requestObj.on_stdout(id, data)
         end
       elseif vim.startswith(line, 'data: ') then
         local text = string.sub(line, 7)
-        local ok, chuck = pcall(vim.json.decode, text)
+        local ok, chunk = pcall(vim.json.decode, text)
         if not ok then
           -- log error
         elseif
-          chuck.choices
-          and #chuck.choices > 0
-          and chuck.choices[1].delta.tool_calls
+          chunk.choices
+          and #chunk.choices > 0
+          and chunk.choices[1].delta.tool_calls
         then
           log.info('handle tool_calls chunk')
-          for _, tool_call in ipairs(chuck.choices[1].delta.tool_calls) do
+          for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
             sessions.on_progress_tool_call(id, tool_call)
           end
         elseif
-          chuck.choices
-          and #chuck.choices > 0
-          and chuck.choices[1].finish_reason == 'tool_calls'
+          chunk.choices
+          and #chunk.choices > 0
+          and chunk.choices[1].finish_reason == 'tool_calls'
         then
           log.info('handle tool_calls finish_reason')
           sessions.on_progress_tool_call_done(id)
         elseif
-          chuck.choices
-          and #chuck.choices > 0
-          and chuck.choices[1].delta.reasoning_content
-          and chuck.choices[1].delta.reasoning_content ~= vim.NIL
+          chunk.choices
+          and #chunk.choices > 0
+          and chunk.choices[1].delta.reasoning_content
+          and chunk.choices[1].delta.reasoning_content ~= vim.NIL
         then
-          local content = chuck.choices[1].delta.reasoning_content
+          local content = chunk.choices[1].delta.reasoning_content
           if content and content ~= vim.NIL then
             if session == requestObj.session then
               requestObj.on_stream({
@@ -114,12 +125,12 @@ function requestObj.on_stdout(id, data)
             sessions.on_progress_reasoning_content(id, content)
           end
         elseif
-          chuck.choices
-          and #chuck.choices > 0
-          and chuck.choices[1].delta.content
-          and chuck.choices[1].delta.content ~= vim.NIL
+          chunk.choices
+          and #chunk.choices > 0
+          and chunk.choices[1].delta.content
+          and chunk.choices[1].delta.content ~= vim.NIL
         then
-          local content = chuck.choices[1].delta.content
+          local content = chunk.choices[1].delta.content
           if content and content ~= vim.NIL then
             if session == requestObj.session then
               requestObj.on_stream({
@@ -129,15 +140,15 @@ function requestObj.on_stdout(id, data)
             sessions.on_progress(id, content)
           end
         end
-        if chuck.usage and chuck.usage ~= vim.NIL then
+        if chunk.usage and chunk.usage ~= vim.NIL then
           log.info('handle usage')
-          sessions.set_progress_usage(id, chuck.usage)
+          sessions.set_progress_usage(id, chunk.usage)
         end
       elseif vim.startswith(line, '{"error":') then
-        local ok, chuck = pcall(vim.json.decode, line)
-        if ok and chuck.error then
-          local error_msg = chuck.error.message or 'Unknown error'
-          local error_code = chuck.error.code or chuck.type or 'unknown'
+        local ok, chunk = pcall(vim.json.decode, line)
+        if ok and chunk.error then
+          local error_msg = chunk.error.message or 'Unknown error'
+          local error_code = chunk.error.code or chunk.type or 'unknown'
           if session == requestObj.session then
             local message = {
               '',
@@ -328,7 +339,17 @@ function M.close()
 end
 
 function M.generate_message(message, time)
-  if message.role == 'assistant' then
+  if message.role == 'assistant' and message.tool_calls then
+    return {
+      '',
+      string.format(
+        '[%s] ] 🤖 Bot:  tool_call start: %s',
+        os.date('%H:%M'),
+        message.tool_calls[1]['function'].name
+      ),
+      '',
+    }
+  elseif message.role == 'assistant' then
     local msg = { '[' .. os.date('%H:%M', time) .. '] 🤖 Bot:', '' }
     for _, line in ipairs(vim.split(message.content, '\n')) do
       table.insert(msg, line)
@@ -345,6 +366,8 @@ function M.generate_message(message, time)
     end
     table.insert(msg, '')
     return msg
+  else
+    return {}
   end
 end
 

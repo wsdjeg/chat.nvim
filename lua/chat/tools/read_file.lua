@@ -51,7 +51,7 @@ function M.scheme()
     type = 'function',
     ['function'] = {
       name = 'read_file',
-      description = 'use @read_file ./directory/filename to read the content of the file.',
+      description = 'must contains @read_file filepath, use @read_file ./directory/filename to read the content of the file.',
       parameters = {
         type = 'object',
         properties = {
