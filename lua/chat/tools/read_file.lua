@@ -23,11 +23,16 @@ function M.read_file(action)
     }
   end
 
-  if vim.startswith(action.filepath, config.allowed_path) then
+  action.filepath = vim.fn.fnamemodify(action.filepath, ':p')
+
+  if
+    #config.config.allowed_path > 0
+    and vim.startswith(action.filepath, config.config.allowed_path)
+  then
     local ok, content = pcall(vim.fn.readfile, action.filepath)
     if ok then
       return {
-        content = content,
+        content = string.format('the file content is: \n\n%s', table.concat(content, '\n')),
       }
     else
       return {
@@ -46,7 +51,7 @@ function M.scheme()
     type = 'function',
     ['function'] = {
       name = 'read_file',
-      description = 'read file',
+      description = 'use @read_file ./directory/filename to read the content of the file.',
       parameters = {
         type = 'object',
         properties = {
@@ -55,7 +60,7 @@ function M.scheme()
             description = 'file path',
           },
         },
-      required = { 'filepath' },
+        required = { 'filepath' },
       },
     },
   }

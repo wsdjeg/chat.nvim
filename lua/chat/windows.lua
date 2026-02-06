@@ -13,15 +13,36 @@ local requestObj = {}
 
 function requestObj.on_stream(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
-    local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
-    local lines = vim.split(chunk.content, '\n')
-    lines[1] = last_line .. lines[1]
-    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if chunk.content then
+      local last_line =
+        vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
+      local lines = vim.split(chunk.content, '\n')
+      lines[1] = last_line .. lines[1]
+      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+      if vim.api.nvim_win_is_valid(result_win) then
+        vim.api.nvim_win_set_cursor(
+          result_win,
+          { vim.api.nvim_buf_line_count(result_buf), 0 }
+        )
+      end
+    elseif chunk.reasoning_content then
+      local last_line =
+        vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
+      if last_line == '' then
+        last_line = '> '
+      end
+      local lines = vim.split(chunk.reasoning_content, '\n')
+      lines[1] = last_line .. lines[1]
+      for i = 2, #lines do
+        lines[i] = '> ' .. lines[i]
+      end
+      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+      if vim.api.nvim_win_is_valid(result_win) then
+        vim.api.nvim_win_set_cursor(
+          result_win,
+          { vim.api.nvim_buf_line_count(result_buf), 0 }
+        )
+      end
     end
   end
 end
@@ -64,10 +85,40 @@ function requestObj.on_stdout(id, data)
         elseif
           chuck.choices
           and #chuck.choices > 0
+          and chuck.choices[1].delta.tool_calls
+        then
+          log.info('handle tool_calls chunk')
+          for _, tool_call in ipairs(chuck.choices[1].delta.tool_calls) do
+            sessions.on_progress_tool_call(id, tool_call)
+          end
+        elseif
+          chuck.choices
+          and #chuck.choices > 0
+          and chuck.choices[1].finish_reason == 'tool_calls'
+        then
+          log.info('handle tool_calls finish_reason')
+          sessions.on_progress_tool_call_done(id)
+        elseif
+          chuck.choices
+          and #chuck.choices > 0
+          and chuck.choices[1].delta.reasoning_content ~= vim.NIL
+        then
+          local content = chuck.choices[1].delta.reasoning_content
+          if content and content ~= vim.NIL then
+            if session == requestObj.session then
+              requestObj.on_stream({
+                reasoning_content = content,
+              })
+            end
+            sessions.on_progress_reasoning_content(id, content)
+          end
+        elseif
+          chuck.choices
+          and #chuck.choices > 0
           and chuck.choices[1].delta.content ~= ''
         then
           local content = chuck.choices[1].delta.content
-          if content then
+          if content and content ~= vim.NIL then
             if session == requestObj.session then
               requestObj.on_stream({
                 content = content,
@@ -75,7 +126,9 @@ function requestObj.on_stdout(id, data)
             end
             sessions.on_progress(id, content)
           end
-        elseif chuck.usage then
+        end
+        if chuck.usage and chuck.usage ~= vim.NIL then
+          log.info('handle usage')
           sessions.set_progress_usage(id, chuck.usage)
         end
       elseif vim.startswith(line, '{"error":') then
@@ -108,6 +161,74 @@ function requestObj.on_stdout(id, data)
       end
     end
   end)
+end
+function M.on_tool_call_done(session, func)
+  if session == requestObj.session then
+    local message = {
+      '',
+      string.format(
+        '[%s] ] 🤖 Bot:  tool_call done: %s',
+        os.date('%H:%M'),
+        func
+      ),
+      '',
+    }
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+    end
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
+    end
+    local ok, provider =
+      pcall(require, 'chat.providers.' .. config.config.provider)
+    if ok then
+      provider.request(requestObj)
+    end
+  end
+end
+function M.on_tool_call_start(session, func)
+  if session == requestObj.session then
+    local message = {
+      '',
+      string.format(
+        '[%s] ] 🤖 Bot:  tool_call start: %s',
+        os.date('%H:%M'),
+        func
+      ),
+      '',
+    }
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+    end
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
+    end
+  end
+end
+
+function M.on_tool_call_error(session, err)
+  if session == requestObj.session then
+    local message = {
+      '',
+      string.format('[%s] ❌ : Tool Error: %s', os.date('%H:%M'), err),
+      '',
+    }
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+    end
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
+    end
+  end
 end
 
 function requestObj.on_stderr(id, data)
@@ -181,6 +302,7 @@ function requestObj.on_complete(usage)
   local message = {
     '',
     '[' .. os.date('%H:%M') .. '] 🤖 Bot: ' .. complete_str,
+    '',
     '',
   }
   if vim.api.nvim_buf_is_valid(result_buf) then

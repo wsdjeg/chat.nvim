@@ -46,6 +46,8 @@ function M.request(requestObj)
       model = requestObj.model,
       messages = requestObj.messages,
       stream = true,
+      stream_options = { include_usage = true },
+      tools = require('chat.tools').available_tools(),
     }),
   }
 

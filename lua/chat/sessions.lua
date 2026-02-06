@@ -1,5 +1,7 @@
 local sessions = {}
 
+local tools = require('chat.tools')
+
 ---@class chat.session
 ---@field id string
 ---@field messages table
@@ -48,7 +50,7 @@ local progress_messages = {}
 ---@return string
 function M.on_progress_done(jobid, code, single)
   local session = M.get_progress_session(jobid)
-  if code == 0 and single == 0 then
+  if code == 0 and single == 0 and progress_messages[session] then
     table.insert(sessions[session], {
       role = 'assistant',
       content = progress_messages[session],
@@ -96,6 +98,15 @@ function M.on_progress(id, text)
   end
 end
 
+local progress_reasoning_contents = {}
+
+function M.on_progress_reasoning_content(id, reasoning_content)
+  local session = jobid_session[id]
+  if session then
+    progress_reasoning_contents[session] = (progress_reasoning_contents[session] or '') .. reasoning_content
+  end
+end
+
 function M.get_progress_message(session)
   return progress_messages[session]
 end
@@ -130,6 +141,72 @@ function M.new()
   sessions[id] = {}
 
   return id, sessions[id]
+end
+--
+-- ```json
+-- {
+--   "tool_calls": [
+--     {
+--       "id": "unique_call_id_1",
+--       "type": "function",
+--       "function": {
+--         "name": "function_name",
+--         "arguments": "{ \"arg1\": \"value1\", \"arg2\": 2 }" // arguments 字段是字符串格式的 JSON 参数
+--       }
+--     },
+--     {
+--       "id": "unique_call_id_2",
+--       "type": "function",
+--       "function": {
+--         "name": "another_function",
+--         "arguments": "{ \"param\": \"foo\" }"
+--       }
+--     }
+--   ]
+-- }
+-- ```
+
+local tool_calls = {}
+
+function M.on_progress_tool_call(id, tool_call)
+  if not tool_calls[id] then
+    tool_calls[id] = tool_call
+  else
+    tool_calls[id]['function'].arguments = tool_calls[id]['function'].arguments
+      .. tool_call['function'].arguments
+  end
+end
+
+function M.on_progress_tool_call_done(id)
+  local session = M.get_progress_session(id)
+  local windows = require('chat.windows')
+  local tool_call = tool_calls[id]
+  local ok, arguments =
+    pcall(vim.json.decode, tool_call['function'].arguments)
+  if ok then
+    windows.on_tool_call_start(session, tool_call['function'].name)
+    local result = tools.call(tool_call['function'].name, arguments)
+    if result.error then
+      windows.on_tool_call_error(session, result.error)
+    else
+      table.insert(sessions[session], {
+        role = 'assistant',
+        reasoning_content = progress_reasoning_contents[session],
+        tool_calls = {
+          tool_call,
+        },
+      })
+      progress_reasoning_contents[session] = nil
+      table.insert(sessions[session], {
+        role = 'tool',
+        content = result.content,
+        tool_call_id = tool_call.id,
+      })
+      windows.on_tool_call_done(session, tool_call['function'].name)
+    end
+  else
+    print(arguments)
+  end
 end
 
 return M
