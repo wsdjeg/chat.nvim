@@ -31,11 +31,12 @@ M.preview_win = true
 function M.preview(item, win, buf)
   local ok, provider = pcall(require, 'chat.providers.' .. item.value)
   if ok then
+    previewer.buflines = {
+      '## Available models',
+      '',
+    }
     local available_models = provider.available_models()
     if #available_models > 0 then
-      previewer.buflines = {
-        '## Available models', ''
-      }
       for _, model in ipairs(available_models) do
         table.insert(previewer.buflines, '- ' .. model)
       end
