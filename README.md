@@ -54,10 +54,15 @@ require('plug').add({
     } },
     opt = {
       provider = 'deepseek',
-      api_key = 'your api key',
+      api_key = {
+        deepseek = 'xxxxx',
+        github = 'xxxxx',
+      },
       width = 0.8, -- 80% of vim.o.columns
       height = 0.8, -- 80% of vim.o.lines
       border = 'rounded',
+      -- default allowed_path is empty string, which means no files is allowed.
+      allowed_path = '',
     },
   },
 })
