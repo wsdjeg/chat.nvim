@@ -20,12 +20,17 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [🤖 Providers](#-providers)
     - [Built-in Providers](#built-in-providers)
     - [Custom Providers](#custom-providers)
+- [Tools](#tools)
+    - [Available Tools](#available-tools)
+        - [`read_file`](#read_file)
+    - [How to Use Tools](#how-to-use-tools)
 - [🔍 Picker Integration](#-picker-integration)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
 
 <!-- vim-markdown-toc -->
+
 ## ✨ Features
 
 - **Multiple AI Providers**: Built-in support for GitHub AI and DeepSeek
@@ -66,19 +71,19 @@ Use the `:Chat` command to launch this plugin.
 
 The following key bindings are available in the **Input** window:
 
-| Mode     | Key Binding | Description                           |
-| -------- | ----------- | ------------------------------------- |
-| `Normal` | `<Enter>`   | Send message                          |
-| `Normal` | `q`         | Close chat window                     |
+| Mode     | Key Binding | Description                             |
+| -------- | ----------- | --------------------------------------- |
+| `Normal` | `<Enter>`   | Send message                            |
+| `Normal` | `q`         | Close chat window                       |
 | `Normal` | `<Tab>`     | Switch between input and result windows |
-| `Normal` | `Ctrl-C`    | Cancel current request                |
-| `Normal` | `r`         | Retry last cancelled request          |
+| `Normal` | `Ctrl-C`    | Cancel current request                  |
+| `Normal` | `r`         | Retry last cancelled request            |
 
 The following key bindings are available in the **Result** window:
 
-| Mode     | Key Binding | Description                           |
-| -------- | ----------- | ------------------------------------- |
-| `Normal` | `q`         | Close chat window                     |
+| Mode     | Key Binding | Description                             |
+| -------- | ----------- | --------------------------------------- |
+| `Normal` | `q`         | Close chat window                       |
 | `Normal` | `<Tab>`     | Switch between input and result windows |
 
 ## 🤖 Providers
@@ -86,6 +91,7 @@ The following key bindings are available in the **Result** window:
 ### Built-in Providers
 
 1. **`deepseek`** - [DeepSeek AI](https://platform.deepseek.com/)
+
    - Models: `deepseek-chat`, `deepseek-coder`
    - Requires: API key from DeepSeek platform
 
@@ -139,6 +145,55 @@ end
 return M
 ```
 
+## Tools
+
+chat.nvim supports tool call functionality, allowing the AI assistant to interact with your filesystem and other resources during conversations. Tools are invoked using the `@tool_name` syntax directly in your messages.
+
+### Available Tools
+
+#### `read_file`
+
+Reads the content of a file and makes it available to the AI assistant.
+
+**Usage:**
+
+```
+@read_file <filepath>
+```
+
+**Examples:**
+
+- `@read_file ./src/main.lua` - Read a Lua file in the current directory
+- `@read_file /etc/hosts` - Read a system file using absolute path
+- `@read_file ../config.json` - Read a file from a parent directory
+
+**Notes:**
+
+- File paths can be relative to the current working directory or absolute
+- The AI will receive the complete file content for context
+- This is particularly useful for code review, debugging, or analyzing configuration files
+
+### How to Use Tools
+
+1. **Direct invocation**: Include the tool call directly in your message:
+
+   ```
+   Can you review this code? @read_file ./my_script.lua
+   ```
+
+2. **Multiple tools**: Combine multiple tools in a single message:
+
+   ```
+   Compare these two configs: @read_file ./config1.json @read_file ./config2.json
+   ```
+
+3. **Natural integration**: The tool calls can be embedded naturally within your questions:
+   ```
+   What's wrong with this function? @read_file ./utils.lua
+   ```
+
+The AI assistant will process the tool calls, read the specified files, and incorporate their content into its response. This enables more context-aware assistance without needing to manually copy-paste file contents.
+
 ## 🔍 Picker Integration
 
 chat.nvim provides built-in picker sources for seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim).
@@ -151,18 +206,18 @@ These sources allow you to quickly access and manage your chat sessions, provide
    - Uses the **first message** of each session as the search string
    - Quickly resume previous conversations
    - Supports filtering and session management
-   ![picker-chat](https://wsdjeg.net/images/picker-chat.png)
+     ![picker-chat](https://wsdjeg.net/images/picker-chat.png)
 
 2. `chat_provider` - Switch between different AI providers
 
    - Dynamically change between supported providers (DeepSeek, OpenAI, etc.)
    - Real-time switching without restarting Neovim
-   ![picker-chat](https://wsdjeg.net/images/picker-chat-provider.png)
+     ![picker-chat](https://wsdjeg.net/images/picker-chat-provider.png)
 
 3. `chat_model` - Select available models for the current provider
    - Lists all compatible models for your selected provider
    - Intelligent filtering based on provider capabilities
-   ![picker-chat](https://wsdjeg.net/images/picker-chat-model.png)
+     ![picker-chat](https://wsdjeg.net/images/picker-chat-model.png)
 
 ## 📣 Self-Promotion
 
