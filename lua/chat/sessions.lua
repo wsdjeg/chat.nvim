@@ -188,6 +188,20 @@ function M.on_progress_tool_call_done(id)
     local result = tools.call(tool_call['function'].name, arguments)
     if result.error then
       windows.on_tool_call_error(session, result.error)
+      table.insert(sessions[session], {
+        role = 'assistant',
+        reasoning_content = progress_reasoning_contents[session],
+        tool_calls = {
+          tool_call,
+        },
+      })
+      progress_reasoning_contents[session] = nil
+      table.insert(sessions[session], {
+        role = 'tool',
+        content = 'tool_call run failed, error is: \n' .. result.error,
+        tool_call_id = tool_call.id,
+      })
+      windows.on_tool_call_done(session, tool_call['function'].name, result.error)
     else
       table.insert(sessions[session], {
         role = 'assistant',

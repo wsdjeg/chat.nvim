@@ -175,25 +175,27 @@ function requestObj.on_stdout(id, data)
     end
   end)
 end
-function M.on_tool_call_done(session, func)
+function M.on_tool_call_done(session, func, err)
   if session == requestObj.session then
-    local message = {
-      '',
-      string.format(
-        '[%s] ] 🤖 Bot:  tool_call done: %s',
-        os.date('%H:%M'),
-        func
-      ),
-      '',
-    }
-    if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-    end
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if not err then
+      local message = {
+        '',
+        string.format(
+          '[%s] ] 🤖 Bot:  tool_call done: %s',
+          os.date('%H:%M'),
+          func
+        ),
+        '',
+      }
+      if vim.api.nvim_buf_is_valid(result_buf) then
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+      end
+      if vim.api.nvim_win_is_valid(result_win) then
+        vim.api.nvim_win_set_cursor(
+          result_win,
+          { vim.api.nvim_buf_line_count(result_buf), 0 }
+        )
+      end
     end
     local ok, provider =
       pcall(require, 'chat.providers.' .. config.config.provider)
