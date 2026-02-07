@@ -51,7 +51,14 @@ function M.scheme()
     type = 'function',
     ['function'] = {
       name = 'read_file',
-      description = 'must contains @read_file filepath, use @read_file ./directory/filename to read the content of the file.',
+      description = [[must contains @read_file filepath, use @read_file ./directory/filename to read the content of the file.
+      before using this function, you need to setup allowed_path in chat.nvim config. for example:
+      ```lua
+      require('chat').setup({
+        allowed_path = 'path/to/your_project'
+      })
+      ```
+      ]],
       parameters = {
         type = 'object',
         properties = {
