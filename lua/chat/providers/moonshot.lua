@@ -8,21 +8,23 @@ local sessions = require('chat.sessions')
 function M.available_models()
   if #available_models == 0 then
     local config = require('chat.config')
-    local cmd = {
-      'curl',
-      '-s',
-      '-H',
-      'Content-Type: application/json',
-      '-H',
-      'Authorization: Bearer ' .. config.config.api_key.moonshot,
-      'https://api.moonshot.cn/v1/models',
-    }
-    local systemObj = vim.system(cmd):wait()
-    if systemObj.code == 0 then
-      local ok, result = pcall(vim.json.decode, systemObj.stdout)
-      if ok then
-        for _, model in ipairs(result) do
-          table.insert(available_models, model.id)
+    if config.config.api_key.moonshot then
+      local cmd = {
+        'curl',
+        '-s',
+        '-H',
+        'Content-Type: application/json',
+        '-H',
+        'Authorization: Bearer ' .. config.config.api_key.moonshot,
+        'https://api.moonshot.cn/v1/models',
+      }
+      local systemObj = vim.system(cmd):wait()
+      if systemObj.code == 0 then
+        local ok, result = pcall(vim.json.decode, systemObj.stdout)
+        if ok then
+          for _, model in ipairs(result) do
+            table.insert(available_models, model.id)
+          end
         end
       end
     end
