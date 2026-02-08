@@ -552,7 +552,8 @@ function M.open(opt)
             { role = 'user', content = table.concat(content, '\n') }
           )
           requestObj.model = config.config.model
-          provider.request(requestObj)
+          local jobid = provider.request(requestObj)
+          log.info('curl request jobid is ' .. jobid)
         else
           log.notify(
             'failed to load provider:' .. config.config.provider,

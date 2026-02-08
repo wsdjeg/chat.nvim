@@ -145,6 +145,8 @@ function M.request(requestObj)
     on_exit = requestObj.on_exit,
   })
   sessions.set_session_jobid(requestObj.session, jobid)
+
+  return jobid
 end
 
 return M
