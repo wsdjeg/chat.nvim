@@ -22,23 +22,27 @@ function M.request(requestObj)
     '-X',
     'POST',
     '-d',
-    vim.json.encode({
-      model = requestObj.model,
-      messages = requestObj.messages,
-      thinking = {
-        type = 'enabled'
-      },
-      stream = true,
-      stream_options = { include_usage = true },
-      tools = require('chat.tools').available_tools(),
-    }),
+    '@-',
   }
+
+  local body = vim.json.encode({
+    model = requestObj.model,
+    messages = requestObj.messages,
+    thinking = {
+      type = 'enabled',
+    },
+    stream = true,
+    stream_options = { include_usage = true },
+    tools = require('chat.tools').available_tools(),
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = requestObj.on_stdout,
     on_stderr = requestObj.on_stderr,
     on_exit = requestObj.on_exit,
   })
+  job.send(jobid, body)
+  job.send(jobid, nil)
   sessions.set_session_jobid(requestObj.session, jobid)
 
   return jobid
