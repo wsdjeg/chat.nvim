@@ -95,14 +95,10 @@ The following key bindings are available in the **Result** window:
 
 ### Built-in Providers
 
-1. **`deepseek`** - [DeepSeek AI](https://platform.deepseek.com/)
-
-   - Models: `deepseek-chat`, `deepseek-coder`
-   - Requires: API key from DeepSeek platform
-
-2. **`github`** - [GitHub AI](https://github.com/features/ai)
-   - Models: Provider-specific models
-   - Requires: GitHub AI access token
+1. `deepseek` - [DeepSeek AI](https://platform.deepseek.com/)
+2. `github` - [GitHub AI](https://github.com/features/ai)
+3. `moonshot` - [Moonshot AI](https://platform.moonshot.cn/)
+4. `openrouter` - [OpenRouter](https://openrouter.ai/)
 
 ### Custom Providers
 
