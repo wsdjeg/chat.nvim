@@ -587,6 +587,20 @@ function M.open(opt)
         require('chat.sessions').cancel_progress(requestObj.session)
       end,
     })
+    vim.api.nvim_buf_set_keymap(
+      prompt_buf,
+      'n',
+      '<M-h>',
+      '<cmd>Chat prev<Cr>',
+      { silent = true }
+    )
+    vim.api.nvim_buf_set_keymap(
+      prompt_buf,
+      'n',
+      '<M-l>',
+      '<cmd>Chat next<Cr>',
+      { silent = true }
+    )
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', 'r', '', {
       callback = function()
         if sessions.is_in_progress(requestObj.session) then

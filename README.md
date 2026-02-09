@@ -130,6 +130,8 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `<Tab>`     | Switch between input and result windows |
 | `Normal` | `Ctrl-C`    | Cancel current request                  |
 | `Normal` | `r`         | Retry last cancelled request            |
+| `Normal` | `alt-h`     | previous chat session                   |
+| `Normal` | `alt-l`     | next chat session                       |
 
 The following key bindings are available in the **Result** window:
 
