@@ -185,7 +185,6 @@ function M.on_tool_call_done(session, func, err)
           os.date('%H:%M'),
           func
         ),
-        '',
       }
       if vim.api.nvim_buf_is_valid(result_buf) then
         vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
@@ -219,7 +218,6 @@ function M.on_tool_call_start(session, func)
         os.date('%H:%M'),
         func
       ),
-      '',
     }
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
@@ -325,7 +323,7 @@ function requestObj.on_complete(usage)
   end
   local message = {
     '',
-    '[' .. os.date('%H:%M') .. '] 🤖 Bot: ' .. complete_str,
+    '[' .. os.date('%H:%M') .. '] 🤖 Bot:' .. complete_str,
     '',
     '',
   }
@@ -540,8 +538,11 @@ function M.open(opt)
             '[' .. os.date('%H:%M') .. '] 🤖 Bot: thinking ...'
           )
           table.insert(message, '')
-          table.insert(message, '')
-          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+          if vim.api.nvim_buf_line_count(result_buf) == 1 then
+            vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, message)
+          else
+            vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+          end
           vim.api.nvim_win_set_cursor(
             result_win,
             { vim.api.nvim_buf_line_count(result_buf), 0 }
