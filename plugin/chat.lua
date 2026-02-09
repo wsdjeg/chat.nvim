@@ -19,13 +19,20 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'prev' then
     require('chat').open({
-      session = require('chat.sessions').previous()
+      session = require('chat.sessions').previous(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'next' then
     require('chat').open({
-      session = require('chat.sessions').next()
+      session = require('chat.sessions').next(),
     })
   else
     require('chat').open()
   end
-end, { nargs = '*' })
+end, {
+  nargs = '*',
+  complete = function(arglead)
+    return vim.tbl_filter(function(t)
+      return vim.startswith(t, arglead)
+    end, { 'new', 'prev', 'next' })
+  end,
+})
