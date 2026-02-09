@@ -16,6 +16,8 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [✨ Features](#-features)
 - [📦 Installation](#-installation)
 - [⚙️ Usage](#-usage)
+    - [Basic Commands](#basic-commands)
+    - [Examples](#examples)
     - [Key Bindings](#key-bindings)
 - [🤖 Providers](#-providers)
     - [Built-in Providers](#built-in-providers)
@@ -70,7 +72,52 @@ require('plug').add({
 
 ## ⚙️ Usage
 
-Use the `:Chat` command to launch this plugin.
+chat.nvim provides several commands to manage your AI conversations.
+The main command is `:Chat`, which opens the chat window.
+You can also navigate between sessions using the following commands.
+
+### Basic Commands
+
+| Command      | Description                                   |
+| ------------ | --------------------------------------------- |
+| `:Chat`      | Open the chat window with the current session |
+| `:Chat new`  | Start a new chat session                      |
+| `:Chat prev` | Switch to the previous chat session           |
+| `:Chat next` | Switch to the next chat session               |
+
+### Examples
+
+1. **Start a new conversation**:
+
+   ```vim
+   :Chat new
+   ```
+
+   This creates a fresh session and opens the chat window.
+
+2. **Resume a previous conversation**:
+
+   ```vim
+   :Chat prev
+   ```
+
+   Cycles backward through your saved sessions.
+
+3. **Switch to the next conversation**:
+
+   ```vim
+   :Chat next
+   ```
+
+   Cycles forward through your saved sessions.
+
+4. **Open the chat window** (without changing sessions):
+   ```vim
+   :Chat
+   ```
+
+All sessions are automatically saved and can be resumed later. For more advanced session management,
+see the [Picker Integration](#-picker-integration) section below.
 
 ### Key Bindings
 

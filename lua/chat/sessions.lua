@@ -27,6 +27,56 @@ function M.delete(session)
   sessions[session] = nil
 end
 
+function M.previous()
+  if #sessions == 0 then
+    M.get()
+  end
+  local s = {}
+  for session, _ in pairs(sessions) do
+    table.insert(s, session)
+  end
+  table.sort(s)
+  local current_session = require('chat.windows').current_session()
+  if not current_session then
+    return s[#s] or M.new()
+  else
+    for i = 1, #s do
+      if s[i] == current_session then
+        if i == 1 then
+          return s[#s]
+        else
+          return s[i - 1]
+        end
+      end
+    end
+  end
+end
+
+function M.next()
+  if #sessions == 0 then
+    M.get()
+  end
+  local s = {}
+  for session, _ in pairs(sessions) do
+    table.insert(s, session)
+  end
+  table.sort(s)
+  local current_session = require('chat.windows').current_session()
+  if not current_session then
+    return s[1] or M.new()
+  else
+    for i = 1, #s do
+      if s[i] == current_session then
+        if i == #s then
+          return s[1]
+        else
+          return s[i + 1]
+        end
+      end
+    end
+  end
+end
+
 function M.get()
   local files = vim.fn.globpath(cache_dir, '*.json', 0, 1)
   for _, v in ipairs(files) do
@@ -103,7 +153,9 @@ local progress_reasoning_contents = {}
 function M.on_progress_reasoning_content(id, reasoning_content)
   local session = jobid_session[id]
   if session then
-    progress_reasoning_contents[session] = (progress_reasoning_contents[session] or '') .. reasoning_content
+    progress_reasoning_contents[session] = (
+      progress_reasoning_contents[session] or ''
+    ) .. reasoning_content
   end
 end
 
@@ -201,7 +253,11 @@ function M.on_progress_tool_call_done(id)
         content = 'tool_call run failed, error is: \n' .. result.error,
         tool_call_id = tool_call.id,
       })
-      windows.on_tool_call_done(session, tool_call['function'].name, result.error)
+      windows.on_tool_call_done(
+        session,
+        tool_call['function'].name,
+        result.error
+      )
     else
       table.insert(sessions[session], {
         role = 'assistant',

@@ -650,4 +650,8 @@ function M.open(opt)
   end
 end
 
+function M.current_session()
+  return requestObj.session
+end
+
 return M

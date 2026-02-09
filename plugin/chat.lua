@@ -17,6 +17,14 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       session = require('chat.sessions').new(),
     })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'prev' then
+    require('chat').open({
+      session = require('chat.sessions').previous()
+    })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'next' then
+    require('chat').open({
+      session = require('chat.sessions').next()
+    })
   else
     require('chat').open()
   end
