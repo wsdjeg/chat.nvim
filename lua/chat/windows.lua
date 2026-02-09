@@ -181,7 +181,7 @@ function M.on_tool_call_done(session, func, err)
       local message = {
         '',
         string.format(
-          '[%s] ] 🤖 Bot:  tool_call done: %s',
+          '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
           os.date('%H:%M'),
           func
         ),
@@ -204,12 +204,18 @@ function M.on_tool_call_done(session, func, err)
     end
   end
 end
+
+-- [08:42] 👤 You: test @read_file .stylua.toml
+-- [08:42] 🤖 Bot: 🔧 Executing tool: read_file .stylua.toml...
+-- [08:42] 🤖 Bot: ✅ Tool execution complete: read_file .stylua.toml (0.2s)
+-- [08:42] 🤖 Bot: File content: ...
+
 function M.on_tool_call_start(session, func)
   if session == requestObj.session then
     local message = {
       '',
       string.format(
-        '[%s] ] 🤖 Bot:  tool_call start: %s',
+        '[%s] 🤖 Bot: 🔧 Executing tool: %s',
         os.date('%H:%M'),
         func
       ),
@@ -289,8 +295,11 @@ function M.test(text)
   })
 end
 
+-- [08:42] 🤖 Bot: ✅ Completed • Time: 0.5s • Tokens: 701 (384↑/84↓)
+-- Time 以后再加
+
 function requestObj.on_complete(usage)
-  local complete_str = '------ ✅ 已完成 ------'
+  local complete_str = ' ✅ Completed'
   if usage then
     -- ```json
     -- {
@@ -308,7 +317,7 @@ function requestObj.on_complete(usage)
     -- ```
     complete_str = complete_str
       .. string.format(
-        ' token usage: Input %d, Output %d, Total %d',
+        ' • Tokens: %d (%d↑/%d↓)',
         usage.prompt_tokens,
         usage.completion_tokens,
         usage.total_tokens
