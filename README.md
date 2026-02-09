@@ -26,6 +26,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
     - [How to Use Tools](#how-to-use-tools)
+    - [Custom tools](#custom-tools)
 - [🔍 Picker Integration](#-picker-integration)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
@@ -245,6 +246,86 @@ Reads the content of a file and makes it available to the AI assistant.
    ```
 
 The AI assistant will process the tool calls, read the specified files, and incorporate their content into its response. This enables more context-aware assistance without needing to manually copy-paste file contents.
+
+### Custom tools
+
+chat.nvim also supports custom tools. User can create `lua/chat/tools/<tool_name>.lua` file in their neovim runtime path.
+
+This module should provide at least two functions: `scheme()` and `<tool_name>` function. The `scheme()` function returns a table describing the tool's schema (name, description, parameters). The `<tool_name>` function is the actual implementation that will be called when the tool is invoked.
+
+The `tools.lua` module automatically discovers all tools in the `lua/chat/tools/` directory and provides an `available_tools()` function to list them, and a `call(func, arguments)` function to invoke a specific tool.
+
+Here is an example for a `get_weather` tool:
+
+```lua
+local M = {}
+
+---@param action { city: string, unit?: string }
+function M.get_weather(action)
+  if not action.city or action.city == '' then
+    return {
+      error = 'City name is required for weather information.',
+    }
+  end
+
+  local unit = action.unit or 'celsius'
+  local valid_units = { 'celsius', 'fahrenheit' }
+  if not vim.tbl_contains(valid_units, unit) then
+    return {
+      error = 'Unit must be either "celsius" or "fahrenheit".',
+    }
+  end
+
+  -- Simulate fetching weather data (in a real implementation, you would call an API here)
+  local temperature = math.random(15, 35)  -- Random temperature between 15°C and 35°C
+  local conditions = { 'Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy', 'Windy' }
+  local condition = conditions[math.random(1, #conditions)]
+  
+  -- Convert temperature if needed
+  if unit == 'fahrenheit' then
+    temperature = math.floor((temperature * 9/5) + 32)
+  end
+
+  return {
+    content = string.format(
+      'Weather in %s:\n- Temperature: %d°%s\n- Condition: %s\n- Humidity: %d%%\n- Wind Speed: %d km/h',
+      action.city,
+      temperature,
+      unit == 'celsius' and 'C' or 'F',
+      condition,
+      math.random(40, 90),
+      math.random(5, 25)
+    ),
+  }
+end
+
+function M.scheme()
+  return {
+    type = 'function',
+    ['function'] = {
+      name = 'get_weather',
+      description = 'Get weather information for a specific city. Use @get_weather {city: "City Name"} to get weather details.',
+      parameters = {
+        type = 'object',
+        properties = {
+          city = {
+            type = 'string',
+            description = 'City name for weather information',
+          },
+          unit = {
+            type = 'string',
+            description = 'Temperature unit: "celsius" or "fahrenheit"',
+            enum = { 'celsius', 'fahrenheit' },
+          },
+        },
+        required = { 'city' },
+      },
+    },
+  }
+end
+
+return M
+```
 
 ## 🔍 Picker Integration
 
