@@ -116,9 +116,9 @@ local progress_messages = {}
 
 ---@param jobid integer
 ---@return string
-function M.on_progress_done(jobid, code, single)
+function M.on_progress_done(jobid)
   local session = M.get_progress_session(jobid)
-  if code == 0 and single == 0 and progress_messages[session] then
+  if progress_messages[session] then
     local reasoning_content
     if progress_reasoning_contents[session] then
       reasoning_content = progress_reasoning_contents[session]
@@ -220,6 +220,10 @@ function M.get_messages(session)
       reasoning_content = m.reasoning_content,
       tool_calls = m.tool_calls,
       tool_call_id = m.tool_call_id,
+      created = m.created,
+      on_complete = m.on_complete,
+      usage = m.usage,
+      error = m.error,
     })
   end
   return message
@@ -228,7 +232,7 @@ end
 function M.get_request_messages(session)
   local message = {}
   for _, m in ipairs(sessions[session].messages) do
-    if vim.tbl_contains({'user', 'assistant', 'tool'}, m.role) then
+    if vim.tbl_contains({ 'user', 'assistant', 'tool' }, m.role) then
       table.insert(message, {
         role = m.role,
         content = m.content,
@@ -340,6 +344,9 @@ function M.on_progress_tool_call_done(id)
 end
 
 function M.append_message(session, message)
+  if message.usage then
+    print(1)
+  end
   table.insert(sessions[session].messages, message)
 end
 

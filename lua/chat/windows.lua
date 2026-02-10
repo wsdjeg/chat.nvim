@@ -69,9 +69,8 @@ function requestObj.on_stdout(id, data)
     for _, line in ipairs(data) do
       log.info(line)
       if line == 'data: [DONE]' then
-        if session == current_session then
-          requestObj.on_complete(sessions.get_progress_usage(id))
-        end
+        sessions.on_progress_done(id)
+        requestObj.on_complete(session, id)
       elseif vim.startswith(line, 'data: ') then
         local text = string.sub(line, 7)
         local ok, chunk = pcall(vim.json.decode, text)
@@ -133,19 +132,24 @@ function requestObj.on_stdout(id, data)
         if ok and chunk.error then
           local error_msg = chunk.error.message or 'Unknown error'
           local error_code = chunk.error.code or chunk.type or 'unknown'
+          local message = {
+            error = string.format(
+              'API Error (%s): %s',
+              error_code,
+              error_msg
+            ),
+            created = os.time(),
+          }
+          sessions.append_message(session, message)
           if session == current_session then
-            local message = {
-              '',
-              string.format(
-                '[%s] ❌ : API Error (%s): %s',
-                os.date('%H:%M'),
-                error_code,
-                error_msg
-              ),
-              '',
-            }
             if vim.api.nvim_buf_is_valid(result_buf) then
-              vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+              vim.api.nvim_buf_set_lines(
+                result_buf,
+                -1,
+                -1,
+                false,
+                M.generate_message(message)
+              )
             end
             if vim.api.nvim_win_is_valid(result_win) then
               vim.api.nvim_win_set_cursor(
@@ -160,24 +164,33 @@ function requestObj.on_stdout(id, data)
   end)
 end
 function M.on_tool_call_done(session, func, err)
-  if session == current_session then
-    if not err then
-      local message = {
-        '',
-        string.format(
-          '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
-          os.date('%H:%M'),
-          func
-        ),
-      }
-      if vim.api.nvim_buf_is_valid(result_buf) then
-        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-      end
-      if vim.api.nvim_win_is_valid(result_win) then
-        vim.api.nvim_win_set_cursor(
-          result_win,
-          { vim.api.nvim_buf_line_count(result_buf), 0 }
-        )
+  if not err then
+    local message = {
+      content = string.format(
+        '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
+        os.date(config.config.strftime),
+        func
+      ),
+      created = os.time(),
+    }
+    sessions.append_message(session, message)
+    if session == current_session then
+      if not err then
+        if vim.api.nvim_buf_is_valid(result_buf) then
+          vim.api.nvim_buf_set_lines(
+            result_buf,
+            -1,
+            -1,
+            false,
+            M.generate_message(message)
+          )
+        end
+        if vim.api.nvim_win_is_valid(result_win) then
+          vim.api.nvim_win_set_cursor(
+            result_win,
+            { vim.api.nvim_buf_line_count(result_buf), 0 }
+          )
+        end
       end
     end
   end
@@ -205,7 +218,7 @@ function M.on_tool_call_start(session, func)
       '',
       string.format(
         '[%s] 🤖 Bot: 🔧 Executing tool: %s',
-        os.date('%H:%M'),
+        os.date(config.config.strftime),
         func
       ),
     }
@@ -255,6 +268,7 @@ function requestObj.on_exit(id, code, signal)
   local session = sessions.get_progress_session(id)
   if current_session == session then
     if signal == 2 then
+      is_thinking = false
       local message = {
         '',
         string.format(
@@ -274,7 +288,6 @@ function requestObj.on_exit(id, code, signal)
       end
     end
   end
-  sessions.on_progress_done(id, code, signal)
 end
 
 function M.test(text)
@@ -286,39 +299,28 @@ end
 -- [08:42] 🤖 Bot: ✅ Completed • Time: 0.5s • Tokens: 701 (384↑/84↓)
 -- Time 以后再加
 
-function requestObj.on_complete(usage)
-  local complete_str = ' ✅ Completed'
-  if usage then
-    -- ```json
-    -- {
-    --   "id": "chatcmpl-xxx",
-    --   "object": "chat.completion",
-    --   "created": 1234567890,
-    --   "model": "deepseek-chat",
-    --   "choices": [...],
-    --   "usage": {
-    --     "prompt_tokens": 100,      // 输入token数
-    --     "completion_tokens": 200,  // 输出token数
-    --     "total_tokens": 300        // 总token数
-    --   }
-    -- }
-    -- ```
-    complete_str = complete_str
-      .. string.format(
-        ' • Tokens: %d (%d↑/%d↓)',
-        usage.prompt_tokens,
-        usage.completion_tokens,
-        usage.total_tokens
-      )
-  end
+function requestObj.on_complete(session, id)
+  local usage = sessions.get_progress_usage(id)
+
   local message = {
-    '',
-    '[' .. os.date('%H:%M') .. '] 🤖 Bot:' .. complete_str,
-    '',
-    '',
+    on_complete = true,
+    usage = usage,
+    created = os.time(),
   }
+  log.info(current_session)
+  log.info(session)
+  log.info('on_complete ' .. vim.inspect(message))
+
+  sessions.append_message(session, message)
+
   if vim.api.nvim_buf_is_valid(result_buf) then
-    vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+    vim.api.nvim_buf_set_lines(
+      result_buf,
+      -1,
+      -1,
+      false,
+      M.generate_message(message)
+    )
   end
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_set_cursor(
@@ -337,9 +339,14 @@ function M.close()
   end
 end
 
-function M.generate_message(message, time)
+function M.generate_message(message)
   if message.role == 'assistant' and message.tool_calls then
-    local msg = { '[' .. os.date('%H:%M', time) .. '] 🤖 Bot:', '' }
+    local msg = {
+      '['
+        .. os.date(config.config.strftime, message.created)
+        .. '] 🤖 Bot:',
+      '',
+    }
     if message.reasoning_content then
       for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
         table.insert(msg, '> ' .. line)
@@ -349,15 +356,22 @@ function M.generate_message(message, time)
     table.insert(
       msg,
       string.format(
-        '[%s] 🤖 Bot:  tool_call start: %s',
-        os.date('%H:%M'),
+        '[%s] 🤖 Bot: 🔧 Executing tool: %s',
+        os.date(config.config.strftime, message.created),
         message.tool_calls[1]['function'].name
       )
     )
+    table.insert(msg, '')
 
     return msg
   elseif message.role == 'assistant' then
-    local msg = { '[' .. os.date('%H:%M', time) .. '] 🤖 Bot:', '' }
+    local msg = {
+      '['
+        .. os.date(config.config.strftime, message.created)
+        .. '] 🤖 Bot:'
+        .. (message.reasoning_content and ' thinking ...'),
+      '',
+    }
     if message.reasoning_content then
       for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
         table.insert(msg, '> ' .. line)
@@ -367,11 +381,16 @@ function M.generate_message(message, time)
     for _, line in ipairs(vim.split(message.content, '\n')) do
       table.insert(msg, line)
     end
+    table.insert(msg, '')
     return msg
   elseif message.role == 'user' then
     local content = vim.split(message.content, '\n')
-    local msg =
-      { '[' .. os.date('%H:%M', time) .. '] 👤 You:' .. content[1] }
+    local msg = {
+      '['
+        .. os.date(config.config.strftime, message.created)
+        .. '] 👤 You:'
+        .. content[1],
+    }
     if #content > 1 then
       for i = 2, #content do
         table.insert(msg, content[i])
@@ -379,6 +398,36 @@ function M.generate_message(message, time)
     end
     table.insert(msg, '')
     return msg
+  elseif message.content and message.role ~= 'tool' then
+    return vim.split(message.content, '\n')
+  elseif message.on_complete then
+    local complete_str = ' ✅ Completed'
+    if message.usage then
+      complete_str = complete_str
+        .. string.format(
+          ' • Tokens: %d (%d↑/%d↓)',
+          message.usage.prompt_tokens,
+          message.usage.completion_tokens,
+          message.usage.total_tokens
+        )
+    end
+    return {
+      '['
+        .. os.date(config.config.strftime, message.created)
+        .. '] 🤖 Bot:'
+        .. complete_str,
+      '',
+    }
+  elseif message.error then
+    return {
+      '',
+      string.format(
+        '[%s] ❌ : %s',
+        os.date(config.config.strftime, message.created),
+        message.error
+      ),
+      '',
+    }
   else
     return {}
   end
@@ -537,8 +586,12 @@ function M.open(opt)
             )
             return
           end
-          local message =
-            { '[' .. os.date('%H:%M') .. '] 👤 You:' .. content[1] }
+          local message = {
+            '['
+              .. os.date(config.config.strftime)
+              .. '] 👤 You:'
+              .. content[1],
+          }
           if #content > 1 then
             for i = 2, #content do
               table.insert(message, content[i])
@@ -547,7 +600,9 @@ function M.open(opt)
           table.insert(message, '')
           table.insert(
             message,
-            '[' .. os.date('%H:%M') .. '] 🤖 Bot: thinking ...'
+            '['
+              .. os.date(config.config.strftime)
+              .. '] 🤖 Bot: thinking ...'
           )
           table.insert(message, '')
           if vim.api.nvim_buf_line_count(result_buf) == 1 then
@@ -635,7 +690,9 @@ function M.open(opt)
             table.insert(message, '')
             table.insert(
               message,
-              '[' .. os.date('%H:%M') .. '] 🤖 Bot: thinking ...'
+              '['
+                .. os.date(config.config.strftime)
+                .. '] 🤖 Bot: thinking ...'
             )
             table.insert(message, '')
             table.insert(message, '')

@@ -9,6 +9,7 @@ local default = {
   api_key = '',
   -- default allowed_path is empty string, which means no files is allowed.
   allowed_path = '',
+  strftime = '%m-%d %H:%M:%S',
 }
 
 M.config = vim.tbl_deep_extend('force', default, {})
