@@ -187,8 +187,9 @@ function M.on_tool_call_done(session, func, err)
     provider.request({
       on_stdout = requestObj.on_stdout,
       on_stderr = requestObj.on_stderr,
+      on_exit = requestObj.on_exit,
       session = session,
-      messages = sessions.get_messages(session),
+      messages = sessions.get_request_messages(session),
     })
   end
 end
@@ -433,13 +434,17 @@ function M.open(opt)
         M.generate_buffer(require('chat.sessions').get_messages(opt.session))
       )
       if sessions.is_in_progress(current_session) then
+        local reasoning_content =
+          sessions.get_progress_reasoning_content(current_session)
         local message = sessions.get_progress_message(current_session)
-        if message then
+        if message or reasoning_content then
           local lines = { '' }
           for _, l in
-            ipairs(
-              M.generate_message({ role = 'assistant', content = message })
-            )
+            ipairs(M.generate_message({
+              role = 'assistant',
+              content = message,
+              reasoning_content = reasoning_content,
+            }))
           do
             table.insert(lines, l)
           end
@@ -573,8 +578,9 @@ function M.open(opt)
           local jobid = provider.request({
             on_stdout = requestObj.on_stdout,
             on_stderr = requestObj.on_stderr,
+            on_exit = requestObj.on_exit,
             session = current_session,
-            messages = sessions.get_messages(current_session),
+            messages = sessions.get_request_messages(current_session),
           })
           log.info('curl request jobid is ' .. jobid)
         else
@@ -623,8 +629,8 @@ function M.open(opt)
         local ok, provider =
           pcall(require, 'chat.providers.' .. config.config.provider)
         if ok then
-          local messages = sessions.get_messages(current_session)
-          if #messages > 0 and messages[#messages].role == 'user' then
+          local messages = sessions.get_request_messages(current_session)
+          if #messages > 0 and messages[#messages].role ~= 'assistant' then
             local message = {}
             table.insert(message, '')
             table.insert(
@@ -638,6 +644,7 @@ function M.open(opt)
             provider.request({
               on_stdout = requestObj.on_stdout,
               on_stderr = requestObj.on_stderr,
+              on_exit = requestObj.on_exit,
               session = current_session,
               messages = messages,
             })

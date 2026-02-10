@@ -219,7 +219,24 @@ function M.get_messages(session)
       content = m.content,
       reasoning_content = m.reasoning_content,
       tool_calls = m.tool_calls,
+      tool_call_id = m.tool_call_id,
     })
+  end
+  return message
+end
+
+function M.get_request_messages(session)
+  local message = {}
+  for _, m in ipairs(sessions[session].messages) do
+    if vim.tbl_contains({'user', 'assistant', 'tool'}, m.role) then
+      table.insert(message, {
+        role = m.role,
+        content = m.content,
+        reasoning_content = m.reasoning_content,
+        tool_calls = m.tool_calls,
+        tool_call_id = m.tool_call_id,
+      })
+    end
   end
   return message
 end
