@@ -1,14 +1,15 @@
 local M = {}
 
+local sessions = require('chat.sessions')
+
 local previewer = require('picker.previewer.buffer')
 
 function M.get()
-  local sessions = require('chat.sessions').get()
   local items = {}
 
   local ids = {}
 
-  for id, _ in pairs(sessions) do
+  for id, _ in pairs(sessions.get()) do
     table.insert(ids, id)
   end
 
@@ -17,7 +18,7 @@ function M.get()
   end)
 
   for _, id in ipairs(ids) do
-    local messages = sessions[id]
+    local messages = sessions.get_messages(id)
     if #messages > 1 then
       local str = vim.split(messages[1].content, '\n')[1]
       table.insert(items, {
@@ -48,7 +49,7 @@ M.preview_win = true
 function M.preview(item, win, buf)
   local line = 1
   previewer.buflines = require('chat.windows').generate_buffer(
-    require('chat.sessions').get_messages(item.value)
+    sessions.get_messages(item.value)
   )
   previewer.filetype = 'markdown'
   previewer.preview(line, win, buf, true)

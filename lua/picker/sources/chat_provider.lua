@@ -1,6 +1,8 @@
 local M = {}
 
 local previewer = require('picker.previewer.buffer')
+local windows = require('chat.windows')
+local sessions = require('chat.sessions')
 
 function M.get()
   return vim.tbl_map(function(t)
@@ -13,15 +15,20 @@ function M.get()
 end
 
 function M.default_action(item)
+  if
+    item.value == sessions.get_session_provider(windows.current_session())
+  then
+    return
+  end
   local ok, provider = pcall(require, 'chat.providers.' .. item.value)
   if ok then
     local available_models = provider.available_models()
     if #available_models > 0 then
-      require('chat').setup({
-        provider = item.value,
-        model = available_models[1],
-      })
-      require('chat.windows').set_model(available_models[1])
+      sessions.set_session_provider(windows.current_session(), item.value)
+      sessions.set_session_model(
+        windows.current_session(),
+        available_models[1]
+      )
     end
   end
 end

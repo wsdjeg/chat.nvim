@@ -1,10 +1,21 @@
 local sessions = {}
 
+-- 保存请求返回的 reasoning_content
+
+local progress_reasoning_contents = {}
+
 local tools = require('chat.tools')
 
----@class chat.session
+---@class ChatMessage
+---@field role string
+---@field content string
+---@field created integer
+
+---@class ChatSession
 ---@field id string
----@field messages table
+---@field messages table<ChatMessage>
+---@field provider? string
+---@field model? string
 
 local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
 
@@ -28,9 +39,6 @@ function M.delete(session)
 end
 
 function M.previous()
-  if #sessions == 0 then
-    M.get()
-  end
   local s = {}
   for session, _ in pairs(sessions) do
     table.insert(s, session)
@@ -53,9 +61,6 @@ function M.previous()
 end
 
 function M.next()
-  if #sessions == 0 then
-    M.get()
-  end
   local s = {}
   for session, _ in pairs(sessions) do
     table.insert(s, session)
@@ -78,14 +83,27 @@ function M.next()
 end
 
 function M.get()
-  local files = vim.fn.globpath(cache_dir, '*.json', 0, 1)
+  if not vim.tbl_isempty(sessions) then
+    return sessions
+  end
+  local files = vim.fn.globpath(cache_dir, '*.json', false, true)
   for _, v in ipairs(files) do
     local file = io.open(v, 'r')
     if file then
       local context = file:read('*a')
       io.close(file)
       local obj = vim.json.decode(context)
-      sessions[vim.fn.fnamemodify(v, ':t:r')] = obj
+      -- 兼容老版本 session
+      if not obj.id then
+        sessions[vim.fn.fnamemodify(v, ':t:r')] = {
+          id = vim.fn.fnamemodify(v, ':t:r'),
+          messages = obj,
+          provider = require('chat.config').config.provider,
+          model = require('chat.config').config.model,
+        }
+      else
+        sessions[vim.fn.fnamemodify(v, ':t:r')] = obj
+      end
     end
   end
   return sessions
@@ -101,14 +119,22 @@ local progress_messages = {}
 function M.on_progress_done(jobid, code, single)
   local session = M.get_progress_session(jobid)
   if code == 0 and single == 0 and progress_messages[session] then
-    table.insert(sessions[session], {
+    local reasoning_content
+    if progress_reasoning_contents[session] then
+      reasoning_content = progress_reasoning_contents[session]
+      progress_reasoning_contents[session] = nil
+    end
+    M.append_message(session, {
       role = 'assistant',
+      reasoning_content = reasoning_content,
       content = progress_messages[session],
+      create = os.time(),
     })
     progress_messages[session] = nil
     jobid_session[jobid] = nil
     M.write_cache(session)
   else
+    progress_reasoning_contents[session] = nil
     progress_messages[session] = nil
     jobid_session[jobid] = nil
   end
@@ -148,8 +174,6 @@ function M.on_progress(id, text)
   end
 end
 
-local progress_reasoning_contents = {}
-
 function M.on_progress_reasoning_content(id, reasoning_content)
   local session = jobid_session[id]
   if session then
@@ -161,6 +185,10 @@ end
 
 function M.get_progress_message(session)
   return progress_messages[session]
+end
+
+function M.get_progress_reasoning_content(session)
+  return progress_reasoning_contents[session]
 end
 
 function M.get_progress_session(id)
@@ -184,16 +212,31 @@ function M.set_session_jobid(session, jobid)
 end
 
 function M.get_messages(session)
-  return sessions[session] or {}
+  local message = {}
+  for _, m in ipairs(sessions[session].messages) do
+    table.insert(message, {
+      role = m.role,
+      content = m.content,
+      reasoning_content = m.reasoning_content,
+      tool_calls = m.tool_calls,
+    })
+  end
+  return message
 end
 
 function M.new()
   local NOTE_ID_STRFTIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
   local id = os.date(NOTE_ID_STRFTIME_FORMAT, os.time())
-  sessions[id] = {}
-
-  return id, sessions[id]
+  local config = require('chat.config')
+  sessions[id] = {
+    id = id,
+    messages = {},
+    provider = config.config.provider,
+    model = config.config.model,
+  }
+  return id
 end
+
 --
 -- ```json
 -- {
@@ -240,7 +283,7 @@ function M.on_progress_tool_call_done(id)
     local result = tools.call(tool_call['function'].name, arguments)
     if result.error then
       windows.on_tool_call_error(session, result.error)
-      table.insert(sessions[session], {
+      M.append_message(session, {
         role = 'assistant',
         reasoning_content = progress_reasoning_contents[session],
         tool_calls = {
@@ -248,7 +291,7 @@ function M.on_progress_tool_call_done(id)
         },
       })
       progress_reasoning_contents[session] = nil
-      table.insert(sessions[session], {
+      M.append_message(session, {
         role = 'tool',
         content = 'tool_call run failed, error is: \n' .. result.error,
         tool_call_id = tool_call.id,
@@ -259,7 +302,7 @@ function M.on_progress_tool_call_done(id)
         result.error
       )
     else
-      table.insert(sessions[session], {
+      M.append_message(session, {
         role = 'assistant',
         reasoning_content = progress_reasoning_contents[session],
         tool_calls = {
@@ -267,7 +310,7 @@ function M.on_progress_tool_call_done(id)
         },
       })
       progress_reasoning_contents[session] = nil
-      table.insert(sessions[session], {
+      M.append_message(session, {
         role = 'tool',
         content = result.content,
         tool_call_id = tool_call.id,
@@ -278,5 +321,32 @@ function M.on_progress_tool_call_done(id)
     print(arguments)
   end
 end
+
+function M.append_message(session, message)
+  table.insert(sessions[session].messages, message)
+end
+
+function M.get_session_provider(session)
+  return sessions[session].provider
+end
+
+function M.set_session_provider(session, provider)
+  sessions[session].provider = provider
+  -- when set provider, set_session_model function will be called too
+  -- so, only need to update window title in model function
+end
+
+function M.get_session_model(session)
+  return sessions[session].model
+end
+
+function M.set_session_model(session, model)
+  sessions[session].model = model
+  if session == require('chat.windows').current_session() then
+    require('chat.windows').redraw_title()
+  end
+end
+
+M.get()
 
 return M
