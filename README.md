@@ -25,6 +25,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [Tools](#tools)
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
+        - [`find_files`](#find_files)
     - [How to Use Tools](#how-to-use-tools)
     - [Custom tools](#custom-tools)
 - [🔍 Picker Integration](#-picker-integration)
@@ -225,6 +226,31 @@ Reads the content of a file and makes it available to the AI assistant.
 - File paths can be relative to the current working directory or absolute
 - The AI will receive the complete file content for context
 - This is particularly useful for code review, debugging, or analyzing configuration files
+
+#### `find_files`
+
+Finds files in the current working directory that match a given pattern.
+
+**Usage:**
+
+```
+@find_files <pattern>
+```
+
+**Examples:**
+
+- `@find_files *.lua` - Find all Lua files in the current directory
+- `@find_files **/*.md` - Recursively find all Markdown files
+- `@find_files src/**/*.js` - Find JavaScript files in the `src` directory and its subdirectories
+- `@find_files README*` - Find files starting with "README"
+
+**Notes:**
+
+- The pattern follows Vim's `globpath` syntax
+- Searches are limited to the current working directory
+- Returns a list of found files, with one file path per line
+- Returns a message if no files are found based on the given pattern
+- File searching is restricted by the `allowed_path` configuration setting
 
 ### How to Use Tools
 
