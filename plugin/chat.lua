@@ -25,6 +25,10 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       session = require('chat.sessions').next(),
     })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'delete' then
+    require('chat').open({
+      session = require('chat.sessions').delete(),
+    })
   else
     require('chat').open()
   end

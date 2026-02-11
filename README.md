@@ -80,12 +80,13 @@ You can also navigate between sessions using the following commands.
 
 ### Basic Commands
 
-| Command      | Description                                   |
-| ------------ | --------------------------------------------- |
-| `:Chat`      | Open the chat window with the current session |
-| `:Chat new`  | Start a new chat session                      |
-| `:Chat prev` | Switch to the previous chat session           |
-| `:Chat next` | Switch to the next chat session               |
+| Command        | Description                                   |
+| -------------- | --------------------------------------------- |
+| `:Chat`        | Open the chat window with the current session |
+| `:Chat new`    | Start a new chat session                      |
+| `:Chat prev`   | Switch to the previous chat session           |
+| `:Chat next`   | Switch to the next chat session               |
+| `:Chat delete` | Delete current session                        |
 
 ### Examples
 
@@ -117,6 +118,13 @@ You can also navigate between sessions using the following commands.
    ```vim
    :Chat
    ```
+5. **Delete current session**:
+
+   ```vim
+   :Chat delete
+   ```
+
+   Cycles to next session or create a new session if current session is latest one.
 
 All sessions are automatically saved and can be resumed later. For more advanced session management,
 see the [Picker Integration](#-picker-integration) section below.
@@ -306,7 +314,7 @@ function M.get_weather(action)
   local temperature = math.random(15, 35)  -- Random temperature between 15°C and 35°C
   local conditions = { 'Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy', 'Windy' }
   local condition = conditions[math.random(1, #conditions)]
-  
+
   -- Convert temperature if needed
   if unit == 'fahrenheit' then
     temperature = math.floor((temperature * 9/5) + 32)

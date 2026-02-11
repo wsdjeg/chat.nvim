@@ -33,9 +33,28 @@ function M.write_cache(session)
   end
 end
 
-function M.delete(session)
-  vim.fn.delete(cache_dir .. session .. '.json')
-  sessions[session] = nil
+function M.delete()
+  local s = {}
+  for session, _ in pairs(sessions) do
+    table.insert(s, session)
+  end
+  table.sort(s)
+  local current_session = require('chat.windows').current_session()
+  if not current_session then
+    return M.new()
+  else
+    vim.fn.delete(cache_dir .. current_session .. '.json')
+    sessions[current_session] = nil
+    for i = 1, #s do
+      if s[i] == current_session then
+        if i == #s then
+          return M.new()
+        else
+          return s[i + 1]
+        end
+      end
+    end
+  end
 end
 
 function M.previous()
@@ -131,13 +150,18 @@ function M.on_progress_done(jobid)
       create = os.time(),
     })
     progress_messages[session] = nil
-    jobid_session[jobid] = nil
     M.write_cache(session)
   else
     progress_reasoning_contents[session] = nil
     progress_messages[session] = nil
-    jobid_session[jobid] = nil
   end
+end
+
+function M.on_progress_exit(id, code, signal)
+  local session = M.get_progress_session(id)
+  progress_reasoning_contents[session] = nil
+  progress_messages[session] = nil
+  jobid_session[id] = nil
 end
 
 function M.is_in_progress(session)
@@ -224,6 +248,7 @@ function M.get_messages(session)
       on_complete = m.on_complete,
       usage = m.usage,
       error = m.error,
+      tool_call_state = m.tool_call_state,
     })
   end
   return message
@@ -300,44 +325,31 @@ function M.on_progress_tool_call_done(id)
   local ok, arguments =
     pcall(vim.json.decode, tool_call['function'].arguments)
   if ok then
-    windows.on_tool_call_start(session, tool_call['function'].name)
+    local message = {
+      role = 'assistant',
+      reasoning_content = progress_reasoning_contents[session],
+      tool_calls = {
+        tool_call,
+      },
+      created = os.time(),
+    }
+    progress_reasoning_contents[session] = nil
+    M.append_message(session, message)
+    windows.on_tool_call_start(session, message)
     local result = tools.call(tool_call['function'].name, arguments)
-    if result.error then
-      windows.on_tool_call_error(session, result.error)
-      M.append_message(session, {
-        role = 'assistant',
-        reasoning_content = progress_reasoning_contents[session],
-        tool_calls = {
-          tool_call,
-        },
-      })
-      progress_reasoning_contents[session] = nil
-      M.append_message(session, {
-        role = 'tool',
-        content = 'tool_call run failed, error is: \n' .. result.error,
-        tool_call_id = tool_call.id,
-      })
-      windows.on_tool_call_done(
-        session,
-        tool_call['function'].name,
-        result.error
-      )
-    else
-      M.append_message(session, {
-        role = 'assistant',
-        reasoning_content = progress_reasoning_contents[session],
-        tool_calls = {
-          tool_call,
-        },
-      })
-      progress_reasoning_contents[session] = nil
-      M.append_message(session, {
-        role = 'tool',
-        content = result.content,
-        tool_call_id = tool_call.id,
-      })
-      windows.on_tool_call_done(session, tool_call['function'].name)
-    end
+    local tool_done_message = {
+      role = 'tool',
+      content = result.content
+        or ('tool_call run failed, error is: \n' .. result.error),
+      tool_call_id = tool_call.id,
+      created = os.time(),
+      tool_call_state = {
+        name = tool_call['function'].name,
+        error = result.error,
+      },
+    }
+    M.append_message(session, tool_done_message)
+    windows.on_tool_call_done(session, tool_done_message)
   else
     print(arguments)
   end

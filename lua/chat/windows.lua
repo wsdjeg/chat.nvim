@@ -163,35 +163,22 @@ function requestObj.on_stdout(id, data)
     end
   end)
 end
-function M.on_tool_call_done(session, func, err)
-  if not err then
-    local message = {
-      content = string.format(
-        '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
-        os.date(config.config.strftime),
-        func
-      ),
-      created = os.time(),
-    }
-    sessions.append_message(session, message)
-    if session == current_session then
-      if not err then
-        if vim.api.nvim_buf_is_valid(result_buf) then
-          vim.api.nvim_buf_set_lines(
-            result_buf,
-            -1,
-            -1,
-            false,
-            M.generate_message(message)
-          )
-        end
-        if vim.api.nvim_win_is_valid(result_win) then
-          vim.api.nvim_win_set_cursor(
-            result_win,
-            { vim.api.nvim_buf_line_count(result_buf), 0 }
-          )
-        end
-      end
+function M.on_tool_call_done(session, message)
+  if session == current_session then
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      vim.api.nvim_buf_set_lines(
+        result_buf,
+        -1,
+        -1,
+        false,
+        M.generate_message(message)
+      )
+    end
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
     end
   end
   local ok, provider =
@@ -212,37 +199,11 @@ end
 -- [08:42] 🤖 Bot: ✅ Tool execution complete: read_file .stylua.toml (0.2s)
 -- [08:42] 🤖 Bot: File content: ...
 
-function M.on_tool_call_start(session, func)
+function M.on_tool_call_start(session, message)
   if session == current_session then
-    local message = {
-      '',
-      string.format(
-        '[%s] 🤖 Bot: 🔧 Executing tool: %s',
-        os.date(config.config.strftime),
-        func
-      ),
-    }
+    local lines = M.generate_message(message)
     if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-    end
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
-    end
-  end
-end
-
-function M.on_tool_call_error(session, err)
-  if session == current_session then
-    local message = {
-      '',
-      string.format('[%s] ❌ : Tool Error: %s', os.date('%H:%M'), err),
-      '',
-    }
-    if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
     end
     if vim.api.nvim_win_is_valid(result_win) then
       vim.api.nvim_win_set_cursor(
@@ -266,6 +227,7 @@ function requestObj.on_exit(id, code, signal)
     log.info(string.format('job exit code %d signal %d', code, signal))
   end)
   local session = sessions.get_progress_session(id)
+  sessions.on_progress_exit(id, code, signal)
   if current_session == session then
     if signal == 2 then
       is_thinking = false
@@ -307,26 +269,28 @@ function requestObj.on_complete(session, id)
     usage = usage,
     created = os.time(),
   }
-  log.info(current_session)
-  log.info(session)
-  log.info('on_complete ' .. vim.inspect(message))
 
   sessions.append_message(session, message)
 
-  if vim.api.nvim_buf_is_valid(result_buf) then
-    vim.api.nvim_buf_set_lines(
-      result_buf,
-      -1,
-      -1,
-      false,
-      M.generate_message(message)
-    )
-  end
-  if vim.api.nvim_win_is_valid(result_win) then
-    vim.api.nvim_win_set_cursor(
-      result_win,
-      { vim.api.nvim_buf_line_count(result_buf), 0 }
-    )
+  if current_session == session then
+    if vim.api.nvim_buf_get_lines(result_buf, -2, 1, false)[1] ~= '' then
+      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
+    end
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      vim.api.nvim_buf_set_lines(
+        result_buf,
+        -1,
+        -1,
+        false,
+        M.generate_message(message)
+      )
+    end
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
+    end
   end
 end
 
@@ -344,7 +308,8 @@ function M.generate_message(message)
     local msg = {
       '['
         .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:',
+        .. '] 🤖 Bot:'
+        .. ((message.reasoning_content and ' thinking ...') or ''),
       '',
     }
     if message.reasoning_content then
@@ -369,7 +334,7 @@ function M.generate_message(message)
       '['
         .. os.date(config.config.strftime, message.created)
         .. '] 🤖 Bot:'
-        .. (message.reasoning_content and ' thinking ...'),
+        .. ((message.reasoning_content and ' thinking ...') or ''),
       '',
     }
     if message.reasoning_content then
@@ -378,17 +343,19 @@ function M.generate_message(message)
       end
       table.insert(msg, '')
     end
-    for _, line in ipairs(vim.split(message.content, '\n')) do
-      table.insert(msg, line)
+    if message.content then
+      for _, line in ipairs(vim.split(message.content, '\n')) do
+        table.insert(msg, line)
+      end
+      table.insert(msg, '')
     end
-    table.insert(msg, '')
     return msg
   elseif message.role == 'user' then
     local content = vim.split(message.content, '\n')
     local msg = {
       '['
         .. os.date(config.config.strftime, message.created)
-        .. '] 👤 You:'
+        .. '] 👤 You: '
         .. content[1],
     }
     if #content > 1 then
@@ -398,6 +365,28 @@ function M.generate_message(message)
     end
     table.insert(msg, '')
     return msg
+  elseif message.role == 'tool' then
+    if message.tool_call_state and message.tool_call_state.error then
+      local msg = vim.split(
+        string.format(
+          '[%s] ❌ : Tool Error: %s',
+          os.date(config.config.strftime, message.created),
+          message.tool_call_state.error
+        ),
+        '\n'
+      )
+      table.insert(msg, '')
+      return msg
+    else
+      return {
+        string.format(
+          '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
+          os.date(config.config.strftime, message.created),
+          (message.tool_call_state and message.tool_call_state.name) or ''
+        ),
+        '',
+      }
+    end
   elseif message.content and message.role ~= 'tool' then
     return vim.split(message.content, '\n')
   elseif message.on_complete then
