@@ -367,6 +367,13 @@ function M.get_session_provider(session)
 end
 
 function M.set_session_provider(session, provider)
+  if M.is_in_progress(session) then
+    require('chat.log').notify(
+      'session is in progress, can not change provider.',
+      'WarningMsg'
+    )
+    return
+  end
   sessions[session].provider = provider
   -- when set provider, set_session_model function will be called too
   -- so, only need to update window title in model function
@@ -377,6 +384,13 @@ function M.get_session_model(session)
 end
 
 function M.set_session_model(session, model)
+  if M.is_in_progress(session) then
+    require('chat.log').notify(
+      'session is in progress, can not change provider.',
+      'WarningMsg'
+    )
+    return
+  end
   sessions[session].model = model
   if session == require('chat.windows').current_session() then
     require('chat.windows').redraw_title()
