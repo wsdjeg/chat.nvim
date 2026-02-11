@@ -166,10 +166,14 @@ chat.nvim also supports custom provider, just create `lua/chat/providers/<provid
 should provides two functions `request` and `available_models`,
 here is an example for using [free_chatgpt_api](https://github.com/popjane/free_chatgpt_api)
 
+
+file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
+
 ```lua
 local M = {}
 local job = require('job')
 local sessions = require('chat.sessions')
+local config = require('chat.config')
 
 function M.available_models()
   return {
@@ -185,22 +189,31 @@ function M.request(requestObj)
     '-H',
     'Content-Type: application/json',
     '-H',
-    'Authorization: Bearer ' .. requestObj.api_key,
+    'Authorization: Bearer ' .. config.config.api_key.free_chatgpt,
     '-X',
     'POST',
-    '-d',
-    vim.json.encode({
-      model = requestObj.model,
-      messages = requestObj.messages,
-      stream = true,
-    }),
+    '@-',
   }
 
-  local jobid = job.start(cmd, {
-    on_stdout = requestObj.on_stdout,
-    on_exit = requestObj.on_exit,
+  local body = vim.json.encode({
+    model = sessions.get_session_model(opt.session),
+    messages = opt.messages,
+    thinking = {
+      type = 'enabled',
+    },
+    stream = true,
+    stream_options = { include_usage = true },
+    tools = require('chat.tools').available_tools(),
   })
-  sessions.set_session_jobid(requestObj.session, jobid)
+
+  local jobid = job.start(cmd, {
+    on_stdout = opt.on_stdout,
+    on_stderr = opt.on_stderr,
+    on_exit = opt.on_exit,
+  })
+  job.send(jobid, body)
+  job.send(jobid, nil)
+  sessions.set_session_jobid(opt.session, jobid)
 
   return jobid
 end

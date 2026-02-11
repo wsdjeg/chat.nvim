@@ -182,7 +182,7 @@ function M.on_tool_call_done(session, message)
     end
   end
   local ok, provider =
-    pcall(require, 'chat.providers.' .. config.config.provider)
+    pcall(require, 'chat.providers.' .. sessions.get_session_provider(session))
   if ok then
     provider.request({
       on_stdout = requestObj.on_stdout,
@@ -605,13 +605,8 @@ function M.open(opt)
           )
           vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
         end
-        if type(config.config.api_key) == 'string' then
-          requestObj.api_key = config.config.api_key
-        elseif type(config.config.api_key) == 'table' then
-          requestObj.api_key = config.config.api_key[config.config.provider]
-        end
         local ok, provider =
-          pcall(require, 'chat.providers.' .. config.config.provider)
+          pcall(require, 'chat.providers.' .. sessions.get_session_provider(current_session))
         if ok then
           sessions.append_message(current_session, {
             role = 'user',
@@ -671,7 +666,7 @@ function M.open(opt)
           return
         end
         local ok, provider =
-          pcall(require, 'chat.providers.' .. config.config.provider)
+          pcall(require, 'chat.providers.' .. sessions.get_session_provider(current_session))
         if ok then
           local messages = sessions.get_request_messages(current_session)
           if #messages > 0 and messages[#messages].role ~= 'assistant' then
