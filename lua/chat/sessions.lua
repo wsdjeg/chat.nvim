@@ -33,20 +33,27 @@ function M.write_cache(session)
   end
 end
 
-function M.delete()
-  local s = {}
-  for session, _ in pairs(sessions) do
-    table.insert(s, session)
-  end
-  table.sort(s)
+function M.delete(session)
   local current_session = require('chat.windows').current_session()
-  if not current_session then
-    return M.new()
-  else
-    vim.fn.delete(cache_dir .. current_session .. '.json')
-    sessions[current_session] = nil
+  if not session then
+    session = current_session
+  end
+  if not session then
+    return
+  end
+  if M.is_in_progress(session) then
+    M.cancel_progress(session)
+  end
+  vim.fn.delete(cache_dir .. session .. '.json')
+  sessions[session] = nil
+  if current_session == session then
+    local s = {}
+    for id, _ in pairs(sessions) do
+      table.insert(s, id)
+    end
+    table.sort(s)
     for i = 1, #s do
-      if s[i] == current_session then
+      if s[i] == session then
         if i == #s then
           return M.new()
         else
