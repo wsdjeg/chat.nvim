@@ -17,8 +17,26 @@ function M.find_files(action)
       error = 'the type of pattern should be string.',
     }
   end
+  local is_allowed_path = false
 
-  if not vim.startswith(vim.fn.getcwd(), config.config.allowed_path) then
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(vim.fn.getcwd(), v) then
+          is_allowed_path = true
+          break
+        end
+      end
+    end
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
+    is_allowed_path =
+      vim.startswith(vim.fn.getcwd(), config.config.allowed_path)
+  end
+
+  if not is_allowed_path then
     return {
       error = 'can not find files in not allowed path.',
     }

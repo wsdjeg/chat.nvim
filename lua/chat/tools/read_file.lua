@@ -28,9 +28,17 @@ function M.read_file(action)
 
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
-      is_allowed_path = #v > 0 and vim.startswith(action.filepath, v)
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(action.filepath, v) then
+          is_allowed_path = true
+          break
+        end
+      end
     end
-  elseif #config.config.allowed_path > 0 then
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
     is_allowed_path =
       vim.startswith(action.filepath, config.config.allowed_path)
   end
