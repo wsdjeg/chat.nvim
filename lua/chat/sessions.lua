@@ -363,9 +363,6 @@ function M.on_progress_tool_call_done(id)
 end
 
 function M.append_message(session, message)
-  if message.usage then
-    print(1)
-  end
   table.insert(sessions[session].messages, message)
 end
 
