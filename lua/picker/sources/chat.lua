@@ -1,6 +1,7 @@
 local M = {}
 
 local sessions = require('chat.sessions')
+local windows = require('chat.windows')
 
 local previewer = require('picker.previewer.buffer')
 
@@ -34,7 +35,13 @@ end
 function M.actions()
   return {
     ['<C-d>'] = function(entry)
-      require('chat.sessions').delete(entry.value)
+      if entry.value == windows.current_session() then
+        require('chat').open({
+          session = require('chat.sessions').delete(entry.value),
+        })
+      else
+        require('chat.sessions').delete(entry.value)
+      end
     end,
   }
 end
@@ -48,9 +55,8 @@ M.preview_win = true
 
 function M.preview(item, win, buf)
   local line = 1
-  previewer.buflines = require('chat.windows').generate_buffer(
-    sessions.get_messages(item.value)
-  )
+  previewer.buflines =
+    require('chat.windows').generate_buffer(sessions.get_messages(item.value))
   previewer.filetype = 'markdown'
   previewer.preview(line, win, buf, true)
 end

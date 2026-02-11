@@ -44,14 +44,14 @@ function M.delete(session)
   if M.is_in_progress(session) then
     M.cancel_progress(session)
   end
+  local s = {}
+  for id, _ in pairs(sessions) do
+    table.insert(s, id)
+  end
+  table.sort(s)
   vim.fn.delete(cache_dir .. session .. '.json')
   sessions[session] = nil
   if current_session == session then
-    local s = {}
-    for id, _ in pairs(sessions) do
-      table.insert(s, id)
-    end
-    table.sort(s)
     for i = 1, #s do
       if s[i] == session then
         if i == #s then
