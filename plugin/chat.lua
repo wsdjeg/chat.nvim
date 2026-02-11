@@ -37,6 +37,6 @@ end, {
   complete = function(arglead)
     return vim.tbl_filter(function(t)
       return vim.startswith(t, arglead)
-    end, { 'new', 'prev', 'next' })
+    end, { 'new', 'prev', 'next', 'delete' })
   end,
 })
