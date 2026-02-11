@@ -66,6 +66,7 @@ require('plug').add({
       height = 0.8, -- 80% of vim.o.lines
       border = 'rounded',
       -- default allowed_path is empty string, which means no files is allowed.
+      -- this also can be a table of string.
       allowed_path = '',
     },
   },

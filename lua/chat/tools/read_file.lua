@@ -24,15 +24,25 @@ function M.read_file(action)
   end
 
   action.filepath = vim.fn.fnamemodify(action.filepath, ':p')
+  local is_allowed_path = false
 
-  if
-    #config.config.allowed_path > 0
-    and vim.startswith(action.filepath, config.config.allowed_path)
-  then
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      is_allowed_path = #v > 0 and vim.startswith(action.filepath, v)
+    end
+  elseif #config.config.allowed_path > 0 then
+    is_allowed_path =
+      vim.startswith(action.filepath, config.config.allowed_path)
+  end
+
+  if is_allowed_path then
     local ok, content = pcall(vim.fn.readfile, action.filepath)
     if ok then
       return {
-        content = string.format('the file content is: \n\n%s', table.concat(content, '\n')),
+        content = string.format(
+          'the file content is: \n\n%s',
+          table.concat(content, '\n')
+        ),
       }
     else
       return {
