@@ -377,6 +377,7 @@ function M.set_session_provider(session, provider)
   sessions[session].provider = provider
   -- when set provider, set_session_model function will be called too
   -- so, only need to update window title in model function
+  return true
 end
 
 function M.get_session_model(session)

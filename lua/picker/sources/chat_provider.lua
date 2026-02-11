@@ -24,11 +24,14 @@ function M.default_action(item)
   if ok then
     local available_models = provider.available_models()
     if #available_models > 0 then
-      sessions.set_session_provider(windows.current_session(), item.value)
-      sessions.set_session_model(
-        windows.current_session(),
-        available_models[1]
-      )
+      if
+        sessions.set_session_provider(windows.current_session(), item.value)
+      then
+        sessions.set_session_model(
+          windows.current_session(),
+          available_models[1]
+        )
+      end
     end
   end
 end
