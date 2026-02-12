@@ -15,7 +15,7 @@ local requestObj = {}
 
 -- 此函数只会被当前 session 的数据流调用。
 -- 设定一个变量，分割 content and reasoning_content
-local is_thinking
+local is_thinking = false
 function requestObj.on_stream(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
     if chunk.content then
@@ -41,7 +41,15 @@ function requestObj.on_stream(chunk)
         vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
       local lines = vim.split(chunk.reasoning_content, '\n')
       if not is_thinking then
-        table.insert(lines, 1, last_line)
+        local thinking_lines = M.generate_message({
+          role = 'assistant',
+          created = os.time(),
+          reasoning_content = '',
+        })
+        table.insert(thinking_lines, 1, last_line)
+        table.insert(thinking_lines, '')
+        vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, thinking_lines)
+        lines[1] = '> ' .. lines[1]
         is_thinking = true
       else
         lines[1] = last_line .. lines[1]
@@ -91,6 +99,9 @@ function requestObj.on_stdout(id, data)
           and chunk.choices[1].finish_reason == 'tool_calls'
         then
           log.info('handle tool_calls finish_reason')
+          if sessions == current_session then
+            is_thinking = false
+          end
           sessions.on_progress_tool_call_done(id)
         elseif
           chunk.choices
@@ -208,6 +219,7 @@ end
 function M.on_tool_call_start(session, message)
   if session == current_session then
     local lines = M.generate_message(message)
+    table.insert(lines, 1, '')
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
     end
@@ -279,6 +291,7 @@ function requestObj.on_complete(session, id)
   sessions.append_message(session, message)
 
   if current_session == session then
+    is_thinking = false
     if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
     end
@@ -291,7 +304,6 @@ function requestObj.on_complete(session, id)
         M.generate_message(message)
       )
     end
-    vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
     if vim.api.nvim_win_is_valid(result_win) then
       vim.api.nvim_win_set_cursor(
         result_win,
@@ -312,13 +324,17 @@ end
 
 function M.generate_message(message)
   if message.role == 'assistant' and message.tool_calls then
-    local msg = {
-      '['
-        .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:'
-        .. ((message.reasoning_content and ' thinking ...') or ''),
-      '',
-    }
+    local msg = {}
+    if message.reasoning_content then
+      table.insert(
+        msg,
+        '['
+          .. os.date(config.config.strftime, message.created)
+          .. '] 🤖 Bot:'
+          .. ((message.reasoning_content and ' thinking ...') or '')
+      )
+      table.insert(msg, '')
+    end
     if message.reasoning_content then
       for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
         table.insert(msg, '> ' .. line)
@@ -344,7 +360,7 @@ function M.generate_message(message)
         .. ((message.reasoning_content and ' thinking ...') or ''),
       '',
     }
-    if message.reasoning_content then
+    if message.reasoning_content and #message.reasoning_content > 0 then
       for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
         table.insert(msg, '> ' .. line)
       end
@@ -593,14 +609,6 @@ function M.open(opt)
               table.insert(message, content[i])
             end
           end
-          table.insert(message, '')
-          table.insert(
-            message,
-            '['
-              .. os.date(config.config.strftime)
-              .. '] 🤖 Bot: thinking ...'
-          )
-          table.insert(message, '')
           table.insert(message, '')
           if vim.api.nvim_buf_line_count(result_buf) == 1 then
             vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, message)

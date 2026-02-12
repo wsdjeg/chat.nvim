@@ -342,7 +342,13 @@ function M.on_progress_tool_call_done(id)
     }
     progress_reasoning_contents[session] = nil
     M.append_message(session, message)
-    windows.on_tool_call_start(session, message)
+    -- reasoning_content 已展示，启动tool_call时，无需在传
+    -- reasoning_content，避免前台重复显示。
+    windows.on_tool_call_start(session, {
+      role = message.role,
+      tool_calls = message.tool_calls,
+      created = message.created,
+    })
     local result = tools.call(tool_call['function'].name, arguments)
     local tool_done_message = {
       role = 'tool',
