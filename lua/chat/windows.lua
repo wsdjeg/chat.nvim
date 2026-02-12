@@ -97,7 +97,9 @@ function requestObj.on_stdout(id, data)
           and #chunk.choices > 0
           and chunk.choices[1].delta.reasoning_content
           and chunk.choices[1].delta.reasoning_content ~= vim.NIL
+          and #chunk.choices[1].delta.reasoning_content > 0
         then
+          log.info('handle reasoning_content')
           local content = chunk.choices[1].delta.reasoning_content
           if content and content ~= vim.NIL then
             if session == current_session then
@@ -112,7 +114,9 @@ function requestObj.on_stdout(id, data)
           and #chunk.choices > 0
           and chunk.choices[1].delta.content
           and chunk.choices[1].delta.content ~= vim.NIL
+          and #chunk.choices[1].delta.content > 0
         then
+          log.info('handle content')
           local content = chunk.choices[1].delta.content
           if content and content ~= vim.NIL then
             if session == current_session then
