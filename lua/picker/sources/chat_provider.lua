@@ -15,7 +15,8 @@ function M.get()
 end
 
 function M.default_action(item)
-  if
+  local current_session = windows.current_session()
+  if not current_session or
     item.value == sessions.get_session_provider(windows.current_session())
   then
     return
