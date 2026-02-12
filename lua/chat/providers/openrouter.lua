@@ -4,10 +4,10 @@ local available_models = {}
 
 local job = require('job')
 local sessions = require('chat.sessions')
+local config = require('chat.config')
 
 function M.available_models()
   if #available_models == 0 then
-    local config = require('chat.config')
     if config.config.api_key.openrouter then
       local cmd = {
         'curl',
