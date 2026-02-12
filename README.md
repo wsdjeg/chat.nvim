@@ -38,8 +38,9 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 ## ✨ Features
 
-- **Multiple AI Providers**: Built-in support for GitHub AI and DeepSeek
-- **Custom Provider Support**: Easily add your own AI providers
+- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, and more
+- **Custom Provider Support**: Easily add your own AI providers via Lua modules
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`) with custom tool support
 - **Floating Window Interface**: Clean, non-intrusive chat interface
 - **Session Management**: Resume previous conversations
 - **Picker Integration**: Seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim)
