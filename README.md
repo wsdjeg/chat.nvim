@@ -26,6 +26,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
         - [`find_files`](#find_files)
+    - [Third party Tools](#third-party-tools)
     - [How to Use Tools](#how-to-use-tools)
     - [Custom tools](#custom-tools)
 - [🔍 Picker Integration](#-picker-integration)
@@ -166,7 +167,6 @@ chat.nvim also supports custom provider, just create `lua/chat/providers/<provid
 should provides two functions `request` and `available_models`,
 here is an example for using [free_chatgpt_api](https://github.com/popjane/free_chatgpt_api)
 
-
 file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
 
 ```lua
@@ -273,6 +273,10 @@ Finds files in the current working directory that match a given pattern.
 - Returns a list of found files, with one file path per line
 - Returns a message if no files are found based on the given pattern
 - File searching is restricted by the `allowed_path` configuration setting
+
+### Third party Tools
+
+- `zettelkasten_create` - create new zettelkasten notes, provided by [zettelkasten.nvim](https://github.com/wsdjeg/zettelkasten.nvim)
 
 ### How to Use Tools
 
