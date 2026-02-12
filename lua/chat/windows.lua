@@ -533,6 +533,7 @@ function M.open(opt)
       callback = M.close,
       silent = true,
     })
+    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-o>', '<Nop>', {})
     vim.api.nvim_buf_set_keymap(result_buf, 'n', '<Tab>', '', {
       callback = function()
         vim.api.nvim_set_current_win(prompt_win)
@@ -590,6 +591,7 @@ function M.open(opt)
   if not vim.api.nvim_buf_is_valid(prompt_buf) then
     prompt_buf = vim.api.nvim_create_buf(false, false)
     vim.api.nvim_set_option_value('buftype', 'nofile', { buf = prompt_buf })
+    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-o>', '<Nop>', {})
     --- 回车这操作是进行发送请求，需要判断
     --- 当前session，有没有正在进行的请求未完成？
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Enter>', '', {
