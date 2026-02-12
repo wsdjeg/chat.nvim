@@ -160,6 +160,9 @@ The following key bindings are available in the **Result** window:
 2. `github` - [GitHub AI](https://github.com/features/ai)
 3. `moonshot` - [Moonshot AI](https://platform.moonshot.cn/)
 4. `openrouter` - [OpenRouter](https://openrouter.ai/)
+5. `qwen` - [Alibaba Cloud Qwen](https://www.aliyun.com/product/bailian)
+6. `siliconflow` - [SiliconFlow](https://www.siliconflow.cn/)
+7. `tencent` - [Tencent Hunyuan](https://cloud.tencent.com/document/product/1729)
 
 ### Custom Providers
 
