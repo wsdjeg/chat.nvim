@@ -394,6 +394,9 @@ function M.on_progress_tool_call_done(id)
     end
   end
   windows.on_tool_call_done(session, tool_done_messages)
+
+  -- clear job_tool_calls by id
+  job_tool_calls[id] = nil
 end
 
 function M.append_message(session, message)
