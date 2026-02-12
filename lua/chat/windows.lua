@@ -598,6 +598,7 @@ function M.open(opt)
               .. '] 🤖 Bot: thinking ...'
           )
           table.insert(message, '')
+          table.insert(message, '')
           if vim.api.nvim_buf_line_count(result_buf) == 1 then
             vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, message)
           else
