@@ -585,6 +585,7 @@ function M.open(opt)
       winhighlight,
       { win = result_win }
     )
+    vim.fn.matchadd('Comment', '^\\[[^]]*\\] [🤖👤]', 10, -1, { window = result_win })
     vim.api.nvim_set_option_value('wrap', true, { win = result_win })
   end
 
