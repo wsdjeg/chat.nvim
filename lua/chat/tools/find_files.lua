@@ -80,4 +80,17 @@ function M.scheme()
   }
 end
 
+function M.info(action)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if ok then
+    return string.format(
+      'find_files %s in %s',
+      arguments.pattern,
+      vim.fn.getcwd()
+    )
+  else
+    return 'find_files'
+  end
+end
+
 return M

@@ -1,7 +1,5 @@
 local M = {}
 
-
-
 function M.available_tools()
   local tool_modules = vim.tbl_map(function(t)
     return 'chat.tools.' .. vim.fn.fnamemodify(t, ':t:r')
@@ -17,7 +15,6 @@ function M.available_tools()
 end
 
 function M.call(func, arguments)
-
   if func == 'read_file' then
     return require('chat.tools.read_file').read_file(arguments)
   end
@@ -30,9 +27,19 @@ function M.call(func, arguments)
   end
 
   return {
-    error = 'unknown tool function name.'
+    error = 'unknown tool function name.',
   }
+end
 
+function M.info(tool_call)
+  local tool_module = 'chat.tools.' .. tool_call['function'].name
+
+  local ok, tool = pcall(require, tool_module)
+  if ok and tool.info then
+    return tool.info(tool_call['function'].arguments)
+  else
+    return tool_call['function'].name
+  end
 end
 
 return M

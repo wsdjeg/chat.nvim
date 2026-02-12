@@ -2,6 +2,7 @@ local M = {}
 
 local config = require('chat.config')
 local sessions = require('chat.sessions')
+local tools = require('chat.tools')
 local log = require('chat.log')
 
 local current_session
@@ -178,16 +179,18 @@ function requestObj.on_stdout(id, data)
     end
   end)
 end
-function M.on_tool_call_done(session, message)
+function M.on_tool_call_done(session, messages)
   if session == current_session then
-    if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(
-        result_buf,
-        -1,
-        -1,
-        false,
-        M.generate_message(message)
-      )
+    for _, message in ipairs(messages) do
+      if vim.api.nvim_buf_is_valid(result_buf) then
+        vim.api.nvim_buf_set_lines(
+          result_buf,
+          -1,
+          -1,
+          false,
+          M.generate_message(message)
+        )
+      end
     end
     if vim.api.nvim_win_is_valid(result_win) then
       vim.api.nvim_win_set_cursor(
@@ -341,15 +344,17 @@ function M.generate_message(message)
       end
       table.insert(msg, '')
     end
-    table.insert(
-      msg,
-      string.format(
-        '[%s] 🤖 Bot: 🔧 Executing tool: %s',
-        os.date(config.config.strftime, message.created),
-        message.tool_calls[1]['function'].name
+    for i = 1, #message.tool_calls do
+      table.insert(
+        msg,
+        string.format(
+          '[%s] 🤖 Bot: 🔧 Executing tool: %s',
+          os.date(config.config.strftime, message.created),
+          tools.info(message.tool_calls[i])
+        )
       )
-    )
-    table.insert(msg, '')
+      table.insert(msg, '')
+    end
 
     return msg
   elseif message.role == 'assistant' then

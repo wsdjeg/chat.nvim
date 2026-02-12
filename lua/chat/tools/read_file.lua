@@ -91,4 +91,13 @@ function M.scheme()
   }
 end
 
+function M.info(action)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if ok then
+    return string.format('read_file %s', arguments.filepath)
+  else
+    return 'read_file'
+  end
+end
+
 return M

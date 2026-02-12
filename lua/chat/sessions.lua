@@ -1,5 +1,7 @@
 local sessions = {}
 
+local log = require('chat.log')
+
 -- 保存请求返回的 reasoning_content
 
 local progress_reasoning_contents = {}
@@ -313,59 +315,85 @@ end
 --   ]
 -- }
 -- ```
+--
+-- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","created":1770892808,"object":"chat.completion.chunk","usage":null,"choices":[{"logprobs":null,"index":0,"delta":{"content":null,"role":"assistant","reasoning_content":""}}]}
+-- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"我找到了","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"一些文件，让我","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"进一步探索这个仓库","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"的结构，特别是 lua","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":" 和 plugin 目录","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"下的文件。","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"call_06b0480b018b44ffafdd6f65","type":"function","function":{"name":"find_files","arguments":""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"{\"pattern\": \"lua"}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"/**\""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"}"}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":1,"id":"call_f6f2f784a4524c1aa53e53e8","type":"function","function":{"name":"find_files","arguments":""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":1,"id":"","type":"function","function":{"name":"","arguments":"{\"pattern\": \"plugin/**\""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"}"},"index":1,"id":"","type":"function"}],"content":""},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
+-- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[],"created":1770892808,"object":"chat.completion.chunk","usage":{"total_tokens":790,"completion_tokens":70,"prompt_tokens":720,"completion_tokens_details":{"reasoning_tokens":22}}}
+-- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] data: [DONE]
+-- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] job exit code 0 signal 0
 
-local tool_calls = {}
+local job_tool_calls = {}
 
 function M.on_progress_tool_call(id, tool_call)
-  if not tool_calls[id] then
-    tool_calls[id] = tool_call
-  else
-    tool_calls[id]['function'].arguments = tool_calls[id]['function'].arguments
-      .. tool_call['function'].arguments
+  if not job_tool_calls[id] then
+    job_tool_calls[id] = {}
   end
+
+  if not job_tool_calls[id][tool_call.index + 1] then
+    job_tool_calls[id][tool_call.index + 1] = tool_call
+  end
+
+  job_tool_calls[id][tool_call.index + 1]['function'].arguments = job_tool_calls[id][tool_call.index + 1]['function'].arguments
+    .. tool_call['function'].arguments
 end
 
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)
   local windows = require('chat.windows')
-  local tool_call = tool_calls[id]
-  local ok, arguments =
-    pcall(vim.json.decode, tool_call['function'].arguments)
-  if ok then
-    local message = {
-      role = 'assistant',
-      reasoning_content = progress_reasoning_contents[session],
-      tool_calls = {
-        tool_call,
-      },
-      created = os.time(),
-    }
-    progress_reasoning_contents[session] = nil
-    M.append_message(session, message)
-    -- reasoning_content 已展示，启动tool_call时，无需在传
-    -- reasoning_content，避免前台重复显示。
-    windows.on_tool_call_start(session, {
-      role = message.role,
-      tool_calls = message.tool_calls,
-      created = message.created,
-    })
-    local result = tools.call(tool_call['function'].name, arguments)
-    local tool_done_message = {
-      role = 'tool',
-      content = result.content
-        or ('tool_call run failed, error is: \n' .. result.error),
-      tool_call_id = tool_call.id,
-      created = os.time(),
-      tool_call_state = {
-        name = tool_call['function'].name,
-        error = result.error,
-      },
-    }
-    M.append_message(session, tool_done_message)
-    windows.on_tool_call_done(session, tool_done_message)
-  else
-    print(arguments)
+  local message = {
+    role = 'assistant',
+    reasoning_content = progress_reasoning_contents[session],
+    tool_calls = job_tool_calls[id],
+    created = os.time(),
+  }
+  progress_reasoning_contents[session] = nil
+  M.append_message(session, message)
+
+  local tool_done_messages = {}
+  -- reasoning_content 已展示，启动tool_call时，无需在传
+  -- reasoning_content，避免前台重复显示。
+  windows.on_tool_call_start(session, {
+    role = message.role,
+    tool_calls = message.tool_calls,
+    created = message.created,
+  })
+
+  for _, tool_call in ipairs(job_tool_calls[id]) do
+    local ok, arguments =
+      pcall(vim.json.decode, tool_call['function'].arguments)
+    if ok then
+      local result = tools.call(tool_call['function'].name, arguments)
+      local tool_done_message = {
+        role = 'tool',
+        content = result.content
+          or ('tool_call run failed, error is: \n' .. result.error),
+        tool_call_id = tool_call.id,
+        created = os.time(),
+        tool_call_state = {
+          name = tool_call['function'].name,
+          error = result.error,
+        },
+      }
+      M.append_message(session, tool_done_message)
+      table.insert(tool_done_messages, tool_done_message)
+    else
+      log.info('failed to decode arguments, error is:' .. tool_call)
+    end
   end
+  windows.on_tool_call_done(session, tool_done_messages)
 end
 
 function M.append_message(session, message)
