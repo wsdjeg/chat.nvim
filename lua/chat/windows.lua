@@ -251,6 +251,8 @@ function requestObj.on_complete(session, id)
 
   sessions.append_message(session, message)
 
+  sessions.write_cache(session)
+
   if current_session == session then
     if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })

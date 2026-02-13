@@ -175,7 +175,6 @@ function M.on_progress_done(jobid)
         create = os.time(),
       })
       progress_messages[session] = nil
-      M.write_cache(session)
     else
       progress_reasoning_contents[session] = nil
       progress_messages[session] = nil
@@ -419,7 +418,6 @@ function M.on_progress_tool_call_done(id)
   progress_messages[session] = nil
   progress_reasoning_contents[session] = nil
   M.append_message(session, message)
-  M.write_cache(session)
 
   local tool_done_messages = {}
   -- reasoning_content 已展示，启动tool_call时，无需在传
