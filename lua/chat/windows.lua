@@ -80,6 +80,10 @@ function requestObj.on_stdout(id, data)
         log.info(line)
       end
       if line == 'data: [DONE]' then
+        log.info('handle date DONE')
+        if sessions == current_session then
+          is_thinking = false
+        end
         sessions.on_progress_done(id)
         requestObj.on_complete(session, id)
       elseif vim.startswith(line, 'data: ') then
@@ -96,16 +100,6 @@ function requestObj.on_stdout(id, data)
           for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
             sessions.on_progress_tool_call(id, tool_call)
           end
-        elseif
-          chunk.choices
-          and #chunk.choices > 0
-          and chunk.choices[1].finish_reason == 'tool_calls'
-        then
-          log.info('handle tool_calls finish_reason')
-          if sessions == current_session then
-            is_thinking = false
-          end
-          sessions.on_progress_tool_call_done(id)
         elseif
           chunk.choices
           and #chunk.choices > 0

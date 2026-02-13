@@ -5,6 +5,7 @@ local log = require('chat.log')
 -- 保存请求返回的 reasoning_content
 
 local progress_reasoning_contents = {}
+local job_tool_calls = {}
 
 local tools = require('chat.tools')
 
@@ -157,24 +158,28 @@ local progress_messages = {}
 ---@param jobid integer
 ---@return string
 function M.on_progress_done(jobid)
-  local session = M.get_progress_session(jobid)
-  if progress_messages[session] then
-    local reasoning_content
-    if progress_reasoning_contents[session] then
-      reasoning_content = progress_reasoning_contents[session]
-      progress_reasoning_contents[session] = nil
-    end
-    M.append_message(session, {
-      role = 'assistant',
-      reasoning_content = reasoning_content,
-      content = progress_messages[session],
-      create = os.time(),
-    })
-    progress_messages[session] = nil
-    M.write_cache(session)
+  if job_tool_calls[jobid] then
+    M.on_progress_tool_call_done(jobid)
   else
-    progress_reasoning_contents[session] = nil
-    progress_messages[session] = nil
+    local session = M.get_progress_session(jobid)
+    if progress_messages[session] then
+      local reasoning_content
+      if progress_reasoning_contents[session] then
+        reasoning_content = progress_reasoning_contents[session]
+        progress_reasoning_contents[session] = nil
+      end
+      M.append_message(session, {
+        role = 'assistant',
+        reasoning_content = reasoning_content,
+        content = progress_messages[session],
+        create = os.time(),
+      })
+      progress_messages[session] = nil
+      M.write_cache(session)
+    else
+      progress_reasoning_contents[session] = nil
+      progress_messages[session] = nil
+    end
   end
 end
 
@@ -348,8 +353,6 @@ end
 -- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] data: [DONE]
 -- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] job exit code 0 signal 0
 
-local job_tool_calls = {}
-
 function M.on_progress_tool_call(id, tool_call)
   if not job_tool_calls[id] then
     job_tool_calls[id] = {}
@@ -366,15 +369,25 @@ end
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)
   local windows = require('chat.windows')
-  local message = {
-    role = 'assistant',
-    reasoning_content = progress_reasoning_contents[session],
-    tool_calls = job_tool_calls[id],
-    created = os.time(),
-    session = session,
-  }
+  local message
+  if progress_messages[session] then
+    local reasoning_content = progress_reasoning_contents[session]
+    local content = progress_messages[session]
+    message = {
+      role = 'assistant',
+      reasoning_content = reasoning_content,
+      content = content,
+      tool_calls = job_tool_calls[id],
+      create = os.time(),
+      session = session,
+    }
+  else
+  end
+
+  progress_messages[session] = nil
   progress_reasoning_contents[session] = nil
   M.append_message(session, message)
+  M.write_cache(session)
 
   local tool_done_messages = {}
   -- reasoning_content 已展示，启动tool_call时，无需在传
