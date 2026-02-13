@@ -29,6 +29,10 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       session = require('chat.sessions').delete(),
     })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
+    require('chat').open({
+      redraw = require('chat.sessions').clear(),
+    })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
     if #opt.fargs >= 2 then
       local dir = vim.fn.fnamemodify(opt.fargs[2], ':p')

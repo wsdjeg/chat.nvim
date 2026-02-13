@@ -473,6 +473,26 @@ function M.change_cwd(session, cwd)
   end
 end
 
+function M.clear()
+  local current_session = require('chat.windows').current_session()
+
+  if current_session and sessions[current_session] then
+    if M.is_in_progress(current_session) then
+      require('chat.log').notify({
+
+        'session is in progress',
+        'Press Ctrl-C to cancel before clear session',
+      }, 'WarningMsg')
+
+      return false
+    else
+      sessions[current_session].messages = {}
+      M.write_cache(current_session)
+      return true
+    end
+  end
+end
+
 M.get()
 
 return M

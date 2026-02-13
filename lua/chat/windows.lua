@@ -505,8 +505,11 @@ function M.open(opt)
       sessions.change_cwd(current_session, opt.cwd)
     end
   end
-  if opt and opt.session and opt.session ~= current_session then
-    current_session = opt.session
+  if
+    (opt and opt.redraw)
+    or (opt and opt.session and opt.session ~= current_session)
+  then
+    current_session = (opt.session or current_session)
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(
         result_buf,
