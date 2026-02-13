@@ -56,7 +56,7 @@ M.preview_win = true
 function M.preview(item, win, buf)
   local line = 1
   previewer.buflines =
-    require('chat.windows').generate_buffer(sessions.get_messages(item.value))
+    require('chat.windows').generate_buffer(sessions.get_messages(item.value), item.value)
   previewer.filetype = 'markdown'
   previewer.preview(line, win, buf, true)
 end

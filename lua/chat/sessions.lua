@@ -18,6 +18,7 @@ local tools = require('chat.tools')
 ---@field messages table<ChatMessage>
 ---@field provider? string
 ---@field model? string
+---@field cwd string session working directory
 
 local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
 
@@ -122,16 +123,27 @@ function M.get()
       io.close(file)
       local obj = vim.json.decode(context)
       -- 兼容老版本 session
+      -- 如果没有 id key，说明是最老的版本直接是一组消息列表
       if not obj.id then
-        sessions[vim.fn.fnamemodify(v, ':t:r')] = {
-          id = vim.fn.fnamemodify(v, ':t:r'),
+        obj.id = vim.fn.fnamemodify(v, ':t:r')
+        obj = {
+          id = obj.id,
           messages = obj,
           provider = require('chat.config').config.provider,
           model = require('chat.config').config.model,
+          cwd = vim.fn.getcwd(),
         }
-      else
-        sessions[vim.fn.fnamemodify(v, ':t:r')] = obj
+        sessions[obj.id] = obj
+        M.write_cache(obj.id)
       end
+      -- 检测完 id 后，如果有 id，但是 没有 cwd 选项
+      -- 说明是 id 加上后到 cwd 加之前的版本。
+      if not obj.cwd then
+        obj.cwd = vim.fn.getcwd()
+        sessions[obj.id] = obj
+        M.write_cache(obj.id)
+      end
+      sessions[obj.id] = obj
     end
   end
   return sessions
@@ -288,6 +300,7 @@ function M.new()
     messages = {},
     provider = config.config.provider,
     model = config.config.model,
+    cwd = vim.fn.getcwd(),
   }
   return id
 end
@@ -358,6 +371,7 @@ function M.on_progress_tool_call_done(id)
     reasoning_content = progress_reasoning_contents[session],
     tool_calls = job_tool_calls[id],
     created = os.time(),
+    session = session,
   }
   progress_reasoning_contents[session] = nil
   M.append_message(session, message)
@@ -369,13 +383,18 @@ function M.on_progress_tool_call_done(id)
     role = message.role,
     tool_calls = message.tool_calls,
     created = message.created,
+    session = session,
   })
 
   for _, tool_call in ipairs(job_tool_calls[id]) do
     local ok, arguments =
       pcall(vim.json.decode, tool_call['function'].arguments)
     if ok then
-      local result = tools.call(tool_call['function'].name, arguments)
+      local result = tools.call(
+        tool_call['function'].name,
+        arguments,
+        { cwd = sessions[session].cwd }
+      )
       local tool_done_message = {
         role = 'tool',
         content = result.content
@@ -436,6 +455,21 @@ function M.set_session_model(session, model)
   sessions[session].model = model
   if session == require('chat.windows').current_session() then
     require('chat.windows').redraw_title()
+  end
+end
+
+function M.getcwd(session)
+  if sessions[session] and not sessions[session].cwd then
+    sessions[session].cwd = vim.fn.getcwd()
+  end
+  return sessions[session].cwd
+end
+
+function M.change_cwd(session, cwd)
+  local windows = require('chat.windows')
+  sessions[session].cwd = cwd
+  if session == windows.current_session() then
+    windows.redraw_title()
   end
 end
 

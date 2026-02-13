@@ -29,14 +29,41 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       session = require('chat.sessions').delete(),
     })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
+    if #opt.fargs >= 2 then
+      local dir = vim.fn.fnamemodify(opt.fargs[2], ':p')
+      if vim.fn.isdirectory(dir) == 1 then
+        require('chat').open({
+          cwd = dir,
+        })
+      else
+        require('chat.log').notify(
+          string.format('%s is not valid directory', dir)
+        )
+      end
+    else
+      require('chat.log').notify(':Chat cd <directory>')
+    end
   else
     require('chat').open()
   end
 end, {
   nargs = '*',
-  complete = function(arglead)
+  complete = function(arglead, cmdline, pos)
+    local pre_cursor = string.sub(cmdline, 1, pos)
+
+    if pre_cursor:match('^Chat cd ') then
+      local path_arg = string.match(pre_cursor, '^Chat cd%s+(.*)$')
+
+      if path_arg then
+        return vim.fn.getcompletion(path_arg, 'dir')
+      else
+        return vim.fn.getcompletion('', 'dir')
+      end
+    end
+
     return vim.tbl_filter(function(t)
       return vim.startswith(t, arglead)
-    end, { 'new', 'prev', 'next', 'delete' })
+    end, { 'new', 'prev', 'next', 'delete', 'cd' })
   end,
 })

@@ -83,13 +83,14 @@ You can also navigate between sessions using the following commands.
 
 ### Basic Commands
 
-| Command        | Description                                   |
-| -------------- | --------------------------------------------- |
-| `:Chat`        | Open the chat window with the current session |
-| `:Chat new`    | Start a new chat session                      |
-| `:Chat prev`   | Switch to the previous chat session           |
-| `:Chat next`   | Switch to the next chat session               |
-| `:Chat delete` | Delete current session                        |
+| Command          | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `:Chat`          | Open the chat window with the current session |
+| `:Chat new`      | Start a new chat session                      |
+| `:Chat prev`     | Switch to the previous chat session           |
+| `:Chat next`     | Switch to the next chat session               |
+| `:Chat delete`   | Delete current session                        |
+| `:Chat cd <dir>` | Change current session cwd, open chat window  |
 
 ### Examples
 
@@ -117,10 +118,14 @@ You can also navigate between sessions using the following commands.
 
    Cycles forward through your saved sessions.
 
-4. **Open the chat window** (without changing sessions):
+4. **Open or forced to the chat window**:
+
    ```vim
    :Chat
    ```
+
+   This command will not change current sessions.
+
 5. **Delete current session**:
 
    ```vim
@@ -128,6 +133,15 @@ You can also navigate between sessions using the following commands.
    ```
 
    Cycles to next session or create a new session if current session is latest one.
+
+6. **Change the working directory of current session**:
+
+   ```vim
+   :Chat cd ../picker.nvim/
+   ```
+
+   If the current session is in progress, the working directory will not be changed,
+   and a warning message will be printed.
 
 All sessions are automatically saved and can be resumed later. For more advanced session management,
 see the [Picker Integration](#-picker-integration) section below.

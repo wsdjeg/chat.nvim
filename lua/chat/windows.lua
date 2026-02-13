@@ -166,7 +166,7 @@ function requestObj.on_stdout(id, data)
                 -1,
                 -1,
                 false,
-                M.generate_message(message)
+                M.generate_message(message, session)
               )
             end
             if vim.api.nvim_win_is_valid(result_win) then
@@ -190,7 +190,7 @@ function M.on_tool_call_done(session, messages)
           -1,
           -1,
           false,
-          M.generate_message(message)
+          M.generate_message(message, session)
         )
       end
     end
@@ -223,7 +223,7 @@ end
 
 function M.on_tool_call_start(session, message)
   if session == current_session then
-    local lines = M.generate_message(message)
+    local lines = M.generate_message(message, session)
     table.insert(lines, 1, '')
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
@@ -306,7 +306,7 @@ function requestObj.on_complete(session, id)
         -1,
         -1,
         false,
-        M.generate_message(message)
+        M.generate_message(message, session)
       )
     end
     if vim.api.nvim_win_is_valid(result_win) then
@@ -327,7 +327,7 @@ function M.close()
   end
 end
 
-function M.generate_message(message)
+function M.generate_message(message, session)
   if message.role == 'assistant' and message.tool_calls then
     local msg = {}
     if message.reasoning_content then
@@ -352,7 +352,10 @@ function M.generate_message(message)
         string.format(
           '[%s] 🤖 Bot: 🔧 Executing tool: %s',
           os.date(config.config.strftime, message.created),
-          tools.info(message.tool_calls[i])
+          tools.info(
+            message.tool_calls[i],
+            { cwd = sessions.getcwd(session) }
+          )
         )
       )
       table.insert(msg, '')
@@ -452,10 +455,10 @@ function M.generate_message(message)
   end
 end
 
-function M.generate_buffer(messages)
+function M.generate_buffer(messages, session)
   local lines = {}
   for _, m in ipairs(messages) do
-    for _, l in ipairs(M.generate_message(m)) do
+    for _, l in ipairs(M.generate_message(m, session)) do
       table.insert(lines, l)
     end
   end
@@ -466,9 +469,10 @@ function M.redraw_title()
   if vim.api.nvim_win_is_valid(prompt_win) then
     vim.api.nvim_win_set_config(prompt_win, {
       title = ' Input ' .. string.format(
-        '( %s %s)',
+        '| %s %s | %s ',
         sessions.get_session_provider(current_session),
-        sessions.get_session_model(current_session)
+        sessions.get_session_model(current_session),
+        sessions.getcwd(current_session)
       ),
     })
   end
@@ -491,6 +495,16 @@ function M.open(opt)
   if not current_session then
     current_session = sessions.new()
   end
+  if opt and opt.cwd then
+    if sessions.is_in_progress(current_session) then
+      require('chat.log').notify(
+        'session is in progress, can not change cwd.',
+        'WarningMsg'
+      )
+    else
+      sessions.change_cwd(current_session, opt.cwd)
+    end
+  end
   if opt and opt.session and opt.session ~= current_session then
     current_session = opt.session
     if vim.api.nvim_buf_is_valid(result_buf) then
@@ -499,7 +513,10 @@ function M.open(opt)
         0,
         -1,
         false,
-        M.generate_buffer(require('chat.sessions').get_messages(opt.session))
+        M.generate_buffer(
+          require('chat.sessions').get_messages(current_session),
+          current_session
+        )
       )
       if sessions.is_in_progress(current_session) then
         local reasoning_content =
@@ -512,7 +529,7 @@ function M.open(opt)
               role = 'assistant',
               content = message,
               reasoning_content = reasoning_content,
-            }))
+            }, current_session))
           do
             table.insert(lines, l)
           end
@@ -546,7 +563,7 @@ function M.open(opt)
         0,
         -1,
         false,
-        M.generate_buffer(messages)
+        M.generate_buffer(messages, current_session)
       )
     end
     if sessions.is_in_progress(current_session) then
@@ -560,7 +577,7 @@ function M.open(opt)
             role = 'assistant',
             content = message,
             reasoning_content = reasoning_content,
-          }))
+          }, current_session))
         do
           table.insert(lines, l)
         end
@@ -585,7 +602,13 @@ function M.open(opt)
       winhighlight,
       { win = result_win }
     )
-    vim.fn.matchadd('Comment', '^\\[[^]]*\\] [🤖👤]', 10, -1, { window = result_win })
+    vim.fn.matchadd(
+      'Comment',
+      '^\\[[^]]*\\] [🤖👤]',
+      10,
+      -1,
+      { window = result_win }
+    )
     vim.api.nvim_set_option_value('wrap', true, { win = result_win })
   end
 
@@ -734,9 +757,10 @@ function M.open(opt)
       relative = 'editor',
       border = config.config.border,
       title = ' Input ' .. string.format(
-        '( %s %s)',
+        '| %s %s | %s ',
         sessions.get_session_provider(current_session),
-        sessions.get_session_model(current_session)
+        sessions.get_session_model(current_session),
+        sessions.getcwd(current_session)
       ),
       title_pos = 'center',
       col = start_col,

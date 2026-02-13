@@ -6,7 +6,7 @@ local config = require('chat.config')
 ---@field pattern string
 
 ---@param action ChatToolsFindFilesAction
-function M.find_files(action)
+function M.find_files(action, ctx)
   if not action.pattern then
     return {
       error = 'failed to find finds, pattern is required.',
@@ -22,7 +22,7 @@ function M.find_files(action)
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(vim.fn.getcwd(), v) then
+        if vim.startswith(ctx.cwd, v) then
           is_allowed_path = true
           break
         end
@@ -33,7 +33,7 @@ function M.find_files(action)
     and #config.config.allowed_path > 0
   then
     is_allowed_path =
-      vim.startswith(vim.fn.getcwd(), config.config.allowed_path)
+      vim.startswith(ctx.cwd, config.config.allowed_path)
   end
 
   if not is_allowed_path then
@@ -42,7 +42,7 @@ function M.find_files(action)
     }
   end
 
-  local files = vim.fn.globpath(vim.fn.getcwd(), action.pattern, false, true)
+  local files = vim.fn.globpath(ctx.cwd, action.pattern, false, true)
 
   if #files > 0 then
     return {
@@ -80,13 +80,13 @@ function M.scheme()
   }
 end
 
-function M.info(action)
+function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
     return string.format(
       'find_files %s in %s',
       arguments.pattern,
-      vim.fn.getcwd()
+      ctx.cwd
     )
   else
     return 'find_files'

@@ -1,5 +1,11 @@
 local M = {}
 
+
+---@class ChatToolContext
+---@field cwd? string  -- 会话工作目录
+---@field session? string  -- 会话ID
+---@field user? string  -- 用户信息
+
 function M.available_tools()
   local tool_modules = vim.tbl_map(function(t)
     return 'chat.tools.' .. vim.fn.fnamemodify(t, ':t:r')
@@ -14,16 +20,14 @@ function M.available_tools()
   return tools
 end
 
-function M.call(func, arguments)
-  if func == 'read_file' then
-    return require('chat.tools.read_file').read_file(arguments)
-  end
 
+---@param ctx ChatToolContext
+function M.call(func, arguments, ctx)
   local tool_module = 'chat.tools.' .. func
 
   local ok, tool = pcall(require, tool_module)
   if ok and tool[func] then
-    return tool[func](arguments)
+    return tool[func](arguments, ctx)
   end
 
   return {
@@ -31,12 +35,12 @@ function M.call(func, arguments)
   }
 end
 
-function M.info(tool_call)
+function M.info(tool_call, ctx)
   local tool_module = 'chat.tools.' .. tool_call['function'].name
 
   local ok, tool = pcall(require, tool_module)
   if ok and tool.info then
-    return tool.info(tool_call['function'].arguments)
+    return tool.info(tool_call['function'].arguments, ctx)
   else
     return tool_call['function'].name
   end

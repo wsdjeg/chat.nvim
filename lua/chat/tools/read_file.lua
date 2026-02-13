@@ -2,34 +2,39 @@ local M = {}
 
 local config = require('chat.config')
 
+local util = require('chat.util')
+
 ---@class ChatToolsReadfileAction
 ---@field filepath string
 ---@field line_start integer
 ---@field line_to integer
 
 ---@param action ChatToolsReadfileAction
-function M.read_file(action)
-  if not action.filepath then
+---@param ctx ChatToolContext
+function M.read_file(action, ctx)
+  
+  local filepath = util.resolve(action.filepath, ctx.cwd)
+
+  if not filepath then
     return {
       error = 'failed to read file, filepath is required.',
     }
-  elseif type(action.filepath) ~= 'string' then
+  elseif type(filepath) ~= 'string' then
     return {
       error = 'the type of filepath is not string.',
     }
-  elseif vim.fn.filereadable(action.filepath) == 0 then
+  elseif vim.fn.filereadable(filepath) == 0 then
     return {
-      error = string.format('filepath(%s) is not readable.', action.filepath),
+      error = string.format('filepath(%s) is not readable.', filepath),
     }
   end
 
-  action.filepath = vim.fn.fnamemodify(action.filepath, ':p')
   local is_allowed_path = false
 
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(action.filepath, v) then
+        if vim.startswith(filepath, v) then
           is_allowed_path = true
           break
         end
@@ -40,11 +45,11 @@ function M.read_file(action)
     and #config.config.allowed_path > 0
   then
     is_allowed_path =
-      vim.startswith(action.filepath, config.config.allowed_path)
+      vim.startswith(filepath, config.config.allowed_path)
   end
 
   if is_allowed_path then
-    local ok, content = pcall(vim.fn.readfile, action.filepath)
+    local ok, content = pcall(vim.fn.readfile, filepath)
     if ok then
       return {
         content = string.format(
@@ -91,10 +96,10 @@ function M.scheme()
   }
 end
 
-function M.info(action)
+function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
-    return string.format('read_file %s', arguments.filepath)
+    return string.format('read_file %s', util.resolve(arguments.filepath, ctx.cwd))
   else
     return 'read_file'
   end
