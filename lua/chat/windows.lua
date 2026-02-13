@@ -14,57 +14,44 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 
--- 此函数只会被当前 session 的数据流调用。
--- 设定一个变量，分割 content and reasoning_content
-local is_thinking = false
-function requestObj.on_stream(chunk)
+function M.push_text(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
-    if chunk.content then
-      local last_line =
-        vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
-      local lines = vim.split(chunk.content, '\n')
-      if is_thinking then
-        table.insert(lines, 1, '')
-        table.insert(lines, 1, last_line)
-        is_thinking = false
+    local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
+    local lines = { last_line }
+    if chunk.is_start then
+      local thinking_lines = M.generate_message({
+        role = 'assistant',
+        created = os.time(),
+        reasoning_content = '',
+      })
+      for _, v in ipairs(thinking_lines) do
+        table.insert(lines, v)
+      end
+      if chunk.reasoning_content then
+        table.insert(lines, '> ')
       else
-        lines[1] = last_line .. lines[1]
+        table.insert(lines, '')
       end
-      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
-      if vim.api.nvim_win_is_valid(result_win) then
-        vim.api.nvim_win_set_cursor(
-          result_win,
-          { vim.api.nvim_buf_line_count(result_buf), 0 }
-        )
+    end
+    if chunk.reasoning_content then
+      local rcs = vim.split(chunk.reasoning_content, '\n')
+      lines[#lines] = lines[#lines] .. rcs[1]
+      for i = 2, #rcs do
+        table.insert(lines, '> ' .. rcs[i])
       end
-    elseif chunk.reasoning_content then
-      local last_line =
-        vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
-      local lines = vim.split(chunk.reasoning_content, '\n')
-      if not is_thinking then
-        local thinking_lines = M.generate_message({
-          role = 'assistant',
-          created = os.time(),
-          reasoning_content = '',
-        })
-        table.insert(thinking_lines, 1, last_line)
-        table.insert(thinking_lines, '')
-        vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, thinking_lines)
-        lines[1] = '> ' .. lines[1]
-        is_thinking = true
-      else
-        lines[1] = last_line .. lines[1]
+    elseif chunk.content then
+      local cs = vim.split(chunk.content, '\n')
+      lines[#lines] = lines[#lines] .. cs[1]
+      for i = 2, #cs do
+        table.insert(lines, cs[i])
       end
-      for i = 2, #lines do
-        lines[i] = '> ' .. lines[i]
-      end
-      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
-      if vim.api.nvim_win_is_valid(result_win) then
-        vim.api.nvim_win_set_cursor(
-          result_win,
-          { vim.api.nvim_buf_line_count(result_buf), 0 }
-        )
-      end
+    end
+    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+    if vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_win_set_cursor(
+        result_win,
+        { vim.api.nvim_buf_line_count(result_buf), 0 }
+      )
     end
   end
 end
@@ -81,9 +68,6 @@ function requestObj.on_stdout(id, data)
       end
       if line == 'data: [DONE]' then
         log.info('handle date DONE')
-        if sessions == current_session then
-          is_thinking = false
-        end
         sessions.on_progress_done(id)
         requestObj.on_complete(session, id)
       elseif vim.startswith(line, 'data: ') then
@@ -95,6 +79,7 @@ function requestObj.on_stdout(id, data)
           chunk.choices
           and #chunk.choices > 0
           and chunk.choices[1].delta.tool_calls
+          and chunk.choices[1].delta.tool_calls ~= vim.NIL
         then
           log.info('handle tool_calls chunk')
           for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
@@ -108,15 +93,10 @@ function requestObj.on_stdout(id, data)
           and #chunk.choices[1].delta.reasoning_content > 0
         then
           log.info('handle reasoning_content')
-          local content = chunk.choices[1].delta.reasoning_content
-          if content and content ~= vim.NIL then
-            if session == current_session then
-              requestObj.on_stream({
-                reasoning_content = content,
-              })
-            end
-            sessions.on_progress_reasoning_content(id, content)
-          end
+          sessions.on_progress_reasoning_content(
+            id,
+            chunk.choices[1].delta.reasoning_content
+          )
         elseif
           chunk.choices
           and #chunk.choices > 0
@@ -125,15 +105,7 @@ function requestObj.on_stdout(id, data)
           and #chunk.choices[1].delta.content > 0
         then
           log.info('handle content')
-          local content = chunk.choices[1].delta.content
-          if content and content ~= vim.NIL then
-            if session == current_session then
-              requestObj.on_stream({
-                content = content,
-              })
-            end
-            sessions.on_progress(id, content)
-          end
+          sessions.on_progress(id, chunk.choices[1].delta.content)
         end
         if chunk.usage and chunk.usage ~= vim.NIL then
           log.info('handle usage')
@@ -247,7 +219,6 @@ function requestObj.on_exit(id, code, signal)
   sessions.on_progress_exit(id, code, signal)
   if current_session == session then
     if signal == 2 then
-      is_thinking = false
       local message = {
         '',
         string.format(
@@ -281,7 +252,6 @@ function requestObj.on_complete(session, id)
   sessions.append_message(session, message)
 
   if current_session == session then
-    is_thinking = false
     if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
     end

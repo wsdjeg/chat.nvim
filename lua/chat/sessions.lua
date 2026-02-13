@@ -220,16 +220,52 @@ end
 function M.on_progress(id, text)
   local session = jobid_session[id]
   if session then
+    local windows = require('chat.windows')
+
+    if session == windows.current_session() then
+      if
+        not progress_messages[session]
+        and not progress_reasoning_contents[session]
+      then
+        windows.push_text({
+          is_start = true,
+          content = text,
+        })
+      else
+        windows.push_text({
+          content = text,
+        })
+      end
+    end
+
     progress_messages[session] = (progress_messages[session] or '') .. text
   end
 end
 
-function M.on_progress_reasoning_content(id, reasoning_content)
+function M.on_progress_reasoning_content(id, text)
   local session = jobid_session[id]
   if session then
+    local windows = require('chat.windows')
+
+    if session == windows.current_session() then
+      if
+        not progress_messages[session]
+        and not progress_reasoning_contents[session]
+      then
+        windows.push_text({
+          is_start = true,
+          reasoning_content = text,
+        })
+      else
+        windows.push_text({
+          reasoning_content = text,
+        })
+      end
+    end
+
     progress_reasoning_contents[session] = (
       progress_reasoning_contents[session] or ''
-    ) .. reasoning_content
+    ) .. text
   end
 end
 
