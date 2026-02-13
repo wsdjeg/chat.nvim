@@ -340,6 +340,12 @@ function M.generate_message(message, session)
       end
       table.insert(msg, '')
     end
+    if message.content then
+      for _, line in ipairs(vim.split(message.content, '\n')) do
+        table.insert(msg, line)
+      end
+      table.insert(msg, '')
+    end
     for i = 1, #message.tool_calls do
       table.insert(
         msg,

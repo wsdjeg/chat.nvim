@@ -369,20 +369,16 @@ end
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)
   local windows = require('chat.windows')
-  local message
-  if progress_messages[session] then
-    local reasoning_content = progress_reasoning_contents[session]
-    local content = progress_messages[session]
-    message = {
-      role = 'assistant',
-      reasoning_content = reasoning_content,
-      content = content,
-      tool_calls = job_tool_calls[id],
-      create = os.time(),
-      session = session,
-    }
-  else
-  end
+  local reasoning_content = progress_reasoning_contents[session]
+  local content = progress_messages[session]
+  local message = {
+    role = 'assistant',
+    reasoning_content = reasoning_content,
+    content = content,
+    tool_calls = job_tool_calls[id],
+    create = os.time(),
+    session = session,
+  }
 
   progress_messages[session] = nil
   progress_reasoning_contents[session] = nil
