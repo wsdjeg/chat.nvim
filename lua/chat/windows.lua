@@ -428,9 +428,9 @@ function M.generate_message(message, session)
       complete_str = complete_str
         .. string.format(
           ' • Tokens: %d (%d↑/%d↓)',
+          message.usage.total_tokens,
           message.usage.prompt_tokens,
-          message.usage.completion_tokens,
-          message.usage.total_tokens
+          message.usage.completion_tokens
         )
     end
     return {
