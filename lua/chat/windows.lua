@@ -269,15 +269,6 @@ function requestObj.on_exit(id, code, signal)
   end
 end
 
-function M.test(text)
-  requestObj.on_stream({
-    content = text,
-  })
-end
-
--- [08:42] 🤖 Bot: ✅ Completed • Time: 0.5s • Tokens: 701 (384↑/84↓)
--- Time 以后再加
-
 function requestObj.on_complete(session, id)
   local usage = sessions.get_progress_usage(id)
 
