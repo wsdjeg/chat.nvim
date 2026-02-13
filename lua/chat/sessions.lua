@@ -231,9 +231,15 @@ function M.on_progress(id, text)
           content = text,
         })
       else
-        windows.push_text({
-          content = text,
-        })
+        if not progress_messages[session] then
+          windows.push_text({
+            content = '\n\n' .. text,
+          })
+        else
+          windows.push_text({
+            content = text,
+          })
+        end
       end
     end
 
