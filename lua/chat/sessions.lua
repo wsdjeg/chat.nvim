@@ -403,8 +403,13 @@ function M.on_progress_tool_call(id, tool_call)
     job_tool_calls[id][tool_call.index + 1] = tool_call
   end
 
-  job_tool_calls[id][tool_call.index + 1]['function'].arguments = job_tool_calls[id][tool_call.index + 1]['function'].arguments
-    .. tool_call['function'].arguments
+  if
+    tool_call['function'].arguments
+    and tool_call['function'].arguments ~= vim.NIL
+  then
+    job_tool_calls[id][tool_call.index + 1]['function'].arguments = job_tool_calls[id][tool_call.index + 1]['function'].arguments
+      .. tool_call['function'].arguments
+  end
 end
 
 function M.on_progress_tool_call_done(id)
@@ -471,7 +476,7 @@ function M.on_progress_tool_call_done(id)
       M.append_message(session, tool_done_message)
       table.insert(tool_done_messages, tool_done_message)
       log.info('failed to decode arguments, error is:' .. arguments)
-      log.info('arguments is:' ..  tool_call['function'].arguments)
+      log.info('arguments is:' .. tool_call['function'].arguments)
     end
   end
   windows.on_tool_call_done(session, tool_done_messages)
