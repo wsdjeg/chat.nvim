@@ -270,31 +270,31 @@ end
 function requestObj.on_exit(id, code, signal)
   vim.schedule(function()
     log.info(string.format('job exit code %d signal %d', code, signal))
-  end)
-  local session = sessions.get_progress_session(id)
-  sessions.on_progress_exit(id, code, signal)
-  if current_session == session then
-    spinners.stop()
-    if signal == 2 then
-      local message = {
-        '',
-        string.format(
-          '[%s] ❌ : Request cancelled by user. Press r to retry.',
-          os.date('%H:%M')
-        ),
-        '',
-      }
-      if vim.api.nvim_buf_is_valid(result_buf) then
-        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-      end
-      if vim.api.nvim_win_is_valid(result_win) then
-        vim.api.nvim_win_set_cursor(
-          result_win,
-          { vim.api.nvim_buf_line_count(result_buf), 0 }
-        )
+    local session = sessions.get_progress_session(id)
+    sessions.on_progress_exit(id, code, signal)
+    if current_session == session then
+      spinners.stop()
+      if signal == 2 then
+        local message = {
+          '',
+          string.format(
+            '[%s] ❌ : Request cancelled by user. Press r to retry.',
+            os.date('%H:%M')
+          ),
+          '',
+        }
+        if vim.api.nvim_buf_is_valid(result_buf) then
+          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+        end
+        if vim.api.nvim_win_is_valid(result_win) then
+          vim.api.nvim_win_set_cursor(
+            result_win,
+            { vim.api.nvim_buf_line_count(result_buf), 0 }
+          )
+        end
       end
     end
-  end
+  end)
 end
 
 function requestObj.on_complete(session, id)
