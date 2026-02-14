@@ -1,0 +1,459 @@
+*chat.nvim*  A lightweight lua chat plugin for Neovim with AI integration. 
+
+Author: Eric Wong <wsdjeg@outlook.com>
+Url: https://github.com/wsdjeg/chat.nvim
+
+==============================================================================
+CONTENTS                                                                *chat*
+
+  1. Introduction                                          |chat-introduction|
+  2. Features                                                  |chat-features|
+  3. Installation                                          |chat-installation|
+  4. Usage                                                        |chat-usage|
+    4.1 Basic Commands                                   |chat-basic-commands|
+    4.2 Examples                                               |chat-examples|
+    4.3 Key Bindings                                       |chat-key-bindings|
+  5. Providers                                                |chat-providers|
+    5.1 Built-in Providers                           |chat-built-in-providers|
+    5.2 Custom Providers                               |chat-custom-providers|
+  6. Tools                                                        |chat-tools|
+    6.1 Available Tools                                 |chat-available-tools|
+      6.1.1 read_file                                    |chat-tool-read_file|
+      6.1.2 find_files                                  |chat-tool-find_files|
+    6.2 Third party Tools                             |chat-third-party-tools|
+    6.3 How to Use Tools                               |chat-how-to-use-tools|
+    6.4 Custom Tools                                       |chat-custom-tools|
+  7. Picker Integration                              |chat-picker-integration|
+  8. Self-Promotion                                      |chat-self-promotion|
+  9. Feedback                                                  |chat-feedback|
+  10. License                                                   |chat-license|
+
+==============================================================================
+ 1. INTRODUCTION                                           *chat-introduction*
+
+`chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI
+integration. Chat with AI assistants directly in your editor using a clean,
+floating window interface.
+
+==============================================================================
+ 2. Features                                                   *chat-features*
+
+- Multiple AI Providers: Built-in support for DeepSeek, GitHub AI, Moonshot,
+  OpenRouter, Qwen, SiliconFlow, Tencent, and more
+- Custom Provider Support: Easily add your own AI providers via Lua modules
+- Tool Call Integration: Built-in tools for file operations (`@read_file`,
+  `@find_files`) with custom tool support
+- Floating Window Interface: Clean, non-intrusive chat interface
+- Session Management: Resume previous conversations
+- Picker Integration: Seamless integration with [picker.nvim]
+- Streaming Responses: Real-time AI responses with cancellation support
+- Lightweight: Pure Lua implementation with minimal dependencies
+
+==============================================================================
+ 3. Installation                                           *chat-installation*
+
+Using nvim-plug:
+>
+    require('plug').add({
+      {
+        'wsdjeg/chat.nvim',
+        depends = { {
+          'wsdjeg/job.nvim',
+        } },
+        opt = {
+          provider = 'deepseek',
+          api_key = {
+            deepseek = 'xxxxx',
+            github = 'xxxxx',
+          },
+          width = 0.8, -- 80% of vim.o.columns
+          height = 0.8, -- 80% of vim.o.lines
+          border = 'rounded',
+          -- default allowed_path is empty string, which means no files is
+          -- allowed. this also can be a table of string.
+          allowed_path = '',
+        },
+      },
+    })
+<
+
+==============================================================================
+ 4. Usage                                                         *chat-usage*
+
+------------------------------------------------------------------------------
+ 4.1 Basic Commands                                      *chat-basic-commands*
+
+| Command          | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `:Chat`            | Open the chat window with the current session       |
+| `:Chat new`        | Start a new chat session                            |
+| `:Chat prev`       | Switch to the previous chat session                 |
+| `:Chat next`       | Switch to the next chat session                     |
+| `:Chat delete`     | Delete current session and create new empty session |
+| `:Chat clear`      | Clear all messages in current session               |
+| `:Chat cd <dir>`   | Change current session cwd, open chat window        |
+
+------------------------------------------------------------------------------
+ 4.2 Examples                                                  *chat-examples*
+
+1. Start a new conversation:
+>
+   :Chat new
+<
+   This creates a fresh session and opens the chat window.
+
+2. Resume a previous conversation:
+>
+   :Chat prev
+<
+   Cycles backward through your saved sessions.
+
+3. Switch to the next conversation:
+>
+   :Chat next
+<
+   Cycles forward through your saved sessions.
+
+4. Open or forced to the chat window:
+>
+   :Chat
+<
+   This command will not change current sessions.
+
+5. Delete current session:
+>
+   :Chat delete
+<
+   Cycles to next session or create a new session if current session is
+   latest one.
+
+6. Change the working directory of current session:
+>
+   :Chat cd ../picker.nvim/
+<
+   If the current session is in progress, the working directory will not be
+   changed, and a warning message will be printed.
+
+7. Clear messages in current session:
+>
+   :Chat clear
+<
+   If the current session is in progress, a warning message will be printed,
+   and current session will not be cleared. This command also will forced
+   to chat window.
+
+------------------------------------------------------------------------------
+ 4.3 Key Bindings                                          *chat-key-bindings*
+
+NOTE: The plugin is currently in active development phase.
+Key bindings may change and may reflect the author's personal preferences.
+Configuration options for customizing key bindings are planned for future
+releases.
+
+The following key bindings are available in the `Input` window:
+
+| Mode     | Key Binding  | Description                             |
+| -------- | ------------ | --------------------------------------- |
+| `Normal`   | `<Enter>`      | Send message                            |
+| `Normal`   | `q`            | Close chat window                       |
+| `Normal`   | `<Tab>`        | Switch between input and result windows |
+| `Normal`   | `Ctrl-C`       | Cancel current request                  |
+| `Normal`   | `r`            | Retry last cancelled request            |
+| `Normal`   | `alt-h`        | previous chat session                   |
+| `Normal`   | `alt-l`        | next chat session                       |
+| `Normal`   | `<Leaer>fr`    | run `:Picker chat`                        |
+| `Normal`   | `<Leaer>fp`    | run `:Picker chat_provider`               |
+| `Normal`   | `<Leader>fm`   | run `:Picker chat_model`                  |
+
+The following key bindings are available in the `Result` window:
+
+| Mode     | Key Binding | Description                             |
+| -------- | ----------- | --------------------------------------- |
+| `Normal`   | `q`           | Close chat window                       |
+| `Normal`   | `<Tab>`       | Switch between input and result windows |
+
+==============================================================================
+ 5. Providers                                                 *chat-providers*
+
+------------------------------------------------------------------------------
+ 5.1 Built-in Providers                              *chat-built-in-providers*
+
+1. `deepseek` - DeepSeek AI https://platform.deepseek.com/
+2. `github` - GitHub AI https://github.com/features/ai
+3. `moonshot` - Moonshot AI https://platform.moonshot.cn/
+4. `openrouter` - OpenRouter https://openrouter.ai/
+5. `qwen` - Alibaba Cloud Qwen https://www.aliyun.com/product/bailian
+6. `siliconflow` - SiliconFlow https://www.siliconflow.cn/
+7. `tencent` - Tencent Hunyuan https://cloud.tencent.com/document/product/1729
+
+------------------------------------------------------------------------------
+ 5.2 Custom Providers                                  *chat-custom-providers*
+
+chat.nvim also supports custom provider, just create
+`lua/chat/providers/<provider_name>.lua`, this lua module should provides
+two functions `request` and `available_models`,
+here is an example for using [free_chatgpt_api]
+
+file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
+>
+    local M = {}
+    local job = require('job')
+    local sessions = require('chat.sessions')
+    local config = require('chat.config')
+
+    function M.available_models()
+      return {
+        'gpt-4o-mini',
+      }
+    end
+
+    function M.request(requestObj)
+      local cmd = {
+        'curl',
+        '-s',
+        'https://free.v36.cm/v1/chat/completions',
+        '-H',
+        'Content-Type: application/json',
+        '-H',
+        'Authorization: Bearer ' .. config.config.api_key.free_chatgpt,
+        '-X',
+        'POST',
+        '@-',
+      }
+
+      local body = vim.json.encode({
+        model = sessions.get_session_model(opt.session),
+        messages = opt.messages,
+        thinking = {
+          type = 'enabled',
+        },
+        stream = true,
+        stream_options = { include_usage = true },
+        tools = require('chat.tools').available_tools(),
+      })
+
+      local jobid = job.start(cmd, {
+        on_stdout = opt.on_stdout,
+        on_stderr = opt.on_stderr,
+        on_exit = opt.on_exit,
+      })
+      job.send(jobid, body)
+      job.send(jobid, nil)
+      sessions.set_session_jobid(opt.session, jobid)
+
+      return jobid
+    end
+
+    return M
+<
+==============================================================================
+ 6. Tools                                                         *chat-tools*
+
+chat.nvim supports tool call functionality, allowing the AI assistant to
+interact with your filesystem and other resources during conversations.
+Tools are invoked using the `@tool_name` syntax directly in your messages.
+
+------------------------------------------------------------------------------
+ 6.1 Available Tools                                    *chat-available-tools*
+
+------------------------------------------------------------------------------
+ 6.1.1 read_file                                         *chat-tool-read_file*
+
+Reads the content of a file and makes it available to the AI assistant.
+
+Usage:
+>
+   @read_file <filepath>
+<
+Examples:
+
+- `@read_file ./src/main.lua` - Read a Lua file in the current directory
+- `@read_file /etc/hosts` - Read a system file using absolute path
+- `@read_file ../config.json` - Read a file from a parent directory
+
+Notes:
+
+- File paths can be relative to the current working directory or absolute
+- The AI will receive the complete file content for context
+- This is particularly useful for code review, debugging, or analyzing
+  configuration files
+
+------------------------------------------------------------------------------
+ 6.1.2 find_files                                       *chat-tool-find_files*
+
+Finds files in the current working directory that match a given pattern.
+
+Usage:
+>
+   @find_files <pattern>
+<
+Examples:
+
+- `@find_files *.lua` - Find all Lua files in the current directory
+- `@find_files **/*.md` - Recursively find all Markdown files
+- `@find_files src/**/*.js` - Find JavaScript files in the `src` directory
+- `@find_files README*` - Find files starting with "README"
+
+Notes:
+
+- The pattern follows Vim's `globpath` syntax
+- Searches are limited to the current working directory
+- Returns a list of found files, with one file path per line
+- Returns a message if no files are found based on the given pattern
+- File searching is restricted by the `allowed_path` configuration setting
+
+------------------------------------------------------------------------------
+ 6.2 Third party Tools                                *chat-third-party-tools*
+
+- `zettelkasten_create` - create new zettelkasten notes, provided by
+  [zettelkasten.nvim]
+
+------------------------------------------------------------------------------
+ 6.3 How to Use Tools                                  *chat-how-to-use-tools*
+
+1. Direct invocation: Include the tool call directly in your message:
+>
+ Can you review this code? @read_file ./my_script.lua
+<
+2. Multiple tools: Combine multiple tools in a single message:
+>
+ Compare these two files: @read_file ./config1.json @read_file ./config2.json
+<
+3. Natural integration: The tool calls can be embedded naturally within
+   your questions:
+>
+ What's wrong with this function? @read_file ./utils.lua
+<
+The AI assistant will process the tool calls, read the specified files, and
+incorporate their content into its response. This enables more context-aware
+assistance without needing to manually copy-paste file contents.
+
+------------------------------------------------------------------------------
+ 6.4 Custom Tools                                          *chat-custom-tools*
+
+chat.nvim also supports custom tools. User can create
+`lua/chat/tools/<tool_name>.lua` file in their neovim runtime path.
+
+This module should provide at least two functions: `scheme()` and
+`<tool_name>` function. The `scheme()` function returns a table describing
+the tool's schema (name, description, parameters). The `<tool_name>`
+function is the actual implementation that will be called when the tool is
+invoked.
+
+The `tools.lua` module automatically discovers all tools in the
+`lua/chat/tools/` directory and provides an `available_tools()` function to
+list them, and a `call(func, arguments)` function to invoke a specific tool.
+
+Here is an example for a `get_weather` tool:
+
+>
+    local M = {}
+
+    ---@param action { city: string, unit?: string }
+    function M.get_weather(action)
+      if not action.city or action.city == '' then
+        return {
+          error = 'City name is required for weather information.',
+        }
+      end
+
+      local unit = action.unit or 'celsius'
+      local valid_units = { 'celsius', 'fahrenheit' }
+      if not vim.tbl_contains(valid_units, unit) then
+        return {
+          error = 'Unit must be either "celsius" or "fahrenheit".',
+        }
+      end
+
+      -- Simulate fetching weather data
+      local temperature = math.random(15, 35)
+      local conditions = { 'Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy' }
+      local condition = conditions[math.random(1, #conditions)]
+
+      -- Convert temperature if needed
+      if unit == 'fahrenheit' then
+        temperature = math.floor((temperature * 9/5) + 32)
+      end
+
+      return {
+        content = string.format(
+          'Weather in %s:\n- Temperature: %d°%s\n- Condition: %s\n',
+          action.city,
+          temperature,
+          unit == 'celsius' and 'C' or 'F',
+          condition
+        ),
+      }
+    end
+
+    function M.scheme()
+      return {
+        type = 'function',
+        ['function'] = {
+          name = 'get_weather',
+          description = 'Get weather information for a specific city.',
+          parameters = {
+            type = 'object',
+            properties = {
+              city = {
+                type = 'string',
+                description = 'City name for weather information',
+              },
+              unit = {
+                type = 'string',
+                description = 'Temperature unit: "celsius" or "fahrenheit"',
+                enum = { 'celsius', 'fahrenheit' },
+              },
+            },
+            required = { 'city' },
+          },
+        },
+      }
+    end
+
+    return M
+<
+
+==============================================================================
+ 7. Picker Integration                               *chat-picker-integration*
+
+chat.nvim provides built-in picker sources for seamless integration with
+[picker.nvim]. These sources allow you to quickly access and manage your
+chat sessions, providers, and models.
+
+Available Sources:
+
+1. `chat` - Search through your chat history sessions
+   - Uses the **first message** of each session as the search string
+   - Quickly resume previous conversations
+   - Supports filtering and session management
+
+2. `chat_provider` - Switch between different AI providers
+   - Dynamically change between supported providers
+   - Real-time switching without restarting Neovim
+
+3. `chat_model` - Select available models for the current provider
+   - Lists all compatible models for your selected provider
+   - Intelligent filtering based on provider capabilities
+
+==============================================================================
+ 8. Self-Promotion                                       *chat-self-promotion*
+
+Like this plugin? Star the repository on GitHub.
+
+Love this plugin? Follow me <https://wsdjeg.net/> on
+GitHub <https://github.com/wsdjeg>.
+
+==============================================================================
+ 9. Feedback                                                   *chat-feedback*
+
+If you encounter any bugs or have suggestions, please file an issue in the
+issue tracker: https://github.com/wsdjeg/chat.nvim/issues
+
+==============================================================================
+ 10. License                                                    *chat-license*
+
+This project is licensed under the GPL-3.0 License.
+
+ vim:cc=78:tw=78:ts=4:sw=4:et:ft=help:norl:
+
