@@ -196,6 +196,7 @@ The following key bindings are available in the **Result** window:
 5. `qwen` - [Alibaba Cloud Qwen](https://www.aliyun.com/product/bailian)
 6. `siliconflow` - [SiliconFlow](https://www.siliconflow.cn/)
 7. `tencent` - [Tencent Hunyuan](https://cloud.tencent.com/document/product/1729)
+8. `bigmodel` - [BigModel AI](https://bigmodel.cn/)
 
 ### Custom Providers
 
