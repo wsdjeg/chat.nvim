@@ -170,6 +170,7 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `q`          | Close chat window                       |
 | `Normal` | `<Tab>`      | Switch between input and result windows |
 | `Normal` | `Ctrl-C`     | Cancel current request                  |
+| `Normal` | `Ctrl-N`     | Open new session                        |
 | `Normal` | `r`          | Retry last cancelled request            |
 | `Normal` | `alt-h`      | previous chat session                   |
 | `Normal` | `alt-l`      | next chat session                       |
