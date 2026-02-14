@@ -634,6 +634,7 @@ function M.open(opt)
     )
     vim.api.nvim_set_option_value('wrap', true, { win = result_win })
     vim.api.nvim_set_option_value('linebreak', false, { win = result_win })
+    vim.api.nvim_set_option_value('number', true, { win = result_win })
   end
 
   if not vim.api.nvim_buf_is_valid(prompt_buf) then
@@ -823,6 +824,8 @@ function M.open(opt)
       { win = prompt_win }
     )
     vim.api.nvim_set_option_value('wrap', true, { win = prompt_win })
+    vim.api.nvim_set_option_value('linebreak', false, { win = result_win })
+    vim.api.nvim_set_option_value('number', true, { win = result_win })
   else
     if vim.api.nvim_win_get_buf(prompt_win) ~= prompt_buf then
       vim.api.nvim_win_set_buf(prompt_win, prompt_buf)
