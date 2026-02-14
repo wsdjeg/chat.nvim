@@ -458,6 +458,18 @@ function M.on_progress_tool_call_done(id)
       M.append_message(session, tool_done_message)
       table.insert(tool_done_messages, tool_done_message)
     else
+      local tool_done_message = {
+        role = 'tool',
+        content = 'can not run this tool, failed to decode arguments.',
+        tool_call_id = tool_call.id,
+        created = os.time(),
+        tool_call_state = {
+          name = tool_call['function'].name,
+          error = 'failed to decode arguments.',
+        },
+      }
+      M.append_message(session, tool_done_message)
+      table.insert(tool_done_messages, tool_done_message)
       log.info('failed to decode arguments, error is:' .. arguments)
       log.info('arguments is:' ..  tool_call['function'].arguments)
     end
