@@ -197,6 +197,7 @@ The following key bindings are available in the **Result** window:
 6. `siliconflow` - [SiliconFlow](https://www.siliconflow.cn/)
 7. `tencent` - [Tencent Hunyuan](https://cloud.tencent.com/document/product/1729)
 8. `bigmodel` - [BigModel AI](https://bigmodel.cn/)
+9. `volcengine` - [Volcengine AI](https://console.volcengine.com)
 
 ### Custom Providers
 
