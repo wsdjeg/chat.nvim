@@ -172,7 +172,7 @@ function M.on_progress_done(jobid)
         role = 'assistant',
         reasoning_content = reasoning_content,
         content = progress_messages[session],
-        create = os.time(),
+        created = os.time(),
       })
       progress_messages[session] = nil
     else
@@ -417,7 +417,7 @@ function M.on_progress_tool_call_done(id)
     reasoning_content = reasoning_content,
     content = content,
     tool_calls = job_tool_calls[id],
-    create = os.time(),
+    created = os.time(),
     session = session,
   }
 
