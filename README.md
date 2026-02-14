@@ -158,17 +158,24 @@ see the [Picker Integration](#-picker-integration) section below.
 
 ### Key Bindings
 
+**Note**: The plugin is currently in active development phase.
+Key bindings may change and may reflect the author's personal preferences.
+Configuration options for customizing key bindings are planned for future releases.
+
 The following key bindings are available in the **Input** window:
 
-| Mode     | Key Binding | Description                             |
-| -------- | ----------- | --------------------------------------- |
-| `Normal` | `<Enter>`   | Send message                            |
-| `Normal` | `q`         | Close chat window                       |
-| `Normal` | `<Tab>`     | Switch between input and result windows |
-| `Normal` | `Ctrl-C`    | Cancel current request                  |
-| `Normal` | `r`         | Retry last cancelled request            |
-| `Normal` | `alt-h`     | previous chat session                   |
-| `Normal` | `alt-l`     | next chat session                       |
+| Mode     | Key Binding  | Description                             |
+| -------- | ------------ | --------------------------------------- |
+| `Normal` | `<Enter>`    | Send message                            |
+| `Normal` | `q`          | Close chat window                       |
+| `Normal` | `<Tab>`      | Switch between input and result windows |
+| `Normal` | `Ctrl-C`     | Cancel current request                  |
+| `Normal` | `r`          | Retry last cancelled request            |
+| `Normal` | `alt-h`      | previous chat session                   |
+| `Normal` | `alt-l`      | next chat session                       |
+| `Normal` | `<Leaer>fr`  | run `:Picker chat`                      |
+| `Normal` | `<Leaer>fp`  | run `:Picker chat_provider`             |
+| `Normal` | `<Leader>fm` | run `:Picker chat_model`                |
 
 The following key bindings are available in the **Result** window:
 

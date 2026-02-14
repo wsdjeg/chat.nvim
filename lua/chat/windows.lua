@@ -583,6 +583,29 @@ function M.open(opt)
     prompt_buf = vim.api.nvim_create_buf(false, false)
     vim.api.nvim_set_option_value('buftype', 'nofile', { buf = prompt_buf })
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-o>', '<Nop>', {})
+    if vim.fn.exists(':Picker') == 2 then
+      vim.api.nvim_buf_set_keymap(
+        prompt_buf,
+        'n',
+        '<leader>fr',
+        '<cmd>Picker chat<Cr>',
+        { noremap = true, silent = true }
+      )
+      vim.api.nvim_buf_set_keymap(
+        prompt_buf,
+        'n',
+        '<leader>fp',
+        '<cmd>Picker chat_provider<Cr>',
+        { noremap = true, silent = true }
+      )
+      vim.api.nvim_buf_set_keymap(
+        prompt_buf,
+        'n',
+        '<leader>fm',
+        '<cmd>Picker chat_model<Cr>',
+        { noremap = true, silent = true }
+      )
+    end
     --- 回车这操作是进行发送请求，需要判断
     --- 当前session，有没有正在进行的请求未完成？
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Enter>', '', {
