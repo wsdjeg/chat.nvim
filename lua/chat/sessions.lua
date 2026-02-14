@@ -458,7 +458,8 @@ function M.on_progress_tool_call_done(id)
       M.append_message(session, tool_done_message)
       table.insert(tool_done_messages, tool_done_message)
     else
-      log.info('failed to decode arguments, error is:' .. tool_call)
+      log.info('failed to decode arguments, error is:' .. arguments)
+      log.info('arguments is:' ..  tool_call['function'].arguments)
     end
   end
   windows.on_tool_call_done(session, tool_done_messages)
