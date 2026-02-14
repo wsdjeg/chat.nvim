@@ -14,6 +14,59 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 
+--
+local spinners_theme = {
+  frames = {
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  },
+  strwidth = 1,
+  timeout = 80,
+}
+local spinners = {}
+spinners.update = function(char)
+  if vim.api.nvim_win_is_valid(result_win) then
+    vim.api.nvim_win_set_config(result_win, {
+      title = ' chat.nvim ' .. char .. ' ',
+    })
+  end
+end
+
+function spinners.start()
+  if spinners.id then
+    return
+  end
+  local index = 1
+  spinners.update(spinners_theme.frames[index])
+  spinners.id = vim.fn.timer_start(spinners_theme.timeout, function(...)
+    if index < #spinners_theme.frames then
+      index = index + 1
+    else
+      index = 1
+    end
+
+    spinners.update(spinners_theme.frames[index])
+  end, { ['repeat'] = -1 })
+end
+
+function spinners.stop()
+  pcall(vim.fn.timer_stop, spinners.id)
+  spinners.id = nil
+  if vim.api.nvim_win_is_valid(result_win) then
+    vim.api.nvim_win_set_config(result_win, {
+      title = ' chat.nvim ',
+    })
+  end
+end
+
 function M.push_text(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
     local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
@@ -179,6 +232,9 @@ function M.on_tool_call_done(session, messages)
       session = session,
       messages = sessions.get_request_messages(session),
     })
+    if session == current_session then
+      spinners.start()
+    end
   end
 end
 
@@ -218,6 +274,7 @@ function requestObj.on_exit(id, code, signal)
   local session = sessions.get_progress_session(id)
   sessions.on_progress_exit(id, code, signal)
   if current_session == session then
+    spinners.stop()
     if signal == 2 then
       local message = {
         '',
@@ -662,6 +719,7 @@ function M.open(opt)
             session = current_session,
             messages = sessions.get_request_messages(current_session),
           })
+          spinners.start()
           log.info('curl request jobid is ' .. jobid)
         else
           log.notify(
@@ -732,6 +790,7 @@ function M.open(opt)
               session = current_session,
               messages = messages,
             })
+            spinners.start()
           end
         else
           log.notify(
@@ -770,6 +829,11 @@ function M.open(opt)
     end
     vim.api.nvim_set_current_win(prompt_win)
     M.redraw_title()
+  end
+  if sessions.is_in_progress(current_session) then
+    spinners.start()
+  else
+    spinners.stop()
   end
 end
 
