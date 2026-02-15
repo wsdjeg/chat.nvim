@@ -17,6 +17,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [📦 Installation](#-installation)
 - [⚙️ Usage](#-usage)
     - [Basic Commands](#basic-commands)
+    - [Parallel Sessions](#parallel-sessions)
     - [Examples](#examples)
     - [Key Bindings](#key-bindings)
 - [🤖 Providers](#-providers)
@@ -43,7 +44,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Custom Provider Support**: Easily add your own AI providers via Lua modules
 - **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`) with custom tool support
 - **Floating Window Interface**: Clean, non-intrusive chat interface
-- **Session Management**: Resume previous conversations
+- **Session Management**: Run multiple parallel sessions with independent AI models, each maintaining separate conversation histories and configurations
 - **Picker Integration**: Seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim)
 - **Streaming Responses**: Real-time AI responses with cancellation support
 - **Lightweight**: Pure Lua implementation with minimal dependencies
@@ -93,6 +94,21 @@ You can also navigate between sessions using the following commands.
 | `:Chat delete`   | Delete current session and create new empty session |
 | `:Chat clear`    | Clear all messages in current session               |
 | `:Chat cd <dir>` | Change current session cwd, open chat window        |
+
+### Parallel Sessions
+
+chat.nvim supports running multiple chat sessions simultaneously, with each session operating independently:
+
+- **Independent Model Selection**: Each session can use a different AI model (e.g., Session A with DeepSeek, Session B with GitHub AI)
+- **Separate Contexts**: Sessions maintain their own conversation history, working directory, and settings
+- **Quick Switching**: Use `:Chat prev` and `:Chat next` to navigate between active sessions
+- **Isolated Workflows**: Perfect for comparing model responses or working on multiple projects simultaneously
+
+**Workflow Example:**
+1. Start a session with DeepSeek: `:Chat new` (then select DeepSeek model)
+2. Switch to GitHub AI for a different task: `:Chat new` (select GitHub model)
+3. Toggle between sessions: `:Chat prev` / `:Chat next`
+4. Each session preserves its unique context and conversation flow
 
 ### Examples
 
@@ -153,6 +169,24 @@ You can also navigate between sessions using the following commands.
 
    If the current session is in progress, a warning message will be printed,
    and current session will not be cleared. This command also will forced to chat window.
+
+8. **Work with multiple parallel sessions**:
+
+   ```vim
+   " Start first session with DeepSeek
+   :Chat new
+   " Select DeepSeek as provider and choose a model
+   
+   " Start second session with GitHub AI  
+   :Chat new
+   " Select GitHub as provider and choose a model
+   
+   " Switch between sessions
+   :Chat prev  " Go to first session
+   :Chat next  " Go to second session
+   ```
+
+   This enables simultaneous conversations with different AI assistants for different tasks.
 
 All sessions are automatically saved and can be resumed later. For more advanced session management,
 see the [Picker Integration](#-picker-integration) section below.
@@ -494,6 +528,8 @@ return M
 
 chat.nvim provides built-in picker sources for seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim).
 These sources allow you to quickly access and manage your chat sessions, providers, and models.
+
+**Note**: The `chat` picker source displays all your active sessions, allowing quick switching between parallel conversations with different models.
 
 **Available Sources:**
 
