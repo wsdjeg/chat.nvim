@@ -447,7 +447,7 @@ function M.on_progress_tool_call_done(id)
       local result = tools.call(
         tool_call['function'].name,
         arguments,
-        { cwd = sessions[session].cwd }
+        { cwd = sessions[session].cwd, session = session }
       )
       local tool_done_message = {
         role = 'tool',
