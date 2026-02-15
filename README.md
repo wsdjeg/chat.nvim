@@ -339,31 +339,34 @@ For more complex searches, you can provide a JSON object with multiple parameter
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pattern` | string | **Required**. Text pattern to search for (supports regex) |
-| `directory` | string | Directory path to search in (default: current working directory) |
-| `ignore_case` | boolean | Whether to ignore case (default: false) |
-| `regex` | boolean | Whether to use regex (default: true) |
-| `max_results` | integer | Maximum number of results (default: 100) |
-| `context_lines` | integer | Number of context lines to show around matches (default: 0) |
-| `whole_word` | boolean | Whether to match whole words only (default: false) |
-| `file_types` | array | File type filter, e.g., `["*.py", "*.md", "*.txt"]` |
-| `exclude_patterns` | array | Exclude file patterns, e.g., `["*.log", "tmp/*"]` |
+| Parameter          | Type    | Description                                                      |
+| ------------------ | ------- | ---------------------------------------------------------------- |
+| `pattern`          | string  | **Required**. Text pattern to search for (supports regex)        |
+| `directory`        | string  | Directory path to search in (default: current working directory) |
+| `ignore_case`      | boolean | Whether to ignore case (default: false)                          |
+| `regex`            | boolean | Whether to use regex (default: true)                             |
+| `max_results`      | integer | Maximum number of results (default: 100)                         |
+| `context_lines`    | integer | Number of context lines to show around matches (default: 0)      |
+| `whole_word`       | boolean | Whether to match whole words only (default: false)               |
+| `file_types`       | array   | File type filter, e.g., `["*.py", "*.md", "*.txt"]`              |
+| `exclude_patterns` | array   | Exclude file patterns, e.g., `["*.log", "tmp/*"]`                |
 
 **More Examples:**
 
 1. **Case-insensitive search:**
+
    ```
    @search_text {"pattern": "config", "ignore_case": true}
    ```
 
 2. **Search with file type filtering:**
+
    ```
    @search_text {"pattern": "function", "file_types": ["*.lua", "*.vim"]}
    ```
 
 3. **Search with context and exclusions:**
+
    ```
    @search_text {"pattern": "FIXME", "context_lines": 3, "exclude_patterns": ["*.log", "node_modules/*"]}
    ```
