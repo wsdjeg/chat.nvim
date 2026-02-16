@@ -55,6 +55,14 @@ function M.delete(session)
   table.sort(s)
   vim.fn.delete(cache_dir .. session .. '.json')
   sessions[session] = nil
+  local memories = require('chat.memory').get_memories()
+
+  for _, m in ipairs(memories) do
+    if m.session == session then
+      require('chat.memory').delete(m.id)
+    end
+  end
+
   if current_session == session then
     for i = 1, #s do
       if s[i] == session then

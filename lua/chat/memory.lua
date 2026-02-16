@@ -9,6 +9,7 @@ function M.get_memories()
     return {
       id = m.id,
       content = m.content,
+      session = m.session,
     }
   end, memories)
 end
@@ -27,7 +28,9 @@ function M.init_storage()
 end
 
 function M.get_memories_path()
-  return vim.fs.normalize(config.config.memory.storage_dir .. '/memories.json')
+  return vim.fs.normalize(
+    config.config.memory.storage_dir .. '/memories.json'
+  )
 end
 
 function M.load_memories()
