@@ -643,7 +643,7 @@ function M.open(opt)
     )
     vim.fn.matchadd(
       'Comment',
-      '^\\[[^]]*\\] [🤖👤]',
+      '^\\[[^]]*\\] [🤖👤❌]',
       10,
       -1,
       { window = result_win }
