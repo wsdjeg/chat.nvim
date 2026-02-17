@@ -27,13 +27,25 @@ local M = {}
 
 function M.write_cache(session)
   if vim.fn.isdirectory(cache_dir) == 0 then
-    vim.fn.mkdir(cache_dir, 'p')
+    local ok, err = pcall(vim.fn.mkdir, cache_dir, 'p')
+    if not ok then
+      log.warn('failed to created cache directory, ' .. err)
+      return
+    end
   end
   local f_name = cache_dir .. session .. '.json'
   local file = io.open(f_name, 'w')
-  if file then
+  if not file then
+    log.error('Failed to open cache file: ' .. f_name)
+    return false
+  end
+  local success, err = pcall(function()
     file:write(vim.json.encode(sessions[session]))
     io.close(file)
+  end)
+  if not success then
+    log.error('Failed to write cache: ' .. err)
+    return false
   end
 end
 
@@ -197,12 +209,15 @@ function M.on_progress_exit(id, code, signal)
   jobid_session[id] = nil
 end
 
+
+---@return boolean
 function M.is_in_progress(session)
   for _, v in pairs(jobid_session) do
     if v == session then
       return true
     end
   end
+  return false
 end
 
 function M.cancel_progress(session)
@@ -358,49 +373,6 @@ function M.new()
   }
   return id
 end
-
---
--- ```json
--- {
---   "tool_calls": [
---     {
---       "id": "unique_call_id_1",
---       "type": "function",
---       "function": {
---         "name": "function_name",
---         "arguments": "{ \"arg1\": \"value1\", \"arg2\": 2 }" // arguments 字段是字符串格式的 JSON 参数
---       }
---     },
---     {
---       "id": "unique_call_id_2",
---       "type": "function",
---       "function": {
---         "name": "another_function",
---         "arguments": "{ \"param\": \"foo\" }"
---       }
---     }
---   ]
--- }
--- ```
---
--- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","created":1770892808,"object":"chat.completion.chunk","usage":null,"choices":[{"logprobs":null,"index":0,"delta":{"content":null,"role":"assistant","reasoning_content":""}}]}
--- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"我找到了","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:884 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"一些文件，让我","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"进一步探索这个仓库","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"的结构，特别是 lua","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":" 和 plugin 目录","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"reasoning_content":"下的文件。","role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"call_06b0480b018b44ffafdd6f65","type":"function","function":{"name":"find_files","arguments":""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"{\"pattern\": \"lua"}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"/**\""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"}"}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":1,"id":"call_f6f2f784a4524c1aa53e53e8","type":"function","function":{"name":"find_files","arguments":""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"content":"","tool_calls":[{"index":1,"id":"","type":"function","function":{"name":"","arguments":"{\"pattern\": \"plugin/**\""}}],"role":null},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{"tool_calls":[{"function":{"arguments":"}"},"index":1,"id":"","type":"function"}],"content":""},"index":0}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:09:885 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}],"created":1770892808,"object":"chat.completion.chunk","usage":null}
--- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] data: {"model":"qwen3-max","id":"chatcmpl-d151f431-0f67-9936-bebf-38b8176bb9ba","choices":[],"created":1770892808,"object":"chat.completion.chunk","usage":{"total_tokens":790,"completion_tokens":70,"prompt_tokens":720,"completion_tokens_details":{"reasoning_tokens":22}}}
--- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] data: [DONE]
--- [ 18:40:26:622 ] [ Info  ] [ chat.nvim ] job exit code 0 signal 0
 
 function M.on_progress_tool_call(id, tool_call)
   if not job_tool_calls[id] then
