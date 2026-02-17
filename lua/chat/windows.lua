@@ -109,95 +109,82 @@ function M.push_text(chunk)
   end
 end
 
--- on_stdout 被每一个 request job 的 stdout 回调，
--- 根据 ID 判断是哪一个 request，并且更新当前 session
--- 的窗口内容。
+local sse_buffers = {}
+local body_buffers = {}
+
 function requestObj.on_stdout(id, data)
+  if not sse_buffers[id] then
+    sse_buffers[id] = {}
+  end
+  if not body_buffers[id] then
+    body_buffers[id] = {}
+  end
   vim.schedule(function()
-    local session = sessions.get_progress_session(id)
     for _, line in ipairs(data) do
-      log.debug('stdout: ' .. line)
-      if line == 'data: [DONE]' then
-        log.info('handle date DONE')
-        sessions.on_progress_done(id)
-        requestObj.on_complete(session, id)
-      elseif vim.startswith(line, 'data: ') then
-        local text = string.sub(line, 7)
-        local ok, chunk = pcall(vim.json.decode, text)
-        if not ok then
-          -- log error
-        elseif
-          chunk.choices
-          and #chunk.choices > 0
-          and chunk.choices[1].delta.tool_calls
-          and chunk.choices[1].delta.tool_calls ~= vim.NIL
-        then
-          log.info('handle tool_calls chunk')
-          for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
-            sessions.on_progress_tool_call(id, tool_call)
-          end
-        elseif
-          chunk.choices
-          and #chunk.choices > 0
-          and chunk.choices[1].delta.reasoning_content
-          and chunk.choices[1].delta.reasoning_content ~= vim.NIL
-          and #chunk.choices[1].delta.reasoning_content > 0
-        then
-          log.info('handle reasoning_content')
-          sessions.on_progress_reasoning_content(
-            id,
-            chunk.choices[1].delta.reasoning_content
-          )
-        elseif
-          chunk.choices
-          and #chunk.choices > 0
-          and chunk.choices[1].delta.content
-          and chunk.choices[1].delta.content ~= vim.NIL
-          and #chunk.choices[1].delta.content > 0
-        then
-          log.info('handle content')
-          sessions.on_progress(id, chunk.choices[1].delta.content)
+      if vim.startswith(line, 'data:') then
+        local v = line:sub(6)
+        if v:sub(1, 1) == ' ' then
+          v = v:sub(2)
         end
-        if chunk.usage and chunk.usage ~= vim.NIL then
-          log.info('handle usage')
-          sessions.set_progress_usage(id, chunk.usage)
-        end
-      elseif vim.startswith(line, '{"error":') then
-        local ok, chunk = pcall(vim.json.decode, line)
-        if ok and chunk.error then
-          local error_msg = chunk.error.message or 'Unknown error'
-          local error_code = chunk.error.code or chunk.type or 'unknown'
-          local message = {
-            error = string.format(
-              'API Error (%s): %s',
-              error_code,
-              error_msg
-            ),
-            created = os.time(),
-          }
-          sessions.append_message(session, message)
-          if session == current_session then
-            if vim.api.nvim_buf_is_valid(result_buf) then
-              vim.api.nvim_buf_set_lines(
-                result_buf,
-                -1,
-                -1,
-                false,
-                M.generate_message(message, session)
+        table.insert(sse_buffers[id], v)
+      elseif line == '' then
+        if #sse_buffers[id] > 0 then
+          local text = table.concat(sse_buffers[id], '\n')
+          sse_buffers[id] = {}
+          if text == '[DONE]' then
+            log.info('handle date DONE')
+            sessions.on_progress_done(id)
+            local session = sessions.get_progress_session(id)
+            requestObj.on_complete(session, id)
+          else
+            local ok, chunk = pcall(vim.json.decode, text)
+            if not ok then
+            -- log error
+            elseif
+              chunk.choices
+              and #chunk.choices > 0
+              and chunk.choices[1].delta.tool_calls
+              and chunk.choices[1].delta.tool_calls ~= vim.NIL
+            then
+              log.info('handle tool_calls chunk')
+              for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
+                sessions.on_progress_tool_call(id, tool_call)
+              end
+            elseif
+              chunk.choices
+              and #chunk.choices > 0
+              and chunk.choices[1].delta.reasoning_content
+              and chunk.choices[1].delta.reasoning_content ~= vim.NIL
+              and #chunk.choices[1].delta.reasoning_content > 0
+            then
+              log.info('handle reasoning_content')
+              sessions.on_progress_reasoning_content(
+                id,
+                chunk.choices[1].delta.reasoning_content
               )
+            elseif
+              chunk.choices
+              and #chunk.choices > 0
+              and chunk.choices[1].delta.content
+              and chunk.choices[1].delta.content ~= vim.NIL
+              and #chunk.choices[1].delta.content > 0
+            then
+              log.info('handle content')
+              sessions.on_progress(id, chunk.choices[1].delta.content)
             end
-            if vim.api.nvim_win_is_valid(result_win) then
-              vim.api.nvim_win_set_cursor(
-                result_win,
-                { vim.api.nvim_buf_line_count(result_buf), 0 }
-              )
+            if chunk.usage and chunk.usage ~= vim.NIL then
+              log.info('handle usage')
+              sessions.set_progress_usage(id, chunk.usage)
             end
           end
         end
+      else
+        table.insert(body_buffers[id], line)
       end
     end
   end)
 end
+
 function M.on_tool_call_done(session, messages)
   if session == current_session then
     for _, message in ipairs(messages) do
@@ -267,8 +254,39 @@ end
 
 function requestObj.on_exit(id, code, signal)
   vim.schedule(function()
-    log.info(string.format('job exit code %d signal %d', code, signal))
     local session = sessions.get_progress_session(id)
+    if body_buffers[id] and #body_buffers[id] > 0 then
+      local text = table.concat(body_buffers[id], '\n')
+      body_buffers[id] = {}
+      local ok, chunk = pcall(vim.json.decode, text)
+      if ok and chunk.error then
+        local error_msg = chunk.error.message or 'Unknown error'
+        local error_code = chunk.error.code or chunk.type or 'unknown'
+        local message = {
+          error = string.format('API Error (%s): %s', error_code, error_msg),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        if session == current_session then
+          if vim.api.nvim_buf_is_valid(result_buf) then
+            vim.api.nvim_buf_set_lines(
+              result_buf,
+              -1,
+              -1,
+              false,
+              M.generate_message(message, session)
+            )
+          end
+          if vim.api.nvim_win_is_valid(result_win) then
+            vim.api.nvim_win_set_cursor(
+              result_win,
+              { vim.api.nvim_buf_line_count(result_buf), 0 }
+            )
+          end
+        end
+      end
+    end
+    log.info(string.format('job exit code %d signal %d', code, signal))
     sessions.on_progress_exit(id, code, signal)
     if current_session == session then
       spinners.stop()
@@ -687,7 +705,7 @@ function M.open(opt)
           local message = {
             '['
               .. os.date(config.config.strftime)
-              .. '] 👤 You:'
+              .. '] 👤 You: '
               .. content[1],
           }
           if #content > 1 then
