@@ -116,9 +116,7 @@ function requestObj.on_stdout(id, data)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
     for _, line in ipairs(data) do
-      if #line > 0 then
-        log.info(line)
-      end
+      log.debug('stdout: ' .. line)
       if line == 'data: [DONE]' then
         log.info('handle date DONE')
         sessions.on_progress_done(id)
@@ -262,7 +260,7 @@ end
 function requestObj.on_stderr(id, data)
   vim.schedule(function()
     for _, line in ipairs(data) do
-      log.info(line)
+      log.debug('stderr: ' .. line)
     end
   end)
 end
