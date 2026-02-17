@@ -1,14 +1,23 @@
 local M = {}
 local log
-function M.info(msg)
-  if not log then
-    local ok, l = pcall(require, 'logger')
-    if ok then
-      log = l.derive('chat.nvim')
-      log.info(msg)
+
+for _, v in ipairs({ 'info', 'warn', 'error', 'debug' }) do
+  M[v] = function(msg)
+    if not log then
+      local ok, l = pcall(require, 'logger')
+      if ok then
+        log = l.derive('chat.nvim')
+        log[v](msg)
+      end
+    else
+      log[v](msg)
     end
-  else
-    log.info(msg)
+  end
+end
+
+function M.set_level(l)
+  if log then
+    log.set_level(l)
   end
 end
 
