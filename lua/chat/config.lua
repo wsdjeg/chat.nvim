@@ -10,6 +10,7 @@ local default = {
   -- default allowed_path is empty string, which means no files is allowed.
   allowed_path = '',
   strftime = '%m-%d %H:%M:%S',
+  system_prompt = '',
   memory = {
     enable = true,
     max_memories = 500, -- 最多存储500条记忆

@@ -164,6 +164,12 @@ function M.get()
         sessions[obj.id] = obj
         M.write_cache(obj.id)
       end
+
+      if not obj.prompt then
+        obj.prompt = require('chat.config').config.system_prompt
+        M.write_cache(obj.id)
+      end
+
       sessions[obj.id] = obj
     end
   end
@@ -208,7 +214,6 @@ function M.on_progress_exit(id, code, signal)
   progress_messages[session] = nil
   jobid_session[id] = nil
 end
-
 
 ---@return boolean
 function M.is_in_progress(session)
@@ -325,6 +330,23 @@ function M.set_session_jobid(session, jobid)
   end
 end
 
+function M.set_session_prompt(session, prompt)
+  if type(prompt) ~= 'string' then
+    return false
+  end
+  if not session then
+    return false
+  end
+
+  if not sessions[session] then
+    return false
+  end
+
+  sessions[session].prompt = prompt
+
+  return true
+end
+
 function M.get_messages(session)
   local message = {}
   for _, m in ipairs(sessions[session].messages) do
@@ -346,6 +368,12 @@ end
 
 function M.get_request_messages(session)
   local message = {}
+  if sessions[session].prompt and #sessions[session].prompt > 0 then
+    table.insert(message, {
+      role = 'system',
+      content = sessions[session].prompt,
+    })
+  end
   for _, m in ipairs(sessions[session].messages) do
     if vim.tbl_contains({ 'user', 'assistant', 'tool' }, m.role) then
       table.insert(message, {
@@ -369,6 +397,7 @@ function M.new()
     messages = {},
     provider = config.config.provider,
     model = config.config.model,
+    prompt = config.config.system_prompt,
     cwd = vim.fn.getcwd(),
   }
   return id
