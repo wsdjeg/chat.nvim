@@ -26,6 +26,10 @@ local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
 local M = {}
 
 function M.write_cache(session)
+  if not sessions[session] then
+    log.error('session does not existed, skip writing cache.')
+    return false
+  end
   if vim.fn.isdirectory(cache_dir) == 0 then
     local ok, err = pcall(vim.fn.mkdir, cache_dir, 'p')
     if not ok then
@@ -47,6 +51,8 @@ function M.write_cache(session)
     log.error('Failed to write cache: ' .. err)
     return false
   end
+
+  return true
 end
 
 function M.delete(session)
@@ -142,35 +148,38 @@ function M.get()
     if file then
       local context = file:read('*a')
       io.close(file)
-      local obj = vim.json.decode(context)
-      -- 兼容老版本 session
-      -- 如果没有 id key，说明是最老的版本直接是一组消息列表
-      if not obj.id then
-        obj.id = vim.fn.fnamemodify(v, ':t:r')
-        obj = {
-          id = obj.id,
-          messages = obj,
-          provider = require('chat.config').config.provider,
-          model = require('chat.config').config.model,
-          cwd = vim.fn.getcwd(),
-        }
-        sessions[obj.id] = obj
-        M.write_cache(obj.id)
-      end
-      -- 检测完 id 后，如果有 id，但是 没有 cwd 选项
-      -- 说明是 id 加上后到 cwd 加之前的版本。
-      if not obj.cwd then
-        obj.cwd = vim.fn.getcwd()
-        sessions[obj.id] = obj
-        M.write_cache(obj.id)
-      end
+      local ok, obj = pcall(vim.json.decode, context)
+      if ok and obj ~= vim.NIL then
+        -- 兼容老版本 session
+        -- 如果没有 id key，说明是最老的版本直接是一组消息列表
+        if not obj.id then
+          obj.id = vim.fn.fnamemodify(v, ':t:r')
+          obj = {
+            id = obj.id,
+            messages = obj,
+            provider = require('chat.config').config.provider,
+            model = require('chat.config').config.model,
+            cwd = vim.fn.getcwd(),
+          }
+          sessions[obj.id] = obj
+          M.write_cache(obj.id)
+        end
+        -- 检测完 id 后，如果有 id，但是 没有 cwd 选项
+        -- 说明是 id 加上后到 cwd 加之前的版本。
+        if not obj.cwd then
+          obj.cwd = vim.fn.getcwd()
+          sessions[obj.id] = obj
+          M.write_cache(obj.id)
+        end
 
-      if not obj.prompt then
-        obj.prompt = require('chat.config').config.system_prompt
-        M.write_cache(obj.id)
-      end
+        if not obj.prompt then
+          obj.prompt = require('chat.config').config.system_prompt
+          sessions[obj.id] = obj
+          M.write_cache(obj.id)
+        end
 
-      sessions[obj.id] = obj
+        sessions[obj.id] = obj
+      end
     end
   end
   return sessions
