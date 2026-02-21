@@ -407,7 +407,7 @@ function M.new()
     provider = config.config.provider,
     model = config.config.model,
     prompt = config.config.system_prompt,
-    cwd = vim.fn.getcwd(),
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
   }
   return id
 end
