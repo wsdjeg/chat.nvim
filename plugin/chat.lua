@@ -35,7 +35,7 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
     if #opt.fargs >= 2 then
-      local dir = vim.fn.fnamemodify(opt.fargs[2], ':p')
+      local dir = vim.fs.normalize(vim.fn.fnamemodify(opt.fargs[2], ':p'))
       if vim.fn.isdirectory(dir) == 1 then
         require('chat').open({
           cwd = dir,
@@ -68,6 +68,6 @@ end, {
 
     return vim.tbl_filter(function(t)
       return vim.startswith(t, arglead)
-    end, { 'new', 'prev', 'next', 'delete', 'cd' })
+    end, { 'new', 'prev', 'next', 'delete', 'cd', 'clear' })
   end,
 })
