@@ -415,6 +415,11 @@ end
 function M.on_progress_tool_call(id, tool_call)
   job_tool_calls[id] = job_tool_calls[id] or {}
 
+  -- Some streaming implementations may emit early deltas without index
+  if tool_call.index == nil then
+    return
+  end
+
   local idx = tool_call.index + 1
 
   if not job_tool_calls[id][idx] then
@@ -429,16 +434,24 @@ function M.on_progress_tool_call(id, tool_call)
     }
   end
 
-  if tool_call['function'] and tool_call['function'].name then
-    job_tool_calls[id][idx]['function'].name = tool_call['function'].name
-  end
+  local state = job_tool_calls[id][idx]
 
+  -- function.name is not a delta, just overwrite when it appears
   if
     tool_call['function']
-    and tool_call['function'].arguments
+    and tool_call['function'].name ~= nil
+    and tool_call['function'].name ~= vim.NIL
+  then
+    state['function'].name = tool_call['function'].name
+  end
+
+  -- function.arguments is streamed as chunks, must be concatenated
+  if
+    tool_call['function']
+    and tool_call['function'].arguments ~= nil
     and tool_call['function'].arguments ~= vim.NIL
   then
-    job_tool_calls[id][idx]['function'].arguments = job_tool_calls[id][idx]['function'].arguments
+    state['function'].arguments = state['function'].arguments
       .. tool_call['function'].arguments
   end
 end
