@@ -413,23 +413,28 @@ function M.new()
 end
 
 function M.on_progress_tool_call(id, tool_call)
-  if not job_tool_calls[id] then
-    job_tool_calls[id] = {}
-  end
+  job_tool_calls[id] = job_tool_calls[id] or {}
 
-  if not job_tool_calls[id][tool_call.index + 1] then
-    job_tool_calls[id][tool_call.index + 1] = tool_call
-  end
+  local idx = tool_call.index + 1
 
-  if job_tool_calls[id][tool_call.index + 1]['function'].arguments == vim.NIL then
-    job_tool_calls[id][tool_call.index + 1]['function'].arguments = ''
+  if not job_tool_calls[id][idx] then
+    job_tool_calls[id][idx] = {
+      id = tool_call.id,
+      index = tool_call.index,
+      type = tool_call.type,
+      ['function'] = {
+        name = tool_call['function'] and tool_call['function'].name or nil,
+        arguments = '',
+      },
+    }
   end
 
   if
-    tool_call['function'].arguments
+    tool_call['function']
+    and tool_call['function'].arguments
     and tool_call['function'].arguments ~= vim.NIL
   then
-    job_tool_calls[id][tool_call.index + 1]['function'].arguments = job_tool_calls[id][tool_call.index + 1]['function'].arguments
+    job_tool_calls[id][idx]['function'].arguments = job_tool_calls[id][idx]['function'].arguments
       .. tool_call['function'].arguments
   end
 end
