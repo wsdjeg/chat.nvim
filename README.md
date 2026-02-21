@@ -42,19 +42,24 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
+- [💬 Feedback](#-feedback-1)
+- [📄 License](#-license-1)
 
 <!-- vim-markdown-toc -->
 
 ## ✨ Features
 
-- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, and more
-- **Custom Provider Support**: Easily add your own AI providers via Lua modules
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`) with custom tool support
-- **Floating Window Interface**: Clean, non-intrusive chat interface
-- **Session Management**: Run multiple parallel sessions with independent AI models, each maintaining separate conversation histories and configurations
-- **Picker Integration**: Seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim)
-- **Streaming Responses**: Real-time AI responses with cancellation support
-- **Lightweight**: Pure Lua implementation with minimal dependencies
+- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
+- **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
+- **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
+- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`) sessions, and changing working directory (`:Chat cd`)
+- **Picker Integration**: Seamless integration with picker.nvim for browsing chat history (`picker-chat`), switching providers (`chat_provider`), and selecting models (`chat_model`)
+- **Floating Window Interface**: Clean, non-intrusive dual-window layout with configurable dimensions and borders
+- **Streaming Responses**: Real-time AI responses with cancellation support (`Ctrl-C`) and retry mechanism (`r`)
+- **Token Usage Tracking**: Display real-time token consumption for each response
+- **Lightweight Implementation**: Pure Lua with minimal dependencies and comprehensive error handling
+- **Customizable Configuration**: Flexible setup for API keys, allowed paths, memory settings, and system prompts
 
 ## 📦 Installation
 
@@ -900,6 +905,14 @@ GitHub.
 
 Love this plugin? Follow [me](https://wsdjeg.net/) on
 [GitHub](https://github.com/wsdjeg).
+
+## 💬 Feedback
+
+If you encounter any bugs or have suggestions, please file an issue in the [issue tracker](https://github.com/wsdjeg/chat.nvim/issues).
+
+## 📄 License
+
+This project is licensed under the GPL-3.0 License.
 
 ## 💬 Feedback
 
