@@ -32,6 +32,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [`recall_memory`](#recall_memory)
     - [`set_prompt`](#set_prompt)
     - [`fetch_web`](#fetch_web)
+    - [`web_search`](#web_search)
 - [Third-party Tools](#third-party-tools)
     - [`zettelkasten_create`](#zettelkasten_create)
     - [`zettelkasten_get`](#zettelkasten_get)
@@ -618,6 +619,94 @@ For complex requests, you can provide a JSON object:
 - User agent identifies as chat.nvim by default
 - Only HTTP/HTTPS URLs are allowed (no file://, ftp://, etc.)
 - Particularly useful for fetching API data, web scraping, or downloading content
+
+### `web_search`
+
+Search the web using either Firecrawl or Google Custom Search API.
+
+**Usage:**
+
+```
+@web_search <parameters>
+```
+
+**Supported Engines:**
+
+1. **Firecrawl** (default): https://firecrawl.dev
+2. **Google**: Google Custom Search JSON API
+
+**Configuration:**
+
+API keys must be set in chat.nvim configuration:
+
+```lua
+require('chat').setup({
+  api_key = {
+    firecrawl = 'fc-YOUR_API_KEY',
+    google = 'YOUR_GOOGLE_API_KEY',
+    google_cx = 'YOUR_SEARCH_ENGINE_ID'
+  }
+})
+```
+
+Alternatively, provide API keys directly as parameters.
+
+**Examples:**
+
+1. Basic Firecrawl search:
+
+   ```
+   @web_search query="firecrawl web scraping"
+   ```
+
+2. Firecrawl with result limit:
+
+   ```
+   @web_search query="neovim plugins" limit=10
+   ```
+
+3. Google search:
+
+   ```
+   @web_search query="latest news" engine="google"
+   ```
+
+4. Google search with custom API key and cx:
+
+   ```
+   @web_search query="test" engine="google" api_key="GOOGLE_API_KEY" cx="SEARCH_ENGINE_ID"
+   ```
+
+5. Custom timeout:
+
+   ```
+   @web_search query="slow site" timeout=60
+   ```
+
+6. Firecrawl with scrape options:
+   ```
+   @web_search query="news" scrape_options={"formats":["markdown"]}
+   ```
+
+**Parameters:**
+
+| Parameter        | Type    | Description                                                                                    |
+| ---------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `query`          | string  | Search query string                                                                            |
+| `engine`         | string  | Search engine to use: `"firecrawl"` or `"google"` (default: `"firecrawl"`)                     |
+| `limit`          | integer | Number of results to return (default: 5 for firecrawl, 10 for google)                          |
+| `scrape_options` | object  | Options for scraping result pages (Firecrawl only, see Firecrawl docs)                         |
+| `api_key`        | string  | API key (optional if configured in config.api_key.firecrawl or config.api_key.google)          |
+| `cx`             | string  | Google Custom Search engine ID (required for Google engine if not in config.api_key.google_cx) |
+| `timeout`        | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                                     |
+
+**Notes:**
+
+- Requires curl to be installed and available in PATH.
+- Firecrawl API key is required for Firecrawl searches.
+- Google API key and Custom Search engine ID (cx) are required for Google searches.
+- Search results are returned in a formatted list.
+- Supports both Firecrawl and Google search engines with configurable options.
 
 ## Third-party Tools
 
