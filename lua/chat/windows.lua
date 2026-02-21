@@ -205,22 +205,6 @@ function M.on_tool_call_done(session, messages)
       )
     end
   end
-  local ok, provider = pcall(
-    require,
-    'chat.providers.' .. sessions.get_session_provider(session)
-  )
-  if ok then
-    provider.request({
-      on_stdout = requestObj.on_stdout,
-      on_stderr = requestObj.on_stderr,
-      on_exit = requestObj.on_exit,
-      session = session,
-      messages = sessions.get_request_messages(session),
-    })
-    if session == current_session then
-      spinners.start()
-    end
-  end
 end
 
 -- [08:42] 👤 You: test @read_file .stylua.toml
@@ -307,6 +291,27 @@ function requestObj.on_exit(id, code, signal)
             result_win,
             { vim.api.nvim_buf_line_count(result_buf), 0 }
           )
+        end
+      end
+    end
+    if code == 0 and signal == 0 then
+      local messages = sessions.get_request_messages(session)
+      if messages[#messages].role == 'tool' then
+        local ok, provider = pcall(
+          require,
+          'chat.providers.' .. sessions.get_session_provider(session)
+        )
+        if ok then
+          provider.request({
+            on_stdout = requestObj.on_stdout,
+            on_stderr = requestObj.on_stderr,
+            on_exit = requestObj.on_exit,
+            session = session,
+            messages = sessions.get_request_messages(session),
+          })
+          if session == current_session then
+            spinners.start()
+          end
         end
       end
     end
