@@ -423,10 +423,14 @@ function M.on_progress_tool_call(id, tool_call)
       index = tool_call.index,
       type = tool_call.type,
       ['function'] = {
-        name = tool_call['function'] and tool_call['function'].name or nil,
+        name = nil,
         arguments = '',
       },
     }
+  end
+
+  if tool_call['function'] and tool_call['function'].name then
+    job_tool_calls[id][idx]['function'].name = tool_call['function'].name
   end
 
   if
