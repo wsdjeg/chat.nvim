@@ -241,6 +241,8 @@ The following key bindings are available in the **Result** window:
 7. `tencent` - [Tencent Hunyuan](https://cloud.tencent.com/document/product/1729)
 8. `bigmodel` - [BigModel AI](https://bigmodel.cn/)
 9. `volcengine` - [Volcengine AI](https://console.volcengine.com)
+10. `openai` - [OpenAI](https://developers.openai.com/api/docs/)
+11. `longcat` - [LongCat AI](https://longcat.chat/platform/docs/)
 
 ### Custom Providers
 
