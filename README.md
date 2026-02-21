@@ -31,6 +31,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [`extract_memory`](#extract_memory)
     - [`recall_memory`](#recall_memory)
     - [`set_prompt`](#set_prompt)
+    - [`fetch_web`](#fetch_web)
 - [Third-party Tools](#third-party-tools)
     - [`zettelkasten_create`](#zettelkasten_create)
     - [`zettelkasten_get`](#zettelkasten_get)
@@ -532,6 +533,91 @@ Read a prompt file and set it as the current session's system prompt.
 - File must be within the `allowed_path` configured in chat.nvim
 - Useful for switching between different agent roles or task-specific prompts
 - Supports relative and absolute paths
+
+### `fetch_web`
+
+Fetch content from web URLs using curl with comprehensive HTTP support.
+
+**Usage:**
+
+```
+@fetch_web <parameters>
+```
+
+**Basic Examples:**
+
+- `@fetch_web url="https://example.com"` - Fetch content from a URL
+- `@fetch_web url="https://api.github.com/repos/neovim/neovim" timeout=60 user_agent="MyApp/1.0"` - Fetch with custom timeout and user agent
+- `@fetch_web url="https://api.github.com/user" headers=["Authorization: Bearer token123"]` - Fetch with custom headers
+- `@fetch_web url="https://api.example.com/data" method="POST" data='{"key":"value"}' headers=["Content-Type: application/json"]` - POST request with JSON data
+- `@fetch_web url="https://self-signed.example.com" insecure=true` - Disable SSL verification (testing only)
+- `@fetch_web url="https://example.com/redirect" max_redirects=2` - Limit redirects
+
+**Advanced Usage with JSON Parameters:**
+
+For complex requests, you can provide a JSON object:
+
+```
+@fetch_web {"url": "https://example.com", "method": "POST", "data": "{\"key\":\"value\"}", "headers": ["Content-Type: application/json"], "timeout": 30}
+```
+
+**Parameters:**
+
+| Parameter       | Type    | Description                                                                                            |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `url`           | string  | **Required**. URL to fetch (must start with http:// or https://)                                       |
+| `method`        | string  | HTTP method (default: "GET", options: GET, POST, PUT, DELETE, PATCH, HEAD)                             |
+| `headers`       | array   | Additional HTTP headers as strings (e.g., ["Authorization: Bearer token", "Accept: application/json"]) |
+| `data`          | string  | Request body data for POST/PUT requests                                                                |
+| `timeout`       | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                                             |
+| `user_agent`    | string  | Custom User-Agent header string (default: "Mozilla/5.0 (compatible; chat.nvim)")                       |
+| `insecure`      | boolean | Disable SSL certificate verification (use with caution, for testing only)                              |
+| `max_redirects` | integer | Maximum number of redirects to follow (default: 5, set to 0 to disable)                                |
+| `output`        | string  | Save response to file instead of displaying (e.g., "./response.html")                                  |
+
+**More Examples:**
+
+1. **Basic GET request:**
+
+   ```
+   @fetch_web url="https://jsonplaceholder.typicode.com/posts/1"
+   ```
+
+2. **POST request with JSON data:**
+
+   ```
+   @fetch_web url="https://api.example.com/users" method="POST" data='{"name": "John", "age": 30}' headers=["Content-Type: application/json"]
+   ```
+
+3. **With authentication header:**
+
+   ```
+   @fetch_web url="https://api.github.com/user/repos" headers=["Authorization: Bearer YOUR_TOKEN", "Accept: application/vnd.github.v3+json"]
+   ```
+
+4. **Save response to file:**
+
+   ```
+   @fetch_web url="https://example.com" output="./downloaded_page.html"
+   ```
+
+5. **Configure timeout and SSL verification:**
+   ```
+   @fetch_web url="https://slow-api.example.com" timeout=60 insecure=true
+   ```
+
+**Notes:**
+
+- Uses curl internally for HTTP/HTTPS requests
+- Requires curl to be installed and available in PATH
+- SSL verification is enabled by default (disable with `insecure=true` for testing)
+- Responses are limited to 10,000 characters for display
+- For large responses, use the `output` parameter to save to a file
+- Compression is automatically requested
+- Timeout defaults to 30 seconds to prevent hanging
+- User agent identifies as chat.nvim by default
+- Only HTTP/HTTPS URLs are allowed (no file://, ftp://, etc.)
+- Particularly useful for fetching API data, web scraping, or downloading content
 
 ## Third-party Tools
 
