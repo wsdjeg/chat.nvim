@@ -22,7 +22,7 @@ function M.find_files(action, ctx)
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, v) then
+        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
           is_allowed_path = true
           break
         end
@@ -33,7 +33,7 @@ function M.find_files(action, ctx)
     and #config.config.allowed_path > 0
   then
     is_allowed_path =
-      vim.startswith(ctx.cwd, config.config.allowed_path)
+      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
   end
 
   if not is_allowed_path then

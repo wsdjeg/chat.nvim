@@ -62,7 +62,7 @@ function M.search_text(action, ctx)
       if
         type(v) == 'string'
         and #v > 0
-        and starts_with(search_directory, v)
+        and starts_with(search_directory, vim.fs.normalize(v))
       then
         is_allowed_path = true
         break
@@ -73,7 +73,7 @@ function M.search_text(action, ctx)
     and #config.config.allowed_path > 0
   then
     is_allowed_path =
-      starts_with(search_directory, config.config.allowed_path)
+      starts_with(search_directory, vim.fs.normalize(config.config.allowed_path))
   end
 
   if not is_allowed_path then

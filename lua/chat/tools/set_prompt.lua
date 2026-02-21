@@ -30,7 +30,7 @@ function M.set_prompt(action, ctx)
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(filepath, v) then
+        if vim.startswith(filepath, vim.fs.normalize(v)) then
           is_allowed_path = true
           break
         end
@@ -40,7 +40,7 @@ function M.set_prompt(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path = vim.startswith(filepath, config.config.allowed_path)
+    is_allowed_path = vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
   end
 
   if not is_allowed_path then
