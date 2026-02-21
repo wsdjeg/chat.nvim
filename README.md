@@ -58,8 +58,6 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
-- [💬 Feedback](#-feedback-1)
-- [📄 License](#-license-1)
 
 <!-- vim-markdown-toc -->
 
@@ -1175,14 +1173,6 @@ GitHub.
 
 Love this plugin? Follow [me](https://wsdjeg.net/) on
 [GitHub](https://github.com/wsdjeg).
-
-## 💬 Feedback
-
-If you encounter any bugs or have suggestions, please file an issue in the [issue tracker](https://github.com/wsdjeg/chat.nvim/issues).
-
-## 📄 License
-
-This project is licensed under the GPL-3.0 License.
 
 ## 💬 Feedback
 
