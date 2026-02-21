@@ -121,7 +121,7 @@ function requestObj.on_stdout(id, data)
   end
   vim.schedule(function()
     for _, line in ipairs(data) do
-      log.info(line)
+      log.debug(line)
       if vim.startswith(line, 'data:') then
         local v = line:sub(6)
         if v:sub(1, 1) == ' ' then
@@ -132,48 +132,50 @@ function requestObj.on_stdout(id, data)
         if #sse_buffers[id] > 0 then
           local text = table.concat(sse_buffers[id], '\n')
           sse_buffers[id] = {}
-          if text == '[DONE]' then
-            log.info('handle date DONE')
+          if vim.trim(text) == '[DONE]' then
+            log.info('handle data DONE')
             sessions.on_progress_done(id)
             local session = sessions.get_progress_session(id)
             requestObj.on_complete(session, id)
           else
             local ok, chunk = pcall(vim.json.decode, text)
             if not ok then
-            -- log error
-            elseif
-              chunk.choices
-              and #chunk.choices > 0
-              and chunk.choices[1].delta.tool_calls
-              and chunk.choices[1].delta.tool_calls ~= vim.NIL
-            then
-              log.info('handle tool_calls chunk')
-              for _, tool_call in ipairs(chunk.choices[1].delta.tool_calls) do
-                sessions.on_progress_tool_call(id, tool_call)
+              log.error('Failed to decode JSON: ' .. text)
+            elseif chunk and chunk.choices and #chunk.choices > 0 then
+              local choice = chunk.choices[1]
+              if choice.delta then
+                if
+                  choice.delta.tool_calls
+                  and choice.delta.tool_calls ~= vim.NIL
+                then
+                  log.info('handle tool_calls chunk')
+                  for _, tool_call in ipairs(choice.delta.tool_calls) do
+                    sessions.on_progress_tool_call(id, tool_call)
+                  end
+                elseif
+                  choice.delta.reasoning_content
+                  and choice.delta.reasoning_content ~= vim.NIL
+                  and #choice.delta.reasoning_content > 0
+                then
+                  log.info('handle reasoning_content')
+                  sessions.on_progress_reasoning_content(
+                    id,
+                    choice.delta.reasoning_content
+                  )
+                elseif
+                  choice.delta.content
+                  and choice.delta.content ~= vim.NIL
+                  and #choice.delta.content > 0
+                then
+                  log.info('handle content')
+                  sessions.on_progress(id, choice.delta.content)
+                end
               end
-            elseif
-              chunk.choices
-              and #chunk.choices > 0
-              and chunk.choices[1].delta.reasoning_content
-              and chunk.choices[1].delta.reasoning_content ~= vim.NIL
-              and #chunk.choices[1].delta.reasoning_content > 0
-            then
-              log.info('handle reasoning_content')
-              sessions.on_progress_reasoning_content(
-                id,
-                chunk.choices[1].delta.reasoning_content
-              )
-            elseif
-              chunk.choices
-              and #chunk.choices > 0
-              and chunk.choices[1].delta.content
-              and chunk.choices[1].delta.content ~= vim.NIL
-              and #chunk.choices[1].delta.content > 0
-            then
-              log.info('handle content')
-              sessions.on_progress(id, chunk.choices[1].delta.content)
+            else
+              log.debug('Received chunk without choices: ' .. text)
             end
-            if chunk.usage and chunk.usage ~= vim.NIL then
+
+            if chunk and chunk.usage and chunk.usage ~= vim.NIL then
               log.info('handle usage')
               sessions.set_progress_usage(id, chunk.usage)
             end
