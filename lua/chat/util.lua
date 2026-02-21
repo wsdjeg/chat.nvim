@@ -31,7 +31,7 @@ function M.resolve(path, cwd)
     full = cwd .. '/' .. path
   end
 
-  return vim.fn.fnamemodify(full, ':p')
+  return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
 
 return M

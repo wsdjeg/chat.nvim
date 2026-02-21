@@ -121,6 +121,7 @@ function requestObj.on_stdout(id, data)
   end
   vim.schedule(function()
     for _, line in ipairs(data) do
+      log.info(line)
       if vim.startswith(line, 'data:') then
         local v = line:sub(6)
         if v:sub(1, 1) == ' ' then

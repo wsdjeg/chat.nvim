@@ -421,6 +421,10 @@ function M.on_progress_tool_call(id, tool_call)
     job_tool_calls[id][tool_call.index + 1] = tool_call
   end
 
+  if job_tool_calls[id][tool_call.index + 1]['function'].arguments == vim.NIL then
+    job_tool_calls[id][tool_call.index + 1]['function'].arguments = ''
+  end
+
   if
     tool_call['function'].arguments
     and tool_call['function'].arguments ~= vim.NIL
