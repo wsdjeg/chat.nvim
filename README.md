@@ -15,6 +15,22 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 - [✨ Features](#-features)
 - [📦 Installation](#-installation)
+    - [Prerequisites](#prerequisites)
+    - [Package Manager Installation](#package-manager-installation)
+        - [Using lazy.nvim](#using-lazynvim)
+        - [Using nvim-plug](#using-nvim-plug)
+        - [Using packer.nvim](#using-packernvim)
+        - [Using lazy.nvim with minimal configuration](#using-lazynvim-with-minimal-configuration)
+    - [Manual Installation](#manual-installation)
+    - [Post-Installation Setup](#post-installation-setup)
+    - [Quick Start](#quick-start)
+- [🔧 Configuration](#-configuration)
+    - [Basic Options](#basic-options)
+    - [API Key Configuration](#api-key-configuration)
+    - [File Access Control](#file-access-control)
+    - [Memory System Configuration](#memory-system-configuration)
+    - [Complete Configuration Example](#complete-configuration-example)
+    - [Configuration Notes](#configuration-notes)
 - [⚙️ Usage](#-usage)
     - [Basic Commands](#basic-commands)
     - [Parallel Sessions](#parallel-sessions)
@@ -63,7 +79,61 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 ## 📦 Installation
 
-Using nvim-plug:
+### Prerequisites
+
+1. **System Dependencies** (optional but recommended for full functionality):
+   - [`ripgrep` (rg)](https://github.com/BurntSushi/ripgrep): Required for the `@search_text` tool
+   - [`curl`](https://curl.se/): Required for the `@fetch_web` tool
+   - Install with your package manager:
+     ```bash
+     # Ubuntu/Debian
+     sudo apt install ripgrep curl
+     
+     # macOS
+     brew install ripgrep curl
+     
+     # Arch Linux
+     sudo pacman -S ripgrep curl
+     ```
+
+2. **Neovim Plugin Dependencies**:
+   - [`job.nvim`](https://github.com/wsdjeg/job.nvim): **Required** dependency for asynchronous operations
+   - [`picker.nvim`](https://github.com/wsdjeg/picker.nvim): **Recommended** for enhanced session and provider management
+
+### Package Manager Installation
+
+#### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+  'wsdjeg/chat.nvim',
+  dependencies = {
+    'wsdjeg/job.nvim',           -- Required
+    'wsdjeg/picker.nvim',        -- Optional but recommended
+  },
+  opts = {
+    provider = 'deepseek',
+    api_key = {
+      deepseek = 'sk-xxxxxxxxxxxx',
+      github = 'github_pat_xxxxxxxx',
+      -- Add other provider keys as needed
+    },
+    width = 0.8,
+    height = 0.8,
+    border = 'rounded',
+    allowed_path = vim.fn.getcwd(), -- Allow access to current directory
+    system_prompt = 'You are a helpful programming assistant.',
+    memory = {
+      enable = true,
+      max_memories = 500,
+      retrieval_limit = 3,
+      similarity_threshold = 0.3,
+    },
+  },
+}
+```
+
+#### Using [nvim-plug](https://github.com/junegunn/vim-plug)
 
 ```lua
 require('plug').add({
@@ -75,19 +145,219 @@ require('plug').add({
     opt = {
       provider = 'deepseek',
       api_key = {
-        deepseek = 'xxxxx',
-        github = 'xxxxx',
+        deepseek = 'sk-xxxxxxxxxxxx',
+        github = 'github_pat_xxxxxxxx',
       },
-      width = 0.8, -- 80% of vim.o.columns
-      height = 0.8, -- 80% of vim.o.lines
+      width = 0.8,
+      height = 0.8,
       border = 'rounded',
-      -- default allowed_path is empty string, which means no files is allowed.
-      -- this also can be a table of string.
-      allowed_path = '',
+      allowed_path = vim.fn.getcwd(),
+      system_prompt = 'You are a helpful programming assistant.',
+      memory = {
+        enable = true,
+        max_memories = 500,
+        retrieval_limit = 3,
+        similarity_threshold = 0.3,
+      },
     },
   },
 })
 ```
+
+#### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
+
+```lua
+use {
+  'wsdjeg/chat.nvim',
+  requires = {
+    'wsdjeg/job.nvim',
+    'wsdjeg/picker.nvim', -- Optional
+  },
+  config = function()
+    require('chat').setup({
+      provider = 'deepseek',
+      api_key = {
+        deepseek = 'sk-xxxxxxxxxxxx',
+        github = 'github_pat_xxxxxxxx',
+      },
+      width = 0.8,
+      height = 0.8,
+      border = 'rounded',
+      allowed_path = vim.fn.getcwd(),
+      system_prompt = 'You are a helpful programming assistant.',
+      memory = {
+        enable = true,
+        max_memories = 500,
+        retrieval_limit = 3,
+        similarity_threshold = 0.3,
+      },
+    })
+  end
+}
+```
+
+#### Using [lazy.nvim](https://github.com/folke/lazy.nvim) with minimal configuration
+
+```lua
+{
+  'wsdjeg/chat.nvim',
+  dependencies = { 'wsdjeg/job.nvim' },
+  opts = {} -- Uses all defaults
+}
+```
+
+### Manual Installation
+
+If you're not using a package manager:
+
+1. Clone the repositories:
+   ```bash
+   git clone https://github.com/wsdjeg/chat.nvim ~/.local/share/nvim/site/pack/chat/start/chat.nvim
+   git clone https://github.com/wsdjeg/job.nvim ~/.local/share/nvim/site/pack/chat/start/job.nvim
+   ```
+
+2. Add to your Neovim configuration (`~/.config/nvim/init.lua` or `~/.config/nvim/init.vim`):
+   ```lua
+   vim.cmd[[packadd job.nvim]]
+   vim.cmd[[packadd chat.nvim]]
+   require('chat').setup({
+     -- Your configuration here
+   })
+   ```
+
+### Post-Installation Setup
+
+1. **API Keys**: Configure at least one AI provider API key in the `api_key` table
+2. **File Access**: Set `allowed_path` to control which directories tools can access
+3. **Memory System**: Configure memory settings based on your needs
+
+### Quick Start
+
+After installation, you can immediately start using chat.nvim:
+
+```vim
+:Chat          " Open chat window
+:Chat new      " Start a new session
+:Chat prev     " Switch to previous session
+:Chat next     " Switch to next session
+```
+
+For detailed usage instructions, see the [Usage](#-usage) section.
+
+## 🔧 Configuration
+
+chat.nvim provides flexible configuration options through the `require('chat').setup()` function. All configurations have sensible defaults.
+
+### Basic Options
+
+| Option          | Type   | Default            | Description                                               |
+| --------------- | ------ | ------------------ | --------------------------------------------------------- |
+| `width`         | number | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)   |
+| `height`        | number | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0) |
+| `border`        | string | `'rounded'`        | Window border style, supports all Neovim border options   |
+| `provider`      | string | `'deepseek'`       | Default AI provider                                       |
+| `model`         | string | `'deepseek-chat'`  | Default AI model                                          |
+| `strftime`      | string | `'%m-%d %H:%M:%S'` | Time display format                                       |
+| `system_prompt` | string | `''`               | Default system prompt                                     |
+
+### API Key Configuration
+
+Configure API keys for the AI providers you plan to use:
+
+```lua
+api_key = {
+  deepseek = 'sk-xxxxxxxxxxxx',        -- DeepSeek AI
+  github = 'github_pat_xxxxxxxx',      -- GitHub AI
+  moonshot = 'sk-xxxxxxxxxxxx',        -- Moonshot AI
+  openrouter = 'sk-or-xxxxxxxx',       -- OpenRouter
+  qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen
+  siliconflow = 'xxxxxxxx-xxxx-xxxx',  -- SiliconFlow
+  tencent = 'xxxxxxxx-xxxx-xxxx',      -- Tencent Hunyuan
+  bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI
+  volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI
+  openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
+  longcat = 'lc-xxxxxxxxxxxx',         -- LongCat AI
+}
+```
+
+Only configure keys for providers you plan to use; others can be omitted.
+
+### File Access Control
+
+Control which file paths tools can access for security:
+
+```lua
+-- Option 1: Disable all file access (default)
+allowed_path = ''
+
+-- Option 2: Allow a single directory
+allowed_path = '/home/user/projects'
+
+-- Option 3: Allow multiple directories
+allowed_path = {
+  vim.fn.getcwd(),               -- Current working directory
+  vim.fn.expand('~/.config/nvim'), -- Neovim config directory
+  '/etc',                        -- System configuration files
+}
+```
+
+### Memory System Configuration
+
+Configure the behavior of the long-term memory system:
+
+```lua
+memory = {
+  enable = true,                    -- Whether to enable the memory system
+  max_memories = 500,               -- Maximum number of memories to store
+  retrieval_limit = 3,              -- Maximum memories to retrieve per query
+  similarity_threshold = 0.3,       -- Text similarity threshold (0-1)
+  storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+}
+```
+
+### Complete Configuration Example
+
+```lua
+require('chat').setup({
+  -- Window settings
+  width = 0.8,
+  height = 0.8,
+  border = 'rounded',
+
+  -- AI provider settings
+  provider = 'deepseek',
+  model = 'deepseek-chat',
+  api_key = {
+    deepseek = 'sk-xxxxxxxxxxxx',
+    github = 'github_pat_xxxxxxxx',
+  },
+
+  -- File access control
+  allowed_path = {
+    vim.fn.getcwd(),               -- Current working directory
+    vim.fn.expand('~/.config/nvim'), -- Neovim config directory
+  },
+
+  -- Other settings
+  strftime = '%Y-%m-%d %H:%M',
+  system_prompt = 'You are a helpful programming assistant.',
+
+  -- Memory system
+  memory = {
+    enable = true,
+    max_memories = 1000,
+    retrieval_limit = 5,
+    similarity_threshold = 0.25,
+  },
+})
+```
+
+### Configuration Notes
+
+1. **Path Security**: `allowed_path` restricts which file paths tools can access. Empty string disables all file access. Recommended to set to your current project directory for security.
+2. **API Keys**: Only configure keys for providers you plan to use. Providers can be switched at runtime via the picker.
+3. **Memory System**: Enabled by default, automatically extracts facts and preferences from conversations. Can be disabled with `memory.enable = false`.
+4. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
 
 ## ⚙️ Usage
 
