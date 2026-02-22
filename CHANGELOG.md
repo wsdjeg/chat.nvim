@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.3.0](https://github.com/wsdjeg/chat.nvim/compare/v1.2.0...v1.3.0) (2026-02-22)
+
+
+### Features
+
+* add fetch_web tool ([46a361c](https://github.com/wsdjeg/chat.nvim/commit/46a361c65f4483e7a5ae2b5d8fb6cb1e1bfa3d2c))
+* add longcat provider ([6d48980](https://github.com/wsdjeg/chat.nvim/commit/6d489808c487503cad8cdc5eda5f6c8790fbd68f))
+* add web_search tool ([20dc103](https://github.com/wsdjeg/chat.nvim/commit/20dc103131b669b865245d832ba0b56f4a063b61))
+* support [@set](https://github.com/set)_prompt tool ([1ff7a45](https://github.com/wsdjeg/chat.nvim/commit/1ff7a45a2cd59134e2439f7cd9be4af7c227ba3c))
+* support google search engine ([8f7b56f](https://github.com/wsdjeg/chat.nvim/commit/8f7b56f0baffbf34ac76ac2c412e53e8ffa55569))
+* support system prompt ([e3332b1](https://github.com/wsdjeg/chat.nvim/commit/e3332b102ca958495fe9644d53b6e0442f0966fc))
+
+
+### Bug Fixes
+
+* check if cache object is vim.NIL ([a2cb555](https://github.com/wsdjeg/chat.nvim/commit/a2cb55508a2e93773fca0e5a4990139fc67cf19d))
+* check tool call arguments ([87466f8](https://github.com/wsdjeg/chat.nvim/commit/87466f8ca325fcc631e89dc0288b2410473f901d))
+* complete chat argument && normalize path ([29a193e](https://github.com/wsdjeg/chat.nvim/commit/29a193e5e304c0addae3520ba673541a2b4ed7a5))
+* do not send allowed_path info to llm ([ed6db94](https://github.com/wsdjeg/chat.nvim/commit/ed6db9452669ff40397372a56a69a617ffafc243))
+* fix tool_call arguments buffer ([6f45eb7](https://github.com/wsdjeg/chat.nvim/commit/6f45eb78e01c5425acb17a7495379f68a47a5fbe))
+* handle name in second data ([ce39354](https://github.com/wsdjeg/chat.nvim/commit/ce39354f5cf2cfb457b9469cf5296c5a298b84c0))
+* handle no index in tool_call ([22d278f](https://github.com/wsdjeg/chat.nvim/commit/22d278fd35faf9609bff3a5e0af37f82e0fa23f7))
+* improve on_stdout handle ([b03a04a](https://github.com/wsdjeg/chat.nvim/commit/b03a04ae1f649e2549cdc90b41abec59a491b242))
+* remove extra space ([3847e3f](https://github.com/wsdjeg/chat.nvim/commit/3847e3f85a3992246ef4e78bb0a7be5f3519448b))
+* trigger tool request in exit function ([dbce882](https://github.com/wsdjeg/chat.nvim/commit/dbce88271b2d6c548f2fa211c0bedc405bb23cf2))
+* use normalize for allowed path checking ([02de25a](https://github.com/wsdjeg/chat.nvim/commit/02de25af1216d37a2b0bf3515ddc05f2b4b02f73))
+* use normalize path as default cwd ([01850df](https://github.com/wsdjeg/chat.nvim/commit/01850df508e9fd291aaafab7bd7db8fa814d3236))
+
 ## [1.2.0](https://github.com/wsdjeg/chat.nvim/compare/v1.1.0...v1.2.0) (2026-02-17)
 
 
