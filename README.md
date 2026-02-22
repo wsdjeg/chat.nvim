@@ -17,10 +17,9 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [📦 Installation](#-installation)
     - [Prerequisites](#prerequisites)
     - [Package Manager Installation](#package-manager-installation)
-        - [Using lazy.nvim](#using-lazynvim)
         - [Using nvim-plug](#using-nvim-plug)
+        - [Using lazy.nvim](#using-lazynvim)
         - [Using packer.nvim](#using-packernvim)
-        - [Using lazy.nvim with minimal configuration](#using-lazynvim-with-minimal-configuration)
     - [Manual Installation](#manual-installation)
     - [Post-Installation Setup](#post-installation-setup)
     - [Quick Start](#quick-start)
@@ -80,16 +79,18 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 ### Prerequisites
 
 1. **System Dependencies** (optional but recommended for full functionality):
+
    - [`ripgrep` (rg)](https://github.com/BurntSushi/ripgrep): Required for the `@search_text` tool
    - [`curl`](https://curl.se/): Required for the `@fetch_web` tool
    - Install with your package manager:
+
      ```bash
      # Ubuntu/Debian
      sudo apt install ripgrep curl
-     
+
      # macOS
      brew install ripgrep curl
-     
+
      # Arch Linux
      sudo pacman -S ripgrep curl
      ```
@@ -100,108 +101,44 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 ### Package Manager Installation
 
-#### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
-
-```lua
-{
-  'wsdjeg/chat.nvim',
-  dependencies = {
-    'wsdjeg/job.nvim',           -- Required
-    'wsdjeg/picker.nvim',        -- Optional but recommended
-  },
-  opts = {
-    provider = 'deepseek',
-    api_key = {
-      deepseek = 'sk-xxxxxxxxxxxx',
-      github = 'github_pat_xxxxxxxx',
-      -- Add other provider keys as needed
-    },
-    width = 0.8,
-    height = 0.8,
-    border = 'rounded',
-    allowed_path = vim.fn.getcwd(), -- Allow access to current directory
-    system_prompt = 'You are a helpful programming assistant.',
-    memory = {
-      enable = true,
-      max_memories = 500,
-      retrieval_limit = 3,
-      similarity_threshold = 0.3,
-    },
-  },
-}
-```
-
 #### Using [nvim-plug](https://github.com/junegunn/vim-plug)
 
 ```lua
 require('plug').add({
   {
     'wsdjeg/chat.nvim',
-    depends = { {
-      'wsdjeg/job.nvim',
-    } },
-    opt = {
-      provider = 'deepseek',
-      api_key = {
-        deepseek = 'sk-xxxxxxxxxxxx',
-        github = 'github_pat_xxxxxxxx',
-      },
-      width = 0.8,
-      height = 0.8,
-      border = 'rounded',
-      allowed_path = vim.fn.getcwd(),
-      system_prompt = 'You are a helpful programming assistant.',
-      memory = {
-        enable = true,
-        max_memories = 500,
-        retrieval_limit = 3,
-        similarity_threshold = 0.3,
+    depends = {
+      {
+        'wsdjeg/job.nvim', -- Required
+        'wsdjeg/picker.nvim', -- Optional but recommended
       },
     },
   },
 })
 ```
 
-#### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
-
-```lua
-use {
-  'wsdjeg/chat.nvim',
-  requires = {
-    'wsdjeg/job.nvim',
-    'wsdjeg/picker.nvim', -- Optional
-  },
-  config = function()
-    require('chat').setup({
-      provider = 'deepseek',
-      api_key = {
-        deepseek = 'sk-xxxxxxxxxxxx',
-        github = 'github_pat_xxxxxxxx',
-      },
-      width = 0.8,
-      height = 0.8,
-      border = 'rounded',
-      allowed_path = vim.fn.getcwd(),
-      system_prompt = 'You are a helpful programming assistant.',
-      memory = {
-        enable = true,
-        max_memories = 500,
-        retrieval_limit = 3,
-        similarity_threshold = 0.3,
-      },
-    })
-  end
-}
-```
-
-#### Using [lazy.nvim](https://github.com/folke/lazy.nvim) with minimal configuration
+#### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
   'wsdjeg/chat.nvim',
-  dependencies = { 'wsdjeg/job.nvim' },
-  opts = {} -- Uses all defaults
+  dependencies = {
+    'wsdjeg/job.nvim', -- Required
+    'wsdjeg/picker.nvim', -- Optional but recommended
+  },
 }
+```
+
+#### Using [packer.nvim](https://github.com/wbthomason/packer.nvim)
+
+```lua
+use({
+  'wsdjeg/chat.nvim',
+  requires = {
+    'wsdjeg/job.nvim', -- Required
+    'wsdjeg/picker.nvim', -- Optional but recommended
+  },
+})
 ```
 
 ### Manual Installation
@@ -209,6 +146,7 @@ use {
 If you're not using a package manager:
 
 1. Clone the repositories:
+
    ```bash
    git clone https://github.com/wsdjeg/chat.nvim ~/.local/share/nvim/site/pack/chat/start/chat.nvim
    git clone https://github.com/wsdjeg/job.nvim ~/.local/share/nvim/site/pack/chat/start/job.nvim
