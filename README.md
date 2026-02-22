@@ -38,21 +38,21 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [🤖 Providers](#-providers)
     - [Built-in Providers](#built-in-providers)
     - [Custom Providers](#custom-providers)
-- [Tools](#tools)
-- [Available Tools](#available-tools)
-    - [`read_file`](#read_file)
-    - [`find_files`](#find_files)
-    - [`search_text`](#search_text)
-    - [`extract_memory`](#extract_memory)
-    - [`recall_memory`](#recall_memory)
-    - [`set_prompt`](#set_prompt)
-    - [`fetch_web`](#fetch_web)
-    - [`web_search`](#web_search)
-- [Third-party Tools](#third-party-tools)
-    - [`zettelkasten_create`](#zettelkasten_create)
-    - [`zettelkasten_get`](#zettelkasten_get)
-- [How to Use Tools](#how-to-use-tools)
-- [Custom Tools](#custom-tools)
+- [🛠️ Tools](#-tools)
+    - [Available Tools](#available-tools)
+        - [`read_file`](#read_file)
+        - [`find_files`](#find_files)
+        - [`search_text`](#search_text)
+        - [`extract_memory`](#extract_memory)
+        - [`recall_memory`](#recall_memory)
+        - [`set_prompt`](#set_prompt)
+        - [`fetch_web`](#fetch_web)
+        - [`web_search`](#web_search)
+    - [Third-party Tools](#third-party-tools)
+        - [`zettelkasten_create`](#zettelkasten_create)
+        - [`zettelkasten_get`](#zettelkasten_get)
+    - [How to Use Tools](#how-to-use-tools)
+    - [Custom Tools](#custom-tools)
 - [🔍 Picker Integration](#-picker-integration)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
@@ -515,13 +515,13 @@ end
 return M
 ```
 
-## Tools
+## 🛠️ Tools
 
 chat.nvim supports tool call functionality, allowing the AI assistant to interact with your filesystem, manage memories, and perform other operations during conversations. Tools are invoked using the `@tool_name` syntax directly in your messages.
 
-## Available Tools
+### Available Tools
 
-### `read_file`
+#### `read_file`
 
 Reads the content of a file and makes it available to the AI assistant.
 
@@ -553,7 +553,7 @@ Reads the content of a file and makes it available to the AI assistant.
 - The AI will receive the file content for context
 - This is particularly useful for code review, debugging, or analyzing configuration files
 
-### `find_files`
+#### `find_files`
 
 Finds files in the current working directory that match a given pattern.
 
@@ -578,7 +578,7 @@ Finds files in the current working directory that match a given pattern.
 - Returns a message if no files are found based on the given pattern
 - File searching is restricted by the `allowed_path` configuration setting
 
-### `search_text`
+#### `search_text`
 
 Advanced text search tool using ripgrep (rg) to search text content in directories with regex support, file type filtering, exclusion patterns, and other advanced features.
 
@@ -650,7 +650,7 @@ For more complex searches, you can provide a JSON object with multiple parameter
 - If no matches are found, returns an informative message
 - Particularly useful for code analysis, debugging, and finding references
 
-### `extract_memory`
+#### `extract_memory`
 
 Extract long-term memories from conversation text, focusing ONLY on factual information and habitual patterns. Filters out subjective feelings, temporary states, and irrelevant chatter.
 
@@ -687,7 +687,7 @@ Extract long-term memories from conversation text, focusing ONLY on factual info
 - Supports both raw text analysis and pre-processed memories
 - Memory system must be enabled in chat.nvim configuration
 
-### `recall_memory`
+#### `recall_memory`
 
 Retrieve relevant information from long-term memory and add to current conversation. Automatically extracts keywords if no query is provided.
 
@@ -719,7 +719,7 @@ Retrieve relevant information from long-term memory and add to current conversat
 - Memory system must be enabled in chat.nvim configuration
 - Useful for maintaining context across conversations
 
-### `set_prompt`
+#### `set_prompt`
 
 Read a prompt file and set it as the current session's system prompt.
 
@@ -748,7 +748,7 @@ Read a prompt file and set it as the current session's system prompt.
 - Useful for switching between different agent roles or task-specific prompts
 - Supports relative and absolute paths
 
-### `fetch_web`
+#### `fetch_web`
 
 Fetch content from web URLs using curl with comprehensive HTTP support.
 
@@ -833,7 +833,7 @@ For complex requests, you can provide a JSON object:
 - Only HTTP/HTTPS URLs are allowed (no file://, ftp://, etc.)
 - Particularly useful for fetching API data, web scraping, or downloading content
 
-### `web_search`
+#### `web_search`
 
 Search the web using either Firecrawl or Google Custom Search API.
 
@@ -921,9 +921,9 @@ Alternatively, provide API keys directly as parameters.
 - Search results are returned in a formatted list.
 - Supports both Firecrawl and Google search engines with configurable options.
 
-## Third-party Tools
+### Third-party Tools
 
-### `zettelkasten_create`
+#### `zettelkasten_create`
 
 Create new zettelkasten notes, provided by [zettelkasten.nvim](https://github.com/wsdjeg/zettelkasten.nvim).
 
@@ -947,7 +947,7 @@ Create new zettelkasten notes, provided by [zettelkasten.nvim](https://github.co
 - Tags should be in English and limited to 3 to avoid synonyms
 - Integration with zettelkasten.nvim plugin
 
-### `zettelkasten_get`
+#### `zettelkasten_get`
 
 Retrieve zettelkasten notes by tags, provided by [zettelkasten.nvim](https://github.com/wsdjeg/zettelkasten.nvim).
 
@@ -970,7 +970,7 @@ Retrieve zettelkasten notes by tags, provided by [zettelkasten.nvim](https://git
 - Tags should be in English
 - Integration with zettelkasten.nvim plugin
 
-## How to Use Tools
+### How to Use Tools
 
 1. **Direct invocation**: Include the tool call directly in your message:
 
@@ -997,7 +997,7 @@ Retrieve zettelkasten notes by tags, provided by [zettelkasten.nvim](https://git
 
 The AI assistant will process the tool calls, execute the specified operations, and incorporate their results into its response. This enables more context-aware assistance without needing to manually copy-paste file contents or repeat previous information.
 
-## Custom Tools
+### Custom Tools
 
 chat.nvim also supports custom tools. Users can create `lua/chat/tools/<tool_name>.lua` file in their Neovim runtime path.
 
