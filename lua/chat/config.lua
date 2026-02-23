@@ -3,6 +3,9 @@ local M = {}
 local default = {
   width = 0.8, -- 80% of screen
   height = 0.8,
+  -- if auto_scroll is false, never scroll the result window automatically.
+  -- if auto_scroll is true, only scroll to the bottom if the cursor was already on the last line before new content is appended.
+  auto_scroll = true,
   provider = 'deepseek',
   model = 'deepseek-chat',
   border = 'rounded',

@@ -67,6 +67,30 @@ function spinners.stop()
   end
 end
 
+local function auto_scroll()
+  if config.config.auto_scroll then
+    if
+      vim.api.nvim_buf_is_valid(result_buf)
+      and vim.api.nvim_win_is_valid(result_win)
+    then
+      return vim.api.nvim_win_get_cursor(result_win)[1]
+        == vim.api.nvim_buf_line_count(result_buf)
+    end
+  end
+end
+
+local function scroll_window()
+  if
+    vim.api.nvim_win_is_valid(result_win)
+    and vim.api.nvim_buf_is_valid(result_buf)
+  then
+    vim.api.nvim_win_set_cursor(
+      result_win,
+      { vim.api.nvim_buf_line_count(result_buf), 0 }
+    )
+  end
+end
+
 function M.push_text(chunk)
   if vim.api.nvim_buf_is_valid(result_buf) then
     local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
@@ -99,12 +123,11 @@ function M.push_text(chunk)
         table.insert(lines, cs[i])
       end
     end
-    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if auto_scroll() then
+      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+      scroll_window()
+    else
+      vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
     end
   end
 end
@@ -186,20 +209,27 @@ function requestObj.on_stdout(id, data)
               local session = sessions.get_progress_session(id)
               sessions.append_message(session, message)
               if session == current_session then
-                if vim.api.nvim_buf_is_valid(result_buf) then
-                  vim.api.nvim_buf_set_lines(
-                    result_buf,
-                    -1,
-                    -1,
-                    false,
-                    M.generate_message(message, session)
-                  )
-                end
-                if vim.api.nvim_win_is_valid(result_win) then
-                  vim.api.nvim_win_set_cursor(
-                    result_win,
-                    { vim.api.nvim_buf_line_count(result_buf), 0 }
-                  )
+                if auto_scroll() then
+                  if vim.api.nvim_buf_is_valid(result_buf) then
+                    vim.api.nvim_buf_set_lines(
+                      result_buf,
+                      -1,
+                      -1,
+                      false,
+                      M.generate_message(message, session)
+                    )
+                  end
+                  scroll_window()
+                else
+                  if vim.api.nvim_buf_is_valid(result_buf) then
+                    vim.api.nvim_buf_set_lines(
+                      result_buf,
+                      -1,
+                      -1,
+                      false,
+                      M.generate_message(message, session)
+                    )
+                  end
                 end
               end
             else
@@ -221,6 +251,7 @@ end
 
 function M.on_tool_call_done(session, messages)
   if session == current_session then
+    local need_scroll = auto_scroll()
     for _, message in ipairs(messages) do
       if vim.api.nvim_buf_is_valid(result_buf) then
         vim.api.nvim_buf_set_lines(
@@ -232,11 +263,8 @@ function M.on_tool_call_done(session, messages)
         )
       end
     end
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if need_scroll then
+      scroll_window()
     end
   end
 end
@@ -248,16 +276,14 @@ end
 
 function M.on_tool_call_start(session, message)
   if session == current_session then
+    local need_scroll = auto_scroll()
     local lines = M.generate_message(message, session)
     table.insert(lines, 1, '')
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
     end
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if need_scroll then
+      scroll_window()
     end
   end
 end
@@ -286,6 +312,7 @@ function requestObj.on_exit(id, code, signal)
         }
         sessions.append_message(session, message)
         if session == current_session then
+          local need_scroll = auto_scroll()
           if vim.api.nvim_buf_is_valid(result_buf) then
             vim.api.nvim_buf_set_lines(
               result_buf,
@@ -295,11 +322,8 @@ function requestObj.on_exit(id, code, signal)
               M.generate_message(message, session)
             )
           end
-          if vim.api.nvim_win_is_valid(result_win) then
-            vim.api.nvim_win_set_cursor(
-              result_win,
-              { vim.api.nvim_buf_line_count(result_buf), 0 }
-            )
+          if need_scroll then
+            scroll_window()
           end
         end
       end
@@ -317,14 +341,12 @@ function requestObj.on_exit(id, code, signal)
           ),
           '',
         }
+        local need_scroll = auto_scroll()
         if vim.api.nvim_buf_is_valid(result_buf) then
           vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
         end
-        if vim.api.nvim_win_is_valid(result_win) then
-          vim.api.nvim_win_set_cursor(
-            result_win,
-            { vim.api.nvim_buf_line_count(result_buf), 0 }
-          )
+        if need_scroll then
+          scroll_window()
         end
       end
     end
@@ -366,6 +388,7 @@ function requestObj.on_complete(session, id)
   sessions.write_cache(session)
 
   if current_session == session then
+    local need_scroll = auto_scroll()
     if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
     end
@@ -378,11 +401,8 @@ function requestObj.on_complete(session, id)
         M.generate_message(message, session)
       )
     end
-    if vim.api.nvim_win_is_valid(result_win) then
-      vim.api.nvim_win_set_cursor(
-        result_win,
-        { vim.api.nvim_buf_line_count(result_buf), 0 }
-      )
+    if need_scroll then
+      scroll_window()
     end
   end
 end
@@ -758,11 +778,9 @@ function M.open(opt)
           else
             vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
           end
-          vim.api.nvim_win_set_cursor(
-            result_win,
-            { vim.api.nvim_buf_line_count(result_buf), 0 }
-          )
+          -- send message will scroll window
           vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
+          scroll_window()
         end
         local ok, provider = pcall(
           require,

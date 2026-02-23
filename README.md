@@ -186,15 +186,16 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 
 ### Basic Options
 
-| Option          | Type   | Default            | Description                                               |
-| --------------- | ------ | ------------------ | --------------------------------------------------------- |
-| `width`         | number | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)   |
-| `height`        | number | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0) |
-| `border`        | string | `'rounded'`        | Window border style, supports all Neovim border options   |
-| `provider`      | string | `'deepseek'`       | Default AI provider                                       |
-| `model`         | string | `'deepseek-chat'`  | Default AI model                                          |
-| `strftime`      | string | `'%m-%d %H:%M:%S'` | Time display format                                       |
-| `system_prompt` | string | `''`               | Default system prompt                                     |
+| Option          | Type    | Default            | Description                                                |
+| --------------- | ------- | ------------------ | ---------------------------------------------------------- |
+| `width`         | number  | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)    |
+| `height`        | number  | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0)  |
+| `auto_scroll`   | boolean | `true`             | Controls automatic scrolling behavior of the result window |
+| `border`        | string  | `'rounded'`        | Window border style, supports all Neovim border options    |
+| `provider`      | string  | `'deepseek'`       | Default AI provider                                        |
+| `model`         | string  | `'deepseek-chat'`  | Default AI model                                           |
+| `strftime`      | string  | `'%m-%d %H:%M:%S'` | Time display format                                        |
+| `system_prompt` | string  | `''`               | Default system prompt                                      |
 
 ### API Key Configuration
 
@@ -258,6 +259,7 @@ require('chat').setup({
   -- Window settings
   width = 0.8,
   height = 0.8,
+  auto_scroll = true,   -- Enable smart auto-scrolling (default)
   border = 'rounded',
 
   -- AI provider settings
@@ -294,6 +296,7 @@ require('chat').setup({
 2. **API Keys**: Only configure keys for providers you plan to use. Providers can be switched at runtime via the picker.
 3. **Memory System**: Enabled by default, automatically extracts facts and preferences from conversations. Can be disabled with `memory.enable = false`.
 4. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
+5. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
 
 ## ⚙️ Usage
 
