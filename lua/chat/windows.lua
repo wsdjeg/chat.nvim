@@ -171,6 +171,37 @@ function requestObj.on_stdout(id, data)
                   sessions.on_progress(id, choice.delta.content)
                 end
               end
+            elseif chunk.error then
+              -- [ 20:19:11:382 ] [ Debug ] [    chat.nvim ] data: {"error":{"code":"invalid_parameter_error","param":null,"message":"<400> InternalError.Algo.InvalidParameter: Function calling is not supported with DeepSeek v3.1 when thinking mode is enabled.","type":"invalid_request_error"},"id":"chatcmpl-5a25079d-2471-9b18-a436-ca9385222840"}
+              local error_msg = chunk.error.message or 'Unknown error'
+              local error_code = chunk.error.code or chunk.type or 'unknown'
+              local message = {
+                error = string.format(
+                  'API Error (%s): %s',
+                  error_code,
+                  error_msg
+                ),
+                created = os.time(),
+              }
+              local session = sessions.get_progress_session(id)
+              sessions.append_message(session, message)
+              if session == current_session then
+                if vim.api.nvim_buf_is_valid(result_buf) then
+                  vim.api.nvim_buf_set_lines(
+                    result_buf,
+                    -1,
+                    -1,
+                    false,
+                    M.generate_message(message, session)
+                  )
+                end
+                if vim.api.nvim_win_is_valid(result_win) then
+                  vim.api.nvim_win_set_cursor(
+                    result_win,
+                    { vim.api.nvim_buf_line_count(result_buf), 0 }
+                  )
+                end
+              end
             else
               log.debug('Received chunk without choices: ' .. text)
             end
