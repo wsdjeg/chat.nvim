@@ -5,8 +5,14 @@ local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
+  -- https://help.aliyun.com/zh/model-studio/models
   return {
     'qwen3-max',
+    'glm-5',
+    'glm-4.7',
+    'glm-4.6',
+    'glm-4.5',
+    'glm-4.5-air',
     'kimi-k2.5',
     'deepseek-v3.2',
     'kimi-k2-thinking',
