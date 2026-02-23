@@ -16,8 +16,10 @@ end
 
 function M.default_action(item)
   local current_session = windows.current_session()
-  if not current_session or
-    item.value == sessions.get_session_provider(windows.current_session())
+  if
+    not current_session
+    or item.value
+      == sessions.get_session_provider(windows.current_session())
   then
     return
   end
@@ -33,6 +35,11 @@ function M.default_action(item)
           available_models[1]
         )
       end
+    else
+      require('chat.log').notify(
+        'No available models for ' .. item.value .. ' provider.',
+        'WarningMsg'
+      )
     end
   end
 end

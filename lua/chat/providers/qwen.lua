@@ -4,12 +4,14 @@ local available_models = {}
 
 local page_size = 200
 
+local systemObj
+
 local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  if #available_models == 0 then
+  if #available_models == 0 and not systemObj then
     if config.config.api_key.qwen then
       local cmd = {
         'curl',
@@ -21,39 +23,43 @@ function M.available_models()
         'https://dashscope.aliyuncs.com/api/v1/models?page_size='
           .. page_size,
       }
-      local systemObj = vim.system(cmd):wait()
-      if systemObj.code == 0 then
-        local ok, result = pcall(vim.json.decode, systemObj.stdout)
-        if ok then
-          for _, model in ipairs(result.output.models) do
-            table.insert(available_models, model.model)
-          end
-          -- {"code":null,"message":null,"success":true,"output":{"total":417,"page_no":1,"page_size":200,"models":[]}}
-          if result.output.total > page_size then
-            for page = 2, math.ceil(result.output.total / page_size) do
-              cmd = {
-                'curl',
-                '-H',
-                'Content-Type: application/json',
-                '-H',
-                'Authorization: Bearer ' .. config.config.api_key.qwen,
-                '-s',
-                'https://dashscope.aliyuncs.com/api/v1/models?page_no=' .. page   .. '&page_size='
-                  .. page_size,
-              }
-              systemObj = vim.system(cmd):wait()
-              if systemObj.code == 0 then
-                ok, result = pcall(vim.json.decode, systemObj.stdout)
-                if ok then
-                  for _, model in ipairs(result.output.models) do
-                    table.insert(available_models, model.model)
+      systemObj = vim.system(cmd, { text = true }, function(out)
+        if out.code == 0 then
+          local ok, result = pcall(vim.json.decode, out.stdout)
+          if ok then
+            for _, model in ipairs(result.output.models) do
+              table.insert(available_models, model.model)
+            end
+            -- {"code":null,"message":null,"success":true,"output":{"total":417,"page_no":1,"page_size":200,"models":[]}}
+            if result.output.total > page_size then
+              for page = 2, math.ceil(result.output.total / page_size) do
+                cmd = {
+                  'curl',
+                  '-H',
+                  'Content-Type: application/json',
+                  '-H',
+                  'Authorization: Bearer ' .. config.config.api_key.qwen,
+                  '-s',
+                  'https://dashscope.aliyuncs.com/api/v1/models?page_no='
+                    .. page
+                    .. '&page_size='
+                    .. page_size,
+                }
+                vim.system(cmd, { text = true }, function(out2)
+                  if out2.code == 0 then
+                    ok, result = pcall(vim.json.decode, out2.stdout)
+                    if ok then
+                      for _, model in ipairs(result.output.models) do
+                        table.insert(available_models, model.model)
+                      end
+                    end
                   end
-                end
+                end)
               end
             end
           end
         end
-      end
+      end)
     end
   end
   return available_models
