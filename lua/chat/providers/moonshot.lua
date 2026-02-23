@@ -2,12 +2,14 @@ local M = {}
 
 local available_models = {}
 
+local systemObj
+
 local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  if #available_models == 0 then
+  if #available_models == 0 and not systemObj then
     if config.config.api_key.moonshot then
       local cmd = {
         'curl',
@@ -18,15 +20,16 @@ function M.available_models()
         'Authorization: Bearer ' .. config.config.api_key.moonshot,
         'https://api.moonshot.cn/v1/models',
       }
-      local systemObj = vim.system(cmd):wait()
-      if systemObj.code == 0 then
-        local ok, result = pcall(vim.json.decode, systemObj.stdout)
-        if ok then
-          for _, model in ipairs(result.data) do
-            table.insert(available_models, model.id)
+      systemObj = vim.system(cmd, { text = true }, function(out)
+        if out.code == 0 then
+          local ok, result = pcall(vim.json.decode, out.stdout)
+          if ok then
+            for _, model in ipairs(result.data) do
+              table.insert(available_models, model.id)
+            end
           end
         end
-      end
+      end)
     end
   end
   return available_models
