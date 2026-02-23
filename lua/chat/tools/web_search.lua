@@ -20,12 +20,17 @@ end
 ---@field api_key? string
 ---@field cx? string  -- Google Custom Search engine ID
 ---@field timeout? integer
+---@field serpapi_engine? string  -- SerpAPI search engine (google, bing, duckduckgo, etc.)
 
 ---@param action ChatToolsWebSearchAction
 ---@param ctx ChatContext
 function M.web_search(action, ctx)
   -- Parameter validation
-  if not action.query or type(action.query) ~= 'string' or action.query == '' then
+  if
+    not action.query
+    or type(action.query) ~= 'string'
+    or action.query == ''
+  then
     return {
       error = 'Query is required and must be a non-empty string.',
     }
@@ -33,9 +38,9 @@ function M.web_search(action, ctx)
 
   -- Determine search engine
   local engine = action.engine or 'firecrawl'
-  if engine ~= 'firecrawl' and engine ~= 'google' then
+  if engine ~= 'firecrawl' and engine ~= 'google' and engine ~= 'serpapi' then
     return {
-      error = 'Engine must be either "firecrawl" or "google".',
+      error = 'Engine must be either "firecrawl", "google", or "serpapi".',
     }
   end
 
@@ -48,7 +53,7 @@ function M.web_search(action, ctx)
 
   -- Get API key and engine-specific parameters
   local api_key = action.api_key
-  local cx = action.cx  -- Google Custom Search engine ID
+  local cx = action.cx -- Google Custom Search engine ID
 
   if not api_key or api_key == '' then
     -- Try to get from config based on engine
@@ -61,7 +66,12 @@ function M.web_search(action, ctx)
         if not cx and config.config.api_key.google_cx then
           cx = config.config.api_key.google_cx
         end
-      elseif type(config.config.api_key) == 'string' and config.config.api_key ~= '' then
+      elseif engine == 'serpapi' and config.config.api_key.serpapi then
+        api_key = config.config.api_key.serpapi
+      elseif
+        type(config.config.api_key) == 'string'
+        and config.config.api_key ~= ''
+      then
         api_key = config.config.api_key
       end
     end
@@ -85,6 +95,12 @@ function M.web_search(action, ctx)
         error = 'Google Custom Search engine ID (cx) is required. Please set it in config.api_key.google_cx or provide as cx parameter.',
       }
     end
+  elseif engine == 'serpapi' then
+    if not api_key or api_key == '' then
+      return {
+        error = 'SerpAPI key is required. Please set it in config.api_key.serpapi or provide as parameter.',
+      }
+    end
   end
 
   -- Build request based on engine
@@ -92,12 +108,12 @@ function M.web_search(action, ctx)
   table.insert(cmd, '-s')
   table.insert(cmd, '-L')
   table.insert(cmd, '--compressed')
-  
+
   -- Timeout
   local timeout = action.timeout or 30
   table.insert(cmd, '--max-time')
   table.insert(cmd, tostring(timeout))
-  
+
   if engine == 'firecrawl' then
     -- Build Firecrawl request payload
     local payload = {
@@ -109,7 +125,7 @@ function M.web_search(action, ctx)
     end
 
     local payload_json = vim.json.encode(payload)
-    
+
     table.insert(cmd, '-X')
     table.insert(cmd, 'POST')
     table.insert(cmd, '-H')
@@ -119,16 +135,16 @@ function M.web_search(action, ctx)
     table.insert(cmd, '--data')
     table.insert(cmd, payload_json)
     table.insert(cmd, 'https://api.firecrawl.dev/v2/search')
-  else -- google
+  elseif engine == 'google' then
     -- Build Google Custom Search request
     local limit = action.limit or 10
     if limit > 10 then
-      limit = 10  -- Google API maximum for free tier
+      limit = 10 -- Google API maximum for free tier
     end
-    
+
     -- URL encode query
     local encoded_query = vim.fn.escape(action.query, 'url')
-    
+
     local url = string.format(
       'https://www.googleapis.com/customsearch/v1?key=%s&cx=%s&q=%s&num=%d',
       api_key,
@@ -136,7 +152,29 @@ function M.web_search(action, ctx)
       encoded_query,
       limit
     )
-    
+
+    table.insert(cmd, '-X')
+    table.insert(cmd, 'GET')
+    table.insert(cmd, url)
+  elseif engine == 'serpapi' then
+    -- Build SerpAPI request
+    local limit = action.limit or 10
+
+    -- URL encode query
+    local encoded_query = vim.fn.escape(action.query, 'url')
+
+    local url = string.format(
+      'https://serpapi.com/search?q=%s&api_key=%s&num=%d&source=chatnvim',
+      encoded_query,
+      api_key,
+      limit
+    )
+
+    -- Optional: specify search engine (default is google)
+    if action.serpapi_engine then
+      url = url .. '&engine=' .. action.serpapi_engine
+    end
+
     table.insert(cmd, '-X')
     table.insert(cmd, 'GET')
     table.insert(cmd, url)
@@ -149,6 +187,8 @@ function M.web_search(action, ctx)
       table.insert(safe_cmd, 'Authorization: Bearer ***')
     elseif part:match('^key=') then
       table.insert(safe_cmd, 'key=***')
+    elseif part:match('api_key=') then
+      table.insert(safe_cmd, (part:gsub('api_key=[^&]*', 'api_key=***')))
     else
       table.insert(safe_cmd, part)
     end
@@ -175,7 +215,9 @@ function M.web_search(action, ctx)
     return {
       error = string.format(
         '%s API request failed (exit code: %d):\nCommand: %s\nOutput: %s',
-        engine == 'firecrawl' and 'Firecrawl' or 'Google',
+        engine == 'firecrawl' and 'Firecrawl'
+          or engine == 'google' and 'Google'
+          or 'SerpAPI',
         exit_code,
         safe_cmd_str,
         result
@@ -193,24 +235,34 @@ function M.web_search(action, ctx)
 
   -- Format results based on engine
   local lines = {}
-  
+
   if engine == 'firecrawl' then
     if not response.success then
       return {
-        error = 'Firecrawl API returned error: ' .. (response.error or 'unknown'),
+        error = 'Firecrawl API returned error: '
+          .. (response.error or 'unknown'),
       }
     end
 
     local web_results = response.data and response.data.web or {}
-    table.insert(lines, string.format('Firecrawl search results for "%s":', action.query))
+    table.insert(
+      lines,
+      string.format('Firecrawl search results for "%s":', action.query)
+    )
     table.insert(lines, string.format('Found %d web results.', #web_results))
     table.insert(lines, '')
 
     for i, item in ipairs(web_results) do
-      table.insert(lines, string.format('%d. %s', i, item.title or 'No title'))
+      table.insert(
+        lines,
+        string.format('%d. %s', i, item.title or 'No title')
+      )
       table.insert(lines, string.format('   URL: %s', item.url or 'No URL'))
       if item.description then
-        table.insert(lines, string.format('   Description: %s', item.description))
+        table.insert(
+          lines,
+          string.format('   Description: %s', item.description)
+        )
       end
       if item.position then
         table.insert(lines, string.format('   Position: %d', item.position))
@@ -220,35 +272,145 @@ function M.web_search(action, ctx)
 
     -- Include other result types if present
     if response.data.images and #response.data.images > 0 then
-      table.insert(lines, string.format('Images: %d results', #response.data.images))
+      table.insert(
+        lines,
+        string.format('Images: %d results', #response.data.images)
+      )
     end
     if response.data.news and #response.data.news > 0 then
-      table.insert(lines, string.format('News: %d results', #response.data.news))
+      table.insert(
+        lines,
+        string.format('News: %d results', #response.data.news)
+      )
     end
-  else -- google
+  elseif engine == 'google' then
     if response.error then
       return {
-        error = 'Google API returned error: ' .. (response.error.message or 'unknown'),
+        error = 'Google API returned error: '
+          .. (response.error.message or 'unknown'),
       }
     end
 
     local items = response.items or {}
-    table.insert(lines, string.format('Google search results for "%s":', action.query))
+    table.insert(
+      lines,
+      string.format('Google search results for "%s":', action.query)
+    )
     table.insert(lines, string.format('Found %d results.', #items))
     if response.searchInformation then
-      table.insert(lines, string.format('Search time: %s seconds', response.searchInformation.formattedSearchTime or 'unknown'))
-      table.insert(lines, string.format('Total results: %s', response.searchInformation.formattedTotalResults or 'unknown'))
+      table.insert(
+        lines,
+        string.format(
+          'Search time: %s seconds',
+          response.searchInformation.formattedSearchTime or 'unknown'
+        )
+      )
+      table.insert(
+        lines,
+        string.format(
+          'Total results: %s',
+          response.searchInformation.formattedTotalResults or 'unknown'
+        )
+      )
     end
     table.insert(lines, '')
 
     for i, item in ipairs(items) do
-      table.insert(lines, string.format('%d. %s', i, item.title or 'No title'))
+      table.insert(
+        lines,
+        string.format('%d. %s', i, item.title or 'No title')
+      )
       table.insert(lines, string.format('   URL: %s', item.link or 'No URL'))
       if item.snippet then
         table.insert(lines, string.format('   Snippet: %s', item.snippet))
       end
       if item.displayLink then
-        table.insert(lines, string.format('   Display link: %s', item.displayLink))
+        table.insert(
+          lines,
+          string.format('   Display link: %s', item.displayLink)
+        )
+      end
+      table.insert(lines, '')
+    end
+  else -- serpapi
+    if response.error then
+      return {
+        error = 'SerpAPI returned error: ' .. (response.error or 'unknown'),
+      }
+    end
+
+    local organic_results = response.organic_results or {}
+    table.insert(
+      lines,
+      string.format('SerpAPI search results for "%s":', action.query)
+    )
+    table.insert(lines, string.format('Found %d results.', #organic_results))
+    table.insert(lines, '')
+
+    for i, item in ipairs(organic_results) do
+      table.insert(
+        lines,
+        string.format('%d. %s', i, item.title or 'No title')
+      )
+      table.insert(lines, string.format('   URL: %s', item.link or 'No URL'))
+      if item.snippet then
+        table.insert(lines, string.format('   Snippet: %s', item.snippet))
+      end
+      if item.displayed_url then
+        table.insert(
+          lines,
+          string.format('   Display URL: %s', item.displayed_url)
+        )
+      end
+      table.insert(lines, '')
+    end
+
+    -- Include other result types
+    if response.answer_box then
+      table.insert(lines, '--- Answer Box ---')
+      if response.answer_box.title then
+        table.insert(
+          lines,
+          string.format('Title: %s', response.answer_box.title)
+        )
+      end
+      if response.answer_box.snippet then
+        table.insert(
+          lines,
+          string.format('Snippet: %s', response.answer_box.snippet)
+        )
+      end
+      if response.answer_box.answer then
+        table.insert(
+          lines,
+          string.format('Answer: %s', response.answer_box.answer)
+        )
+      end
+      table.insert(lines, '')
+    end
+    if response.knowledge_graph then
+      table.insert(lines, '--- Knowledge Graph ---')
+      if response.knowledge_graph.title then
+        table.insert(
+          lines,
+          string.format('Title: %s', response.knowledge_graph.title)
+        )
+      end
+      if response.knowledge_graph.description then
+        table.insert(
+          lines,
+          string.format(
+            'Description: %s',
+            response.knowledge_graph.description
+          )
+        )
+      end
+      table.insert(lines, '')
+    end
+    if response.related_questions and #response.related_questions > 0 then
+      table.insert(lines, '--- Related Questions ---')
+      for _, q in ipairs(response.related_questions) do
+        table.insert(lines, string.format('• %s', q.question or ''))
       end
       table.insert(lines, '')
     end
@@ -266,11 +428,12 @@ function M.scheme()
     ['function'] = {
       name = 'web_search',
       description = [[
-        Search the web using either Firecrawl or Google Custom Search API.
+        Search the web using either Firecrawl, Google Custom Search API, or SerpAPI.
         
-        Supports two search engines:
+        Supports three search engines:
         1. Firecrawl (default): https://firecrawl.dev
         2. Google: Google Custom Search JSON API
+        3. SerpAPI: https://serpapi.com - supports multiple search engines (Google, Bing, DuckDuckGo, etc.)
         
         Requires appropriate API keys. Set in config via:
         ```lua
@@ -278,7 +441,8 @@ function M.scheme()
           api_key = { 
             firecrawl = 'fc-YOUR_API_KEY',
             google = 'YOUR_GOOGLE_API_KEY',
-            google_cx = 'YOUR_SEARCH_ENGINE_ID'
+            google_cx = 'SEARCH_ENGINE_ID',
+            serpapi = 'YOUR_SERPAPI_KEY'
           }
         })
         ```
@@ -298,12 +462,21 @@ function M.scheme()
         4. Google search with custom API key and cx:
            @web_search query="test" engine="google" api_key="GOOGLE_API_KEY" cx="SEARCH_ENGINE_ID"
         
-        5. Custom timeout:
+        5. SerpAPI with Google (default):
+           @web_search query="neovim plugins" engine="serpapi"
+        
+        6. SerpAPI with Bing:
+           @web_search query="latest news" engine="serpapi" serpapi_engine="bing"
+        
+        7. SerpAPI with DuckDuckGo:
+           @web_search query="privacy tools" engine="serpapi" serpapi_engine="duckduckgo"
+        
+        8. Custom timeout:
            @web_search query="slow site" timeout=60
         
-        6. Firecrawl with scrape options:
+        9. Firecrawl with scrape options:
            @web_search query="news" scrape_options={"formats":["markdown"]}
-        ]],
+      ]],
       parameters = {
         type = 'object',
         properties = {
@@ -313,12 +486,12 @@ function M.scheme()
           },
           engine = {
             type = 'string',
-            description = 'Search engine to use: "firecrawl" or "google" (default: "firecrawl")',
-            enum = { 'firecrawl', 'google' },
+            description = 'Search engine to use: "firecrawl", "google", or "serpapi" (default: "firecrawl")',
+            enum = { 'firecrawl', 'google', 'serpapi' },
           },
           limit = {
             type = 'integer',
-            description = 'Number of results to return (default: 5 for firecrawl, 10 for google)',
+            description = 'Number of results to return (default: 5 for firecrawl, 10 for google/serpapi)',
             minimum = 1,
             maximum = 50,
           },
@@ -328,7 +501,7 @@ function M.scheme()
           },
           api_key = {
             type = 'string',
-            description = 'API key (optional if configured in config.api_key.firecrawl or config.api_key.google)',
+            description = 'API key (optional if configured in config.api_key.firecrawl, config.api_key.google, or config.api_key.serpapi)',
           },
           cx = {
             type = 'string',
@@ -339,6 +512,10 @@ function M.scheme()
             description = 'Timeout in seconds (default: 30, minimum: 1, maximum: 300)',
             minimum = 1,
             maximum = 300,
+          },
+          serpapi_engine = {
+            type = 'string',
+            description = 'SerpAPI search engine to use (e.g., "google", "bing", "yahoo", "duckduckgo", "baidu"). Default is "google".',
           },
         },
         required = { 'query' },
@@ -358,6 +535,12 @@ function M.info(action, ctx)
     end
     if arguments.limit then
       table.insert(info_parts, string.format('limit=%d', arguments.limit))
+    end
+    if arguments.serpapi_engine then
+      table.insert(
+        info_parts,
+        string.format('serpapi_engine=%s', arguments.serpapi_engine)
+      )
     end
     return table.concat(info_parts, ' ')
   else
