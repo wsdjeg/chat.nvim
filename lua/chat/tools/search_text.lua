@@ -47,7 +47,7 @@ function M.search_text(action, ctx)
   end
 
   -- Security check
-  local search_directory = action.directory or ctx.cwd
+  local search_directory = vim.fs.normalize(action.directory or ctx.cwd)
   local is_allowed_path = false
 
   -- Verify search directory exists
@@ -72,8 +72,10 @@ function M.search_text(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path =
-      starts_with(search_directory, vim.fs.normalize(config.config.allowed_path))
+    is_allowed_path = starts_with(
+      search_directory,
+      vim.fs.normalize(config.config.allowed_path)
+    )
   end
 
   if not is_allowed_path then
@@ -303,7 +305,10 @@ function M.info(action, ctx)
   if ok then
     local info_parts = {
       string.format('search_text "%s"', arguments.pattern),
-      string.format('in %s', arguments.directory or ctx.cwd),
+      string.format(
+        'in %s',
+        vim.fs.normalize(arguments.directory or ctx.cwd)
+      ),
     }
 
     local options = {}
