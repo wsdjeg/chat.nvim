@@ -1,23 +1,62 @@
 local M = {}
 
+local available_models = {}
+
+local page_size = 200
+
 local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  -- https://help.aliyun.com/zh/model-studio/models
-  return {
-    'qwen3-max',
-    'glm-5',
-    'glm-4.7',
-    'glm-4.6',
-    'glm-4.5',
-    'glm-4.5-air',
-    'kimi-k2.5',
-    'deepseek-v3.2',
-    'kimi-k2-thinking',
-    'Moonshot-Kimi-K2-Instruct',
-  }
+  if #available_models == 0 then
+    if config.config.api_key.qwen then
+      local cmd = {
+        'curl',
+        '-H',
+        'Content-Type: application/json',
+        '-H',
+        'Authorization: Bearer ' .. config.config.api_key.qwen,
+        '-s',
+        'https://dashscope.aliyuncs.com/api/v1/models?page_size='
+          .. page_size,
+      }
+      local systemObj = vim.system(cmd):wait()
+      if systemObj.code == 0 then
+        local ok, result = pcall(vim.json.decode, systemObj.stdout)
+        if ok then
+          for _, model in ipairs(result.output.models) do
+            table.insert(available_models, model.model)
+          end
+          -- {"code":null,"message":null,"success":true,"output":{"total":417,"page_no":1,"page_size":200,"models":[]}}
+          if result.output.total > page_size then
+            for page = 2, math.ceil(result.output.total / page_size) do
+              cmd = {
+                'curl',
+                '-H',
+                'Content-Type: application/json',
+                '-H',
+                'Authorization: Bearer ' .. config.config.api_key.qwen,
+                '-s',
+                'https://dashscope.aliyuncs.com/api/v1/models?page_no=' .. page   .. '&page_size='
+                  .. page_size,
+              }
+              systemObj = vim.system(cmd):wait()
+              if systemObj.code == 0 then
+                ok, result = pcall(vim.json.decode, systemObj.stdout)
+                if ok then
+                  for _, model in ipairs(result.output.models) do
+                    table.insert(available_models, model.model)
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  return available_models
 end
 
 function M.request(opt)
