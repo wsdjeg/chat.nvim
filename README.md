@@ -835,7 +835,7 @@ For complex requests, you can provide a JSON object:
 
 #### `web_search`
 
-Search the web using either Firecrawl or Google Custom Search API.
+Search the web using Firecrawl, Google Custom Search API, or SerpAPI.
 
 **Usage:**
 
@@ -847,6 +847,7 @@ Search the web using either Firecrawl or Google Custom Search API.
 
 1. **Firecrawl** (default): https://firecrawl.dev
 2. **Google**: Google Custom Search JSON API
+3. **SerpAPI**: https://serpapi.com - supports multiple search engines (Google, Bing, DuckDuckGo, etc.)
 
 **Configuration:**
 
@@ -857,7 +858,8 @@ require('chat').setup({
   api_key = {
     firecrawl = 'fc-YOUR_API_KEY',
     google = 'YOUR_GOOGLE_API_KEY',
-    google_cx = 'YOUR_SEARCH_ENGINE_ID'
+    google_cx = 'YOUR_SEARCH_ENGINE_ID',
+    serpapi = 'YOUR_SERPAPI_KEY'
   }
 })
 ```
@@ -890,36 +892,72 @@ Alternatively, provide API keys directly as parameters.
    @web_search query="test" engine="google" api_key="GOOGLE_API_KEY" cx="SEARCH_ENGINE_ID"
    ```
 
-5. Custom timeout:
+5. SerpAPI with Google (default):
+
+   ```
+   @web_search query="neovim plugins" engine="serpapi"
+   ```
+
+6. SerpAPI with Bing:
+
+   ```
+   @web_search query="latest news" engine="serpapi" serpapi_engine="bing"
+   ```
+
+7. SerpAPI with DuckDuckGo:
+
+   ```
+   @web_search query="privacy tools" engine="serpapi" serpapi_engine="duckduckgo"
+   ```
+
+8. Custom timeout:
 
    ```
    @web_search query="slow site" timeout=60
    ```
 
-6. Firecrawl with scrape options:
+9. Firecrawl with scrape options:
    ```
    @web_search query="news" scrape_options={"formats":["markdown"]}
    ```
 
 **Parameters:**
 
-| Parameter        | Type    | Description                                                                                    |
-| ---------------- | ------- | ---------------------------------------------------------------------------------------------- |
-| `query`          | string  | Search query string                                                                            |
-| `engine`         | string  | Search engine to use: `"firecrawl"` or `"google"` (default: `"firecrawl"`)                     |
-| `limit`          | integer | Number of results to return (default: 5 for firecrawl, 10 for google)                          |
-| `scrape_options` | object  | Options for scraping result pages (Firecrawl only, see Firecrawl docs)                         |
-| `api_key`        | string  | API key (optional if configured in config.api_key.firecrawl or config.api_key.google)          |
-| `cx`             | string  | Google Custom Search engine ID (required for Google engine if not in config.api_key.google_cx) |
-| `timeout`        | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                                     |
+| Parameter        | Type    | Description                                                                                        |
+| ---------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `query`          | string  | **Required**. Search query string                                                                  |
+| `engine`         | string  | Search engine to use: `"firecrawl"`, `"google"`, or `"serpapi"` (default: `"firecrawl"`)           |
+| `limit`          | integer | Number of results to return (default: 5 for firecrawl, 10 for google/serpapi)                      |
+| `scrape_options` | object  | Options for scraping result pages (Firecrawl only, see Firecrawl docs)                             |
+| `api_key`        | string  | API key (optional if configured in config)                                                         |
+| `cx`             | string  | Google Custom Search engine ID (required for Google engine if not in config)                       |
+| `timeout`        | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                                         |
+| `serpapi_engine` | string  | SerpAPI search engine: `"google"`, `"bing"`, `"duckduckgo"`, `"yahoo"`, `"baidu"`, etc. (optional) |
+
+**SerpAPI Search Engines:**
+
+When using SerpAPI, you can specify different search engines via the `serpapi_engine` parameter:
+
+| Engine       | Description      |
+| ------------ | ---------------- |
+| `google`     | Google Search    |
+| `bing`       | Microsoft Bing   |
+| `duckduckgo` | DuckDuckGo       |
+| `yahoo`      | Yahoo Search     |
+| `baidu`      | Baidu            |
+| `yandex`     | Yandex           |
+| `ebay`       | eBay Search      |
+| ...and more  | See SerpAPI docs |
 
 **Notes:**
 
-- Requires curl to be installed and available in PATH.
-- Firecrawl API key is required for Firecrawl searches.
-- Google API key and Custom Search engine ID (cx) are required for Google searches.
-- Search results are returned in a formatted list.
-- Supports both Firecrawl and Google search engines with configurable options.
+- Requires curl to be installed and available in PATH
+- Firecrawl API key is required for Firecrawl searches
+- Google API key and Custom Search engine ID (cx) are required for Google searches
+- SerpAPI key is required for SerpAPI searches
+- SerpAPI supports multiple search engines (Google, Bing, DuckDuckGo, etc.) through the `serpapi_engine` parameter
+- Search results are returned in a formatted list with titles, URLs, and snippets
+- Supports both Firecrawl, Google, and SerpAPI search engines with configurable options
 
 ### Third-party Tools
 
