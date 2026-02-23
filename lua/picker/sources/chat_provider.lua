@@ -37,7 +37,7 @@ function M.default_action(item)
       end
     else
       require('chat.log').notify(
-        'No available models for ' .. item.value .. ' provider.',
+        'Models is loading for ' .. item.value .. '...',
         'WarningMsg'
       )
     end
