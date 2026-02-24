@@ -48,6 +48,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`set_prompt`](#set_prompt)
         - [`fetch_web`](#fetch_web)
         - [`web_search`](#web_search)
+        - [`git_diff`](#git_diff)
     - [Third-party Tools](#third-party-tools)
         - [`zettelkasten_create`](#zettelkasten_create)
         - [`zettelkasten_get`](#zettelkasten_get)
@@ -63,7 +64,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 ## ✨ Features
 
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
 - **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`) sessions, and changing working directory (`:Chat cd`)
@@ -82,17 +83,18 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
    - [`ripgrep` (rg)](https://github.com/BurntSushi/ripgrep): Required for the `@search_text` tool
    - [`curl`](https://curl.se/): Required for the `@fetch_web` tool
+   - [`git`](https://git-scm.com/): Required for the `@git_diff` tool
    - Install with your package manager:
 
      ```bash
      # Ubuntu/Debian
-     sudo apt install ripgrep curl
+     sudo apt install ripgrep curl git
 
      # macOS
-     brew install ripgrep curl
+     brew install ripgrep curl git
 
      # Arch Linux
-     sudo pacman -S ripgrep curl
+     sudo pacman -S ripgrep curl git
      ```
 
 2. **Neovim Plugin Dependencies**:
@@ -961,6 +963,87 @@ When using SerpAPI, you can specify different search engines via the `serpapi_en
 - SerpAPI supports multiple search engines (Google, Bing, DuckDuckGo, etc.) through the `serpapi_engine` parameter
 - Search results are returned in a formatted list with titles, URLs, and snippets
 - Supports both Firecrawl, Google, and SerpAPI search engines with configurable options
+
+#### `git_diff`
+
+Run git diff to compare changes between working directory, index, or different branches.
+
+**Usage:**
+
+```
+@git_diff <parameters>
+```
+
+**Basic Examples:**
+
+- `@git_diff` - Show all unstaged changes in the repository
+- `@git_diff cached=true` - Show staged changes (--cached)
+- `@git_diff branch="main"` - Compare working directory with main branch
+- `@git_diff path="./src"` - Show changes for specific file or directory
+- `@git_diff branch="master" cached=true` - Compare staged changes with master branch
+
+**Advanced Usage with JSON Parameters:**
+
+For more complex comparisons, you can provide a JSON object:
+
+```
+@git_diff {"path": "./lua/chat", "branch": "develop", "cached": true}
+```
+
+**Parameters:**
+
+| Parameter | Type    | Description                                                          |
+| --------- | ------- | -------------------------------------------------------------------- |
+| `path`    | string  | File or directory path to show diff for (optional)                   |
+| `cached`  | boolean | Show staged changes (git diff --cached) (optional)                   |
+| `branch`  | string  | Branch to compare against (e.g., "master", "origin/main") (optional) |
+
+**More Examples:**
+
+1. **View all unstaged changes:**
+
+   ```
+   @git_diff
+   ```
+
+2. **View staged changes only:**
+
+   ```
+   @git_diff cached=true
+   ```
+
+3. **Compare with another branch:**
+
+   ```
+   @git_diff branch="main"
+   ```
+
+4. **Check changes in specific file:**
+
+   ```
+   @git_diff path="./lua/chat/tools/git_diff.lua"
+   ```
+
+5. **Compare staged changes with master branch:**
+
+   ```
+   @git_diff branch="master" cached=true
+   ```
+
+6. **Combined usage:**
+   ```
+   @git_diff {"path": "./lua/chat/tools", "branch": "develop", "cached": false}
+   ```
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- If no parameters are provided, shows all unstaged changes in the repository
+- The `cached` flag shows changes that are staged (git diff --cached)
+- The `branch` parameter allows comparing with another branch (git diff <branch>)
+- The `path` parameter restricts diff output to specific file or directory
+- Returns formatted git diff output with file names and change summaries
+- Particularly useful for code review, version control, and change tracking
 
 ### Third-party Tools
 
