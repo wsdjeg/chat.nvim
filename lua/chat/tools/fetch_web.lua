@@ -114,7 +114,18 @@ function M.fetch_web(action, ctx)
     })
 
     local system_result = job:wait()
-    result = system_result.stdout or system_result.stderr or ''
+    result = system_result.stdout or ''
+    if
+      system_result.code ~= 0
+      and system_result.stderr
+      and system_result.stderr ~= ''
+    then
+      if result ~= '' then
+        result = result .. '\n\n' .. system_result.stderr
+      else
+        result = system_result.stderr
+      end
+    end
     exit_code = system_result.code
   else
     -- Fallback for older Neovim versions

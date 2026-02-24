@@ -57,7 +57,18 @@ function M.git_diff(action, ctx)
       text = true,
     })
     local system_result = job:wait()
-    result = system_result.stdout or system_result.stderr or ''
+    result = system_result.stdout or ''
+    if
+      system_result.code ~= 0
+      and system_result.stderr
+      and system_result.stderr ~= ''
+    then
+      if result ~= '' then
+        result = result .. '\n\n' .. system_result.stderr
+      else
+        result = system_result.stderr
+      end
+    end
     exit_code = system_result.code
   else
     result = vim.fn.system(cmd)
@@ -69,20 +80,21 @@ function M.git_diff(action, ctx)
     if result == '' then
       result = 'No changes found.'
     end
-    
+
     local summary = string.format(
       'Git diff output for: %s\n\n',
       resolved_path or 'repository'
     )
-    
+
     if action.cached then
       summary = summary .. '(showing staged changes)\n\n'
     end
-    
+
     if action.branch then
-      summary = summary .. string.format('(comparing with branch: %s)\n\n', action.branch)
+      summary = summary
+        .. string.format('(comparing with branch: %s)\n\n', action.branch)
     end
-    
+
     return {
       content = summary .. result,
     }
@@ -171,4 +183,3 @@ function M.info(action, ctx)
 end
 
 return M
-
