@@ -533,6 +533,10 @@ function M.append_message(session, message)
   table.insert(sessions[session].messages, message)
 end
 
+function M.exists(session)
+  return sessions[session] ~= nil
+end
+
 function M.get_session_provider(session)
   return sessions[session].provider
 end

@@ -931,7 +931,7 @@ function M.current_session()
 end
 
 function M.send_message(session, content)
-  if not content then
+  if not content or not sessions.exists(session) then
     return
   end
   local ok, provider = pcall(

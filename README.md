@@ -217,13 +217,14 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 
 Configure the built-in HTTP server for receiving external messages:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `http.host` | string | `'127.0.0.1'` | Host address for the HTTP server |
-| `http.port` | number | `7777` | Port number for the HTTP server |
+| Option         | Type   | Default            | Description                                                                 |
+| -------------- | ------ | ------------------ | --------------------------------------------------------------------------- |
+| `http.host`    | string | `'127.0.0.1'`      | Host address for the HTTP server                                            |
+| `http.port`    | number | `7777`             | Port number for the HTTP server                                             |
 | `http.api_key` | string | `'test_chat_nvim'` | API key for authenticating incoming requests (must be set to enable server) |
 
 Example configuration:
+
 ```lua
 http = {
   host = '127.0.0.1',
@@ -233,6 +234,7 @@ http = {
 ```
 
 **Notes:**
+
 - The HTTP server is automatically started when `http.api_key` is not empty
 - Incoming requests must include the API key in the `X-API-Key` header
 - Messages are queued and processed when the chat window is not busy
@@ -1284,9 +1286,9 @@ require('chat').setup({
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `session` | string | Chat session ID. If the session doesn't exist, it will be created automatically |
+| Parameter | Type   | Description                                 |
+| --------- | ------ | ------------------------------------------- |
+| `session` | string | Chat session ID.                            |
 | `content` | string | Message content to send to the chat session |
 
 ### Response
@@ -1299,6 +1301,7 @@ require('chat').setup({
 ### Message Queue System
 
 Incoming messages are processed through a queue system:
+
 1. Messages are immediately queued upon receipt
 2. The queue is checked every 5 seconds
 3. Messages are delivered to the chat session when it's not in progress
