@@ -57,9 +57,11 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Custom Tools](#custom-tools)
 - [🌐 HTTP API](#-http-api)
     - [Enabling the HTTP Server](#enabling-the-http-server)
-    - [API Endpoint](#api-endpoint)
+    - [API Endpoints](#api-endpoints)
     - [Request Format](#request-format)
-    - [Response](#response)
+    - [Response Format](#response-format)
+        - [POST `/`](#post-)
+        - [GET `/sessions`](#get-sessions)
     - [Message Queue System](#message-queue-system)
     - [Usage Examples](#usage-examples)
         - [Using curl:](#using-curl)
@@ -1269,11 +1271,33 @@ require('chat').setup({
 })
 ```
 
-### API Endpoint
+### API Endpoints
 
-**URL**: `http://{host}:{port}/`
-**Method**: POST
-**Required Header**: `X-API-Key: {your-api-key}`
+chat.nvim provides the following HTTP API endpoints for external integration:
+
+| Endpoint    | Method | Description                               |
+| ----------- | ------ | ----------------------------------------- |
+| `/`         | POST   | Send messages to a specified chat session |
+| `/sessions` | GET    | Get a list of all active session IDs      |
+
+**Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
+
+**Authentication**: All requests require the `X-API-Key` header containing your configured API key.
+
+**Example Usage**:
+
+```bash
+# Send message to session
+curl -X POST http://127.0.0.1:7777/ \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"session": "my-session", "content": "Hello from curl!"}'
+
+# Get session list
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+```
+
+For detailed request/response formats and examples, see the sections below.
 
 ### Request Format
 
@@ -1291,12 +1315,29 @@ require('chat').setup({
 | `session` | string | Chat session ID.                            |
 | `content` | string | Message content to send to the chat session |
 
-### Response
+### Response Format
+
+#### POST `/`
 
 - **Success**: HTTP 204 No Content
 - **Authentication Error**: HTTP 401 Unauthorized (invalid or missing API key)
 - **Validation Error**: HTTP 400 Bad Request (invalid JSON or missing required fields)
 - **Method/Path Error**: HTTP 404 Not Found (wrong method or path)
+
+#### GET `/sessions`
+
+- **Success**: HTTP 200 OK, returns a JSON array of session IDs
+  ```json
+  [
+    "2024-01-15-10-30-00",
+    "2024-01-15-11-45-00",
+    "2024-01-16-09-20-00"
+  ]  # Example output: array of session ID strings
+  ```
+- **Authentication Error**: HTTP 401 Unauthorized (invalid or missing API key)
+- **Method/Path Error**: HTTP 404 Not Found (wrong method or path)
+
+**Note**: Session IDs follow the format `YYYY-MM-DD-HH-MM-SS` (e.g., `2024-01-15-10-30-00`) and are automatically generated when new sessions are created.
 
 ### Message Queue System
 
@@ -1312,10 +1353,14 @@ Incoming messages are processed through a queue system:
 #### Using curl:
 
 ```bash
+# Send a message to a session
 curl -X POST http://127.0.0.1:7777/ \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"session": "my-session", "content": "Hello from curl!"}'
+
+# Get all session IDs
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
 ```
 
 #### Using Python:
@@ -1323,6 +1368,7 @@ curl -X POST http://127.0.0.1:7777/ \
 ```python
 import requests
 
+# Send a message to a session
 url = "http://127.0.0.1:7777/"
 headers = {
     "X-API-Key": "your-secret-key",
@@ -1332,9 +1378,14 @@ data = {
     "session": "python-script",
     "content": "Message from Python script"
 }
-
 response = requests.post(url, json=data, headers=headers)
 print(f"Status: {response.status_code}")
+
+# Get session list
+sessions_response = requests.get("http://127.0.0.1:7777/sessions", headers=headers)
+if sessions_response.status_code == 200:
+    sessions = sessions_response.json()
+    print(f"Active sessions: {sessions}")
 ```
 
 ### Security Considerations
@@ -1350,6 +1401,8 @@ print(f"Status: {response.status_code}")
 - **Monitoring Systems**: Forward alerts from monitoring tools
 - **Script Automation**: Trigger chat interactions from shell scripts
 - **External Applications**: Integrate with other desktop or web applications
+- **Session Management Tools**: External scripts can periodically fetch active session lists for cleanup or backup
+- **Monitoring Dashboard**: Display status and statistics of all active sessions
 
 ## 🔍 Picker Integration
 

@@ -3,6 +3,7 @@ local uv = vim.loop
 local M = {}
 
 local config = require('chat.config')
+local sessions = require('chat.sessions')
 
 local function parse_headers(raw)
   local headers = {}
@@ -74,36 +75,54 @@ function M.start()
         return
       end
 
-      if method ~= 'POST' or path ~= '/' then
+      -- Route handling
+      if method == 'GET' and path == '/sessions' then
+        -- GET /sessions: return session id list
+        local all_sessions = sessions.get()
+        local session_ids = {}
+        for id, _ in pairs(all_sessions) do
+          table.insert(session_ids, id)
+        end
+        table.sort(session_ids)
+        local json_data = vim.json.encode(session_ids)
+        local resp = string.format(
+          'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+          #json_data,
+          json_data
+        )
+        client:write(resp)
+        client:close()
+      elseif method == 'POST' and path == '/' then
+        -- POST /: push message to session (existing behavior)
+        local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+        if not ok or type(obj) ~= 'table' then
+          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        local session = obj.session
+        local content = obj.content
+
+        if type(session) ~= 'string' or type(content) ~= 'string' then
+          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        require('chat.queue').push(session, content)
+
+        local resp = 'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n'
+        client:write(resp)
+        client:close()
+      else
+        -- Other routes not found
         local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
         client:write(resp)
         client:close()
-        return
       end
-
-      local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-      if not ok or type(obj) ~= 'table' then
-        local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-        client:write(resp)
-        client:close()
-        return
-      end
-
-      local session = obj.session
-      local content = obj.content
-
-      if type(session) ~= 'string' or type(content) ~= 'string' then
-        local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-        client:write(resp)
-        client:close()
-        return
-      end
-
-      require('chat.queue').push(session, content)
-
-      local resp = 'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n'
-      client:write(resp)
-      client:close()
     end)
   end)
 
