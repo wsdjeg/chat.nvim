@@ -13,7 +13,7 @@ local default = {
   http = {
     host = '127.0.0.1',
     port = 7777,
-    api_key = 'test_chat_nvim',
+    api_key = '',
   },
   -- default allowed_path is empty string, which means no files is allowed.
   allowed_path = '',
