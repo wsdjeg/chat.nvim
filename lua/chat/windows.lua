@@ -920,10 +920,61 @@ function M.open(opt)
   else
     spinners.stop()
   end
+  if config.config.http.api_key ~= '' then
+    require('chat.http').start()
+    require('chat.queue').start()
+  end
 end
 
 function M.current_session()
   return current_session
+end
+
+function M.send_message(session, content)
+  if not content then
+    return
+  end
+  local ok, provider = pcall(
+    require,
+    'chat.providers.' .. sessions.get_session_provider(session)
+  )
+  if ok then
+    local msg = {
+      role = 'user',
+      content = content,
+      created = os.time(),
+    }
+    sessions.append_message(session, msg)
+    if session == current_session then
+      if vim.api.nvim_buf_line_count(result_buf) == 1 then
+        vim.api.nvim_buf_set_lines(
+          result_buf,
+          -1,
+          -1,
+          false,
+          M.generate_message(msg, session)
+        )
+      else
+        vim.api.nvim_buf_set_lines(
+          result_buf,
+          -1,
+          -1,
+          false,
+          M.generate_message(msg, session)
+        )
+      end
+      scroll_window()
+    end
+    provider.request({
+      on_stdout = requestObj.on_stdout,
+      on_stderr = requestObj.on_stderr,
+      on_exit = requestObj.on_exit,
+      session = session,
+      messages = sessions.get_request_messages(session),
+    })
+  else
+    log.debug('failed to load provider:' .. config.config.provider)
+  end
 end
 
 return M

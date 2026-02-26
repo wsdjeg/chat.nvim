@@ -10,6 +10,11 @@ local default = {
   model = 'deepseek-chat',
   border = 'rounded',
   api_key = '',
+  http = {
+    host = '127.0.0.1',
+    port = 7777,
+    api_key = 'test_chat_nvim',
+  },
   -- default allowed_path is empty string, which means no files is allowed.
   allowed_path = '',
   strftime = '%m-%d %H:%M:%S',

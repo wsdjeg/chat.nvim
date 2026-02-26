@@ -25,6 +25,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Quick Start](#quick-start)
 - [🔧 Configuration](#-configuration)
     - [Basic Options](#basic-options)
+    - [HTTP Server Configuration](#http-server-configuration)
     - [API Key Configuration](#api-key-configuration)
     - [File Access Control](#file-access-control)
     - [Memory System Configuration](#memory-system-configuration)
@@ -54,6 +55,17 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`zettelkasten_get`](#zettelkasten_get)
     - [How to Use Tools](#how-to-use-tools)
     - [Custom Tools](#custom-tools)
+- [🌐 HTTP API](#-http-api)
+    - [Enabling the HTTP Server](#enabling-the-http-server)
+    - [API Endpoint](#api-endpoint)
+    - [Request Format](#request-format)
+    - [Response](#response)
+    - [Message Queue System](#message-queue-system)
+    - [Usage Examples](#usage-examples)
+        - [Using curl:](#using-curl)
+        - [Using Python:](#using-python)
+    - [Security Considerations](#security-considerations)
+    - [Integration Ideas](#integration-ideas)
 - [🔍 Picker Integration](#-picker-integration)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
@@ -65,6 +77,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
 - **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
+- **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
 - **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`) sessions, and changing working directory (`:Chat cd`)
@@ -168,6 +181,7 @@ If you're not using a package manager:
 1. **API Keys**: Configure at least one AI provider API key in the `api_key` table
 2. **File Access**: Set `allowed_path` to control which directories tools can access
 3. **Memory System**: Configure memory settings based on your needs
+4. **HTTP Server** (optional): Configure HTTP server settings if you want to enable external message integration
 
 ### Quick Start
 
@@ -198,6 +212,30 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `model`         | string  | `'deepseek-chat'`  | Default AI model                                           |
 | `strftime`      | string  | `'%m-%d %H:%M:%S'` | Time display format                                        |
 | `system_prompt` | string  | `''`               | Default system prompt                                      |
+
+### HTTP Server Configuration
+
+Configure the built-in HTTP server for receiving external messages:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `http.host` | string | `'127.0.0.1'` | Host address for the HTTP server |
+| `http.port` | number | `7777` | Port number for the HTTP server |
+| `http.api_key` | string | `'test_chat_nvim'` | API key for authenticating incoming requests (must be set to enable server) |
+
+Example configuration:
+```lua
+http = {
+  host = '127.0.0.1',
+  port = 7777,
+  api_key = 'your-secret-api-key-here', -- Set to empty string to disable HTTP server
+}
+```
+
+**Notes:**
+- The HTTP server is automatically started when `http.api_key` is not empty
+- Incoming requests must include the API key in the `X-API-Key` header
+- Messages are queued and processed when the chat window is not busy
 
 ### API Key Configuration
 
@@ -272,6 +310,13 @@ require('chat').setup({
     github = 'github_pat_xxxxxxxx',
   },
 
+  -- HTTP server configuration
+  http = {
+    host = '127.0.0.1',
+    port = 7777,
+    api_key = 'your-secret-key-here', -- Set to empty string to disable
+  },
+
   -- File access control
   allowed_path = {
     vim.fn.getcwd(),               -- Current working directory
@@ -297,8 +342,9 @@ require('chat').setup({
 1. **Path Security**: `allowed_path` restricts which file paths tools can access. Empty string disables all file access. Recommended to set to your current project directory for security.
 2. **API Keys**: Only configure keys for providers you plan to use. Providers can be switched at runtime via the picker.
 3. **Memory System**: Enabled by default, automatically extracts facts and preferences from conversations. Can be disabled with `memory.enable = false`.
-4. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
-5. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
+4. **HTTP Server**: Configure `http.api_key` to enable the HTTP server. The server binds to localhost by default for security.
+5. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
+6. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
 
 ## ⚙️ Usage
 
@@ -1201,6 +1247,106 @@ end
 
 return M
 ```
+
+## 🌐 HTTP API
+
+chat.nvim includes a built-in HTTP server that allows external applications to send messages to your chat sessions. This enables integration with other tools, scripts, and automation workflows.
+
+### Enabling the HTTP Server
+
+The HTTP server is automatically started when the `http.api_key` configuration is set to a non-empty value:
+
+```lua
+require('chat').setup({
+  -- ... other configuration
+  http = {
+    host = '127.0.0.1',    -- Default: '127.0.0.1'
+    port = 7777,           -- Default: 7777
+    api_key = 'your-secret-key', -- Required to enable server
+  },
+})
+```
+
+### API Endpoint
+
+**URL**: `http://{host}:{port}/`
+**Method**: POST
+**Required Header**: `X-API-Key: {your-api-key}`
+
+### Request Format
+
+```json
+{
+  "session": "session-id",
+  "content": "Message content from external application"
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `session` | string | Chat session ID. If the session doesn't exist, it will be created automatically |
+| `content` | string | Message content to send to the chat session |
+
+### Response
+
+- **Success**: HTTP 204 No Content
+- **Authentication Error**: HTTP 401 Unauthorized (invalid or missing API key)
+- **Validation Error**: HTTP 400 Bad Request (invalid JSON or missing required fields)
+- **Method/Path Error**: HTTP 404 Not Found (wrong method or path)
+
+### Message Queue System
+
+Incoming messages are processed through a queue system:
+1. Messages are immediately queued upon receipt
+2. The queue is checked every 5 seconds
+3. Messages are delivered to the chat session when it's not in progress
+4. If a session is busy (processing another request), messages remain in the queue until the session becomes available
+
+### Usage Examples
+
+#### Using curl:
+
+```bash
+curl -X POST http://127.0.0.1:7777/ \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"session": "my-session", "content": "Hello from curl!"}'
+```
+
+#### Using Python:
+
+```python
+import requests
+
+url = "http://127.0.0.1:7777/"
+headers = {
+    "X-API-Key": "your-secret-key",
+    "Content-Type": "application/json"
+}
+data = {
+    "session": "python-script",
+    "content": "Message from Python script"
+}
+
+response = requests.post(url, json=data, headers=headers)
+print(f"Status: {response.status_code}")
+```
+
+### Security Considerations
+
+1. **API Key Protection**: Keep your API key secure and never commit it to version control
+2. **Network Security**: By default, the server binds to localhost (127.0.0.1). Only allow external access if you have proper network security measures
+3. **Input Validation**: All incoming messages are validated for proper JSON format and required fields
+4. **Rate Limiting**: Consider implementing external rate limiting if needed for your use case
+
+### Integration Ideas
+
+- **CI/CD Pipelines**: Send build notifications or deployment status to chat sessions
+- **Monitoring Systems**: Forward alerts from monitoring tools
+- **Script Automation**: Trigger chat interactions from shell scripts
+- **External Applications**: Integrate with other desktop or web applications
 
 ## 🔍 Picker Integration
 
