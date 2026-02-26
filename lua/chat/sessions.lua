@@ -138,6 +138,32 @@ function M.next()
   end
 end
 
+local function get_config_system_prompt()
+  local config = require('chat.config')
+  local prompt = config.config.system_prompt
+
+  if type(prompt) == 'function' then
+    local ok, result = pcall(prompt)
+    if ok then
+      if type(result) == 'string' then
+        return result
+      else
+        log.warn(
+          'system_prompt function should return string, got ' .. type(result)
+        )
+        return tostring(result or '')
+      end
+    else
+      log.warn(
+        string.format('Failed to call system_prompt function: %s', result)
+      )
+      return ''
+    end
+  end
+
+  return prompt or ''
+end
+
 function M.get()
   if not vim.tbl_isempty(sessions) then
     return sessions
@@ -173,7 +199,7 @@ function M.get()
         end
 
         if not obj.prompt then
-          obj.prompt = require('chat.config').config.system_prompt
+          obj.prompt = get_config_system_prompt()
           sessions[obj.id] = obj
           M.write_cache(obj.id)
         end
@@ -406,7 +432,7 @@ function M.new()
     messages = {},
     provider = config.config.provider,
     model = config.config.model,
-    prompt = config.config.system_prompt,
+    prompt = get_config_system_prompt(),
     cwd = vim.fs.normalize(vim.fn.getcwd()),
   }
   return id

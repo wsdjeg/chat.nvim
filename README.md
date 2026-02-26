@@ -29,6 +29,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [API Key Configuration](#api-key-configuration)
     - [File Access Control](#file-access-control)
     - [Memory System Configuration](#memory-system-configuration)
+    - [system_prompt Usage Examples](#system_prompt-usage-examples)
     - [Complete Configuration Example](#complete-configuration-example)
     - [Configuration Notes](#configuration-notes)
 - [⚙️ Usage](#-usage)
@@ -204,16 +205,16 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 
 ### Basic Options
 
-| Option          | Type    | Default            | Description                                                |
-| --------------- | ------- | ------------------ | ---------------------------------------------------------- |
-| `width`         | number  | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)    |
-| `height`        | number  | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0)  |
-| `auto_scroll`   | boolean | `true`             | Controls automatic scrolling behavior of the result window |
-| `border`        | string  | `'rounded'`        | Window border style, supports all Neovim border options    |
-| `provider`      | string  | `'deepseek'`       | Default AI provider                                        |
-| `model`         | string  | `'deepseek-chat'`  | Default AI model                                           |
-| `strftime`      | string  | `'%m-%d %H:%M:%S'` | Time display format                                        |
-| `system_prompt` | string  | `''`               | Default system prompt                                      |
+| Option          | Type               | Default            | Description                                                                |
+| --------------- | ------------------ | ------------------ | -------------------------------------------------------------------------- |
+| `width`         | number             | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)                    |
+| `height`        | number             | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0)                  |
+| `auto_scroll`   | boolean            | `true`             | Controls automatic scrolling behavior of the result window                 |
+| `border`        | string             | `'rounded'`        | Window border style, supports all Neovim border options                    |
+| `provider`      | string             | `'deepseek'`       | Default AI provider                                                        |
+| `model`         | string             | `'deepseek-chat'`  | Default AI model                                                           |
+| `strftime`      | string             | `'%m-%d %H:%M:%S'` | Time display format                                                        |
+| `system_prompt` | string or function | `''`               | Default system prompt, can be a string or a function that returns a string |
 
 ### HTTP Server Configuration
 
@@ -296,6 +297,50 @@ memory = {
 }
 ```
 
+### system_prompt Usage Examples
+
+Here are different ways to use the `system_prompt` option:
+
+**String (simple):**
+```lua
+system_prompt = 'You are a helpful programming assistant.',
+```
+
+**Function loading from file:**
+```lua
+system_prompt = function()
+  local path = vim.fn.expand('~/.config/nvim/AGENTS.md')
+  if vim.fn.filereadable(path) == 1 then
+    return table.concat(vim.fn.readfile(path), '\n')
+  end
+  return 'Default system prompt'
+end
+```
+
+**Function with project-specific prompts:**
+```lua
+system_prompt = function()
+  local cwd = vim.fn.getcwd()
+  if string.find(cwd, 'chat%.nvim') then
+    return 'You are a specialized assistant for chat.nvim plugin development.'
+  elseif string.find(cwd, 'picker%.nvim') then
+    return 'You are a specialized assistant for picker.nvim plugin development.'
+  end
+  return 'You are a general programming assistant.'
+end
+```
+
+**Function with time-based prompts:**
+```lua
+system_prompt = function()
+  local hour = tonumber(os.date("%H"))
+  local day = os.date("%A")
+  return string.format('Good %s! Today is %s. I am your AI assistant.', 
+    hour < 12 and 'morning' or hour < 18 and 'afternoon' or 'evening',
+    day)
+end
+```
+
 ### Complete Configuration Example
 
 ```lua
@@ -303,7 +348,7 @@ require('chat').setup({
   -- Window settings
   width = 0.8,
   height = 0.8,
-  auto_scroll = true,   -- Enable smart auto-scrolling (default)
+  auto_scroll = true, -- Enable smart auto-scrolling (default)
   border = 'rounded',
 
   -- AI provider settings
@@ -323,13 +368,21 @@ require('chat').setup({
 
   -- File access control
   allowed_path = {
-    vim.fn.getcwd(),               -- Current working directory
+    vim.fn.getcwd(), -- Current working directory
     vim.fn.expand('~/.config/nvim'), -- Neovim config directory
   },
 
   -- Other settings
   strftime = '%Y-%m-%d %H:%M',
-  system_prompt = 'You are a helpful programming assistant.',
+  -- system_prompt = 'You are a helpful programming assistant.',
+  -- system_prompt can be a string or a function that returns a string.
+  system_prompt = function()
+    local path = vim.fn.expand('./AGENTS.md')
+    if vim.fn.filereadable(path) == 1 then
+      return table.concat(vim.fn.readfile(path), '\n')
+    end
+    return 'You are a helpful programming assistant.'
+  end,
 
   -- Memory system
   memory = {
@@ -349,6 +402,7 @@ require('chat').setup({
 4. **HTTP Server**: Configure `http.api_key` to enable the HTTP server. The server binds to localhost by default for security.
 5. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
 6. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
+7. **system_prompt Function Support**: The `system_prompt` option can be either a string or a function that returns a string. When a function is provided, it is called each time a new session is created, allowing for dynamic prompts based on time, project context, or external files. The function should handle errors gracefully and return a string value.
 
 ## ⚙️ Usage
 

@@ -31,6 +31,17 @@ local default = {
 M.config = vim.tbl_deep_extend('force', default, {})
 
 function M.setup(opt)
+  if
+    opt.system_prompt
+    and type(opt.system_prompt) ~= 'string'
+    and type(opt.system_prompt) ~= 'function'
+  then
+    require('chat.log').error(
+      'system_prompt must be string or function, got '
+        .. type(opt.system_prompt)
+    )
+    return
+  end
   M.config = vim.tbl_deep_extend('force', M.config, opt)
 end
 
