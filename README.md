@@ -259,6 +259,7 @@ api_key = {
   volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI
   openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
   longcat = 'lc-xxxxxxxxxxxx',         -- LongCat AI
+  cherryin = 'sk-xxxxxxxxxxxx',        -- CherryIN AI
 }
 ```
 
@@ -302,11 +303,13 @@ memory = {
 Here are different ways to use the `system_prompt` option:
 
 **String (simple):**
+
 ```lua
 system_prompt = 'You are a helpful programming assistant.',
 ```
 
 **Function loading from file:**
+
 ```lua
 system_prompt = function()
   local path = vim.fn.expand('~/.config/nvim/AGENTS.md')
@@ -318,6 +321,7 @@ end
 ```
 
 **Function with project-specific prompts:**
+
 ```lua
 system_prompt = function()
   local cwd = vim.fn.getcwd()
@@ -331,11 +335,12 @@ end
 ```
 
 **Function with time-based prompts:**
+
 ```lua
 system_prompt = function()
   local hour = tonumber(os.date("%H"))
   local day = os.date("%A")
-  return string.format('Good %s! Today is %s. I am your AI assistant.', 
+  return string.format('Good %s! Today is %s. I am your AI assistant.',
     hour < 12 and 'morning' or hour < 18 and 'afternoon' or 'evening',
     day)
 end
@@ -537,8 +542,8 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `r`          | Retry last cancelled request            |
 | `Normal` | `alt-h`      | previous chat session                   |
 | `Normal` | `alt-l`      | next chat session                       |
-| `Normal` | `<Leaer>fr`  | run `:Picker chat`                      |
-| `Normal` | `<Leaer>fp`  | run `:Picker chat_provider`             |
+| `Normal` | `<Leader>fr` | run `:Picker chat`                      |
+| `Normal` | `<Leader>fp` | run `:Picker chat_provider`             |
 | `Normal` | `<Leader>fm` | run `:Picker chat_model`                |
 
 The following key bindings are available in the **Result** window:
