@@ -46,7 +46,7 @@ function spinners.start()
   end
   local index = 1
   spinners.update(spinners_theme.frames[index])
-  spinners.id = vim.fn.timer_start(spinners_theme.timeout, function(...)
+  spinners.id = vim.fn.timer_start(spinners_theme.timeout, function()
     if index < #spinners_theme.frames then
       index = index + 1
     else
@@ -195,7 +195,6 @@ function requestObj.on_stdout(id, data)
                 end
               end
             elseif chunk.error then
-              -- [ 20:19:11:382 ] [ Debug ] [    chat.nvim ] data: {"error":{"code":"invalid_parameter_error","param":null,"message":"<400> InternalError.Algo.InvalidParameter: Function calling is not supported with DeepSeek v3.1 when thinking mode is enabled.","type":"invalid_request_error"},"id":"chatcmpl-5a25079d-2471-9b18-a436-ca9385222840"}
               local error_msg = chunk.error.message or 'Unknown error'
               local error_code = chunk.error.code or chunk.type or 'unknown'
               local message = {
@@ -269,11 +268,6 @@ function M.on_tool_call_done(session, messages)
   end
 end
 
--- [08:42] 👤 You: test @read_file .stylua.toml
--- [08:42] 🤖 Bot: 🔧 Executing tool: read_file .stylua.toml...
--- [08:42] 🤖 Bot: ✅ Tool execution complete: read_file .stylua.toml (0.2s)
--- [08:42] 🤖 Bot: File content: ...
-
 function M.on_tool_call_start(session, message)
   if session == current_session then
     local need_scroll = auto_scroll()
@@ -291,7 +285,7 @@ end
 function requestObj.on_stderr(id, data)
   vim.schedule(function()
     for _, line in ipairs(data) do
-      log.debug('stderr: ' .. line)
+      log.debug(string.format('jobid %d, stderr %s', id, line))
     end
   end)
 end
@@ -337,7 +331,7 @@ function requestObj.on_exit(id, code, signal)
           '',
           string.format(
             '[%s] ❌ : Request cancelled by user. Press r to retry.',
-            os.date('%H:%M')
+            os.date(config.config.strftime)
           ),
           '',
         }
@@ -358,13 +352,15 @@ function requestObj.on_exit(id, code, signal)
           'chat.providers.' .. sessions.get_session_provider(session)
         )
         if ok then
-          provider.request({
+          log.info('send tool_call results to server.')
+          local jobid = provider.request({
             on_stdout = requestObj.on_stdout,
             on_stderr = requestObj.on_stderr,
             on_exit = requestObj.on_exit,
             session = session,
             messages = sessions.get_request_messages(session),
           })
+          log.info('curl request jobid is ' .. jobid)
           if session == current_session then
             spinners.start()
           end
