@@ -22,6 +22,7 @@ local default = {
   memory = {
     enable = true,
     long_term = {
+      enable = true,
       max_memories = 500,
       retrieval_limit = 3,
       similarity_threshold = 0.3,
