@@ -35,7 +35,7 @@ function M.retrieve_memories(query, session, limit)
   end
 
   -- 3. 检索长期记忆
-  local long_memories = long_term.retrieve(query, limit)
+  local long_memories = long_term.retrieve(query, session, limit)
   for _, mem in ipairs(long_memories) do
     mem.priority = mem.priority or 1.0
     table.insert(results, mem)
