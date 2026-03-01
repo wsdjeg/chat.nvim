@@ -15,7 +15,11 @@ function M.store(session, role, content)
   end
   local timestamp = os.time()
   local memory = {
-    id = string.format('daily-%s-%s', get_date_key(), math.random(1000, 9999)),
+    id = string.format(
+      'daily-%s-%s',
+      get_date_key(),
+      math.random(1000, 9999)
+    ),
     session = session,
     role = role,
     content = content,
@@ -46,14 +50,18 @@ function M.retrieve(query, limit)
   table.sort(scored, function(a, b)
     return a.priority > b.priority
   end)
-  return vim.tbl_map(function(item)
-    return item.memory
+  local results = vim.tbl_map(function(item)
+    local mem = item.memory
+    mem.priority = item.priority
+    return mem
   end, vim.list_slice(scored, 1, limit))
+  return results
 end
 
 -- 清理过期记忆
 function M.cleanup_expired()
-  local cutoff_time = os.time() - (config.config.memory.daily.retention_days * 86400)
+  local cutoff_time = os.time()
+    - (config.config.memory.daily.retention_days * 86400)
   daily_memories = vim.tbl_filter(function(mem)
     return mem.timestamp >= cutoff_time
   end, daily_memories)
@@ -62,26 +70,36 @@ end
 
 -- 文本相似度（示意实现；可复用现有实现）
 function M.text_similarity(query, content)
-  if not query or not content then return 0 end
+  if not query or not content then
+    return 0
+  end
   local q, c = query:lower(), content:lower()
-  if q == c then return 1.0 end
-  if c:find(q, 1, true) then return 0.8 end
+  if q == c then
+    return 1.0
+  end
+  if c:find(q, 1, true) then
+    return 0.8
+  end
   return 0.4 -- 简化示意，实际可复用 memory.lua 的算法
 end
 
 -- 加载/保存
 function M.load()
-  local path = (config.config.memory.storage_dir or '') .. 'daily_memories.json'
+  local path = (config.config.memory.storage_dir or '')
+    .. 'daily_memories.json'
   local file = io.open(path, 'r')
   if file then
     local ok, data = pcall(vim.json.decode, file:read('*a'))
     file:close()
-    if ok then daily_memories = data end
+    if ok then
+      daily_memories = data
+    end
   end
 end
 
 function M.save()
-  local path = (config.config.memory.storage_dir or '') .. 'daily_memories.json'
+  local path = (config.config.memory.storage_dir or '')
+    .. 'daily_memories.json'
   local file = io.open(path, 'w')
   if file then
     file:write(vim.json.encode(daily_memories))
@@ -106,7 +124,7 @@ function M.delete(id)
   daily_memories = vim.tbl_filter(function(mem)
     return mem.id ~= id
   end, daily_memories)
-  
+
   if #daily_memories < count_before then
     M.save()
     return true
@@ -126,4 +144,3 @@ end
 
 M.load()
 return M
-

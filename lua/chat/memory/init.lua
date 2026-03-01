@@ -23,20 +23,21 @@ function M.retrieve_memories(query, session, limit)
   -- 1. 检索工作记忆（最高优先级）
   local working_memories = working.retrieve(query, limit)
   for _, mem in ipairs(working_memories) do
-    mem.priority = mem.priority * 2.0
+    mem.priority = (mem.priority or 1.0) * 2.0
     table.insert(results, mem)
   end
 
   -- 2. 检索日常记忆
   local daily_memories = daily.retrieve(query, limit)
   for _, mem in ipairs(daily_memories) do
-    mem.priority = mem.priority * 1.5
+    mem.priority = (mem.priority or 1.0) * 1.5
     table.insert(results, mem)
   end
 
   -- 3. 检索长期记忆
   local long_memories = long_term.retrieve(query, limit)
   for _, mem in ipairs(long_memories) do
+    mem.priority = mem.priority or 1.0
     table.insert(results, mem)
   end
 
@@ -58,12 +59,12 @@ end
 -- 获取所有记忆（兼容旧接口）
 function M.get_memories()
   local all_memories = {}
-  
+
   -- 合并三种记忆
   vim.list_extend(all_memories, working.get_session_memories())
   vim.list_extend(all_memories, daily.get_all())
   vim.list_extend(all_memories, long_term.get_all())
-  
+
   return all_memories
 end
 
@@ -96,4 +97,3 @@ function M.get_stats()
 end
 
 return M
-

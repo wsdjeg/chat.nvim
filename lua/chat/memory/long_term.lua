@@ -17,8 +17,10 @@ end
 -- 获取存储路径
 local function get_storage_path()
   return vim.fs.normalize(
-    (config.config.memory.storage_dir or vim.fn.stdpath('cache') .. '/chat.nvim/memory/')
-      .. '/long_term_memories.json'
+    (
+      config.config.memory.storage_dir
+      or vim.fn.stdpath('cache') .. '/chat.nvim/memory/'
+    ) .. '/long_term_memories.json'
   )
 end
 
@@ -26,7 +28,7 @@ end
 local function init_storage()
   local storage_dir = config.config.memory.storage_dir
     or vim.fn.stdpath('cache') .. '/chat.nvim/memory/'
-  
+
   if vim.fn.isdirectory(storage_dir) == 0 then
     vim.fn.mkdir(storage_dir, 'p')
   end
@@ -94,14 +96,15 @@ end
 
 -- 解析记忆内容（提取类型和分类）
 local function parse_memory_metadata(content)
-  local memory_type, category, text = content:match('%[(%w+)%]%[(%w+)%]%s*(.*)')
-  
+  local memory_type, category, text =
+    content:match('%[(%w+)%]%[(%w+)%]%s*(.*)')
+
   if not memory_type then
     -- 尝试匹配旧格式 [category] content
     category, text = content:match('%[(%w+)%]%s*(.*)')
     memory_type = 'long_term'
   end
-  
+
   return {
     memory_type = memory_type or 'long_term',
     category = category or 'fact',
@@ -171,18 +174,21 @@ function M.retrieve(query, session, limit)
     -- 会话过滤（可选）
     if not session or memory.session == session then
       local similarity = M.text_similarity(query, memory.content)
-      
+
       -- 访问频率加成
       local access_bonus = math.min((memory.access_count or 0) * 0.05, 0.2)
-      
+
       -- 置信度加成
       local confidence_bonus = (memory.metadata.confidence or 1.0) * 0.1
-      
+
       -- 时间衰减（越久远的记忆权重略低）
       local age_days = (os.time() - memory.timestamp) / 86400
       local recency_bonus = math.max(0, (30 - age_days) / 30) * 0.1
 
-      local total_score = similarity + access_bonus + confidence_bonus + recency_bonus
+      local total_score = similarity
+        + access_bonus
+        + confidence_bonus
+        + recency_bonus
 
       if total_score >= threshold then
         table.insert(scored, {
@@ -205,6 +211,7 @@ function M.retrieve(query, session, limit)
     local mem = scored[i].memory
     mem.access_count = (mem.access_count or 0) + 1
     mem.last_accessed = os.time()
+    mem.priority = scored[i].priority
     table.insert(results, mem)
   end
 
@@ -219,7 +226,7 @@ end
 -- 按分类检索
 function M.retrieve_by_category(category, limit)
   limit = limit or 10
-  
+
   local filtered = vim.tbl_filter(function(mem)
     return mem.metadata and mem.metadata.category == category
   end, long_term_memories)
@@ -283,7 +290,7 @@ function M.delete(id)
   long_term_memories = vim.tbl_filter(function(mem)
     return mem.id ~= id
   end, long_term_memories)
-  
+
   if #long_term_memories < count_before then
     M.save()
     return true
@@ -297,7 +304,7 @@ function M.delete_by_filter(filter_fn)
   long_term_memories = vim.tbl_filter(function(mem)
     return not filter_fn(mem)
   end, long_term_memories)
-  
+
   local removed = count_before - #long_term_memories
   if removed > 0 then
     M.save()
@@ -311,7 +318,8 @@ function M.update(id, new_content, new_metadata)
     if mem.id == id then
       mem.content = new_content
       if new_metadata then
-        mem.metadata = vim.tbl_deep_extend('force', mem.metadata, new_metadata)
+        mem.metadata =
+          vim.tbl_deep_extend('force', mem.metadata, new_metadata)
       end
       mem.timestamp = os.time()
       M.save()
@@ -325,7 +333,7 @@ end
 function M.merge_duplicates()
   local seen = {}
   local duplicates = {}
-  
+
   -- 检测重复内容
   for i, mem in ipairs(long_term_memories) do
     local content_key = mem.content:lower():gsub('%s+', ' ')
@@ -333,7 +341,8 @@ function M.merge_duplicates()
       table.insert(duplicates, i)
       -- 合并元数据到原始记忆
       local original = long_term_memories[seen[content_key]]
-      original.access_count = (original.access_count or 0) + (mem.access_count or 0)
+      original.access_count = (original.access_count or 0)
+        + (mem.access_count or 0)
       original.metadata.confidence = math.max(
         original.metadata.confidence or 1.0,
         mem.metadata.confidence or 1.0
@@ -344,7 +353,9 @@ function M.merge_duplicates()
   end
 
   -- 移除重复记忆（从后往前删除）
-  table.sort(duplicates, function(a, b) return a > b end)
+  table.sort(duplicates, function(a, b)
+    return a > b
+  end)
   for _, idx in ipairs(duplicates) do
     table.remove(long_term_memories, idx)
   end
@@ -359,21 +370,21 @@ end
 -- 清理过期或低质量记忆
 function M.cleanup()
   local count_before = #long_term_memories
-  
+
   -- 移除低置信度且从未访问的记忆
   long_term_memories = vim.tbl_filter(function(mem)
     local confidence = mem.metadata and mem.metadata.confidence or 1.0
     local access_count = mem.access_count or 0
-    
+
     -- 保留：置信度 > 0.5 或至少被访问过一次
     return confidence > 0.5 or access_count > 0
   end)
-  
+
   local removed = count_before - #long_term_memories
   if removed > 0 then
     M.save()
   end
-  
+
   return removed
 end
 
@@ -417,29 +428,29 @@ end
 -- 导出记忆（用于备份或迁移）
 function M.export(format)
   format = format or 'json'
-  
+
   if format == 'json' then
     return vim.json.encode(long_term_memories, { indent = 2 })
   elseif format == 'markdown' then
     local lines = { '# Long-term Memories\n' }
-    
+
     for category, memories in pairs(stats.by_category) do
       table.insert(lines, string.format('\n## %s\n', category))
       for _, mem in ipairs(M.retrieve_by_category(category, 100)) do
         table.insert(lines, string.format('- %s\n', mem.content))
       end
     end
-    
+
     return table.concat(lines, '\n')
   end
-  
+
   return nil
 end
 
 -- 导入记忆
 function M.import(data, format)
   format = format or 'json'
-  
+
   if format == 'json' then
     local ok, memories = pcall(vim.json.decode, data)
     if ok and type(memories) == 'table' then
@@ -454,17 +465,17 @@ function M.import(data, format)
       return #memories
     end
   end
-  
+
   return 0
 end
 
 -- 加载记忆
 function M.load()
   init_storage()
-  
+
   local path = get_storage_path()
   local file = io.open(path, 'r')
-  
+
   if not file then
     long_term_memories = {}
     return long_term_memories
@@ -479,17 +490,17 @@ function M.load()
   else
     long_term_memories = {}
   end
-  
+
   return long_term_memories
 end
 
 -- 保存记忆
 function M.save()
   init_storage()
-  
+
   local path = get_storage_path()
   local file = io.open(path, 'w')
-  
+
   if file then
     file:write(vim.json.encode(long_term_memories))
     io.close(file)
@@ -517,34 +528,37 @@ end
 function M.advanced_search(options)
   options = options or {}
   local results = {}
-  
+
   for _, mem in ipairs(long_term_memories) do
     local match = true
-    
+
     -- 分类过滤
     if options.category and mem.metadata.category ~= options.category then
       match = false
     end
-    
+
     -- 会话过滤
     if options.session and mem.session ~= options.session then
       match = false
     end
-    
+
     -- 时间范围过滤
     if options.since and mem.timestamp < options.since then
       match = false
     end
-    
-    if options.until and mem.timestamp > options.until then
+
+    if options['until'] and mem.timestamp > options['until'] then
       match = false
     end
-    
+
     -- 置信度过滤
-    if options.min_confidence and (mem.metadata.confidence or 0) < options.min_confidence then
+    if
+      options.min_confidence
+      and (mem.metadata.confidence or 0) < options.min_confidence
+    then
       match = false
     end
-    
+
     -- 文本搜索
     if options.query then
       local similarity = M.text_similarity(options.query, mem.content)
@@ -553,12 +567,12 @@ function M.advanced_search(options)
       end
       mem.search_score = similarity
     end
-    
+
     if match then
       table.insert(results, mem)
     end
   end
-  
+
   -- 排序
   if options.sort_by then
     table.sort(results, function(a, b)
@@ -572,12 +586,12 @@ function M.advanced_search(options)
       return false
     end)
   end
-  
+
   -- 限制结果数量
   if options.limit then
     results = vim.list_slice(results, 1, options.limit)
   end
-  
+
   return results
 end
 
@@ -593,4 +607,3 @@ vim.loop.new_timer():start(604800000, 604800000, function()
 end)
 
 return M
-
