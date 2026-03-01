@@ -88,6 +88,41 @@ function M.save()
     file:close()
   end
 end
+-- 获取所有日常记忆
+function M.get_all()
+  return vim.tbl_map(function(m)
+    return {
+      id = m.id,
+      content = m.content,
+      session = m.session,
+      timestamp = m.timestamp,
+    }
+  end, daily_memories)
+end
+
+-- 删除指定记忆
+function M.delete(id)
+  local count_before = #daily_memories
+  daily_memories = vim.tbl_filter(function(mem)
+    return mem.id ~= id
+  end, daily_memories)
+  
+  if #daily_memories < count_before then
+    M.save()
+    return true
+  end
+  return false
+end
+
+-- 获取统计信息
+function M.get_stats()
+  return {
+    total = #daily_memories,
+    expired = #vim.tbl_filter(function(m)
+      return m.expired
+    end, daily_memories),
+  }
+end
 
 M.load()
 return M

@@ -21,9 +21,22 @@ local default = {
   system_prompt = '',
   memory = {
     enable = true,
-    max_memories = 500, -- 最多存储500条记忆
-    retrieval_limit = 3, -- 每次检索最多3条
-    similarity_threshold = 0.3, -- 文本相似度阈值
+    long_term = {
+      max_memories = 500,
+      retrieval_limit = 3,
+      similarity_threshold = 0.3,
+    },
+    daily = {
+      enable = true,
+      retention_days = 7,
+      max_memories = 100,
+      similarity_threshold = 0.4,
+    },
+    working = {
+      enable = true,
+      max_memories = 20,
+      priority_weight = 2.0,
+    },
     storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
   },
 }

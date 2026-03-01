@@ -55,5 +55,45 @@ function M.cleanup()
   working.cleanup_session()
 end
 
+-- 获取所有记忆（兼容旧接口）
+function M.get_memories()
+  local all_memories = {}
+  
+  -- 合并三种记忆
+  vim.list_extend(all_memories, working.get_session_memories())
+  vim.list_extend(all_memories, daily.get_all())
+  vim.list_extend(all_memories, long_term.get_all())
+  
+  return all_memories
+end
+
+-- 删除记忆（兼容旧接口）
+function M.delete(id)
+  -- 根据ID前缀判断类型
+  if id:match('^work%-') then
+    return working.delete(id)
+  elseif id:match('^daily%-') then
+    return daily.delete(id)
+  else
+    return long_term.delete(id)
+  end
+end
+
+-- 清理会话记忆（兼容旧接口）
+function M.clear_session_memories(session)
+  working.cleanup_session(session)
+  -- 注意：daily 和 long_term 可能不需要按会话清理
+  -- 可以根据需求决定是否清理
+end
+
+-- 获取统计信息（可选）
+function M.get_stats()
+  return {
+    working = working.get_stats(),
+    daily = daily.get_stats(),
+    long_term = long_term.get_stats(),
+  }
+end
+
 return M
 

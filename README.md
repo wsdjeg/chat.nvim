@@ -51,6 +51,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`fetch_web`](#fetch_web)
         - [`web_search`](#web_search)
         - [`git_diff`](#git_diff)
+        - [`plan`](#plan)
     - [Third-party Tools](#third-party-tools)
         - [`zettelkasten_create`](#zettelkasten_create)
         - [`zettelkasten_get`](#zettelkasten_get)
@@ -286,17 +287,104 @@ allowed_path = {
 
 ### Memory System Configuration
 
-Configure the behavior of the long-term memory system:
+chat.nvim implements a sophisticated three-tier memory system inspired by cognitive psychology:
+
+**Memory Architecture:**
+
+1. **Working Memory** ⚡ - High-priority, session-scoped memory for current tasks and decisions
+2. **Daily Memory** 📅 - Temporary memory for daily tasks and short-term goals (auto-expires)
+3. **Long-term Memory** 💾 - Permanent knowledge storage for facts, preferences, and skills
+
+**Configuration:**
 
 ```lua
 memory = {
-  enable = true,                    -- Whether to enable the memory system
-  max_memories = 500,               -- Maximum number of memories to store
-  retrieval_limit = 3,              -- Maximum memories to retrieve per query
-  similarity_threshold = 0.3,       -- Text similarity threshold (0-1)
+  enable = true,  -- Global memory system switch
+  
+  -- Long-term memory: Permanent knowledge (never expires)
+  long_term = {
+    enable = true,
+    max_memories = 500,           -- Maximum memories to store
+    retrieval_limit = 3,          -- Maximum memories to retrieve per query
+    similarity_threshold = 0.3,   -- Text similarity threshold (0-1)
+  },
+  
+  -- Daily memory: Temporary tasks and goals (auto-expires)
+  daily = {
+    enable = true,
+    retention_days = 7,           -- Days before auto-deletion
+    max_memories = 100,           -- Maximum daily memories
+    similarity_threshold = 0.3,
+  },
+  
+  -- Working memory: Current session focus (highest priority)
+  working = {
+    enable = true,
+    max_memories = 20,            -- Maximum working memories per session
+    priority_weight = 2.0,        -- Priority multiplier (higher = more important)
+  },
+  
+  -- Storage location
   storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
 }
 ```
+
+**Memory Type Characteristics:**
+
+| Type        | Lifetime        | Priority | Use Case                                    |
+| ----------- | --------------- | -------- | ------------------------------------------- |
+| Working     | Session only    | Highest  | Current tasks, decisions, active context    |
+| Daily       | 7-30 days       | Medium   | Short-term goals, today's tasks, reminders  |
+| Long-term   | Permanent       | Normal   | Facts, preferences, skills, knowledge      |
+
+**Auto-Detection:**
+
+The `@extract_memory` tool automatically detects memory type based on keywords:
+
+- **Working Memory**: "当前/正在/current", "任务/task", "决策/decision"
+- **Daily Memory**: "今天/明天/today/tomorrow", "待办/todo", "临时/temporary"
+- **Long-term Memory**: Other persistent information
+
+**Example Usage:**
+
+```lua
+-- Minimal configuration (use defaults)
+memory = {
+  enable = true,
+}
+
+-- Disable specific memory types
+memory = {
+  enable = true,
+  working = { enable = false },
+  daily = { enable = false },
+}
+
+-- Adjust retention and capacity
+memory = {
+  enable = true,
+  long_term = {
+    max_memories = 1000,
+    retrieval_limit = 5,
+  },
+  daily = {
+    retention_days = 14,
+    max_memories = 200,
+  },
+  working = {
+    max_memories = 30,
+    priority_weight = 3.0,
+  },
+}
+```
+
+**Notes:**
+
+- Working memory is cleared when the session ends
+- Daily memories are automatically cleaned up after `retention_days`
+- Long-term memories persist until manually deleted or limit is reached
+- Priority affects retrieval order: working > daily > long-term
+- All memory types support categories: fact, preference, skill, event
 
 ### system_prompt Usage Examples
 
@@ -768,7 +856,7 @@ For more complex searches, you can provide a JSON object with multiple parameter
 
 #### `extract_memory`
 
-Extract long-term memories from conversation text, focusing ONLY on factual information and habitual patterns. Filters out subjective feelings, temporary states, and irrelevant chatter.
+Extract memories from conversation text into a three-tier memory system (working, daily, long-term). Automatically detects memory type and category based on content analysis.
 
 **Usage:**
 
@@ -776,18 +864,66 @@ Extract long-term memories from conversation text, focusing ONLY on factual info
 @extract_memory <parameters>
 ```
 
-**Examples:**
+**Memory Types:**
 
-- `@extract_memory text="Python的GIL是全局解释器锁，我习惯用Vim写代码" category="fact"`
-- `@extract_memory text="我每天早晨6点起床锻炼，通常下午3点喝咖啡" category="preference"`
+| Type        | Icon | Lifetime     | Priority | Use Case                                    |
+| ----------- | ---- | ------------ | -------- | ------------------------------------------- |
+| `working`   | ⚡    | Session only | Highest  | Current tasks, decisions, active context    |
+| `daily`     | 📅    | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders  |
+| `long_term` | 💾    | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
+
+**Basic Examples:**
+
+- `@extract_memory text="Python的GIL是全局解释器锁，我习惯用Vim写代码"` (auto-detect type and category)
+- `@extract_memory text="今天要完成用户登录功能" memory_type="daily"` (force daily memory)
+- `@extract_memory text="当前正在修复登录bug" memory_type="working"` (force working memory)
+
+**Advanced Examples:**
+
+1. **Extract with specific type and category:**
+
+   ```
+   @extract_memory text="Python的GIL是全局解释器锁" memory_type="long_term" category="fact"
+   ```
+
+2. **Extract working memory with importance:**
+
+   ```
+   @extract_memory text="当前任务：实现用户认证" memory_type="working" importance="high"
+   ```
+
+3. **Extract daily memory:**
+
+   ```
+   @extract_memory text="今天下午3点有会议" memory_type="daily" category="event"
+   ```
+
+4. **Batch extract multiple memories:**
+
+   ```
+   @extract_memory memories='[{"content":"事实1","category":"fact","memory_type":"long_term"},{"content":"偏好1","category":"preference"}]'
+   ```
 
 **Parameters:**
 
-| Parameter  | Type   | Description                                                           |
-| ---------- | ------ | --------------------------------------------------------------------- |
-| `text`     | string | Text to analyze for memory extraction                                 |
-| `memories` | array  | Pre-extracted memories array (alternative to `text` parameter)        |
-| `category` | string | Suggested category: `"fact"`, `"preference"`, `"skill"`, or `"event"` |
+| Parameter      | Type   | Description                                                                        |
+| -------------- | ------ | ---------------------------------------------------------------------------------- |
+| `text`         | string | Text to analyze for memory extraction                                              |
+| `memories`     | array  | Pre-extracted memories array (alternative to `text` parameter)                     |
+| `memory_type`  | string | Memory type: `"long_term"`, `"daily"`, or `"working"` (auto-detected if not set)  |
+| `category`     | string | Category: `"fact"`, `"preference"`, `"skill"`, or `"event"` (auto-detected if not set) |
+
+**Memory Object Structure (for `memories` array):**
+
+```json
+{
+  "content": "Memory content text",
+  "memory_type": "working",        // Optional: auto-detected if not specified
+  "category": "fact",               // Optional: auto-detected if not specified
+  "work_type": "task",              // Optional: only for working memory
+  "importance": "high"              // Optional: only for working memory
+}
+```
 
 **Category Definitions:**
 
@@ -796,16 +932,35 @@ Extract long-term memories from conversation text, focusing ONLY on factual info
 - **skill**: Technical abilities and knowledge
 - **event**: Specific events and occurrences
 
+**Working Memory Types:**
+
+- **general**: General information
+- **task**: Current task or goal
+- **decision**: Decision or choice made
+- **context**: Contextual information
+- **issue**: Issue or problem encountered
+
+**Auto-Detection Rules:**
+
+The system automatically detects memory type based on keywords:
+
+- **Working Memory**: "当前/正在/current", "任务/task", "决策/decision", "问题/issue"
+- **Daily Memory**: "今天/明天/today/tomorrow", "待办/todo", "临时/temporary"
+- **Long-term Memory**: Other persistent information
+
 **Notes:**
 
 - Extracts only persistent and reusable information
-- Automatically detects categories based on keywords
+- Automatically detects categories and memory types based on keywords
 - Supports both raw text analysis and pre-processed memories
+- Working memory has highest priority and is cleared when session ends
+- Daily memory expires after configured retention days (default: 7)
+- Long-term memory persists permanently
 - Memory system must be enabled in chat.nvim configuration
 
 #### `recall_memory`
 
-Retrieve relevant information from long-term memory and add to current conversation. Automatically extracts keywords if no query is provided.
+Retrieve relevant information from the three-tier memory system with priority-based ranking. Automatically extracts keywords if no query is provided.
 
 **Usage:**
 
@@ -813,24 +968,85 @@ Retrieve relevant information from long-term memory and add to current conversat
 @recall_memory <parameters>
 ```
 
-**Examples:**
+**Memory Priority Order:**
 
-- `@recall_memory query="vim configuration"`
-- `@recall_memory query="programming tips" limit=8`
-- `@recall_memory` (automatically extracts keywords from current conversation)
+1. ⚡ **Working Memory** - Current session tasks/decisions (highest priority)
+2. 📅 **Daily Memory** - Recent temporary information (medium priority)
+3. 💾 **Long-term Memory** - Permanent knowledge base (normal priority)
+
+**Basic Examples:**
+
+- `@recall_memory query="vim configuration"` - Search all memory types
+- `@recall_memory` - Auto-extract keywords from current conversation
+- `@recall_memory query="current task" memory_type="working"` - Search only working memory
+- `@recall_memory query="today" memory_type="daily"` - Search only daily memory
+- `@recall_memory query="python" memory_type="long_term"` - Search only long-term memory
+
+**Advanced Examples:**
+
+1. **Search with limit:**
+
+   ```
+   @recall_memory query="programming tips" limit=8
+   ```
+
+2. **Filter by memory type:**
+
+   ```
+   @recall_memory query="current task" memory_type="working"
+   ```
+
+3. **Search across all sessions:**
+
+   ```
+   @recall_memory query="vim" all_sessions=true
+   ```
+
+4. **Auto-extract from conversation:**
+
+   ```
+   @recall_memory
+   ```
 
 **Parameters:**
 
-| Parameter      | Type    | Description                                                  |
-| -------------- | ------- | ------------------------------------------------------------ |
-| `query`        | string  | Search query (optional, auto-extracted if not provided)      |
-| `limit`        | integer | Number of results (default: 5, maximum: 10)                  |
-| `all_sessions` | boolean | Search all sessions instead of just current (default: false) |
+| Parameter      | Type    | Description                                                                        |
+| -------------- | ------- | ---------------------------------------------------------------------------------- |
+| `query`        | string  | Search query (optional, auto-extracted from last message if not provided)         |
+| `memory_type`  | string  | Filter by memory type: `"working"`, `"daily"`, or `"long_term"` (optional)         |
+| `limit`        | integer | Number of results (default: 5, maximum: 10)                                        |
+| `all_sessions` | boolean | Search all sessions instead of just current (default: false)                      |
+
+**Output Format:**
+
+```
+📚 Retrieved 3 memories (⚡ working: 1, 📅 daily: 1, 💾 long_term: 1)
+
+1. ⚡ working 📋 [task]
+   > 当前任务：实现用户认证功能
+   🕒 2025-01-15 14:30 | 🎯 High Priority | 🏷️ task
+
+2. 📅 daily 📅 [event]
+   > 今天下午3点有团队会议
+   🕒 2025-01-15 09:15 | Expires in 6 days
+
+3. 💾 long_term 📚 [skill]
+   > Python GIL是全局解释器锁，影响多线程性能
+   🕒 2025-01-10 16:42 | Accessed 5 times
+
+🔧 Actions:
+• Working memory will be cleaned after session ends
+• Daily memory expires in 7-30 days
+• Use `@recall_memory memory_type="long_term"` to filter by type
+```
 
 **Notes:**
 
 - Returns formatted memory list that AI can reference for responses
-- Searches across categories and content
+- Searches across all memory types with priority ranking
+- Working memory has highest priority and session isolation
+- Daily memory shows expiration countdown
+- Long-term memory shows access frequency
 - Shows timestamps and contextual information
 - Memory system must be enabled in chat.nvim configuration
 - Useful for maintaining context across conversations
@@ -1155,6 +1371,154 @@ For more complex comparisons, you can provide a JSON object:
 - The `path` parameter restricts diff output to specific file or directory
 - Returns formatted git diff output with file names and change summaries
 - Particularly useful for code review, version control, and change tracking
+
+#### `plan`
+
+Plan mode for creating, managing, and reviewing task plans with step-by-step tracking.
+
+**Usage:**
+
+```
+@plan action="<action>" [parameters]
+```
+
+**Actions:**
+
+| Action   | Description                                   |
+| -------- | --------------------------------------------- |
+| `create` | Create new plan with title and optional steps |
+| `show`   | Show plan details by ID                       |
+| `list`   | List all plans (optional status filter)       |
+| `add`    | Add step to existing plan                     |
+| `next`   | Start next pending step                       |
+| `done`   | Mark current/completed step as done           |
+| `review` | Review completed plan with summary            |
+| `delete` | Delete a plan                                 |
+
+**Basic Examples:**
+
+1. **Create a new plan:**
+
+   ```
+   @plan action="create" title="Implement feature X" steps=["Design API", "Write code", "Test"]
+   ```
+
+2. **List all plans:**
+
+   ```
+   @plan action="list"
+   ```
+
+3. **List plans with status filter:**
+
+   ```
+   @plan action="list" status="in_progress"
+   ```
+
+4. **Show plan details:**
+
+   ```
+   @plan action="show" plan_id="plan-20250110-1234"
+   ```
+
+5. **Start next step:**
+
+   ```
+   @plan action="next" plan_id="plan-20250110-1234"
+   ```
+
+6. **Complete a step:**
+
+   ```
+   @plan action="done" plan_id="plan-20250110-1234" step_id=1
+   ```
+
+7. **Add step to existing plan:**
+
+   ```
+   @plan action="add" plan_id="plan-20250110-1234" step_content="Add documentation"
+   ```
+
+8. **Review completed plan:**
+
+   ```
+   @plan action="review" plan_id="plan-20250110-1234" summary="Feature implemented successfully" lessons=["Lesson 1", "Lesson 2"]
+   ```
+
+9. **Delete a plan:**
+
+   ```
+   @plan action="delete" plan_id="plan-20250110-1234"
+   ```
+
+**Advanced Usage with JSON Parameters:**
+
+For more complex operations, you can provide a JSON object:
+
+```
+@plan {"action": "create", "title": "Refactor codebase", "steps": ["Analyze current structure", "Design new architecture", "Migrate modules", "Update tests"]}
+```
+
+**Parameters:**
+
+| Parameter      | Type    | Description                                                                                |
+| -------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `action`       | string  | **Required**. Plan action to perform (create, show, list, add, next, done, review, delete) |
+| `title`        | string  | Plan title (required for create action)                                                    |
+| `steps`        | array   | Initial steps array (optional for create action)                                           |
+| `plan_id`      | string  | Plan ID (required for show, add, next, done, review, delete)                               |
+| `step_content` | string  | Step content (required for add action)                                                     |
+| `step_id`      | integer | Step ID (required for done action, auto-detected if not provided)                          |
+| `notes`        | string  | Notes for step completion (optional for done action)                                       |
+| `status`       | string  | Filter by status for list action (pending, in_progress, completed)                         |
+| `summary`      | string  | Plan summary (for review action)                                                           |
+| `lessons`      | array   | Lessons learned (for review action)                                                        |
+| `issues`       | array   | Issues encountered (for review action)                                                     |
+
+**Workflow Example:**
+
+1. **Create a plan:**
+
+   ```
+   @plan action="create" title="Build REST API" steps=["Design endpoints", "Implement handlers", "Add authentication", "Write tests", "Deploy"]
+   ```
+
+   Response: `✅ Plan created: **Build REST API** ID: plan-20250115-5678`
+
+2. **Start first step:**
+
+   ```
+   @plan action="next" plan_id="plan-20250115-5678"
+   ```
+
+   Response: `⏳ **Started Step 1:** Design endpoints`
+
+3. **Complete the step:**
+
+   ```
+   @plan action="done" plan_id="plan-20250115-5678" notes="API endpoints documented"
+   ```
+
+   Response: `✅ **Completed Step 1:** Design endpoints`
+
+4. **Continue with remaining steps...**
+
+5. **Review the plan:**
+
+   ```
+   @plan action="review" plan_id="plan-20250115-5678" summary="API successfully built and deployed" lessons=["Test early", "Document as you go"]
+   ```
+
+**Notes:**
+
+- Requires memory system to be enabled in chat.nvim configuration (`memory.enable = true`)
+- Plans are automatically saved to `plans.json` in the memory storage directory
+- Plan IDs follow the format `plan-YYYYMMDD-XXXX` (e.g., `plan-20250110-1234`)
+- Steps are automatically tracked with status: pending, in_progress, completed
+- When completing a step without `step_id`, the tool auto-detects the current in-progress step
+- Plan reviews are stored in long-term memory for future reference
+- Supports progress tracking with visual indicators (✅ completed, ⏳ in progress, ⬜ pending)
+- Particularly useful for task management, project planning, and workflow organization
 
 ### Third-party Tools
 
