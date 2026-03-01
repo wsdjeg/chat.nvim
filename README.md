@@ -569,6 +569,7 @@ The following key bindings are available in the **Result** window:
 10. `openai` - [OpenAI](https://developers.openai.com/api/docs/)
 11. `longcat` - [LongCat AI](https://longcat.chat/platform/docs/)
 12. `cherryin` - [CherryIN AI](https://open.cherryin.ai/)
+13. `yuanjing` - [yuanjing AI](https://maas.ai-yuanjing.com/)
 
 ### Custom Providers
 
