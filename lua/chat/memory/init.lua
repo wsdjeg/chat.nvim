@@ -61,7 +61,7 @@ function M.get_memories()
   local all_memories = {}
 
   -- 合并三种记忆
-  vim.list_extend(all_memories, working.get_session_memories())
+  vim.list_extend(all_memories, working.get_all())
   vim.list_extend(all_memories, daily.get_all())
   vim.list_extend(all_memories, long_term.get_all())
 

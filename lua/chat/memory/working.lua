@@ -27,6 +27,12 @@ function M.set_session(session_id)
   current_session = session_id
 end
 
+function M.get_all()
+  return vim.tbl_filter(function(mem)
+    return not mem.expired
+  end, working_memories)
+end
+
 -- 存储工作记忆
 function M.store(session, role, content, metadata)
   if not config.config.memory.working.enable then
