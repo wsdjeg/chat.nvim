@@ -378,7 +378,7 @@ function M.cleanup()
 
     -- 保留：置信度 > 0.5 或至少被访问过一次
     return confidence > 0.5 or access_count > 0
-  end)
+  end, long_term_memories)
 
   local removed = count_before - #long_term_memories
   if removed > 0 then
