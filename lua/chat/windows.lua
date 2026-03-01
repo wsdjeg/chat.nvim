@@ -157,9 +157,6 @@ function requestObj.on_stdout(id, data)
           sse_buffers[id] = {}
           if vim.trim(text) == '[DONE]' then
             log.info('handle data DONE')
-            sessions.on_progress_done(id)
-            local session = sessions.get_progress_session(id)
-            requestObj.on_complete(session, id)
           else
             local ok, chunk = pcall(vim.json.decode, text)
             if not ok then
@@ -193,6 +190,9 @@ function requestObj.on_stdout(id, data)
                   log.info('handle content')
                   sessions.on_progress(id, choice.delta.content)
                 end
+              end
+              if choice.finish_reason and choice.finish_reason ~= vim.NIL then
+                sessions.set_progress_finish_reason(id, choice.finish_reason)
               end
             elseif chunk.error then
               local error_msg = chunk.error.message or 'Unknown error'
@@ -323,6 +323,15 @@ function requestObj.on_exit(id, code, signal)
       end
     end
     log.info(string.format('job exit code %d signal %d', code, signal))
+    local reason = sessions.get_progress_finish_reason(id)
+    if reason == 'stop' or reason == 'tool_calls' then
+      sessions.on_progress_done(id)
+      requestObj.on_complete(session, id)
+    else
+      -- @todo handle other finish_reason
+      -- finish_reason == length   support generate next text after the previous message
+      -- finish_reason == content_filter warningMsg
+    end
     sessions.on_progress_exit(id, code, signal)
     if current_session == session then
       spinners.stop()

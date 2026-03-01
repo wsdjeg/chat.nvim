@@ -5,6 +5,7 @@ local log = require('chat.log')
 -- 保存请求返回的 reasoning_content
 
 local progress_reasoning_contents = {}
+local progress_finish_reasons = {}
 local job_tool_calls = {}
 
 local tools = require('chat.tools')
@@ -353,6 +354,14 @@ local progress_usage = {}
 
 function M.set_progress_usage(id, usage)
   progress_usage[id] = usage
+end
+
+function M.set_progress_finish_reason(id, reason)
+  progress_finish_reasons[id] = reason
+end
+
+function M.get_progress_finish_reason(id)
+  return progress_finish_reasons[id]
 end
 
 function M.get_progress_usage(id)
