@@ -14,6 +14,17 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 
+-- Define curl error codes and messages
+local CURL_ERRORS = {
+  [6] = "Couldn't resolve host. Check your network connection.",
+  [7] = 'Failed to connect to host. Check if the server is reachable.',
+  [22] = 'HTTP request failed with error response (>= 400).',
+  [28] = 'Operation timeout. The server took too long to respond.',
+  [35] = 'SSL/TLS handshake failure. Check your certificates.',
+  [52] = 'Empty reply from server. The server returned no data.',
+  [56] = 'Failure with receiving network data. Connection interrupted.',
+}
+
 --
 local spinners_theme = {
   frames = {
@@ -322,6 +333,7 @@ function requestObj.on_exit(id, code, signal)
         end
       end
     end
+
     log.info(string.format('job exit code %d signal %d', code, signal))
     local reason = sessions.get_progress_finish_reason(id)
     if reason == 'stop' or reason == 'tool_calls' then
@@ -341,6 +353,41 @@ function requestObj.on_exit(id, code, signal)
           string.format(
             '[%s] ❌ : Request cancelled by user. Press r to retry.',
             os.date(config.config.strftime)
+          ),
+          '',
+        }
+        local need_scroll = auto_scroll()
+        if vim.api.nvim_buf_is_valid(result_buf) then
+          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+        end
+        if need_scroll then
+          scroll_window()
+        end
+      elseif code ~= 0 and CURL_ERRORS[code] then
+        local message = {
+          '',
+          string.format(
+            '[%s] ❌ : %s',
+            os.date(config.config.strftime),
+            CURL_ERRORS[code]
+          ),
+          '',
+        }
+        local need_scroll = auto_scroll()
+        if vim.api.nvim_buf_is_valid(result_buf) then
+          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
+        end
+        if need_scroll then
+          scroll_window()
+        end
+      -- Handle unknown errors
+      elseif code ~= 0 then
+        local message = {
+          '',
+          string.format(
+            '[%s] ❌ : Curl failed with exit code %d. Run `curl --help` for details.',
+            os.date(config.config.strftime),
+            code
           ),
           '',
         }
