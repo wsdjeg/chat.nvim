@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.3.0](https://github.com/wsdjeg/chat.nvim/compare/v1.2.0...v1.3.0) (2026-03-02)
+
+
+### Features
+
+* add `cherryin` provider ([aad621c](https://github.com/wsdjeg/chat.nvim/commit/aad621c3732062438ff3c642e3c7425eda829c49))
+* add auto_scroll option ([6850de4](https://github.com/wsdjeg/chat.nvim/commit/6850de4b7f499101b5d142229685ac53a14cb3d2))
+* add fetch_web tool ([46a361c](https://github.com/wsdjeg/chat.nvim/commit/46a361c65f4483e7a5ae2b5d8fb6cb1e1bfa3d2c))
+* Add function support for system_prompt ([627f4b9](https://github.com/wsdjeg/chat.nvim/commit/627f4b9753f251d4a60a86ff538b34239a16b2f6))
+* add GET /sessions endpoint for getting IDs ([9e7fdc9](https://github.com/wsdjeg/chat.nvim/commit/9e7fdc98b36b2c98a9671fa24be22b1d17e41ccc))
+* add glm modules to qwen provider ([e738407](https://github.com/wsdjeg/chat.nvim/commit/e7384073d4621ca675d3f20025fa6eb3602bf24c))
+* add http server for external chat apps ([6507916](https://github.com/wsdjeg/chat.nvim/commit/6507916084274ab6a9df668a9ecf3a1fd431082e))
+* add longcat provider ([6d48980](https://github.com/wsdjeg/chat.nvim/commit/6d489808c487503cad8cdc5eda5f6c8790fbd68f))
+* add new memory system ([9565f21](https://github.com/wsdjeg/chat.nvim/commit/9565f21f02f1f7922fd57dc9808f75ca8795d100))
+* add plan tool ([ec42365](https://github.com/wsdjeg/chat.nvim/commit/ec42365e47296c42ef322b0fe21d68e95b058fb6))
+* add web_search tool ([20dc103](https://github.com/wsdjeg/chat.nvim/commit/20dc103131b669b865245d832ba0b56f4a063b61))
+* add yuanjing AI provider ([6c75f7b](https://github.com/wsdjeg/chat.nvim/commit/6c75f7b1fdcd3af88fd61fb5df90f206d157d2e3))
+* list all aliyuncs's models ([ad46a62](https://github.com/wsdjeg/chat.nvim/commit/ad46a62c2412fd5961196db6ad0a7f4005afa5dd))
+* load all models asynchronously ([975dca3](https://github.com/wsdjeg/chat.nvim/commit/975dca37efd2c551f9f8600f193e9c1d9c095d99))
+* support [@set](https://github.com/set)_prompt tool ([1ff7a45](https://github.com/wsdjeg/chat.nvim/commit/1ff7a45a2cd59134e2439f7cd9be4af7c227ba3c))
+* support fetch models asynchronously ([29680ad](https://github.com/wsdjeg/chat.nvim/commit/29680adee397aa1ecef43234ad0228cca6881b9e))
+* support google search engine ([8f7b56f](https://github.com/wsdjeg/chat.nvim/commit/8f7b56f0baffbf34ac76ac2c412e53e8ffa55569))
+* support SerpAPI search engine ([08d8e43](https://github.com/wsdjeg/chat.nvim/commit/08d8e4334116ebd64769bec97ddc32dbc1da7c4c))
+* support system prompt ([e3332b1](https://github.com/wsdjeg/chat.nvim/commit/e3332b102ca958495fe9644d53b6e0442f0966fc))
+* **tools:** add git diff tool for chat.nvim ([5c22ce0](https://github.com/wsdjeg/chat.nvim/commit/5c22ce0d9cfba09b90b97401efd1d2370855dbe2))
+
+
+### Bug Fixes
+
+* check if cache object is vim.NIL ([a2cb555](https://github.com/wsdjeg/chat.nvim/commit/a2cb55508a2e93773fca0e5a4990139fc67cf19d))
+* check session exists before send message ([69fda8e](https://github.com/wsdjeg/chat.nvim/commit/69fda8e8066b727241e07b9b84d9dd681e026494))
+* check tool call arguments ([87466f8](https://github.com/wsdjeg/chat.nvim/commit/87466f8ca325fcc631e89dc0288b2410473f901d))
+* clear api and disable http server by default ([f188b13](https://github.com/wsdjeg/chat.nvim/commit/f188b1391abeaab1dad761b6b3b3a2c556b0d9d3))
+* complete chat argument && normalize path ([29a193e](https://github.com/wsdjeg/chat.nvim/commit/29a193e5e304c0addae3520ba673541a2b4ed7a5))
+* disable list option in windows ([b2cf372](https://github.com/wsdjeg/chat.nvim/commit/b2cf372e9d266875577aeffde3b72a7b20f2299b))
+* do not send allowed_path info to llm ([ed6db94](https://github.com/wsdjeg/chat.nvim/commit/ed6db9452669ff40397372a56a69a617ffafc243))
+* enable long_term memory by default ([f4837d7](https://github.com/wsdjeg/chat.nvim/commit/f4837d7862993a663c24882369d65b92d097a644))
+* fix long_term_memories filter ([24c07a0](https://github.com/wsdjeg/chat.nvim/commit/24c07a0ac4e619e6cd72feac6cc44a46d2225551))
+* fix memory priority ([b6d83d2](https://github.com/wsdjeg/chat.nvim/commit/b6d83d23664a46b29a30eed979f21d8cf42f1504))
+* fix memory retrieve function ([0e08f22](https://github.com/wsdjeg/chat.nvim/commit/0e08f22fb663276cf3c2de0fb5446d8e3d5f0152))
+* fix tool_call arguments buffer ([6f45eb7](https://github.com/wsdjeg/chat.nvim/commit/6f45eb78e01c5425acb17a7495379f68a47a5fbe))
+* format stderr and log jobid ([5e221ce](https://github.com/wsdjeg/chat.nvim/commit/5e221ce43cbdd6f531e00d800a8a03394b7718e6))
+* handle curl job exit code ([84c9507](https://github.com/wsdjeg/chat.nvim/commit/84c95073ab1161f7ff535b05e808221f2fb84e17))
+* handle name in second data ([ce39354](https://github.com/wsdjeg/chat.nvim/commit/ce39354f5cf2cfb457b9469cf5296c5a298b84c0))
+* handle no index in tool_call ([22d278f](https://github.com/wsdjeg/chat.nvim/commit/22d278fd35faf9609bff3a5e0af37f82e0fa23f7))
+* handle sse error message ([1c9f515](https://github.com/wsdjeg/chat.nvim/commit/1c9f515a0353d6da3486b3f9e9d2acc5438c3233))
+* handle sse finish_reason ([ee8ed16](https://github.com/wsdjeg/chat.nvim/commit/ee8ed161a0ae5166371d7f748412dc016db78d14))
+* handle stdout/stderr correctly ([2e454b7](https://github.com/wsdjeg/chat.nvim/commit/2e454b7cdc17c2807fe644b75d59a69c071d3248))
+* improve on_stdout handle ([b03a04a](https://github.com/wsdjeg/chat.nvim/commit/b03a04ae1f649e2549cdc90b41abec59a491b242))
+* include all memories into picker source ([736f2f1](https://github.com/wsdjeg/chat.nvim/commit/736f2f1beb0db6d379c4d34147f6222c23f82f0d))
+* make warning msg clearly ([4a35974](https://github.com/wsdjeg/chat.nvim/commit/4a359745bff346d5ce1a1232f911e50c5614715b))
+* remove extra space ([3847e3f](https://github.com/wsdjeg/chat.nvim/commit/3847e3f85a3992246ef4e78bb0a7be5f3519448b))
+* trigger tool request in exit function ([dbce882](https://github.com/wsdjeg/chat.nvim/commit/dbce88271b2d6c548f2fa211c0bedc405bb23cf2))
+* use fs.normalize for search_directory ([4913594](https://github.com/wsdjeg/chat.nvim/commit/49135948d06ceb4585595cd01264947605947b6e))
+* use normalize for allowed path checking ([02de25a](https://github.com/wsdjeg/chat.nvim/commit/02de25af1216d37a2b0bf3515ddc05f2b4b02f73))
+* use normalize path as default cwd ([01850df](https://github.com/wsdjeg/chat.nvim/commit/01850df508e9fd291aaafab7bd7db8fa814d3236))
+
 ## [1.2.0](https://github.com/wsdjeg/chat.nvim/compare/v1.1.0...v1.2.0) (2026-02-17)
 
 
