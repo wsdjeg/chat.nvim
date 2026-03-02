@@ -2,6 +2,8 @@ local sessions = {}
 
 local log = require('chat.log')
 
+local job = require('job')
+
 -- 保存请求返回的 reasoning_content
 
 local progress_reasoning_contents = {}
@@ -641,6 +643,222 @@ function M.clear()
       return true
     end
   end
+end
+
+--- Save current session to a specified file path
+---@param session string session id
+---@param filepath string target file path
+---@return boolean success
+function M.save_to_file(session, filepath)
+  if not sessions[session] then
+    log.error('Session does not exist: ' .. session)
+    return false
+  end
+
+  filepath = vim.fs.normalize(vim.fn.fnamemodify(filepath, ':p'))
+
+  -- Ensure parent directory exists
+  local dir = vim.fn.fnamemodify(filepath, ':h')
+  if vim.fn.isdirectory(dir) == 0 then
+    local ok, err = pcall(vim.fn.mkdir, dir, 'p')
+    if not ok then
+      log.error('Failed to create directory: ' .. err)
+      return false
+    end
+  end
+
+  local file = io.open(filepath, 'w')
+  if not file then
+    log.error('Failed to open file: ' .. filepath)
+    return false
+  end
+
+  local success, err = pcall(function()
+    file:write(vim.json.encode(sessions[session]))
+    io.close(file)
+  end)
+
+  if not success then
+    log.error('Failed to write session: ' .. err)
+    return false
+  end
+
+  log.notify('Session saved to:\n' .. filepath)
+  return true
+end
+
+--- Load session from a specified file path
+---@param filepath string source file path
+---@return string|nil session_id
+function M.load_from_file(filepath)
+  filepath = vim.fs.normalize(vim.fn.fnamemodify(filepath, ':p'))
+
+  if vim.fn.filereadable(filepath) == 0 then
+    log.error('File not found: ' .. filepath)
+    return nil
+  end
+
+  local file = io.open(filepath, 'r')
+  if not file then
+    log.error('Failed to open file: ' .. filepath)
+    return nil
+  end
+
+  local content = file:read('*a')
+  io.close(file)
+
+  local ok, obj = pcall(vim.json.decode, content)
+  if not ok or obj == vim.NIL then
+    log.error('Invalid session file format: ' .. filepath)
+    return nil
+  end
+
+  if not obj.messages or type(obj.messages) ~= 'table' then
+    log.error('Invalid session: missing messages')
+    return nil
+  end
+
+  -- Generate new session ID if already exists
+  local session_id = obj.id
+  if not session_id or sessions[session_id] then
+    session_id = os.date('%Y-%m-%d-%H-%M-%S', os.time())
+    obj.id = session_id
+  end
+
+  local config = require('chat.config')
+  obj.provider = obj.provider or config.config.provider
+  obj.model = obj.model or config.config.model
+  obj.cwd = obj.cwd or vim.fs.normalize(vim.fn.getcwd())
+  obj.prompt = obj.prompt or get_config_system_prompt()
+
+  sessions[session_id] = obj
+  M.write_cache(session_id)
+
+  log.notify('Session loaded: ' .. session_id)
+  return session_id
+end
+
+--- Share session to pastebin and return URL
+---@param session string session id
+function M.share(session)
+  if not sessions[session] then
+    log.error('Session does not exist: ' .. session)
+    return nil
+  end
+
+  local content = vim.json.encode(sessions[session])
+
+  -- Use paste.rs service (no API key required)
+  local url = 'https://paste.rs'
+
+  local stdout = {}
+  local stderr = {}
+
+  local jobid = job.start({
+    'curl',
+    '-s',
+    '-X',
+    'POST',
+    '-H',
+    'Content-Type: application/json',
+    url,
+    '-d',
+    '@-',
+  }, {
+    on_stdout = function(id, data)
+      for _, v in ipairs(data) do
+        table.insert(stdout, v)
+      end
+    end,
+    on_exit = function(id, code, single)
+      if code == 0 and single == 0 then
+        local result = vim.trim(table.concat(stdout, '\n'))
+        vim.fn.setreg('+', result)
+        log.notify('Session shared: ' .. result .. '\n(Copied to clipboard)')
+      else
+        log.error(
+          'Failed to share session: '
+            .. (table.concat(stderr, '\n') or 'unknown error')
+        )
+      end
+    end,
+  })
+  job.send(jobid, content)
+  job.send(jobid, nil)
+end
+
+--- Load session from URL
+---@param url string URL to load from
+---@return string|nil url
+function M.load_from_url(url)
+  -- Validate URL (must start with http:// or https://)
+  if not url:match('^https?://') then
+    log.error('Invalid URL, must start with http:// or https://')
+    return
+  end
+
+  local result
+  local ok, err
+
+  if vim.fn.has('nvim-0.10') == 1 then
+    local obj = vim
+      .system({
+        'curl',
+        '-s',
+        '-L', -- Follow redirects
+        url,
+      }, { text = true })
+      :wait()
+
+    ok = obj.code == 0
+    if ok then
+      result = obj.stdout
+    else
+      err = obj.stderr
+    end
+  else
+    local cmd = string.format('curl -s -L %s', vim.fn.shellescape(url))
+    result = vim.fn.system(cmd)
+    ok = vim.v.shell_error == 0
+    err = result
+  end
+
+  if not ok or not result or result == '' then
+    log.error('Failed to load from URL: ' .. (err or 'unknown error'))
+    return
+  end
+
+  -- Parse JSON
+  local obj
+  ok, err = pcall(vim.json.decode, result)
+  if not ok or err == vim.NIL then
+    log.error('Invalid session data from URL')
+    return
+  end
+  obj = err -- The decoded object
+
+  if not obj.messages or type(obj.messages) ~= 'table' then
+    log.error('Invalid session: missing messages')
+    return
+  end
+
+  local session_id = obj.id
+  if not session_id or sessions[session_id] then
+    session_id = os.date('%Y-%m-%d-%H-%M-%S', os.time())
+    obj.id = session_id
+  end
+
+  local config = require('chat.config')
+  obj.provider = obj.provider or config.config.provider
+  obj.model = obj.model or config.config.model
+  obj.cwd = obj.cwd or vim.fs.normalize(vim.fn.getcwd())
+  obj.prompt = obj.prompt or get_config_system_prompt()
+
+  sessions[session_id] = obj
+  M.write_cache(session_id)
+
+  log.notify('Session loaded from URL: ' .. session_id)
+  return session_id
 end
 
 M.get()

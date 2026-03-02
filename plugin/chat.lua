@@ -1,37 +1,26 @@
 vim.api.nvim_create_user_command('Chat', function(opt)
-  --- Chat 命令使用的逻辑后期要更新，暂时未增加外逻辑
-  --- 仅仅支持使用 `:Chat new` 打开新的 session
-  -- ✅ 推荐结构（现在就打好地基）
-  --
-  -- 我建议你直接定一个规范：
-  --
-  -- :Chat <subcommand> [options...]
-  --
-  --
-  -- 比如：
-  --
-  -- :Chat new
-  -- :Chat new --name test
-  -- :Chat open
+  local windows = require('chat.windows')
+  local sessions = require('chat.sessions')
+
   if #opt.fargs > 0 and opt.fargs[1] == 'new' then
     require('chat').open({
-      session = require('chat.sessions').new(),
+      session = sessions.new(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'prev' then
     require('chat').open({
-      session = require('chat.sessions').previous(),
+      session = sessions.previous(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'next' then
     require('chat').open({
-      session = require('chat.sessions').next(),
+      session = sessions.next(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'delete' then
     require('chat').open({
-      session = require('chat.sessions').delete(),
+      session = sessions.delete(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
     require('chat').open({
-      redraw = require('chat.sessions').clear(),
+      redraw = sessions.clear(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
     if #opt.fargs >= 2 then
@@ -48,6 +37,47 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     else
       require('chat.log').notify(':Chat cd <directory>')
     end
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'save' then
+    -- Save current session to file
+    local current_session = windows.current_session()
+    if not current_session then
+      require('chat.log').notify('No active session to save', 'WarningMsg')
+      return
+    end
+    if #opt.fargs >= 2 then
+      sessions.save_to_file(current_session, opt.fargs[2])
+    else
+      require('chat.log').notify(':Chat save <filepath>')
+    end
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'load' then
+    -- Load session from file or URL
+    if #opt.fargs >= 2 then
+      local source = opt.fargs[2]
+      local session_id
+
+      -- Only treat as URL if it starts with http:// or https://
+      if source:match('^https?://') then
+        session_id = sessions.load_from_url(source)
+      else
+        session_id = sessions.load_from_file(source)
+      end
+
+      if session_id then
+        require('chat').open({
+          session = session_id,
+        })
+      end
+    else
+      require('chat.log').notify(':Chat load <filepath|url>')
+    end
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'share' then
+    -- Share current session to pastebin
+    local current_session = windows.current_session()
+    if not current_session then
+      require('chat.log').notify('No active session to share', 'WarningMsg')
+      return
+    end
+    sessions.share(current_session)
   else
     require('chat').open()
   end
@@ -56,18 +86,25 @@ end, {
   complete = function(arglead, cmdline, pos)
     local pre_cursor = string.sub(cmdline, 1, pos)
 
-    if pre_cursor:match('^Chat cd ') then
-      local path_arg = string.match(pre_cursor, '^Chat cd%s+(.*)$')
-
-      if path_arg then
-        return vim.fn.getcompletion(path_arg, 'dir')
-      else
-        return vim.fn.getcompletion('', 'dir')
-      end
+    -- File path completion for save/load
+    if pre_cursor:match('^Chat save ') then
+      local path_arg = pre_cursor:match('^Chat save%s+(.*)$')
+      return vim.fn.getcompletion(path_arg or '', 'file')
     end
 
+    if pre_cursor:match('^Chat load ') then
+      local path_arg = pre_cursor:match('^Chat load%s+(.*)$')
+      return vim.fn.getcompletion(path_arg or '', 'file')
+    end
+
+    if pre_cursor:match('^Chat cd ') then
+      local path_arg = pre_cursor:match('^Chat cd%s+(.*)$')
+      return vim.fn.getcompletion(path_arg or '', 'dir')
+    end
+
+    -- Subcommand completion
     return vim.tbl_filter(function(t)
       return vim.startswith(t, arglead)
-    end, { 'new', 'prev', 'next', 'delete', 'cd', 'clear' })
+    end, { 'new', 'prev', 'next', 'delete', 'cd', 'clear', 'save', 'load', 'share' })
   end,
 })

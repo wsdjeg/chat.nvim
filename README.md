@@ -84,7 +84,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
 - **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
-- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`) sessions, and changing working directory (`:Chat cd`)
+- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), and sharing (`:Chat share`) sessions, plus changing working directory (`:Chat cd`)
 - **Picker Integration**: Seamless integration with picker.nvim for browsing chat history (`picker-chat`), switching providers (`chat_provider`), and selecting models (`chat_model`)
 - **Floating Window Interface**: Clean, non-intrusive dual-window layout with configurable dimensions and borders
 - **Streaming Responses**: Real-time AI responses with cancellation support (`Ctrl-C`) and retry mechanism (`r`)
@@ -300,7 +300,7 @@ chat.nvim implements a sophisticated three-tier memory system inspired by cognit
 ```lua
 memory = {
   enable = true,  -- Global memory system switch
-  
+
   -- Long-term memory: Permanent knowledge (never expires)
   long_term = {
     enable = true,
@@ -308,7 +308,7 @@ memory = {
     retrieval_limit = 3,          -- Maximum memories to retrieve per query
     similarity_threshold = 0.3,   -- Text similarity threshold (0-1)
   },
-  
+
   -- Daily memory: Temporary tasks and goals (auto-expires)
   daily = {
     enable = true,
@@ -316,14 +316,14 @@ memory = {
     max_memories = 100,           -- Maximum daily memories
     similarity_threshold = 0.3,
   },
-  
+
   -- Working memory: Current session focus (highest priority)
   working = {
     enable = true,
     max_memories = 20,            -- Maximum working memories per session
     priority_weight = 2.0,        -- Priority multiplier (higher = more important)
   },
-  
+
   -- Storage location
   storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
 }
@@ -331,11 +331,11 @@ memory = {
 
 **Memory Type Characteristics:**
 
-| Type        | Lifetime        | Priority | Use Case                                    |
-| ----------- | --------------- | -------- | ------------------------------------------- |
-| Working     | Session only    | Highest  | Current tasks, decisions, active context    |
-| Daily       | 7-30 days       | Medium   | Short-term goals, today's tasks, reminders  |
-| Long-term   | Permanent       | Normal   | Facts, preferences, skills, knowledge      |
+| Type      | Lifetime     | Priority | Use Case                                   |
+| --------- | ------------ | -------- | ------------------------------------------ |
+| Working   | Session only | Highest  | Current tasks, decisions, active context   |
+| Daily     | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders |
+| Long-term | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
 
 **Auto-Detection:**
 
@@ -505,15 +505,18 @@ You can also navigate between sessions using the following commands.
 
 ### Basic Commands
 
-| Command          | Description                                         |
-| ---------------- | --------------------------------------------------- |
-| `:Chat`          | Open the chat window with the current session       |
-| `:Chat new`      | Start a new chat session                            |
-| `:Chat prev`     | Switch to the previous chat session                 |
-| `:Chat next`     | Switch to the next chat session                     |
-| `:Chat delete`   | Delete current session and create new empty session |
-| `:Chat clear`    | Clear all messages in current session               |
-| `:Chat cd <dir>` | Change current session cwd, open chat window        |
+| Command             | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `:Chat`             | Open the chat window with the current session       |
+| `:Chat new`         | Start a new chat session                            |
+| `:Chat prev`        | Switch to the previous chat session                 |
+| `:Chat next`        | Switch to the next chat session                     |
+| `:Chat delete`      | Delete current session and create new empty session |
+| `:Chat clear`       | Clear all messages in current session               |
+| `:Chat cd <dir>`    | Change current session cwd, open chat window        |
+| `:Chat save <path>` | Save current session to specified file path         |
+| `:Chat load <path>` | Load session from file path or URL                  |
+| `:Chat share`       | Share current session via pastebin                  |
 
 ### Parallel Sessions
 
@@ -608,6 +611,39 @@ chat.nvim supports running multiple chat sessions simultaneously, with each sess
    ```
 
    This enables simultaneous conversations with different AI assistants for different tasks.
+
+9. **Save current session to a file**:
+
+   ```vim
+   :Chat save ~/sessions/my-session.json
+   ```
+
+   Saves the current session to a JSON file for backup or sharing.
+
+10. **Load session from file**:
+
+    ```vim
+    :Chat load ~/sessions/my-session.json
+    ```
+
+    Loads a previously saved session from a JSON file.
+
+11. **Load session from URL**:
+
+    ```vim
+    :Chat load https://paste.rs/xxxxx
+    ```
+
+    Loads a session from a URL (e.g., from paste.rs).
+
+12. **Share current session**:
+
+    ```vim
+    :Chat share
+    ```
+
+    Uploads the current session to paste.rs and copies the URL to clipboard.
+    This allows easy sharing of conversations with others.
 
 All sessions are automatically saved and can be resumed later. For more advanced session management,
 see the [Picker Integration](#-picker-integration) section below.
@@ -818,7 +854,7 @@ For more complex searches, you can provide a JSON object with multiple parameter
 | `context_lines`    | integer | Number of context lines to show around matches (default: 0)      |
 | `whole_word`       | boolean | Whether to match whole words only (default: false)               |
 | `file_types`       | array   | File type filter, e.g., `["*.py", "*.md", "*.txt"]`              |
-| `exclude_patterns` | array   | Exclude file patterns, e.g., `["*.log", "tmp/*"]`                |
+| `exclude_patterns` | array   | Exclude file patterns, e.g., `["*.log", "node_modules/*"]`       |
 
 **More Examples:**
 
@@ -866,11 +902,11 @@ Extract memories from conversation text into a three-tier memory system (working
 
 **Memory Types:**
 
-| Type        | Icon | Lifetime     | Priority | Use Case                                    |
-| ----------- | ---- | ------------ | -------- | ------------------------------------------- |
-| `working`   | ⚡    | Session only | Highest  | Current tasks, decisions, active context    |
-| `daily`     | 📅    | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders  |
-| `long_term` | 💾    | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
+| Type        | Icon | Lifetime     | Priority | Use Case                                   |
+| ----------- | ---- | ------------ | -------- | ------------------------------------------ |
+| `working`   | ⚡   | Session only | Highest  | Current tasks, decisions, active context   |
+| `daily`     | 📅   | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders |
+| `long_term` | 💾   | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
 
 **Basic Examples:**
 
@@ -906,22 +942,22 @@ Extract memories from conversation text into a three-tier memory system (working
 
 **Parameters:**
 
-| Parameter      | Type   | Description                                                                        |
-| -------------- | ------ | ---------------------------------------------------------------------------------- |
-| `text`         | string | Text to analyze for memory extraction                                              |
-| `memories`     | array  | Pre-extracted memories array (alternative to `text` parameter)                     |
-| `memory_type`  | string | Memory type: `"long_term"`, `"daily"`, or `"working"` (auto-detected if not set)  |
-| `category`     | string | Category: `"fact"`, `"preference"`, `"skill"`, or `"event"` (auto-detected if not set) |
+| Parameter     | Type   | Description                                                                            |
+| ------------- | ------ | -------------------------------------------------------------------------------------- |
+| `text`        | string | Text to analyze for memory extraction                                                  |
+| `memories`    | array  | Pre-extracted memories array (alternative to `text` parameter)                         |
+| `memory_type` | string | Memory type: `"long_term"`, `"daily"`, or `"working"` (auto-detected if not set)       |
+| `category`    | string | Category: `"fact"`, `"preference"`, `"skill"`, or `"event"` (auto-detected if not set) |
 
 **Memory Object Structure (for `memories` array):**
 
 ```json
 {
   "content": "Memory content text",
-  "memory_type": "working",        // Optional: auto-detected if not specified
-  "category": "fact",               // Optional: auto-detected if not specified
-  "work_type": "task",              // Optional: only for working memory
-  "importance": "high"              // Optional: only for working memory
+  "memory_type": "working", // Optional: auto-detected if not specified
+  "category": "fact", // Optional: auto-detected if not specified
+  "work_type": "task", // Optional: only for working memory
+  "importance": "high" // Optional: only for working memory
 }
 ```
 
@@ -1010,12 +1046,12 @@ Retrieve relevant information from the three-tier memory system with priority-ba
 
 **Parameters:**
 
-| Parameter      | Type    | Description                                                                        |
-| -------------- | ------- | ---------------------------------------------------------------------------------- |
-| `query`        | string  | Search query (optional, auto-extracted from last message if not provided)         |
-| `memory_type`  | string  | Filter by memory type: `"working"`, `"daily"`, or `"long_term"` (optional)         |
-| `limit`        | integer | Number of results (default: 5, maximum: 10)                                        |
-| `all_sessions` | boolean | Search all sessions instead of just current (default: false)                      |
+| Parameter      | Type    | Description                                                                |
+| -------------- | ------- | -------------------------------------------------------------------------- |
+| `query`        | string  | Search query (optional, auto-extracted from last message if not provided)  |
+| `memory_type`  | string  | Filter by memory type: `"working"`, `"daily"`, or `"long_term"` (optional) |
+| `limit`        | integer | Number of results (default: 5, maximum: 10)                                |
+| `all_sessions` | boolean | Search all sessions instead of just current (default: false)               |
 
 **Output Format:**
 
