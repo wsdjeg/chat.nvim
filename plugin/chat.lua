@@ -78,6 +78,31 @@ vim.api.nvim_create_user_command('Chat', function(opt)
       return
     end
     sessions.share(current_session)
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'preview' then
+    local current_session = require('chat.windows').current_session()
+    if not current_session then
+      require('chat.log').notify('No active session', 'WarningMsg')
+      return
+    end
+
+    local config = require('chat.config')
+    local url = string.format(
+      'http://%s:%d/session?id=%s',
+      config.config.http.host,
+      config.config.http.port,
+      current_session
+    )
+
+    -- Open in browser
+    if vim.fn.has('win32') == 1 then
+      vim.fn.system('start "" "' .. url .. '"')
+    elseif vim.fn.has('mac') == 1 then
+      vim.fn.system('open "' .. url .. '"')
+    else
+      vim.fn.system('xdg-open "' .. url .. '"')
+    end
+
+    require('chat.log').notify('Opening preview: ' .. url)
   else
     require('chat').open()
   end
@@ -103,8 +128,22 @@ end, {
     end
 
     -- Subcommand completion
-    return vim.tbl_filter(function(t)
-      return vim.startswith(t, arglead)
-    end, { 'new', 'prev', 'next', 'delete', 'cd', 'clear', 'save', 'load', 'share' })
+    return vim.tbl_filter(
+      function(t)
+        return vim.startswith(t, arglead)
+      end,
+      {
+        'new',
+        'prev',
+        'next',
+        'delete',
+        'cd',
+        'clear',
+        'save',
+        'load',
+        'share',
+        'preview',
+      }
+    )
   end,
 })

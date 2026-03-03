@@ -43,6 +43,26 @@ function M.actions()
         require('chat.sessions').delete(entry.value)
       end
     end,
+    ['<C-o>'] = function(entry)
+      local config = require('chat.config')
+      local url = string.format(
+        'http://%s:%d/session?id=%s',
+        config.config.http.host,
+        config.config.http.port,
+        entry.value
+      )
+
+      -- Open in browser
+      if vim.fn.has('win32') == 1 then
+        vim.fn.system('start "" "' .. url .. '"')
+      elseif vim.fn.has('mac') == 1 then
+        vim.fn.system('open "' .. url .. '"')
+      else
+        vim.fn.system('xdg-open "' .. url .. '"')
+      end
+
+      require('chat.log').notify('Opening preview: ' .. url)
+    end,
   }
 end
 
@@ -55,8 +75,10 @@ M.preview_win = true
 
 function M.preview(item, win, buf)
   local line = 1
-  previewer.buflines =
-    require('chat.windows').generate_buffer(sessions.get_messages(item.value), item.value)
+  previewer.buflines = require('chat.windows').generate_buffer(
+    sessions.get_messages(item.value),
+    item.value
+  )
   previewer.filetype = 'markdown'
   previewer.preview(line, win, buf, true)
 end

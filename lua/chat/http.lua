@@ -64,6 +64,41 @@ function M.start()
       if #body < content_length then
         return
       end
+      if method == 'GET' and path:match('^/session%?') then
+        -- GET /session?id=session_id: return HTML preview
+        local session_id = path:match('id=([^&]+)')
+        if not session_id then
+          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        -- URL decode session_id (simple version)
+        session_id = session_id:gsub('%%(%x%x)', function(h)
+          return string.char(tonumber(h, 16))
+        end)
+
+        local all_sessions = sessions.get()
+        local session_data = all_sessions[session_id]
+
+        if not session_data then
+          local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        local html = require('chat.preview').generate_html(session_data)
+        local resp = string.format(
+          'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s',
+          #html,
+          html
+        )
+        client:write(resp)
+        client:close()
+        return
+      end
 
       --------------------------------------------------
       -- API key check (use header: X-API-Key)

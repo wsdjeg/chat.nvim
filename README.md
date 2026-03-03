@@ -64,6 +64,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Response Format](#response-format)
         - [POST `/`](#post-)
         - [GET `/sessions`](#get-sessions)
+        - [GET `/session`](#get-session)
     - [Message Queue System](#message-queue-system)
     - [Usage Examples](#usage-examples)
         - [Using curl:](#using-curl)
@@ -91,6 +92,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Token Usage Tracking**: Display real-time token consumption for each response
 - **Lightweight Implementation**: Pure Lua with minimal dependencies and comprehensive error handling
 - **Customizable Configuration**: Flexible setup for API keys, allowed paths, memory settings, and system prompts
+- **Session HTML Preview**: Generate and open HTML previews of chat sessions in your browser via `:Chat preview` command or `<C-o>` in picker
 
 ## 📦 Installation
 
@@ -517,6 +519,7 @@ You can also navigate between sessions using the following commands.
 | `:Chat save <path>` | Save current session to specified file path         |
 | `:Chat load <path>` | Load session from file path or URL                  |
 | `:Chat share`       | Share current session via pastebin                  |
+| `:Chat preview`     | Open HTML preview of current session in browser     |
 
 ### Parallel Sessions
 
@@ -644,6 +647,16 @@ chat.nvim supports running multiple chat sessions simultaneously, with each sess
 
     Uploads the current session to paste.rs and copies the URL to clipboard.
     This allows easy sharing of conversations with others.
+
+13. **Preview current session in browser**:
+
+    ```vim
+    :Chat preview
+    ```
+
+    Opens an HTML preview of the current session in your default browser.
+    The preview includes session metadata, messages, tool calls, and token usage statistics.
+    You can also use `<C-o>` in the picker's chat source to open previews.
 
 All sessions are automatically saved and can be resumed later. For more advanced session management,
 see the [Picker Integration](#-picker-integration) section below.
@@ -1735,10 +1748,11 @@ require('chat').setup({
 
 chat.nvim provides the following HTTP API endpoints for external integration:
 
-| Endpoint    | Method | Description                               |
-| ----------- | ------ | ----------------------------------------- |
-| `/`         | POST   | Send messages to a specified chat session |
-| `/sessions` | GET    | Get a list of all active session IDs      |
+| Endpoint    | Method | Description                                             |
+| ----------- | ------ | ------------------------------------------------------- |
+| `/`         | POST   | Send messages to a specified chat session               |
+| `/sessions` | GET    | Get a list of all active session IDs                    |
+| `/session`  | GET    | Get HTML preview of a session (requires `id` parameter) |
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
 
@@ -1798,6 +1812,49 @@ For detailed request/response formats and examples, see the sections below.
 - **Method/Path Error**: HTTP 404 Not Found (wrong method or path)
 
 **Note**: Session IDs follow the format `YYYY-MM-DD-HH-MM-SS` (e.g., `2024-01-15-10-30-00`) and are automatically generated when new sessions are created.
+
+#### GET `/session`
+
+Returns an HTML preview of the specified chat session.
+
+**Request Parameters:**
+
+| Parameter | Type   | Description                         |
+| --------- | ------ | ----------------------------------- |
+| `id`      | string | **Required**. Session ID to preview |
+
+**Example Request:**
+
+```bash
+curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Response:**
+
+- **Success**: HTTP 200 OK, returns HTML content with `Content-Type: text/html; charset=utf-8`
+- **Missing ID**: HTTP 400 Bad Request
+- **Session Not Found**: HTTP 404 Not Found
+- **Authentication Error**: HTTP 401 Unauthorized
+
+**HTML Preview Features:**
+
+- Clean, modern dark theme design
+- Session metadata display (ID, provider, model, working directory, system prompt)
+- Message formatting with role badges and timestamps
+- Support for tool calls and results visualization
+- Reasoning content (thinking) display
+- Error messages highlighting
+- Token usage statistics
+- Responsive layout with scrollable sections
+
+**Integration:**
+
+The HTML preview can be opened via:
+
+1. `:Chat preview` command in Neovim
+2. `<C-o>` key binding in picker's chat source
+3. Direct HTTP request to `/session?id=<session_id>` endpoint
 
 ### Message Queue System
 
@@ -1879,6 +1936,12 @@ These sources allow you to quickly access and manage your chat sessions, provide
    - Quickly resume previous conversations
    - Supports filtering and session management
      ![picker-chat](https://wsdjeg.net/images/picker-chat.png)
+
+   **Keyboard Shortcuts in chat picker:**
+
+   - `<CR>` (Enter): Open selected session
+   - `<C-d>`: Delete selected session
+   - `<C-o>`: Open HTML preview in browser
 
 2. `chat_provider` - Switch between different AI providers
 
