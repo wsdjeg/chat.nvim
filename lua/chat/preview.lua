@@ -29,6 +29,131 @@ local function format_timestamp(unix_timestamp)
   end
 end
 
+-- Parse markdown code blocks and convert to HTML
+local function parse_markdown_code_blocks(text)
+  if not text then
+    return ''
+  end
+  
+  local result = {}
+  local pos = 1
+  local len = #text
+  
+  while pos <= len do
+    -- Find opening code fence: ```language
+    local start_fence = text:find('```', pos)
+    
+    if not start_fence then
+      -- No more code blocks, escape and add remaining text
+      local remaining = text:sub(pos)
+      local escaped = escape_html(remaining)
+      -- Parse inline markdown (bold, italic, inline code)
+      escaped = escaped:gsub('%*%*([^*]+)%*%*', '<strong>%1</strong>')
+      escaped = escaped:gsub('%*([^*]+)%*', '<em>%1</em>')
+      escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+      table.insert(result, escaped)
+      break
+    end
+    
+    -- Check if this is on its own line (start of a code block)
+    local before_fence = text:sub(pos, start_fence - 1)
+    if start_fence > pos then
+      local last_char = before_fence:sub(-1)
+      if last_char ~= '\n' and last_char ~= '' then
+        -- Not a code block start, treat as inline code marker or regular text
+        -- Add text including the ```
+        local escaped = escape_html(text:sub(pos, start_fence + 2))
+        -- Check for inline code
+        escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+        table.insert(result, escaped)
+        pos = start_fence + 3
+        goto continue
+      end
+    end
+    
+    -- Add text before code block (with markdown parsing)
+    if start_fence > pos then
+      local before = text:sub(pos, start_fence - 1)
+      local escaped = escape_html(before)
+      -- Parse inline markdown
+      escaped = escaped:gsub('%*%*([^*]+)%*%*', '<strong>%1</strong>')
+      escaped = escaped:gsub('%*([^*]+)%*', '<em>%1</em>')
+      escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+      table.insert(result, escaped)
+    end
+    
+    -- Extract language identifier
+    local after_fence = text:sub(start_fence + 3)
+    local lang_end = after_fence:find('\n')
+    local lang = ''
+    local code_start = 1
+    
+    if lang_end then
+      lang = after_fence:sub(1, lang_end - 1):match('^%s*(%S*)')
+      if not lang then lang = '' end
+      code_start = lang_end + 1
+    end
+    
+    -- Find closing fence: ``` must be on its own line
+    local code_and_rest = after_fence:sub(code_start)
+    local end_fence = nil
+    local search_pos = 1
+    
+    while search_pos <= #code_and_rest do
+      local possible_end = code_and_rest:find('```', search_pos)
+      if not possible_end then break end
+      
+      -- Check if ``` is on its own line
+      local before_match = code_and_rest:sub(1, possible_end - 1)
+      local last_newline = before_match:match('\n([^\n]*)$') or before_match
+      
+      -- Check character after ```
+      local after_match = code_and_rest:sub(possible_end + 3)
+      local next_char = after_match:sub(1, 1)
+      
+      -- Valid end fence: preceded by newline (or at start), followed by newline or end of string
+      if (possible_end == 1 or code_and_rest:sub(possible_end - 1, possible_end - 1) == '\n') and
+         (next_char == '\n' or next_char == '' or next_char == nil) then
+        end_fence = possible_end
+        break
+      end
+      
+      search_pos = possible_end + 1
+    end
+    
+    if end_fence then
+      -- Extract and escape code content
+      local code = code_and_rest:sub(1, end_fence - 1)
+      -- Trim trailing newlines
+      code = code:match('^(.-)%s*$') or code
+      lang = lang ~= '' and lang or 'plaintext'
+      
+      -- Escape code content for HTML
+      local escaped_code = escape_html(code)
+      
+      -- Build code block HTML
+      table.insert(result, string.format(
+        '<pre><code class="language-%s">%s</code></pre>',
+        lang,
+        escaped_code
+      ))
+      
+      -- Move position after closing fence
+      pos = start_fence + 3 + code_start - 1 + end_fence + 2
+    else
+      -- No closing fence found, treat as regular text
+      local remaining = text:sub(pos)
+      local escaped = escape_html(remaining)
+      table.insert(result, escaped)
+      break
+    end
+    
+    ::continue::
+  end
+  
+  return table.concat(result, '')
+end
+
 -- Generate session header HTML
 local function generate_header(session_data)
   return string.format(
@@ -145,11 +270,11 @@ local function generate_message(msg)
     end
   end
   
-  -- Message content
+  -- Message content with code highlighting
   if msg.content and msg.role ~= 'tool' then
     html = html
       .. '<div class="message-content">'
-      .. escape_html(msg.content)
+      .. parse_markdown_code_blocks(msg.content)
       .. '</div>'
   end
   
@@ -303,6 +428,45 @@ function M.generate_html(session_data)
       word-wrap: break-word;
     }
     
+    /* Code block styles */
+    .message-content pre {
+      background: #0f3460;
+      border: 1px solid #16213e;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 12px 0;
+      overflow-x: auto;
+      position: relative;
+    }
+    
+    .message-content pre code {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      display: block;
+    }
+    
+    /* Inline code style */
+    .message-content .inline-code {
+      background: #0f3460;
+      color: #4ecdc4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    
+    /* Bold and italic */
+    .message-content strong {
+      color: #e94560;
+      font-weight: 600;
+    }
+    
+    .message-content em {
+      color: #f66a0a;
+      font-style: italic;
+    }
+    
     .reasoning-content {
       background: #1a1a2e;
       padding: 12px;
@@ -448,7 +612,8 @@ function M.generate_html(session_data)
     .meta-value-scrollable::-webkit-scrollbar,
     .tool-result-content::-webkit-scrollbar,
     .tool-arguments::-webkit-scrollbar,
-    .reasoning-content::-webkit-scrollbar {
+    .reasoning-content::-webkit-scrollbar,
+    .message-content pre::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
@@ -456,7 +621,8 @@ function M.generate_html(session_data)
     .meta-value-scrollable::-webkit-scrollbar-track,
     .tool-result-content::-webkit-scrollbar-track,
     .tool-arguments::-webkit-scrollbar-track,
-    .reasoning-content::-webkit-scrollbar-track {
+    .reasoning-content::-webkit-scrollbar-track,
+    .message-content pre::-webkit-scrollbar-track {
       background: #0f3460;
       border-radius: 4px;
     }
@@ -464,7 +630,8 @@ function M.generate_html(session_data)
     .meta-value-scrollable::-webkit-scrollbar-thumb,
     .tool-result-content::-webkit-scrollbar-thumb,
     .tool-arguments::-webkit-scrollbar-thumb,
-    .reasoning-content::-webkit-scrollbar-thumb {
+    .reasoning-content::-webkit-scrollbar-thumb,
+    .message-content pre::-webkit-scrollbar-thumb {
       background: #e94560;
       border-radius: 4px;
     }
@@ -472,7 +639,8 @@ function M.generate_html(session_data)
     .meta-value-scrollable::-webkit-scrollbar-thumb:hover,
     .tool-result-content::-webkit-scrollbar-thumb:hover,
     .tool-arguments::-webkit-scrollbar-thumb:hover,
-    .reasoning-content::-webkit-scrollbar-thumb:hover {
+    .reasoning-content::-webkit-scrollbar-thumb:hover,
+    .message-content pre::-webkit-scrollbar-thumb:hover {
       background: #ff6b8a;
     }
   ]]
@@ -485,6 +653,7 @@ function M.generate_html(session_data)
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat Session - %s</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <style>%s</style>
 </head>
 <body>
@@ -494,6 +663,8 @@ function M.generate_html(session_data)
       %s
     </div>
   </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>hljs.highlightAll();</script>
 </body>
 </html>
   ]],
