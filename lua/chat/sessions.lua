@@ -757,10 +757,10 @@ function M.share(session)
   local jobid = job.start({
     'curl',
     '-s',
+    '-w',
+    '\n%{http_code}',  -- Append HTTP status code to output
     '-X',
     'POST',
-    '-H',
-    'Content-Type: application/json',
     url,
     '-d',
     '@-',
@@ -770,16 +770,29 @@ function M.share(session)
         table.insert(stdout, v)
       end
     end,
+    on_stderr = function(id, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
     on_exit = function(id, code, single)
       if code == 0 and single == 0 then
-        local result = vim.trim(table.concat(stdout, '\n'))
-        vim.fn.setreg('+', result)
-        log.notify('Session shared: ' .. result .. '\n(Copied to clipboard)')
+        local output = table.concat(stdout, '\n')
+        -- Split response body and status code
+        local result, http_code = output:match('^(.-)\n(%d+)$')
+        
+        if http_code and tonumber(http_code) >= 200 and tonumber(http_code) < 300 then
+          result = vim.trim(result)
+          vim.fn.setreg('+', result)
+          log.notify('✓ Session shared!\nURL: ' .. result .. '\n(Copied to clipboard)')
+        else
+          -- Log detailed error to runtime log, show simple message to user
+          log.error('Failed to share session (HTTP ' .. (http_code or 'unknown') .. '): ' .. (result or output))
+          log.notify('✗ Failed to share session\nCheck chat.nvim runtime log', 'ErrorMsg')
+        end
       else
-        log.error(
-          'Failed to share session: '
-            .. (table.concat(stderr, '\n') or 'unknown error')
-        )
+        log.error('Failed to share session: ' .. (table.concat(stderr, '\n') or 'unknown error'))
+        log.notify('✗ Failed to share session\nCheck chat.nvim runtime log', 'ErrorMsg')
       end
     end,
   })
