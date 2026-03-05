@@ -4,6 +4,7 @@ local config = require('chat.config')
 local sessions = require('chat.sessions')
 local tools = require('chat.tools')
 local log = require('chat.log')
+local formatter = require('chat.formatter')
 
 local current_session
 
@@ -107,7 +108,7 @@ function M.push_text(chunk)
     local last_line = vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1]
     local lines = { last_line }
     if chunk.is_start then
-      local thinking_lines = M.generate_message({
+      local thinking_lines = formatter.generate_message({
         role = 'assistant',
         created = os.time(),
         reasoning_content = '',
@@ -226,7 +227,7 @@ function requestObj.on_stdout(id, data)
                       -1,
                       -1,
                       false,
-                      M.generate_message(message, session)
+                      formatter.generate_message(message, session)
                     )
                   end
                   scroll_window()
@@ -237,7 +238,7 @@ function requestObj.on_stdout(id, data)
                       -1,
                       -1,
                       false,
-                      M.generate_message(message, session)
+                      formatter.generate_message(message, session)
                     )
                   end
                 end
@@ -269,7 +270,7 @@ function M.on_tool_call_done(session, messages)
           -1,
           -1,
           false,
-          M.generate_message(message, session)
+          formatter.generate_message(message, session)
         )
       end
     end
@@ -282,7 +283,7 @@ end
 function M.on_tool_call_start(session, message)
   if session == current_session then
     local need_scroll = auto_scroll()
-    local lines = M.generate_message(message, session)
+    local lines = formatter.generate_message(message, session)
     table.insert(lines, 1, '')
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
@@ -324,7 +325,7 @@ function requestObj.on_exit(id, code, signal)
               -1,
               -1,
               false,
-              M.generate_message(message, session)
+              formatter.generate_message(message, session)
             )
           end
           if need_scroll then
@@ -450,7 +451,7 @@ function requestObj.on_complete(session, id)
         -1,
         -1,
         false,
-        M.generate_message(message, session)
+        formatter.generate_message(message, session)
       )
     end
     if need_scroll then
@@ -466,150 +467,6 @@ function M.close()
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_close(result_win, true)
   end
-end
-
-function M.generate_message(message, session)
-  if message.role == 'assistant' and message.tool_calls then
-    local msg = {}
-    if message.reasoning_content then
-      table.insert(
-        msg,
-        '['
-          .. os.date(config.config.strftime, message.created)
-          .. '] 🤖 Bot:'
-          .. ((message.reasoning_content and ' thinking ...') or '')
-      )
-      table.insert(msg, '')
-    end
-    if message.reasoning_content then
-      for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
-        table.insert(msg, '> ' .. line)
-      end
-      table.insert(msg, '')
-    end
-    if message.content then
-      for _, line in ipairs(vim.split(message.content, '\n')) do
-        table.insert(msg, line)
-      end
-      table.insert(msg, '')
-    end
-    for i = 1, #message.tool_calls do
-      table.insert(
-        msg,
-        string.format(
-          '[%s] 🤖 Bot: 🔧 Executing tool: %s',
-          os.date(config.config.strftime, message.created),
-          tools.info(
-            message.tool_calls[i],
-            { cwd = sessions.getcwd(session) }
-          )
-        )
-      )
-      table.insert(msg, '')
-    end
-
-    return msg
-  elseif message.role == 'assistant' then
-    local msg = {
-      '['
-        .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:'
-        .. ((message.reasoning_content and ' thinking ...') or ''),
-      '',
-    }
-    if message.reasoning_content and #message.reasoning_content > 0 then
-      for _, line in ipairs(vim.split(message.reasoning_content, '\n')) do
-        table.insert(msg, '> ' .. line)
-      end
-      table.insert(msg, '')
-    end
-    if message.content then
-      for _, line in ipairs(vim.split(message.content, '\n')) do
-        table.insert(msg, line)
-      end
-      table.insert(msg, '')
-    end
-    return msg
-  elseif message.role == 'user' then
-    local content = vim.split(message.content, '\n')
-    local msg = {
-      '['
-        .. os.date(config.config.strftime, message.created)
-        .. '] 👤 You: '
-        .. content[1],
-    }
-    if #content > 1 then
-      for i = 2, #content do
-        table.insert(msg, content[i])
-      end
-    end
-    table.insert(msg, '')
-    return msg
-  elseif message.role == 'tool' then
-    if message.tool_call_state and message.tool_call_state.error then
-      local msg = vim.split(
-        string.format(
-          '[%s] ❌ : Tool Error: %s',
-          os.date(config.config.strftime, message.created),
-          message.tool_call_state.error
-        ),
-        '\n'
-      )
-      table.insert(msg, '')
-      return msg
-    else
-      return {
-        string.format(
-          '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
-          os.date(config.config.strftime, message.created),
-          (message.tool_call_state and message.tool_call_state.name) or ''
-        ),
-        '',
-      }
-    end
-  elseif message.content and message.role ~= 'tool' then
-    return vim.split(message.content, '\n')
-  elseif message.on_complete then
-    local complete_str = ' ✅ Completed'
-    if message.usage then
-      complete_str = complete_str
-        .. string.format(
-          ' • Tokens: %d (%d↑/%d↓)',
-          message.usage.total_tokens,
-          message.usage.prompt_tokens,
-          message.usage.completion_tokens
-        )
-    end
-    return {
-      '['
-        .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:'
-        .. complete_str,
-      '',
-    }
-  elseif message.error then
-    return {
-      '',
-      string.format(
-        '[%s] ❌ : %s',
-        os.date(config.config.strftime, message.created),
-        message.error
-      ),
-      '',
-    }
-  else
-    return {}
-  end
-end
-
-function M.generate_buffer(messages, session)
-  local lines = {}
-  for _, m in ipairs(messages) do
-    for _, l in ipairs(M.generate_message(m, session)) do
-      table.insert(lines, l)
-    end
-  end
-  return lines
 end
 
 function M.redraw_title()
@@ -663,7 +520,7 @@ function M.open(opt)
         0,
         -1,
         false,
-        M.generate_buffer(
+        formatter.generate_buffer(
           require('chat.sessions').get_messages(current_session),
           current_session
         )
@@ -675,7 +532,7 @@ function M.open(opt)
         if message or reasoning_content then
           local lines = { '' }
           for _, l in
-            ipairs(M.generate_message({
+            ipairs(formatter.generate_message({
               role = 'assistant',
               content = message,
               reasoning_content = reasoning_content,
@@ -713,7 +570,7 @@ function M.open(opt)
         0,
         -1,
         false,
-        M.generate_buffer(messages, current_session)
+        formatter.generate_buffer(messages, current_session)
       )
     end
     if sessions.is_in_progress(current_session) then
@@ -723,7 +580,7 @@ function M.open(opt)
       if message or reasoning_content then
         local lines = { '' }
         for _, l in
-          ipairs(M.generate_message({
+          ipairs(formatter.generate_message({
             role = 'assistant',
             content = message,
             reasoning_content = reasoning_content,
@@ -1004,7 +861,7 @@ function M.send_message(session, content)
           -1,
           -1,
           false,
-          M.generate_message(msg, session)
+          formatter.generate_message(msg, session)
         )
       else
         vim.api.nvim_buf_set_lines(
@@ -1012,7 +869,7 @@ function M.send_message(session, content)
           -1,
           -1,
           false,
-          M.generate_message(msg, session)
+          formatter.generate_message(msg, session)
         )
       end
       scroll_window()
