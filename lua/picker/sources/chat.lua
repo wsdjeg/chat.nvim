@@ -2,6 +2,7 @@ local M = {}
 
 local sessions = require('chat.sessions')
 local windows = require('chat.windows')
+local formatter = require('chat.formatter')
 
 local previewer = require('picker.previewer.buffer')
 
@@ -75,7 +76,7 @@ M.preview_win = true
 
 function M.preview(item, win, buf)
   local line = 1
-  previewer.buflines = require('chat.windows').generate_buffer(
+  previewer.buflines = formatter.generate_buffer(
     sessions.get_messages(item.value),
     item.value
   )
