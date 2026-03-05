@@ -26,7 +26,6 @@ local CURL_ERRORS = {
   [56] = 'Failure with receiving network data. Connection interrupted.',
 }
 
-
 function M.set_result_win_title(title)
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_set_config(result_win, {
@@ -57,6 +56,24 @@ local function scroll_window()
       { vim.api.nvim_buf_line_count(result_buf), 0 }
     )
   end
+end
+
+-- Helper functions
+local function validate_api_key()
+  if
+    (
+      type(config.config.api_key) == 'table'
+      and vim.tbl_isempty(config.config.api_key)
+    )
+    or (
+      type(config.config.api_key) == 'string'
+      and #config.config.api_key == 0
+    )
+  then
+    log.notify('api_key is required!', 'WarningMsg')
+    return false
+  end
+  return true
 end
 
 function M.push_text(chunk)
@@ -439,17 +456,7 @@ function M.redraw_title()
 end
 
 function M.open(opt)
-  if
-    (
-      type(config.config.api_key) == 'table'
-      and vim.tbl_isempty(config.config.api_key)
-    )
-    or (
-      type(config.config.api_key) == 'string'
-      and #config.config.api_key == 0
-    )
-  then
-    log.notify('api_key is required!', 'WarningMsg')
+  if not validate_api_key() then
     return
   end
   if not current_session then
