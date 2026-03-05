@@ -37,35 +37,20 @@ local function run_tests()
     end
   end
   
-  print(string.format('\n=== Loaded %d/%d test files ===\n', loaded_count, #test_files))
+  print(string.format('\n=== Loaded %d/%d test files ===', loaded_count, #test_files))
   
-  -- Run test suite
-  print('Running tests...\n')
-  local runner = lu.LuaUnit:new()
-  runner:setOutputType('text')
-  
-  local success, result = pcall(function()
-    return runner:runSuite()
-  end)
-  
-  if not success then
-    print(string.format('Error running test suite: %s', result))
+  if failed_count > 0 then
+    print(string.format('[ERROR] Failed to load %d test files', failed_count))
     return 1
   end
   
-  -- Return exit code based on test results
-  -- LuaUnit returns: number of failures + number of errors
-  if type(result) == 'number' then
-    if result > 0 then
-      print(string.format('\n[FAIL] %d test(s) failed', result))
-      return 1
-    else
-      print('\n[SUCCESS] All tests passed')
-      return 0
-    end
-  end
+  -- Run test suite with tap output (shows each test on separate line)
+  print('\nRunning tests...\n')
+  local runner = lu.LuaUnit:new()
+  runner:setOutputType('tap')
+  local result = runner:runSuite()
   
-  return 0
+  return result
 end
 
 -- Run tests and exit
