@@ -28,10 +28,10 @@ local function run_tests()
   for _, test_file in ipairs(test_files) do
     local ok, result = pcall(dofile, test_file)
     if ok then
-      print(string.format('✓ Loaded: %s', test_file))
+      print(string.format('[OK] Loaded: %s', test_file))
       loaded_count = loaded_count + 1
     else
-      print(string.format('✗ Failed to load: %s', test_file))
+      print(string.format('[FAIL] Failed to load: %s', test_file))
       print(string.format('  Error: %s', result))
       failed_count = failed_count + 1
     end
@@ -57,10 +57,10 @@ local function run_tests()
   -- LuaUnit returns: number of failures + number of errors
   if type(result) == 'number' then
     if result > 0 then
-      print(string.format('\n✗ %d test(s) failed', result))
+      print(string.format('\n[FAIL] %d test(s) failed', result))
       return 1
     else
-      print('\n✓ All tests passed')
+      print('\n[SUCCESS] All tests passed')
       return 0
     end
   end
