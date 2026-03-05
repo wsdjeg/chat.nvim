@@ -27,7 +27,7 @@ test-verbose:
 	@nvim --headless -u NONE \
 		-c "lua package.path = 'lua/?.lua;test/?.lua;' .. package.path" \
 		-c "lua dofile('test/run.lua')" \
-		-c "qa!" 2>&1
+		# -c "qa!" 2>&1
 
 # Install luaunit
 install-luaunit:

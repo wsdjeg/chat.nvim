@@ -63,5 +63,5 @@ for _, file in ipairs(temp_files) do
   vim.fn.delete(file, 'rf')
 end
 
-vim.cmd('qa!')
+-- vim.cmd('qa!')
 os.exit(exit_code)

@@ -28,7 +28,7 @@ end
 function TestTools:testAvailableTools()
   local available = tools.available_tools()
   lu.assertNotNil(available)
-  lu.assertTrue(type(available) == 'table')
+  lu.assertTrue(type(available) == 'tables')
   
   -- Check for expected tools
   local tool_names = {}
