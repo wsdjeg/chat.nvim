@@ -2,19 +2,16 @@ local M = {}
 
 local config = require('chat.config')
 local log = require('chat.log')
-
 local job = require('job')
 
 local json = vim.json
 local bit = bit
 
--- WebSocket opcodes
 local WS_OPCODE_TEXT = 0x1
 local WS_OPCODE_CLOSE = 0x8
 local WS_OPCODE_PING = 0x9
 local WS_OPCODE_PONG = 0xA
 
--- State
 local ws_state = {
   tcp = nil,
   tls = nil,
@@ -25,7 +22,7 @@ local ws_state = {
 }
 
 --------------------------------------------------
--- Encode WebSocket frame
+-- encode websocket frame
 --------------------------------------------------
 
 local function encode_frame(payload, opcode)
@@ -33,15 +30,14 @@ local function encode_frame(payload, opcode)
   local frame = {}
   local len = #payload
 
-  table.insert(frame, string.char(0x80 | opcode))
+  table.insert(frame, string.char(bit.bor(0x80, opcode)))
 
-  -- client MUST mask
   local mask_bit = 0x80
 
   if len <= 125 then
-    table.insert(frame, string.char(mask_bit | len))
+    table.insert(frame, string.char(bit.bor(mask_bit, len)))
   elseif len <= 65535 then
-    table.insert(frame, string.char(mask_bit | 126))
+    table.insert(frame, string.char(bit.bor(mask_bit, 126)))
     table.insert(frame, string.char(math.floor(len / 256)))
     table.insert(frame, string.char(len % 256))
   else
@@ -71,10 +67,11 @@ local function encode_frame(payload, opcode)
 end
 
 --------------------------------------------------
--- Decode frame
+-- decode frame
 --------------------------------------------------
 
 local function decode_frame(data)
+
   if #data < 2 then
     return nil
   end
@@ -98,6 +95,7 @@ local function decode_frame(data)
       + string.byte(data, offset + 1)
 
     offset = offset + 2
+
   elseif payload_len == 127 then
     return nil
   end
@@ -117,6 +115,7 @@ local function decode_frame(data)
   local payload = string.sub(data, offset, offset + payload_len - 1)
 
   if mask_key then
+
     local unmasked = {}
 
     for i = 1, #payload do
@@ -126,6 +125,7 @@ local function decode_frame(data)
     end
 
     payload = table.concat(unmasked)
+
   end
 
   return {
@@ -133,15 +133,18 @@ local function decode_frame(data)
     payload = payload,
     remaining = string.sub(data, offset + payload_len)
   }
+
 end
 
 --------------------------------------------------
--- send
+-- send websocket
 --------------------------------------------------
 
 local function ws_send(data, opcode)
+
   local frame = encode_frame(data, opcode)
   ws_state.tls:write(frame)
+
 end
 
 --------------------------------------------------
@@ -160,7 +163,6 @@ local function handle_gateway_event(payload)
   end
 
   if data.op == 10 then
-    log.debug("HELLO")
 
     local interval = data.d.heartbeat_interval
 
@@ -193,13 +195,15 @@ local function handle_gateway_event(payload)
     }))
 
   elseif data.op == 11 then
-    log.debug("HEARTBEAT_ACK")
+
+    log.debug("heartbeat ack")
 
   elseif data.op == 0 then
 
     if data.t == "READY" then
+
       ws_state.session_id = data.d.session_id
-      log.debug("READY")
+      log.debug("discord ready")
 
     elseif data.t == "MESSAGE_CREATE" then
 
@@ -223,11 +227,13 @@ local function handle_gateway_event(payload)
       end
 
     end
+
   end
+
 end
 
 --------------------------------------------------
--- handshake
+-- websocket handshake
 --------------------------------------------------
 
 local function perform_handshake()
@@ -245,6 +251,7 @@ local function perform_handshake()
     .. "\r\n"
 
   ws_state.tls:write(handshake)
+
 end
 
 --------------------------------------------------
@@ -269,9 +276,12 @@ local function start_read_loop()
     buffer = buffer .. data
 
     if buffer:find("HTTP/1.1 101") and buffer:find("\r\n\r\n") then
+
       local pos = buffer:find("\r\n\r\n")
       buffer = buffer:sub(pos + 4)
-      log.debug("WebSocket connected")
+
+      log.debug("websocket connected")
+
     end
 
     while true do
@@ -285,23 +295,28 @@ local function start_read_loop()
       buffer = frame.remaining or ""
 
       if frame.opcode == WS_OPCODE_TEXT then
+
         handle_gateway_event(frame.payload)
 
       elseif frame.opcode == WS_OPCODE_PING then
+
         ws_send(frame.payload, WS_OPCODE_PONG)
 
       elseif frame.opcode == WS_OPCODE_CLOSE then
-        log.debug("WS CLOSE")
+
+        log.debug("ws close")
         return
+
       end
 
     end
 
   end))
+
 end
 
 --------------------------------------------------
--- connect
+-- connect gateway
 --------------------------------------------------
 
 function M.connect(callback)
@@ -382,6 +397,7 @@ function M.send_message(content)
   }))
 
   job.send(jobid, nil)
+
 end
 
 --------------------------------------------------
