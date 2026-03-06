@@ -4,46 +4,81 @@ local config = require("chat.config")
 local log = require("chat.log")
 local job = require("job")
 
-local json = vim.json
 local uv = vim.uv
+local json = vim.json
 local bit = bit
 
-local WS_OPCODE_TEXT = 0x1
-local WS_OPCODE_CLOSE = 0x8
-local WS_OPCODE_PING = 0x9
-local WS_OPCODE_PONG = 0xA
+--------------------------------------------------
+-- websocket
+--------------------------------------------------
 
-local ws_state = {
+local WS_TEXT  = 1
+local WS_CLOSE = 8
+local WS_PING  = 9
+local WS_PONG  = 10
+
+--------------------------------------------------
+-- state
+--------------------------------------------------
+
+local state = {
   tcp = nil,
   tls = nil,
-  heartbeat_timer = nil,
+
+  heartbeat = nil,
+  heartbeat_interval = nil,
+
+  seq = nil,
   session_id = nil,
-  sequence = nil,
+  bot_id = nil,
+
+  zlib = nil,
+  inflate = nil,
+
   callback = nil,
 }
 
 --------------------------------------------------
--- WebSocket encode
+-- proxy
 --------------------------------------------------
 
-local function encode_frame(payload, opcode)
-  opcode = opcode or WS_OPCODE_TEXT
+local function parse_proxy()
 
-  local frame = {}
+  local proxy = os.getenv("https_proxy") or os.getenv("HTTPS_PROXY")
+  if not proxy then return end
+
+  local host,port = proxy:match("http://([^:]+):(%d+)")
+  if not host then
+    host,port = proxy:match("([^:]+):(%d+)")
+  end
+
+  if host then
+    return host,tonumber(port)
+  end
+end
+
+--------------------------------------------------
+-- websocket encode
+--------------------------------------------------
+
+local function ws_encode(payload, opcode)
+
+  opcode = opcode or WS_TEXT
+
   local len = #payload
+  local frame = {}
 
-  table.insert(frame, string.char(bit.bor(0x80, opcode)))
+  table.insert(frame,string.char(bit.bor(0x80,opcode)))
 
-  local mask_bit = 0x80
+  local maskbit = 0x80
 
-  if len <= 125 then
-    table.insert(frame, string.char(bit.bor(mask_bit, len)))
-  elseif len <= 65535 then
-    table.insert(frame, string.char(bit.bor(mask_bit, 126)))
-    table.insert(frame, string.char(bit.rshift(len, 8)))
-    table.insert(frame, string.char(bit.band(len, 0xff)))
-  else
-    error("payload too large")
+  if len <=125 then
+    table.insert(frame,string.char(bit.bor(maskbit,len)))
+
+  elseif len <=65535 then
+    table.insert(frame,string.char(bit.bor(maskbit,126)))
+    table.insert(frame,string.char(bit.rshift(len,8)))
+    table.insert(frame,string.char(bit.band(len,0xff)))
   end
 
   local mask = string.char(
@@ -53,58 +88,59 @@ local function encode_frame(payload, opcode)
     math.random(0,255)
   )
 
-  table.insert(frame, mask)
+  table.insert(frame,mask)
 
-  local masked = {}
+  local out={}
 
-  for i = 1, len do
-    local b = string.byte(payload, i)
-    local m = string.byte(mask, ((i-1)%4)+1)
-    masked[i] = string.char(bit.bxor(b,m))
+  for i=1,len do
+    local b=string.byte(payload,i)
+    local m=string.byte(mask,((i-1)%4)+1)
+    out[i]=string.char(bit.bxor(b,m))
   end
 
-  table.insert(frame, table.concat(masked))
+  table.insert(frame,table.concat(out))
 
   return table.concat(frame)
 end
 
 --------------------------------------------------
--- WebSocket decode
+-- websocket decode
 --------------------------------------------------
 
-local function decode_frame(data)
+local function ws_decode(data)
 
-  if #data < 2 then return nil end
+  if #data<2 then return end
 
-  local b1 = string.byte(data,1)
-  local b2 = string.byte(data,2)
+  local b1=string.byte(data,1)
+  local b2=string.byte(data,2)
 
-  local opcode = bit.band(b1,0x0f)
-  local len = bit.band(b2,0x7f)
+  local opcode=bit.band(b1,0x0f)
+  local len=bit.band(b2,0x7f)
 
-  local offset = 3
+  local offset=3
 
-  if len == 126 then
-    if #data < 4 then return nil end
-    len = bit.bor(
+  if len==126 then
+    if #data<4 then return end
+
+    len=bit.bor(
       bit.lshift(string.byte(data,3),8),
       string.byte(data,4)
     )
-    offset = 5
+
+    offset=5
   end
 
-  if #data < offset + len - 1 then
-    return nil
+  if #data<offset+len-1 then
+    return
   end
 
-  local payload = string.sub(data,offset,offset+len-1)
+  local payload=data:sub(offset,offset+len-1)
 
-  return {
-    opcode = opcode,
-    payload = payload,
-    remaining = string.sub(data,offset+len)
+  return{
+    opcode=opcode,
+    payload=payload,
+    rest=data:sub(offset+len)
   }
-
 end
 
 --------------------------------------------------
@@ -112,90 +148,193 @@ end
 --------------------------------------------------
 
 local function ws_send(data,opcode)
-  local frame = encode_frame(data,opcode)
-  ws_state.tls:write(frame)
+  state.tls:write(ws_encode(data,opcode))
 end
 
 --------------------------------------------------
--- gateway events
+-- heartbeat
 --------------------------------------------------
 
-local function handle_gateway_event(payload)
+local function start_heartbeat()
 
-  local ok,data = pcall(json.decode,payload)
-  if not ok then return end
-
-  if data.s then
-    ws_state.sequence = data.s
+  if state.heartbeat then
+    state.heartbeat:stop()
   end
 
-  if data.op == 10 then
+  state.heartbeat=uv.new_timer()
 
-    local interval = data.d.heartbeat_interval
+  state.heartbeat:start(
+    state.heartbeat_interval,
+    state.heartbeat_interval,
+    function()
 
-    ws_state.heartbeat_timer = uv.new_timer()
+      ws_send(json.encode({
+        op=1,
+        d=state.seq
+      }))
 
-    ws_state.heartbeat_timer:start(
-      interval,
-      interval,
-      vim.schedule_wrap(function()
+    end
+  )
 
-        local hb = json.encode({
-          op = 1,
-          d = ws_state.sequence
-        })
+end
 
-        ws_send(hb)
+--------------------------------------------------
+-- mention detection
+--------------------------------------------------
 
-      end)
-    )
+local function is_for_bot(msg)
 
-    local identify = json.encode({
-      op = 2,
-      d = {
-        token = config.config.integrations.discord.token,
-        intents = 513,
-        properties = {
-          os = "linux",
-          browser = "chat.nvim",
-          device = "chat.nvim"
-        }
-      }
-    })
-
-    ws_send(identify)
-
-  elseif data.op == 11 then
-    log.debug("heartbeat ack")
-
-  elseif data.op == 0 then
-
-    if data.t == "READY" then
-      ws_state.session_id = data.d.session_id
-      log.debug("discord ready")
-
-    elseif data.t == "MESSAGE_CREATE" then
-
-      if data.d.author.bot then
-        return
+  if msg.mentions then
+    for _,m in ipairs(msg.mentions) do
+      if m.id==state.bot_id then
+        return true
       end
-
-      local msg = {
-        author = data.d.author.username,
-        content = data.d.content,
-        channel_id = data.d.channel_id,
-        timestamp = data.d.timestamp
-      }
-
-      if ws_state.callback then
-        vim.schedule(function()
-          ws_state.callback(msg)
-        end)
-      end
-
     end
   end
 
+  if msg.referenced_message then
+    local a=msg.referenced_message.author
+    if a and a.id==state.bot_id then
+      return true
+    end
+  end
+
+  return false
+end
+
+--------------------------------------------------
+-- gateway event
+--------------------------------------------------
+
+local function handle_gateway(payload)
+
+  local ok,data=pcall(json.decode,payload)
+  if not ok then return end
+
+  if data.s then
+    state.seq=data.s
+  end
+
+  ------------------------------------------------
+  -- HELLO
+  ------------------------------------------------
+
+  if data.op==10 then
+
+    state.heartbeat_interval=data.d.heartbeat_interval
+    start_heartbeat()
+
+    local payload
+
+    if state.session_id then
+
+      payload={
+        op=6,
+        d={
+          token=config.config.integrations.discord.token,
+          session_id=state.session_id,
+          seq=state.seq
+        }
+      }
+
+    else
+
+      payload={
+        op=2,
+        d={
+          token=config.config.integrations.discord.token,
+          intents=513,
+          properties={
+            os="linux",
+            browser="chat.nvim",
+            device="chat.nvim"
+          }
+        }
+      }
+
+    end
+
+    ws_send(json.encode(payload))
+
+    return
+  end
+
+  ------------------------------------------------
+  -- heartbeat ack
+  ------------------------------------------------
+
+  if data.op==11 then
+    return
+  end
+
+  ------------------------------------------------
+  -- dispatch
+  ------------------------------------------------
+
+  if data.op~=0 then return end
+
+  if data.t=="READY" then
+
+    state.session_id=data.d.session_id
+    state.bot_id=data.d.user.id
+
+    log.debug("discord ready "..state.bot_id)
+    return
+  end
+
+  ------------------------------------------------
+  -- message
+  ------------------------------------------------
+
+  if data.t=="MESSAGE_CREATE" then
+
+    local msg=data.d
+
+    if msg.author.bot then return end
+    if not is_for_bot(msg) then return end
+
+    local content=msg.content
+      :gsub("<@!?%d+>","")
+      :gsub("^%s+","")
+
+    local out={
+      author=msg.author.username,
+      content=content,
+      channel_id=msg.channel_id,
+      message_id=msg.id,
+      reply=msg.referenced_message~=nil
+    }
+
+    if state.callback then
+      vim.schedule(function()
+        state.callback(out)
+      end)
+    end
+
+  end
+
+end
+
+--------------------------------------------------
+-- inflate zlib
+--------------------------------------------------
+
+local function inflate(data)
+
+  if not state.inflate then
+    local ok,zlib=pcall(require,"zlib")
+    if not ok then
+      return data
+    end
+
+    state.inflate=zlib.inflate()
+  end
+
+  local ok,res=pcall(state.inflate,data)
+
+  if ok then
+    return res
+  end
 end
 
 --------------------------------------------------
@@ -204,9 +343,9 @@ end
 
 local function start_read()
 
-  local buffer = ""
+  local buffer=""
 
-  ws_state.tls:read_start(vim.schedule_wrap(function(err,data)
+  state.tls:read_start(function(err,data)
 
     if err then
       log.error(err)
@@ -214,53 +353,54 @@ local function start_read()
     end
 
     if not data then
-      log.debug("socket closed")
       return
     end
 
-    buffer = buffer .. data
+    buffer=buffer..data
 
-    local header_end = buffer:find("\r\n\r\n")
+    local header=buffer:find("\r\n\r\n")
 
-    if header_end then
-      buffer = buffer:sub(header_end+4)
+    if header then
+      buffer=buffer:sub(header+4)
     end
 
     while true do
 
-      local frame = decode_frame(buffer)
-
+      local frame=ws_decode(buffer)
       if not frame then break end
 
-      buffer = frame.remaining or ""
+      buffer=frame.rest or ""
 
-      if frame.opcode == WS_OPCODE_TEXT then
-        handle_gateway_event(frame.payload)
+      if frame.opcode==WS_TEXT then
 
-      elseif frame.opcode == WS_OPCODE_PING then
-        ws_send(frame.payload,WS_OPCODE_PONG)
+        local payload=inflate(frame.payload) or frame.payload
 
-      elseif frame.opcode == WS_OPCODE_CLOSE then
-        log.debug("ws close")
+        handle_gateway(payload)
+
+      elseif frame.opcode==WS_PING then
+        ws_send(frame.payload,WS_PONG)
+
+      elseif frame.opcode==WS_CLOSE then
         return
       end
 
     end
 
-  end))
+  end)
 
 end
 
 --------------------------------------------------
--- handshake
+-- websocket handshake
 --------------------------------------------------
 
-local function handshake()
+local function websocket_handshake()
 
-  local key = vim.base64.encode(tostring(os.time()))
+  local key=vim.base64.encode(tostring(os.time()))
 
-  local req = table.concat({
-    "GET /?v=10&encoding=json HTTP/1.1",
+  local req=table.concat({
+
+    "GET /?v=10&encoding=json&compress=zlib-stream HTTP/1.1",
     "Host: gateway.discord.gg",
     "Upgrade: websocket",
     "Connection: Upgrade",
@@ -268,9 +408,10 @@ local function handshake()
     "Sec-WebSocket-Key: "..key,
     "User-Agent: chat.nvim",
     "\r\n"
+
   },"\r\n")
 
-  ws_state.tls:write(req)
+  state.tls:write(req)
 
 end
 
@@ -280,50 +421,73 @@ end
 
 function M.connect(callback)
 
-  ws_state.callback = callback
+  state.callback=callback
 
-  ws_state.tcp = uv.new_tcp()
+  local proxy_host,proxy_port=parse_proxy()
 
-  uv.getaddrinfo(
-    "gateway.discord.gg",
-    443,
-    {family="inet"},
-    function(err,addrs)
+  local host=proxy_host or "gateway.discord.gg"
+  local port=proxy_port or 443
 
-      if err then
-        log.error(err)
-        return
-      end
+  state.tcp=uv.new_tcp()
 
-      local addr = addrs[1]
+  state.tcp:connect(host,port,function(err)
 
-      ws_state.tcp:connect(addr.addr,addr.port,function(err)
+    if err then
+      log.error(err)
+      return
+    end
 
-        if err then
-          log.error(err)
-          return
+    ------------------------------------------------
+    -- proxy connect
+    ------------------------------------------------
+
+    if proxy_host then
+
+      local req=table.concat({
+        "CONNECT gateway.discord.gg:443 HTTP/1.1",
+        "Host: gateway.discord.gg",
+        "\r\n"
+      },"\r\n")
+
+      state.tcp:write(req)
+
+      state.tcp:read_start(function(_,data)
+
+        if data and data:find("200") then
+
+          state.tcp:read_stop()
+
+          state.tls=uv.new_tls({
+            servername="gateway.discord.gg"
+          })
+
+          state.tls:handshake(state.tcp,function()
+
+            start_read()
+            websocket_handshake()
+
+          end)
+
         end
 
-        ws_state.tls = uv.new_tls({
-          servername="gateway.discord.gg"
-        })
+      end)
 
-        ws_state.tls:handshake(ws_state.tcp,function(err)
+    else
 
-          if err then
-            log.error(err)
-            return
-          end
+      state.tls=uv.new_tls({
+        servername="gateway.discord.gg"
+      })
 
-          start_read()
-          handshake()
+      state.tls:handshake(state.tcp,function()
 
-        end)
+        start_read()
+        websocket_handshake()
 
       end)
 
     end
-  )
+
+  end)
 
 end
 
@@ -333,14 +497,10 @@ end
 
 function M.send_message(content)
 
-  local channel = config.config.integrations.discord.channel_id
-  local token = config.config.integrations.discord.token
+  local channel=config.config.integrations.discord.channel_id
+  local token=config.config.integrations.discord.token
 
-  if not channel or not token then
-    return
-  end
-
-  local cmd = {
+  local cmd={
     "curl",
     "-s",
     "https://discord.com/api/v10/channels/"..channel.."/messages",
@@ -350,13 +510,13 @@ function M.send_message(content)
     "-d","@-"
   }
 
-  local jobid = job.start(cmd)
+  local id=job.start(cmd)
 
-  job.send(jobid,json.encode({
-    content = content
+  job.send(id,json.encode({
+    content=content
   }))
 
-  job.send(jobid,nil)
+  job.send(id,nil)
 
 end
 
