@@ -567,6 +567,13 @@ function M.on_progress_tool_call_done(id)
 end
 
 function M.append_message(session, message)
+  if
+    message.role == 'assistant'
+    and message.content
+    and message.content ~= ''
+  then
+    require('chat.integrations').on_response(session, message.content)
+  end
   table.insert(sessions[session].messages, message)
 end
 
@@ -625,11 +632,12 @@ function M.change_cwd(session, cwd)
   end
 end
 
-function M.clear()
-  local current_session = require('chat.windows').current_session()
+function M.clear(session)
+  local windows = require('chat.windows')
+  session = session or windows.current_session()
 
-  if current_session and sessions[current_session] then
-    if M.is_in_progress(current_session) then
+  if session and sessions[session] then
+    if M.is_in_progress(session) then
       require('chat.log').notify({
 
         'session is in progress',
@@ -638,8 +646,12 @@ function M.clear()
 
       return false
     else
-      sessions[current_session].messages = {}
-      M.write_cache(current_session)
+      sessions[session].messages = {}
+      M.write_cache(session)
+      if session == windows.current_session()
+        then
+          windows.render_result_buf()
+        end
       return true
     end
   end
@@ -758,7 +770,7 @@ function M.share(session)
     'curl',
     '-s',
     '-w',
-    '\n%{http_code}',  -- Append HTTP status code to output
+    '\n%{http_code}', -- Append HTTP status code to output
     '-X',
     'POST',
     url,
@@ -780,19 +792,41 @@ function M.share(session)
         local output = table.concat(stdout, '\n')
         -- Split response body and status code
         local result, http_code = output:match('^(.-)\n(%d+)$')
-        
-        if http_code and tonumber(http_code) >= 200 and tonumber(http_code) < 300 then
+
+        if
+          http_code
+          and tonumber(http_code) >= 200
+          and tonumber(http_code) < 300
+        then
           result = vim.trim(result)
           vim.fn.setreg('+', result)
-          log.notify('✓ Session shared!\nURL: ' .. result .. '\n(Copied to clipboard)')
+          log.notify(
+            '✓ Session shared!\nURL: '
+              .. result
+              .. '\n(Copied to clipboard)'
+          )
         else
           -- Log detailed error to runtime log, show simple message to user
-          log.error('Failed to share session (HTTP ' .. (http_code or 'unknown') .. '): ' .. (result or output))
-          log.notify('✗ Failed to share session\nCheck chat.nvim runtime log', 'ErrorMsg')
+          log.error(
+            'Failed to share session (HTTP '
+              .. (http_code or 'unknown')
+              .. '): '
+              .. (result or output)
+          )
+          log.notify(
+            '✗ Failed to share session\nCheck chat.nvim runtime log',
+            'ErrorMsg'
+          )
         end
       else
-        log.error('Failed to share session: ' .. (table.concat(stderr, '\n') or 'unknown error'))
-        log.notify('✗ Failed to share session\nCheck chat.nvim runtime log', 'ErrorMsg')
+        log.error(
+          'Failed to share session: '
+            .. (table.concat(stderr, '\n') or 'unknown error')
+        )
+        log.notify(
+          '✗ Failed to share session\nCheck chat.nvim runtime log',
+          'ErrorMsg'
+        )
       end
     end,
   })

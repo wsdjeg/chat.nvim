@@ -18,6 +18,11 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       session = sessions.delete(),
     })
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'bridge' then
+    require('chat.integrations').set_session(
+      opt.fargs[2],
+      require('chat.windows').current_session()
+    )
   elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
     require('chat').open({
       redraw = sessions.clear(),
@@ -128,22 +133,20 @@ end, {
     end
 
     -- Subcommand completion
-    return vim.tbl_filter(
-      function(t)
-        return vim.startswith(t, arglead)
-      end,
-      {
-        'new',
-        'prev',
-        'next',
-        'delete',
-        'cd',
-        'clear',
-        'save',
-        'load',
-        'share',
-        'preview',
-      }
-    )
+    return vim.tbl_filter(function(t)
+      return vim.startswith(t, arglead)
+    end, {
+      'new',
+      'prev',
+      'next',
+      'delete',
+      'cd',
+      'clear',
+      'save',
+      'load',
+      'share',
+      'preview',
+      'bridge',
+    })
   end,
 })

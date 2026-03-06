@@ -6,6 +6,7 @@ local log = require('chat.log')
 local formatter = require('chat.formatter')
 local spinners = require('chat.spinners')
 local protocol = require('chat.protocol')
+local queue = require('chat.queue')
 
 local current_session
 
@@ -230,36 +231,7 @@ function M.open(opt)
     or (opt and opt.session and opt.session ~= current_session)
   then
     current_session = (opt.session or current_session)
-    if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(
-        result_buf,
-        0,
-        -1,
-        false,
-        formatter.generate_buffer(
-          require('chat.sessions').get_messages(current_session),
-          current_session
-        )
-      )
-      if sessions.is_in_progress(current_session) then
-        local reasoning_content =
-          sessions.get_progress_reasoning_content(current_session)
-        local message = sessions.get_progress_message(current_session)
-        if message or reasoning_content then
-          local lines = { '' }
-          for _, l in
-            ipairs(formatter.generate_message({
-              role = 'assistant',
-              content = message,
-              reasoning_content = reasoning_content,
-            }, current_session))
-          do
-            table.insert(lines, l)
-          end
-          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
-        end
-      end
-    end
+    M.render_result_buf()
   end
   local start_row = math.floor(vim.o.lines * (1 - config.config.height) / 2)
   local start_col = math.floor(vim.o.columns * (1 - config.config.width) / 2)
@@ -492,9 +464,15 @@ function M.open(opt)
   else
     spinners.stop()
   end
+  queue.start()
   if config.config.http.api_key ~= '' then
     require('chat.http').start()
-    require('chat.queue').start()
+  end
+
+  if config.config.integrations.discord.token then
+    require('chat.integrations').on_message(function(message)
+      queue.push(message.session, message.content)
+    end)
   end
 end
 
@@ -520,6 +498,39 @@ function M.send_message(session, content)
     session = session,
     messages = sessions.get_request_messages(session),
   })
+end
+
+function M.render_result_buf()
+  if vim.api.nvim_buf_is_valid(result_buf) then
+    vim.api.nvim_buf_set_lines(
+      result_buf,
+      0,
+      -1,
+      false,
+      formatter.generate_buffer(
+        require('chat.sessions').get_messages(current_session),
+        current_session
+      )
+    )
+    if sessions.is_in_progress(current_session) then
+      local reasoning_content =
+        sessions.get_progress_reasoning_content(current_session)
+      local message = sessions.get_progress_message(current_session)
+      if message or reasoning_content then
+        local lines = { '' }
+        for _, l in
+          ipairs(formatter.generate_message({
+            role = 'assistant',
+            content = message,
+            reasoning_content = reasoning_content,
+          }, current_session))
+        do
+          table.insert(lines, l)
+        end
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+      end
+    end
+  end
 end
 
 return M

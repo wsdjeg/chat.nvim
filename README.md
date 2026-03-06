@@ -31,6 +31,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [File Access Control](#file-access-control)
     - [Memory System Configuration](#memory-system-configuration)
     - [system_prompt Usage Examples](#system_prompt-usage-examples)
+    - [Discord Bot Integration](#discord-bot-integration)
     - [Complete Configuration Example](#complete-configuration-example)
     - [Configuration Notes](#configuration-notes)
 - [⚙️ Usage](#-usage)
@@ -41,6 +42,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - [🤖 Providers](#-providers)
     - [Built-in Providers](#built-in-providers)
     - [Custom Providers](#custom-providers)
+    - [Protocols](#protocols)
 - [🛠️ Tools](#-tools)
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
@@ -73,6 +75,16 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Security Considerations](#security-considerations)
     - [Integration Ideas](#integration-ideas)
 - [🔍 Picker Integration](#-picker-integration)
+- [💬 IM Integration](#-im-integration)
+    - [Discord](#discord)
+        - [Features](#features)
+        - [Setup Guide](#setup-guide)
+        - [Commands](#commands)
+        - [Workflow](#workflow)
+        - [Technical Details](#technical-details)
+        - [Troubleshooting](#troubleshooting)
+    - [Future IM Platforms](#future-im-platforms)
+    - [Technical Details](#technical-details-1)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
@@ -84,9 +96,10 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
 - **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
+- **IM Integration**: Connect Discord channels to chat.nvim sessions for remote AI interaction
 - **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
-- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), and sharing (`:Chat share`) sessions, plus changing working directory (`:Chat cd`)
+- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), sharing (`:Chat share`), and bridging (`:Chat bridge`) sessions, plus changing working directory (`:Chat cd`)
 - **Picker Integration**: Seamless integration with picker.nvim for browsing chat history (`picker-chat`), switching providers (`chat_provider`), and selecting models (`chat_model`)
 - **Floating Window Interface**: Clean, non-intrusive dual-window layout with configurable dimensions and borders
 - **Streaming Responses**: Real-time AI responses with cancellation support (`Ctrl-C`) and retry mechanism (`r`)
@@ -437,6 +450,42 @@ system_prompt = function()
 end
 ```
 
+### Discord Bot Integration
+
+Configure Discord bot integration for remote AI interaction:
+
+```lua
+integrations = {
+  discord = {
+    token = 'YOUR_DISCORD_BOT_TOKEN',     -- Discord bot token
+    channel_id = 'YOUR_CHANNEL_ID',        -- Discord channel ID
+  },
+},
+```
+
+**Setup Steps:**
+
+1. Create a Discord application at https://discord.com/developers/applications
+2. Create a bot user and copy the token
+3. Enable "Message Content Intent" in bot settings
+4. Invite bot to your server with appropriate permissions
+5. Get the channel ID where you want the bot to listen
+6. Configure `token` and `channel_id` in chat.nvim setup
+
+**Usage:**
+
+- The bot will automatically listen to messages in the configured channel
+- Messages mentioning the bot will be forwarded to chat.nvim
+- Use `:Chat bridge discord` to bind current session to Discord
+- Use `/session` in Discord to check current session
+- Use `/clear` in Discord to clear current session
+
+**Notes:**
+
+- Requires `curl` for HTTP requests
+- Messages are processed via Discord API polling
+- Supports automatic session binding and message routing
+
 ### Complete Configuration Example
 
 ```lua
@@ -521,6 +570,7 @@ You can also navigate between sessions using the following commands.
 | `:Chat load <path>` | Load session from file path or URL                  |
 | `:Chat share`       | Share current session via pastebin                  |
 | `:Chat preview`     | Open HTML preview of current session in browser     |
+| `:Chat bridge`      | Bind current session to external platform (Discord) |
 
 ### Parallel Sessions
 
@@ -693,6 +743,13 @@ The following key bindings are available in the **Result** window:
 
 ## 🤖 Providers
 
+chat.nvim uses a two-layer architecture for AI service integration:
+
+- **Providers**: Handle HTTP requests to specific AI services (DeepSeek, OpenAI, GitHub, etc.)
+- **Protocols**: Parse API responses from different AI services (OpenAI, Anthropic, etc.)
+
+Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`. Providers can specify a custom protocol via the `protocol` field if needed.
+
 ### Built-in Providers
 
 1. `deepseek` - [DeepSeek AI](https://platform.deepseek.com/)
@@ -709,15 +766,24 @@ The following key bindings are available in the **Result** window:
 12. `cherryin` - [CherryIN AI](https://open.cherryin.ai/)
 13. `yuanjing` - [yuanjing AI](https://maas.ai-yuanjing.com/)
 
+**Note**: All built-in providers use the OpenAI protocol by default.
+
 ### Custom Providers
 
-chat.nvim also supports custom provider, just create `lua/chat/providers/<provider_name>.lua`, this lua module
-should provides two functions `request` and `available_models`,
-here is an example for using [free_chatgpt_api](https://github.com/popjane/free_chatgpt_api)
+You can create custom providers for AI services not in the built-in list. Create a file at `~/.config/nvim/lua/chat/providers/<provider_name>.lua`.
 
-file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
+A provider module must implement:
+
+1. **`available_models()`** - Return a list of available model names
+2. **`request(opt)`** - Send HTTP request and return job ID
+
+**Optional fields:**
+- **`protocol`** - Specify which protocol to use (default: `openai`)
+
+**Example custom provider:**
 
 ```lua
+-- ~/.config/nvim/lua/chat/providers/my_provider.lua
 local M = {}
 local job = require('job')
 local sessions = require('chat.sessions')
@@ -725,30 +791,29 @@ local config = require('chat.config')
 
 function M.available_models()
   return {
-    'gpt-4o-mini',
+    'model-1',
+    'model-2',
   }
 end
 
-function M.request(requestObj)
+function M.request(opt)
   local cmd = {
     'curl',
     '-s',
-    'https://free.v36.cm/v1/chat/completions',
+    'https://api.example.com/v1/chat/completions',
     '-H',
     'Content-Type: application/json',
     '-H',
-    'Authorization: Bearer ' .. config.config.api_key.free_chatgpt,
+    'Authorization: Bearer ' .. config.config.api_key.my_provider,
     '-X',
     'POST',
+    '-d',
     '@-',
   }
 
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
-    thinking = {
-      type = 'enabled',
-    },
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
@@ -766,8 +831,29 @@ function M.request(requestObj)
   return jobid
 end
 
+-- Optional: specify custom protocol (defaults to 'openai')
+-- M.protocol = 'anthropic'
+
 return M
 ```
+
+### Protocols
+
+Protocols handle parsing of API responses. Currently, chat.nvim supports:
+
+- **`openai`**: OpenAI-compatible API format (default for all built-in providers)
+
+Future protocols planned:
+- **`anthropic`**: Anthropic Claude API format
+- **`google`**: Google Gemini API format
+
+If you need a custom protocol, create a file at `~/.config/nvim/lua/chat/protocols/<protocol_name>.lua` and implement:
+
+- `on_stdout(id, data)` - Handle stdout data from curl
+- `on_stderr(id, data)` - Handle stderr data
+- `on_exit(id, code, signal)` - Handle request completion
+
+See `lua/chat/protocol/openai.lua` for reference implementation.
 
 ## 🛠️ Tools
 
@@ -1954,6 +2040,143 @@ These sources allow you to quickly access and manage your chat sessions, provide
    - Lists all compatible models for your selected provider
    - Intelligent filtering based on provider capabilities
      ![picker-chat](https://wsdjeg.net/images/picker-chat-model.png)
+
+## 💬 IM Integration
+
+chat.nvim supports integration with instant messaging platforms for remote AI interaction.
+
+### Discord
+
+Discord integration allows you to interact with AI assistants via Discord messages.
+
+#### Features
+
+- **Bidirectional Communication**: Send messages from Discord to chat.nvim and receive responses
+- **Session Binding**: Bind specific Discord channels to chat.nvim sessions
+- **Remote Control**: Use Discord commands to manage sessions remotely
+- **Automatic Polling**: Bot polls for new messages every 3 seconds
+
+#### Setup Guide
+
+**1. Create Discord Application**
+
+- Go to https://discord.com/developers/applications
+- Click "New Application"
+- Give it a name (e.g., "Chat.nvim Bot")
+
+**2. Create Bot User**
+
+- Navigate to "Bot" section
+- Click "Add Bot"
+- Copy the **Token** (this is your `integrations.discord.token`)
+
+**3. Enable Message Content Intent**
+
+- Under "Privileged Gateway Intents"
+- Enable "Message Content Intent" ✅
+- Save changes
+
+**4. Get Channel ID**
+
+- Enable Developer Mode in Discord (User Settings → Advanced → Developer Mode)
+- Right-click your channel → Copy ID (this is your `integrations.discord.channel_id`)
+
+**5. Invite Bot to Server**
+
+- Go to "OAuth2" → "URL Generator"
+- Select "bot" scope
+- Required permissions: "Read Messages", "Send Messages", "Read Message History"
+- Copy and open the generated URL
+- Authorize the bot
+
+**6. Configure chat.nvim**
+
+```lua
+require('chat').setup({
+  integrations = {
+    discord = {
+      token = 'YOUR_DISCORD_BOT_TOKEN',
+      channel_id = 'YOUR_CHANNEL_ID',
+    },
+  },
+})
+```
+
+#### Commands
+
+**Neovim Commands:**
+
+- `:Chat bridge discord` - Bind current chat.nvim session to Discord channel
+
+**Discord Commands:**
+
+- `/session` - Bind current Discord channel to active chat.nvim session
+- `/clear` - Clear messages in the bound session (won't work if session is in progress)
+
+**Note**: The bot responds to messages that mention it or reply to its messages.
+
+#### Workflow
+
+1. Configure Discord bot token and channel ID
+2. Open chat.nvim and create/start a session
+3. Run `:Chat bridge discord` to bind the session
+4. In Discord, type `/session` to confirm binding
+5. Mention the bot or reply to its messages to interact
+6. AI response will be sent back to Discord automatically
+
+#### Technical Details
+
+- **API**: Discord REST API v10
+- **Polling**: 3-second intervals
+- **Message Queue**: Sequential processing with queue system
+- **State Persistence**: `stdpath('data')/chat-discord-state.json`
+- **Message Limit**: Auto-chunking for messages > 2000 characters
+- **Deduplication**: Processed message IDs cache (max 100)
+- **Timeout Protection**: 5-second request timeout
+- **Session Binding**: Persistent across Neovim restarts
+
+#### Troubleshooting
+
+**Bot not responding:**
+
+1. Verify token and channel_id are correct
+2. Check bot has "Message Content Intent" enabled
+3. Ensure bot is invited with proper permissions
+4. Run `:messages` in Neovim to check error logs
+5. Make sure you're mentioning the bot or replying to its messages
+
+**Session not binding:**
+
+1. Run `/session` in Discord to check current binding
+2. Run `:Chat bridge discord` in Neovim to rebind
+3. Check if chat.nvim window is open
+
+**Messages not syncing:**
+
+1. Verify chat.nvim session is not in progress
+2. Check if session is bound with `/session`
+3. Try clearing state: `:lua require('chat.integrations.discord').clear_state()`
+
+**State issues:**
+
+- Clear state file manually: `rm ~/.local/share/nvim/chat-discord-state.json`
+- Or use Lua: `:lua require('chat.integrations.discord').clear_state()`
+
+### Future IM Platforms
+
+The following platforms are planned for future releases:
+
+- **Slack**: Slack bot integration (in development)
+
+If you're interested in contributing an integration, see `lua/chat/integrations/init.lua` for the public API.
+
+### Technical Details
+
+- Uses Discord REST API v10
+- Polls for new messages every 3 seconds
+- Supports message references (replies)
+- Handles message chunks for long responses (2000 char limit)
+- State persistence across Neovim restarts
 
 ## 📣 Self-Promotion
 
