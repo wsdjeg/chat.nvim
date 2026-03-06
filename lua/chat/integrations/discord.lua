@@ -181,25 +181,30 @@ function M.connect(callback)
 
   state.jobid = job.start({
     'curl',
+    '-N',            -- 禁用缓冲，立即输出
+    '--no-buffer',   -- 明确禁用缓冲
+    '--tcp-nodelay', -- 可选：减少延迟
     '-s',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
-        log.debug(line)
-        local ok, obj = pcall(json.decode, line)
+        if line and line ~= '' then  -- 添加空行检查
+          log.debug(line)
+          local ok, obj = pcall(json.decode, line)
 
-        if not ok then
-          return
+          if ok and obj then  -- 改进错误处理
+            handle_event(obj)
+          end
         end
-
-        handle_event(obj)
       end
     end,
 
     on_stderr = function(_, data)
       for _, line in ipairs(data) do
-        log.error(line)
+        if line and line ~= '' then  -- 添加空行检查
+          log.error(line)
+        end
       end
     end,
 
