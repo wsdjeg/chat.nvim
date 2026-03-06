@@ -10,7 +10,6 @@ local uv = vim.uv
 --------------------------------------------------
 -- state
 --------------------------------------------------
-
 local state = {
   jobid = nil,
   heartbeat = nil,
@@ -84,7 +83,7 @@ end
 --------------------------------------------------
 
 local function handle_event(data)
-  if data.s then
+  if data.s and data.s ~=vim.NIL then
     state.seq = data.s
   end
 
@@ -196,6 +195,8 @@ function M.connect(callback)
 
           if ok and obj then  -- 改进错误处理
             handle_event(obj)
+          else
+            log.debug('123')
           end
         end
       end
