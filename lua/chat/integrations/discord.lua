@@ -7,7 +7,7 @@ local log = require('chat.log')
 function M.send_message(content)
   if
     not config.config.integrations.discord.channel_id
-    or not not config.config.integrations.discord.token
+    or not config.config.integrations.discord.token
   then
     log.debug('discord token or channel_id is nil')
     return
