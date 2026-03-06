@@ -213,6 +213,8 @@ function M.connect(callback)
       )
     end,
   })
+
+  log.debug('discord gateway jobid is ' .. state.jobid)
 end
 
 --------------------------------------------------
