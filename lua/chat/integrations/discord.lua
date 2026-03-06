@@ -187,6 +187,7 @@ function M.connect(callback)
     '-s',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
+    raw  = true,
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
         if line and line ~= '' then  -- 添加空行检查
