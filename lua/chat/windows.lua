@@ -5,6 +5,7 @@ local sessions = require('chat.sessions')
 local log = require('chat.log')
 local formatter = require('chat.formatter')
 local spinners = require('chat.spinners')
+local protocol = require('chat.protocol')
 
 local current_session
 
@@ -117,120 +118,34 @@ function M.push_text(chunk)
   end
 end
 
-local sse_buffers = {}
-local body_buffers = {}
-
-function requestObj.on_stdout(id, data)
-  if not sse_buffers[id] then
-    sse_buffers[id] = {}
-  end
-  if not body_buffers[id] then
-    body_buffers[id] = {}
-  end
-  vim.schedule(function()
-    for _, line in ipairs(data) do
-      log.debug(line)
-      if vim.startswith(line, 'data:') then
-        local v = line:sub(6)
-        if v:sub(1, 1) == ' ' then
-          v = v:sub(2)
-        end
-        table.insert(sse_buffers[id], v)
-      elseif line == '' then
-        if #sse_buffers[id] > 0 then
-          local text = table.concat(sse_buffers[id], '\n')
-          sse_buffers[id] = {}
-          if vim.trim(text) == '[DONE]' then
-            log.info('handle data DONE')
-          else
-            local ok, chunk = pcall(vim.json.decode, text)
-            if not ok then
-              log.error('Failed to decode JSON: ' .. text)
-            elseif chunk and chunk.choices and #chunk.choices > 0 then
-              local choice = chunk.choices[1]
-              if choice.delta then
-                if
-                  choice.delta.tool_calls
-                  and choice.delta.tool_calls ~= vim.NIL
-                then
-                  log.info('handle tool_calls chunk')
-                  for _, tool_call in ipairs(choice.delta.tool_calls) do
-                    sessions.on_progress_tool_call(id, tool_call)
-                  end
-                elseif
-                  choice.delta.reasoning_content
-                  and choice.delta.reasoning_content ~= vim.NIL
-                  and #choice.delta.reasoning_content > 0
-                then
-                  log.info('handle reasoning_content')
-                  sessions.on_progress_reasoning_content(
-                    id,
-                    choice.delta.reasoning_content
-                  )
-                elseif
-                  choice.delta.content
-                  and choice.delta.content ~= vim.NIL
-                  and #choice.delta.content > 0
-                then
-                  log.info('handle content')
-                  sessions.on_progress(id, choice.delta.content)
-                end
-              end
-              if choice.finish_reason and choice.finish_reason ~= vim.NIL then
-                sessions.set_progress_finish_reason(id, choice.finish_reason)
-              end
-            elseif chunk.error then
-              local error_msg = chunk.error.message or 'Unknown error'
-              local error_code = chunk.error.code or chunk.type or 'unknown'
-              local message = {
-                error = string.format(
-                  'API Error (%s): %s',
-                  error_code,
-                  error_msg
-                ),
-                created = os.time(),
-              }
-              local session = sessions.get_progress_session(id)
-              sessions.append_message(session, message)
-              if session == current_session then
-                if auto_scroll() then
-                  if vim.api.nvim_buf_is_valid(result_buf) then
-                    vim.api.nvim_buf_set_lines(
-                      result_buf,
-                      -1,
-                      -1,
-                      false,
-                      formatter.generate_message(message, session)
-                    )
-                  end
-                  scroll_window()
-                else
-                  if vim.api.nvim_buf_is_valid(result_buf) then
-                    vim.api.nvim_buf_set_lines(
-                      result_buf,
-                      -1,
-                      -1,
-                      false,
-                      formatter.generate_message(message, session)
-                    )
-                  end
-                end
-              end
-            else
-              log.debug('Received chunk without choices: ' .. text)
-            end
-
-            if chunk and chunk.usage and chunk.usage ~= vim.NIL then
-              log.info('handle usage')
-              sessions.set_progress_usage(id, chunk.usage)
-            end
-          end
-        end
-      else
-        table.insert(body_buffers[id], line)
+function M.on_message(session, message)
+  if session == current_session then
+    local need_scroll = auto_scroll()
+    if vim.api.nvim_buf_is_valid(result_buf) then
+      local line_count = vim.api.nvim_buf_line_count(result_buf)
+      local start = -1
+      if
+        line_count == 1
+        and vim.api.nvim_buf_get_lines(result_buf, 0, -1, false)[1] == ''
+      then
+        start = 0
       end
+      if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
+      end
+
+      vim.api.nvim_buf_set_lines(
+        result_buf,
+        start,
+        -1,
+        false,
+        formatter.generate_message(message, session)
+      )
     end
-  end)
+    if need_scroll then
+      scroll_window()
+    end
+  end
 end
 
 function M.on_tool_call_done(session, messages)
@@ -255,180 +170,18 @@ end
 
 function M.on_tool_call_start(session, message)
   if session == current_session then
-    local need_scroll = auto_scroll()
-    local lines = formatter.generate_message(message, session)
-    table.insert(lines, 1, '')
     if vim.api.nvim_buf_is_valid(result_buf) then
+      local need_scroll = auto_scroll()
+      local lines = formatter.generate_message(message, session)
+
+      if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
+        vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
+      end
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
-    end
-    if need_scroll then
-      scroll_window()
-    end
-  end
-end
 
-function requestObj.on_stderr(id, data)
-  vim.schedule(function()
-    for _, line in ipairs(data) do
-      log.debug(string.format('jobid %d, stderr %s', id, line))
-    end
-  end)
-end
-
-function requestObj.on_exit(id, code, signal)
-  vim.schedule(function()
-    local session = sessions.get_progress_session(id)
-    if body_buffers[id] and #body_buffers[id] > 0 then
-      local text = table.concat(body_buffers[id], '\n')
-      body_buffers[id] = {}
-      local ok, chunk = pcall(vim.json.decode, text)
-      if ok and chunk.error then
-        local error_msg = chunk.error.message or 'Unknown error'
-        local error_code = chunk.error.code or chunk.type or 'unknown'
-        local message = {
-          error = string.format('API Error (%s): %s', error_code, error_msg),
-          created = os.time(),
-        }
-        sessions.append_message(session, message)
-        if session == current_session then
-          local need_scroll = auto_scroll()
-          if vim.api.nvim_buf_is_valid(result_buf) then
-            vim.api.nvim_buf_set_lines(
-              result_buf,
-              -1,
-              -1,
-              false,
-              formatter.generate_message(message, session)
-            )
-          end
-          if need_scroll then
-            scroll_window()
-          end
-        end
+      if need_scroll then
+        scroll_window()
       end
-    end
-
-    log.info(string.format('job exit code %d signal %d', code, signal))
-    local reason = sessions.get_progress_finish_reason(id)
-    if reason == 'stop' or reason == 'tool_calls' then
-      sessions.on_progress_done(id)
-      requestObj.on_complete(session, id)
-    else
-      -- @todo handle other finish_reason
-      -- finish_reason == length   support generate next text after the previous message
-      -- finish_reason == content_filter warningMsg
-    end
-    sessions.on_progress_exit(id, code, signal)
-    if current_session == session then
-      spinners.stop()
-      if signal == 2 then
-        local message = {
-          '',
-          string.format(
-            '[%s] ❌ : Request cancelled by user. Press r to retry.',
-            os.date(config.config.strftime)
-          ),
-          '',
-        }
-        local need_scroll = auto_scroll()
-        if vim.api.nvim_buf_is_valid(result_buf) then
-          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-        end
-        if need_scroll then
-          scroll_window()
-        end
-      elseif code ~= 0 and CURL_ERRORS[code] then
-        local message = {
-          '',
-          string.format(
-            '[%s] ❌ : %s',
-            os.date(config.config.strftime),
-            CURL_ERRORS[code]
-          ),
-          '',
-        }
-        local need_scroll = auto_scroll()
-        if vim.api.nvim_buf_is_valid(result_buf) then
-          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-        end
-        if need_scroll then
-          scroll_window()
-        end
-      -- Handle unknown errors
-      elseif code ~= 0 then
-        local message = {
-          '',
-          string.format(
-            '[%s] ❌ : Curl failed with exit code %d. Run `curl --help` for details.',
-            os.date(config.config.strftime),
-            code
-          ),
-          '',
-        }
-        local need_scroll = auto_scroll()
-        if vim.api.nvim_buf_is_valid(result_buf) then
-          vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-        end
-        if need_scroll then
-          scroll_window()
-        end
-      end
-    end
-    if code == 0 and signal == 0 then
-      local messages = sessions.get_request_messages(session)
-      if messages[#messages].role == 'tool' then
-        local ok, provider = pcall(
-          require,
-          'chat.providers.' .. sessions.get_session_provider(session)
-        )
-        if ok then
-          log.info('send tool_call results to server.')
-          local jobid = provider.request({
-            on_stdout = requestObj.on_stdout,
-            on_stderr = requestObj.on_stderr,
-            on_exit = requestObj.on_exit,
-            session = session,
-            messages = sessions.get_request_messages(session),
-          })
-          log.info('curl request jobid is ' .. jobid)
-          if session == current_session then
-            spinners.start()
-          end
-        end
-      end
-    end
-  end)
-end
-
-function requestObj.on_complete(session, id)
-  local usage = sessions.get_progress_usage(id)
-
-  local message = {
-    on_complete = true,
-    usage = usage,
-    created = os.time(),
-  }
-
-  sessions.append_message(session, message)
-
-  sessions.write_cache(session)
-
-  if current_session == session then
-    local need_scroll = auto_scroll()
-    if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
-    end
-    if vim.api.nvim_buf_is_valid(result_buf) then
-      vim.api.nvim_buf_set_lines(
-        result_buf,
-        -1,
-        -1,
-        false,
-        formatter.generate_message(message, session)
-      )
-    end
-    if need_scroll then
-      scroll_window()
     end
   end
 end
@@ -635,51 +388,21 @@ function M.open(opt)
             return
           end
           local message = {
-            '['
-              .. os.date(config.config.strftime)
-              .. '] 👤 You: '
-              .. content[1],
-          }
-          if #content > 1 then
-            for i = 2, #content do
-              table.insert(message, content[i])
-            end
-          end
-          table.insert(message, '')
-          if vim.api.nvim_buf_line_count(result_buf) == 1 then
-            vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, message)
-          else
-            vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-          end
-          -- send message will scroll window
-          vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
-          scroll_window()
-        end
-        local ok, provider = pcall(
-          require,
-          'chat.providers.' .. sessions.get_session_provider(current_session)
-        )
-        if ok then
-          sessions.append_message(current_session, {
             role = 'user',
             content = table.concat(content, '\n'),
             created = os.time(),
-          })
-          requestObj.model = config.config.model
-          local jobid = provider.request({
-            on_stdout = requestObj.on_stdout,
-            on_stderr = requestObj.on_stderr,
-            on_exit = requestObj.on_exit,
+          }
+          sessions.append_message(current_session, message)
+          M.on_message(current_session, message)
+          vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {})
+          local jobid = protocol.request({
             session = current_session,
             messages = sessions.get_request_messages(current_session),
           })
-          spinners.start()
-          log.info('curl request jobid is ' .. jobid)
-        else
-          log.notify(
-            'failed to load provider:' .. config.config.provider,
-            'WarningMsg'
-          )
+          if jobid then
+            spinners.start()
+            log.info('curl request jobid is ' .. jobid)
+          end
         end
       end,
       silent = true,
@@ -718,39 +441,16 @@ function M.open(opt)
           log.notify('Request is in progress.')
           return
         end
-        local ok, provider = pcall(
-          require,
-          'chat.providers.' .. sessions.get_session_provider(current_session)
-        )
-        if ok then
-          local messages = sessions.get_request_messages(current_session)
-          if #messages > 0 and messages[#messages].role ~= 'assistant' then
-            local message = {}
-            table.insert(message, '')
-            table.insert(
-              message,
-              '['
-                .. os.date(config.config.strftime)
-                .. '] 🤖 Bot: thinking ...'
-            )
-            table.insert(message, '')
-            table.insert(message, '')
-            vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, message)
-            requestObj.model = config.config.model
-            provider.request({
-              on_stdout = requestObj.on_stdout,
-              on_stderr = requestObj.on_stderr,
-              on_exit = requestObj.on_exit,
-              session = current_session,
-              messages = messages,
-            })
-            spinners.start()
-          end
-        else
-          log.notify(
-            'failed to load provider:' .. config.config.provider,
-            'WarningMsg'
-          )
+        local messages = sessions.get_request_messages(current_session)
+        if #messages > 0 and messages[#messages].role ~= 'assistant' then
+          protocol.request({
+            on_stdout = requestObj.on_stdout,
+            on_stderr = requestObj.on_stderr,
+            on_exit = requestObj.on_exit,
+            session = current_session,
+            messages = messages,
+          })
+          spinners.start()
         end
       end,
     })
@@ -806,47 +506,20 @@ function M.send_message(session, content)
   if not content or not sessions.exists(session) then
     return
   end
-  local ok, provider = pcall(
-    require,
-    'chat.providers.' .. sessions.get_session_provider(session)
-  )
-  if ok then
-    local msg = {
-      role = 'user',
-      content = content,
-      created = os.time(),
-    }
-    sessions.append_message(session, msg)
-    if session == current_session then
-      if vim.api.nvim_buf_line_count(result_buf) == 1 then
-        vim.api.nvim_buf_set_lines(
-          result_buf,
-          -1,
-          -1,
-          false,
-          formatter.generate_message(msg, session)
-        )
-      else
-        vim.api.nvim_buf_set_lines(
-          result_buf,
-          -1,
-          -1,
-          false,
-          formatter.generate_message(msg, session)
-        )
-      end
-      scroll_window()
-    end
-    provider.request({
-      on_stdout = requestObj.on_stdout,
-      on_stderr = requestObj.on_stderr,
-      on_exit = requestObj.on_exit,
-      session = session,
-      messages = sessions.get_request_messages(session),
-    })
-  else
-    log.debug('failed to load provider:' .. config.config.provider)
-  end
+  local msg = {
+    role = 'user',
+    content = content,
+    created = os.time(),
+  }
+  sessions.append_message(session, msg)
+  M.on_message(session, msg)
+  protocol.request({
+    on_stdout = requestObj.on_stdout,
+    on_stderr = requestObj.on_stderr,
+    on_exit = requestObj.on_exit,
+    session = session,
+    messages = sessions.get_request_messages(session),
+  })
 end
 
 return M

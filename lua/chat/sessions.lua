@@ -874,6 +874,18 @@ function M.load_from_url(url)
   return session_id
 end
 
+function M.on_complete(session, id)
+  local usage = M.get_progress_usage(id)
+  local message = {
+    on_complete = true,
+    usage = usage,
+    created = os.time(),
+  }
+  M.append_message(session, message)
+  M.write_cache(session)
+  require('chat.windows').on_message(session, message)
+end
+
 M.get()
 
 return M
