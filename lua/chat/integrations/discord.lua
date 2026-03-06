@@ -187,10 +187,7 @@ function M.connect(callback)
   }, {
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
-        if not line or line == '' then
-          return
-        end
-
+        log.debug(line)
         local ok, obj = pcall(json.decode, line)
 
         if not ok then
@@ -208,8 +205,14 @@ function M.connect(callback)
     end,
 
     on_exit = function(_, code, single)
-      log.debug(string.format('discord gateway job exit code %d, single %d', code, single))
-    end
+      log.debug(
+        string.format(
+          'discord gateway job exit code %d, single %d',
+          code,
+          single
+        )
+      )
+    end,
   })
 end
 
