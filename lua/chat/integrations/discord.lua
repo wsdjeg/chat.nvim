@@ -3,6 +3,8 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 
+local job = require('job')
+
 local json = vim.json
 
 -- WebSocket opcodes
