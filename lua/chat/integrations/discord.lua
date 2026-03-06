@@ -334,7 +334,7 @@ function M.connect(callback)
     '--tcp-nodelay', -- Reduce latency
     '-s',
     '-H', 'Upgrade: websocket',
-    -H', 'Connection: Upgrade',
+    '-H', 'Connection: Upgrade',
     '-H', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
     '-H', 'Sec-WebSocket-Version: 13',
     'wss://gateway.discord.gg/?v=10&encoding=json',
