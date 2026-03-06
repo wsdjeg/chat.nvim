@@ -18,10 +18,112 @@ local state = {
   bot_id = nil,
 
   callback = nil,
+  
+  -- WebSocket frame buffer
+  buffer = '',
 }
 
 --------------------------------------------------
--- send gateway payload
+-- WebSocket frame parser
+--------------------------------------------------
+
+-- Parse WebSocket frame
+-- @param data string: raw binary data
+-- @return table: parsed frames with {opcode, payload}
+local function parse_frames(data)
+  state.buffer = state.buffer .. data
+  local frames = {}
+  
+  while #state.buffer >= 2 do
+    -- First byte: FIN (1 bit) + RSV (3 bits) + Opcode (4 bits)
+    local byte1 = state.buffer:byte(1)
+    local fin = bit.band(byte1, 0x80) ~= 0
+    local opcode = bit.band(byte1, 0x0F)
+    
+    -- Second byte: MASK (1 bit) + Payload length (7 bits)
+    local byte2 = state.buffer:byte(2)
+    local mask = bit.band(byte2, 0x80) ~= 0
+    local payload_len = bit.band(byte2, 0x7F)
+    
+    -- Calculate total frame length
+    local header_len = 2
+    if payload_len == 126 then
+      -- Extended payload length (16 bits)
+      if #state.buffer < 4 then
+        break -- Need more data
+      end
+      header_len = 4
+      payload_len = bit.bor(
+        bit.lshift(state.buffer:byte(3), 8),
+        state.buffer:byte(4)
+      )
+    elseif payload_len == 127 then
+      -- Extended payload length (64 bits)
+      if #state.buffer < 10 then
+        break -- Need more data
+      end
+      header_len = 10
+      -- For simplicity, only handle 32-bit length
+      payload_len = bit.bor(
+        bit.lshift(state.buffer:byte(7), 24),
+        bit.lshift(state.buffer:byte(8), 16),
+        bit.lshift(state.buffer:byte(9), 8),
+        state.buffer:byte(10)
+      )
+    end
+    
+    -- Add mask key length
+    if mask then
+      header_len = header_len + 4
+    end
+    
+    -- Check if we have complete frame
+    if #state.buffer < header_len + payload_len then
+      break -- Need more data
+    end
+    
+    -- Extract payload
+    local payload
+    if mask then
+      -- Decode masked payload
+      local mask_key = state.buffer:sub(header_len - 3, header_len)
+      payload = ''
+      local payload_start = header_len
+      for i = 0, payload_len - 1 do
+        local byte = state.buffer:byte(payload_start + i)
+        local mask_byte = mask_key:byte((i % 4) + 1)
+        payload = payload .. string.char(bit.bxor(byte, mask_byte))
+      end
+    else
+      payload = state.buffer:sub(header_len + 1, header_len + payload_len)
+    end
+    
+    -- Store frame
+    table.insert(frames, {
+      opcode = opcode,
+      payload = payload,
+      fin = fin,
+    })
+    
+    -- Remove processed frame from buffer
+    state.buffer = state.buffer:sub(header_len + payload_len + 1)
+  end
+  
+  return frames
+end
+
+-- WebSocket opcodes
+local OPCODE = {
+  CONTINUATION = 0x0,
+  TEXT = 0x1,
+  BINARY = 0x2,
+  CLOSE = 0x8,
+  PING = 0x9,
+  PONG = 0xA,
+}
+
+--------------------------------------------------
+-- send gateway payload (WebSocket text frame)
 --------------------------------------------------
 
 local function send(payload)
@@ -29,7 +131,49 @@ local function send(payload)
     return
   end
 
-  job.send(state.jobid, json.encode(payload) .. '\n')
+  local data = json.encode(payload)
+  
+  -- Create WebSocket text frame (client to server must be masked)
+  local frame = ''
+  local len = #data
+  
+  -- First byte: FIN=1, Opcode=0x1 (text)
+  frame = frame .. string.char(0x81)
+  
+  -- Payload length
+  if len <= 125 then
+    frame = frame .. string.char(0x80 + len) -- MASK=1
+  elseif len <= 65535 then
+    frame = frame .. string.char(0x80 + 126) -- MASK=1, extended length
+    frame = frame .. string.char(bit.band(bit.rshift(len, 8), 0xFF))
+    frame = frame .. string.char(bit.band(len, 0xFF))
+  else
+    frame = frame .. string.char(0x80 + 127) -- MASK=1, extended length
+    -- For simplicity, assume len fits in 32 bits
+    frame = frame .. string.char(0, 0, 0, 0)
+    frame = frame .. string.char(bit.band(bit.rshift(len, 24), 0xFF))
+    frame = frame .. string.char(bit.band(bit.rshift(len, 16), 0xFF))
+    frame = frame .. string.char(bit.band(bit.rshift(len, 8), 0xFF))
+    frame = frame .. string.char(bit.band(len, 0xFF))
+  end
+  
+  -- Masking key (random 4 bytes)
+  local mask_key = string.char(
+    math.random(0, 255),
+    math.random(0, 255),
+    math.random(0, 255),
+    math.random(0, 255)
+  )
+  frame = frame .. mask_key
+  
+  -- Masked payload
+  for i = 1, #data do
+    local byte = data:byte(i)
+    local mask_byte = mask_key:byte(((i - 1) % 4) + 1)
+    frame = frame .. string.char(bit.bxor(byte, mask_byte))
+  end
+  
+  job.send(state.jobid, frame)
 end
 
 --------------------------------------------------
@@ -180,37 +324,44 @@ end
 
 function M.connect(callback)
   state.callback = callback
+  state.buffer = '' -- Reset buffer
 
   state.jobid = job.start({
     'curl',
-    '-i',            -- 显示响应头
-    '-N',            -- 禁用缓冲，立即输出
-    '--no-buffer',   -- 明确禁用缓冲
-    '--tcp-nodelay', -- 减少延迟
+    '-i',            -- Show HTTP headers
+    '-N',            -- No buffering
+    '--no-buffer',   -- Disable buffering
+    '--tcp-nodelay', -- Reduce latency
     '-s',
     '-H', 'Upgrade: websocket',
-    '-H', 'Connection: Upgrade',
+    -H', 'Connection: Upgrade',
     '-H', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
     '-H', 'Sec-WebSocket-Version: 13',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
     raw  = true,
     on_stdout = function(_, data)
-      for _, line in ipairs(data) do
-        if line and line ~= '' then
-          -- Skip HTTP response headers
-          if line:match('^[A-Z]+:') or line:match('^HTTP/') then
-            log.debug('HTTP header: ' .. line)
+      -- Parse WebSocket frames
+      local frames = parse_frames(table.concat(data))
+      
+      for _, frame in ipairs(frames) do
+        -- Handle different opcodes
+        if frame.opcode == OPCODE.TEXT then
+          log.debug('Text frame: ' .. frame.payload)
+          local ok, obj = pcall(json.decode, frame.payload)
+          if ok and obj then
+            handle_event(obj)
           else
-            log.debug('Gateway data: ' .. line)
-            local ok, obj = pcall(json.decode, line)
-
-            if ok and obj then
-              handle_event(obj)
-            else
-              log.error('Failed to decode JSON: ' .. line)
-            end
+            log.error('Failed to decode JSON: ' .. frame.payload)
           end
+        elseif frame.opcode == OPCODE.PING then
+          log.debug('Received PING, sending PONG')
+          -- Send PONG
+          local pong_frame = string.char(0x8A, 0) .. frame.payload
+          job.send(state.jobid, pong_frame)
+        elseif frame.opcode == OPCODE.CLOSE then
+          log.info('WebSocket connection closed by server')
+          job.stop(state.jobid)
         end
       end
     end,
@@ -238,6 +389,7 @@ function M.connect(callback)
         state.heartbeat = nil
       end
       state.jobid = nil
+      state.buffer = ''
     end,
   })
 
