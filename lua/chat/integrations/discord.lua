@@ -47,6 +47,7 @@ local function start_heartbeat(interval)
     interval,
     interval,
     vim.schedule_wrap(function()
+      log.debug('Sending heartbeat, seq=' .. tostring(state.seq))
       send({
         op = 1,
         d = state.seq,
@@ -83,7 +84,7 @@ end
 --------------------------------------------------
 
 local function handle_event(data)
-  if data.s and data.s ~=vim.NIL then
+  if data.s and data.s ~= vim.NIL then
     state.seq = data.s
   end
 
@@ -92,6 +93,7 @@ local function handle_event(data)
   ------------------------------------------------
 
   if data.op == 10 then
+    log.debug('Received HELLO, heartbeat_interval=' .. data.d.heartbeat_interval)
     start_heartbeat(data.d.heartbeat_interval)
 
     send({
@@ -115,6 +117,7 @@ local function handle_event(data)
   ------------------------------------------------
 
   if data.op == 11 then
+    log.debug('Heartbeat ACK received')
     return
   end
 
@@ -133,7 +136,7 @@ local function handle_event(data)
   if data.t == 'READY' then
     state.bot_id = data.d.user.id
 
-    log.debug('discord ready bot_id=' .. state.bot_id)
+    log.info('Discord gateway ready, bot_id=' .. state.bot_id)
 
     return
   end
@@ -180,23 +183,33 @@ function M.connect(callback)
 
   state.jobid = job.start({
     'curl',
+    '-i',            -- 显示响应头
     '-N',            -- 禁用缓冲，立即输出
     '--no-buffer',   -- 明确禁用缓冲
-    '--tcp-nodelay', -- 可选：减少延迟
+    '--tcp-nodelay', -- 减少延迟
     '-s',
+    '-H', 'Upgrade: websocket',
+    '-H', 'Connection: Upgrade',
+    '-H', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+    '-H', 'Sec-WebSocket-Version: 13',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
     raw  = true,
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
-        if line and line ~= '' then  -- 添加空行检查
-          log.debug(line)
-          local ok, obj = pcall(json.decode, line)
-
-          if ok and obj then  -- 改进错误处理
-            handle_event(obj)
+        if line and line ~= '' then
+          -- Skip HTTP response headers
+          if line:match('^[A-Z]+:') or line:match('^HTTP/') then
+            log.debug('HTTP header: ' .. line)
           else
-            log.debug('123')
+            log.debug('Gateway data: ' .. line)
+            local ok, obj = pcall(json.decode, line)
+
+            if ok and obj then
+              handle_event(obj)
+            else
+              log.error('Failed to decode JSON: ' .. line)
+            end
           end
         end
       end
@@ -204,24 +217,31 @@ function M.connect(callback)
 
     on_stderr = function(_, data)
       for _, line in ipairs(data) do
-        if line and line ~= '' then  -- 添加空行检查
-          log.error(line)
+        if line and line ~= '' then
+          log.error('Discord gateway error: ' .. line)
         end
       end
     end,
 
     on_exit = function(_, code, single)
-      log.debug(
+      log.info(
         string.format(
-          'discord gateway job exit code %d, single %d',
+          'Discord gateway disconnected: code=%d, signal=%d',
           code,
           single
         )
       )
+
+      -- Cleanup
+      if state.heartbeat then
+        state.heartbeat:stop()
+        state.heartbeat = nil
+      end
+      state.jobid = nil
     end,
   })
 
-  log.debug('discord gateway jobid is ' .. state.jobid)
+  log.debug('Discord gateway connecting, jobid=' .. state.jobid)
 end
 
 --------------------------------------------------
