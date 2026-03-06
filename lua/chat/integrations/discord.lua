@@ -2,16 +2,14 @@ local M = {}
 
 local job = require('job')
 local config = require('chat.config')
-
-function M.setup(opts)
-  config = vim.tbl_deep_extend('force', config, opts or {})
-end
+local log = require('chat.log')
 
 function M.send_message(content)
   if
     not config.config.integrations.discord.channel_id
     or not not config.config.integrations.discord.token
   then
+    log.debug('discord token or channel_id is nil')
     return
   end
   local cmd = {
@@ -30,7 +28,15 @@ function M.send_message(content)
     '@-',
   }
   local jobid = job.start(cmd, {
-    on_exit = function(id, code, single) end,
+    on_stdout = function(id, data)
+      for _,v in ipairs(data) do log.debug(v) end
+    end,
+    on_stderr = function(id, data)
+      for _,v in ipairs(data) do log.debug(v) end
+    end,
+    on_exit = function(id, code, single)
+      log.debug(string.format('discord job exit code %d, single %d', code, single))
+    end,
   })
   job.send(
     jobid,

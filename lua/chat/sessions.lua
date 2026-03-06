@@ -567,6 +567,9 @@ function M.on_progress_tool_call_done(id)
 end
 
 function M.append_message(session, message)
+  if message.role == 'assistant' and message.content then
+    require('chat.integrations.discord').send_message(message.content)
+  end
   table.insert(sessions[session].messages, message)
 end
 
