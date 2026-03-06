@@ -1,8 +1,8 @@
 local M = {}
 
-local config = require("chat.config")
-local log = require("chat.log")
-local job = require("job")
+local config = require('chat.config')
+local log = require('chat.log')
+local job = require('job')
 
 local json = vim.json
 local uv = vim.uv
@@ -18,7 +18,7 @@ local state = {
   seq = nil,
   bot_id = nil,
 
-  callback = nil
+  callback = nil,
 }
 
 --------------------------------------------------
@@ -26,13 +26,11 @@ local state = {
 --------------------------------------------------
 
 local function send(payload)
-
   if not state.jobid then
     return
   end
 
-  job.send(state.jobid, json.encode(payload) .. "\n")
-
+  job.send(state.jobid, json.encode(payload) .. '\n')
 end
 
 --------------------------------------------------
@@ -40,7 +38,6 @@ end
 --------------------------------------------------
 
 local function start_heartbeat(interval)
-
   if state.heartbeat then
     state.heartbeat:stop()
   end
@@ -51,15 +48,12 @@ local function start_heartbeat(interval)
     interval,
     interval,
     vim.schedule_wrap(function()
-
       send({
         op = 1,
-        d = state.seq
+        d = state.seq,
       })
-
     end)
   )
-
 end
 
 --------------------------------------------------
@@ -67,9 +61,8 @@ end
 --------------------------------------------------
 
 local function is_for_bot(msg)
-
   if msg.mentions then
-    for _,m in ipairs(msg.mentions) do
+    for _, m in ipairs(msg.mentions) do
       if m.id == state.bot_id then
         return true
       end
@@ -84,7 +77,6 @@ local function is_for_bot(msg)
   end
 
   return false
-
 end
 
 --------------------------------------------------
@@ -92,7 +84,6 @@ end
 --------------------------------------------------
 
 local function handle_event(data)
-
   if data.s then
     state.seq = data.s
   end
@@ -102,7 +93,6 @@ local function handle_event(data)
   ------------------------------------------------
 
   if data.op == 10 then
-
     start_heartbeat(data.d.heartbeat_interval)
 
     send({
@@ -111,11 +101,11 @@ local function handle_event(data)
         token = config.config.integrations.discord.token,
         intents = 513,
         properties = {
-          os = "linux",
-          browser = "chat.nvim",
-          device = "chat.nvim"
-        }
-      }
+          os = 'linux',
+          browser = 'chat.nvim',
+          device = 'chat.nvim',
+        },
+      },
     })
 
     return
@@ -141,11 +131,10 @@ local function handle_event(data)
   -- READY
   ------------------------------------------------
 
-  if data.t == "READY" then
-
+  if data.t == 'READY' then
     state.bot_id = data.d.user.id
 
-    log.debug("discord ready bot_id=" .. state.bot_id)
+    log.debug('discord ready bot_id=' .. state.bot_id)
 
     return
   end
@@ -154,8 +143,7 @@ local function handle_event(data)
   -- MESSAGE_CREATE
   ------------------------------------------------
 
-  if data.t == "MESSAGE_CREATE" then
-
+  if data.t == 'MESSAGE_CREATE' then
     local msg = data.d
 
     if msg.author.bot then
@@ -166,16 +154,14 @@ local function handle_event(data)
       return
     end
 
-    local content = msg.content
-      :gsub("<@!?%d+>", "")
-      :gsub("^%s+", "")
+    local content = msg.content:gsub('<@!?%d+>', ''):gsub('^%s+', '')
 
     local out = {
       author = msg.author.username,
       content = content,
       channel_id = msg.channel_id,
       message_id = msg.id,
-      reply = msg.referenced_message ~= nil
+      reply = msg.referenced_message ~= nil,
     }
 
     if state.callback then
@@ -183,9 +169,7 @@ local function handle_event(data)
         state.callback(out)
       end)
     end
-
   end
-
 end
 
 --------------------------------------------------
@@ -193,38 +177,40 @@ end
 --------------------------------------------------
 
 function M.connect(callback)
-
   state.callback = callback
 
-  state.jobid = job.start(
-  {
-    "curl",
-    "-N",
-    "-s",
-    "wss://gateway.discord.gg/?v=10&encoding=json"
-  },
-  {
-    stdout = function(line)
+  state.jobid = job.start({
+    'curl',
+    '-N',
+    '-s',
+    'wss://gateway.discord.gg/?v=10&encoding=json',
+  }, {
+    on_stdout = function(_, data)
+      for _, line in ipairs(data) do
+        if not line or line == '' then
+          return
+        end
 
-      if not line or line == "" then
-        return
+        local ok, obj = pcall(json.decode, line)
+
+        if not ok then
+          return
+        end
+
+        handle_event(obj)
       end
-
-      local ok,data = pcall(json.decode,line)
-
-      if not ok then
-        return
-      end
-
-      handle_event(data)
-
     end,
 
-    stderr = function(line)
-      log.error(line)
+    on_stderr = function(_, data)
+      for _, line in ipairs(data) do
+        log.error(line)
+      end
+    end,
+
+    on_exit = function(_, code, single)
+      log.debug(string.format('discord gateway job exit code %d, single %d', code, single))
     end
   })
-
 end
 
 --------------------------------------------------
@@ -232,7 +218,6 @@ end
 --------------------------------------------------
 
 function M.send_message(content)
-
   local channel = config.config.integrations.discord.channel_id
   local token = config.config.integrations.discord.token
 
@@ -241,57 +226,67 @@ function M.send_message(content)
   end
 
   local cmd = {
-    "curl",
-    "-s",
-    "https://discord.com/api/v10/channels/"..channel.."/messages",
-    "-H","Authorization: Bot "..token,
-    "-H","Content-Type: application/json",
-    "-X","POST",
-    "-d","@-"
+    'curl',
+    '-s',
+    'https://discord.com/api/v10/channels/' .. channel .. '/messages',
+    '-H',
+    'Authorization: Bot ' .. token,
+    '-H',
+    'Content-Type: application/json',
+    '-X',
+    'POST',
+    '-d',
+    '@-',
   }
 
   local id = job.start(cmd)
 
-  job.send(id,json.encode({
-    content = content
-  }))
+  job.send(
+    id,
+    json.encode({
+      content = content,
+    })
+  )
 
-  job.send(id,nil)
-
+  job.send(id, nil)
 end
 
 --------------------------------------------------
 -- reply message
 --------------------------------------------------
 
-function M.reply(channel,message_id,text)
-
+function M.reply(channel, message_id, text)
   local token = config.config.integrations.discord.token
 
   local cmd = {
-    "curl",
-    "-s",
-    "https://discord.com/api/v10/channels/"..channel.."/messages",
-    "-H","Authorization: Bot "..token,
-    "-H","Content-Type: application/json",
-    "-X","POST",
-    "-d","@-"
+    'curl',
+    '-s',
+    'https://discord.com/api/v10/channels/' .. channel .. '/messages',
+    '-H',
+    'Authorization: Bot ' .. token,
+    '-H',
+    'Content-Type: application/json',
+    '-X',
+    'POST',
+    '-d',
+    '@-',
   }
 
   local id = job.start(cmd)
 
-  job.send(id,json.encode({
+  job.send(
+    id,
+    json.encode({
 
-    content = text,
+      content = text,
 
-    message_reference = {
-      message_id = message_id
-    }
+      message_reference = {
+        message_id = message_id,
+      },
+    })
+  )
 
-  }))
-
-  job.send(id,nil)
-
+  job.send(id, nil)
 end
 
 --------------------------------------------------
