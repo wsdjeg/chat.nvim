@@ -181,7 +181,6 @@ function M.connect(callback)
 
   state.jobid = job.start({
     'curl',
-    '-N',
     '-s',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
