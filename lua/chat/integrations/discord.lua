@@ -18,52 +18,48 @@ local state = {
   bot_id = nil,
 
   callback = nil,
-  
+
   -- WebSocket frame buffer
   buffer = '',
+
+  -- Connection management
+  last_heartbeat_ack = 0,
+  missed_heartbeats = 0,
+  reconnect_attempts = 0,
+  is_connecting = false,
+  session_id = nil, -- For resume
 }
 
 --------------------------------------------------
--- WebSocket frame parser
+-- WebSocket frame parser (unchanged)
 --------------------------------------------------
 
--- Parse WebSocket frame
--- @param data string: raw binary data
--- @return table: parsed frames with {opcode, payload}
 local function parse_frames(data)
   state.buffer = state.buffer .. data
   local frames = {}
-  
+
   while #state.buffer >= 2 do
-    -- First byte: FIN (1 bit) + RSV (3 bits) + Opcode (4 bits)
     local byte1 = state.buffer:byte(1)
     local fin = bit.band(byte1, 0x80) ~= 0
     local opcode = bit.band(byte1, 0x0F)
-    
-    -- Second byte: MASK (1 bit) + Payload length (7 bits)
+
     local byte2 = state.buffer:byte(2)
     local mask = bit.band(byte2, 0x80) ~= 0
     local payload_len = bit.band(byte2, 0x7F)
-    
-    -- Calculate total frame length
+
     local header_len = 2
     if payload_len == 126 then
-      -- Extended payload length (16 bits)
       if #state.buffer < 4 then
-        break -- Need more data
+        break
       end
       header_len = 4
-      payload_len = bit.bor(
-        bit.lshift(state.buffer:byte(3), 8),
-        state.buffer:byte(4)
-      )
+      payload_len =
+        bit.bor(bit.lshift(state.buffer:byte(3), 8), state.buffer:byte(4))
     elseif payload_len == 127 then
-      -- Extended payload length (64 bits)
       if #state.buffer < 10 then
-        break -- Need more data
+        break
       end
       header_len = 10
-      -- For simplicity, only handle 32-bit length
       payload_len = bit.bor(
         bit.lshift(state.buffer:byte(7), 24),
         bit.lshift(state.buffer:byte(8), 16),
@@ -71,21 +67,17 @@ local function parse_frames(data)
         state.buffer:byte(10)
       )
     end
-    
-    -- Add mask key length
+
     if mask then
       header_len = header_len + 4
     end
-    
-    -- Check if we have complete frame
+
     if #state.buffer < header_len + payload_len then
-      break -- Need more data
+      break
     end
-    
-    -- Extract payload
+
     local payload
     if mask then
-      -- Decode masked payload
       local mask_key = state.buffer:sub(header_len - 3, header_len)
       payload = ''
       local payload_start = header_len
@@ -97,22 +89,19 @@ local function parse_frames(data)
     else
       payload = state.buffer:sub(header_len + 1, header_len + payload_len)
     end
-    
-    -- Store frame
+
     table.insert(frames, {
       opcode = opcode,
       payload = payload,
       fin = fin,
     })
-    
-    -- Remove processed frame from buffer
+
     state.buffer = state.buffer:sub(header_len + payload_len + 1)
   end
-  
+
   return frames
 end
 
--- WebSocket opcodes
 local OPCODE = {
   CONTINUATION = 0x0,
   TEXT = 0x1,
@@ -123,7 +112,7 @@ local OPCODE = {
 }
 
 --------------------------------------------------
--- send gateway payload (WebSocket text frame)
+-- send gateway payload
 --------------------------------------------------
 
 local function send(payload)
@@ -132,32 +121,27 @@ local function send(payload)
   end
 
   local data = json.encode(payload)
-  
-  -- Create WebSocket text frame (client to server must be masked)
+
   local frame = ''
   local len = #data
-  
-  -- First byte: FIN=1, Opcode=0x1 (text)
+
   frame = frame .. string.char(0x81)
-  
-  -- Payload length
+
   if len <= 125 then
-    frame = frame .. string.char(0x80 + len) -- MASK=1
+    frame = frame .. string.char(0x80 + len)
   elseif len <= 65535 then
-    frame = frame .. string.char(0x80 + 126) -- MASK=1, extended length
+    frame = frame .. string.char(0x80 + 126)
     frame = frame .. string.char(bit.band(bit.rshift(len, 8), 0xFF))
     frame = frame .. string.char(bit.band(len, 0xFF))
   else
-    frame = frame .. string.char(0x80 + 127) -- MASK=1, extended length
-    -- For simplicity, assume len fits in 32 bits
+    frame = frame .. string.char(0x80 + 127)
     frame = frame .. string.char(0, 0, 0, 0)
     frame = frame .. string.char(bit.band(bit.rshift(len, 24), 0xFF))
     frame = frame .. string.char(bit.band(bit.rshift(len, 16), 0xFF))
     frame = frame .. string.char(bit.band(bit.rshift(len, 8), 0xFF))
     frame = frame .. string.char(bit.band(len, 0xFF))
   end
-  
-  -- Masking key (random 4 bytes)
+
   local mask_key = string.char(
     math.random(0, 255),
     math.random(0, 255),
@@ -165,19 +149,18 @@ local function send(payload)
     math.random(0, 255)
   )
   frame = frame .. mask_key
-  
-  -- Masked payload
+
   for i = 1, #data do
     local byte = data:byte(i)
     local mask_byte = mask_key:byte(((i - 1) % 4) + 1)
     frame = frame .. string.char(bit.bxor(byte, mask_byte))
   end
-  
+
   job.send(state.jobid, frame)
 end
 
 --------------------------------------------------
--- heartbeat
+-- heartbeat with timeout detection
 --------------------------------------------------
 
 local function start_heartbeat(interval)
@@ -186,11 +169,37 @@ local function start_heartbeat(interval)
   end
 
   state.heartbeat = uv.new_timer()
+  state.last_heartbeat_ack = uv.now()
+  state.missed_heartbeats = 0
 
   state.heartbeat:start(
     interval,
     interval,
     vim.schedule_wrap(function()
+      -- Check for missed ACKs
+      local time_since_ack = uv.now() - state.last_heartbeat_ack
+      if time_since_ack > interval * 2 then
+        state.missed_heartbeats = state.missed_heartbeats + 1
+        log.warn(
+          string.format(
+            'Missed heartbeat ACK (%d/3)',
+            state.missed_heartbeats
+          )
+        )
+
+        if state.missed_heartbeats >= 3 then
+          log.error('Too many missed heartbeats, reconnecting...')
+          if state.heartbeat then
+            state.heartbeat:stop()
+            state.heartbeat = nil
+          end
+          if state.jobid then
+            job.stop(state.jobid)
+          end
+          return
+        end
+      end
+
       log.debug('Sending heartbeat, seq=' .. tostring(state.seq))
       send({
         op = 1,
@@ -237,21 +246,37 @@ local function handle_event(data)
   ------------------------------------------------
 
   if data.op == 10 then
-    log.debug('Received HELLO, heartbeat_interval=' .. data.d.heartbeat_interval)
+    log.debug(
+      'Received HELLO, heartbeat_interval=' .. data.d.heartbeat_interval
+    )
     start_heartbeat(data.d.heartbeat_interval)
 
-    send({
-      op = 2,
-      d = {
-        token = config.config.integrations.discord.token,
-        intents = 513,
-        properties = {
-          os = 'linux',
-          browser = 'chat.nvim',
-          device = 'chat.nvim',
+    -- Try to resume if we have a session
+    if state.session_id and state.seq then
+      log.info('Attempting to resume session: ' .. state.session_id)
+      send({
+        op = 6,
+        d = {
+          token = config.config.integrations.discord.token,
+          session_id = state.session_id,
+          seq = state.seq,
         },
-      },
-    })
+      })
+    else
+      -- Fresh connection
+      send({
+        op = 2,
+        d = {
+          token = config.config.integrations.discord.token,
+          intents = 513,
+          properties = {
+            os = 'linux',
+            browser = 'chat.nvim',
+            device = 'chat.nvim',
+          },
+        },
+      })
+    end
 
     return
   end
@@ -262,6 +287,34 @@ local function handle_event(data)
 
   if data.op == 11 then
     log.debug('Heartbeat ACK received')
+    state.last_heartbeat_ack = uv.now()
+    state.missed_heartbeats = 0
+    return
+  end
+
+  ------------------------------------------------
+  -- INVALID SESSION
+  ------------------------------------------------
+
+  if data.op == 9 then
+    log.warn('Invalid session, can resume: ' .. tostring(data.d))
+    if data.d then
+      -- Can resume, wait and retry
+      vim.defer_fn(function()
+        if state.jobid then
+          job.stop(state.jobid)
+        end
+      end, 1000)
+    else
+      -- Cannot resume, clear session
+      state.session_id = nil
+      state.seq = nil
+      vim.defer_fn(function()
+        if state.jobid then
+          job.stop(state.jobid)
+        end
+      end, 1000)
+    end
     return
   end
 
@@ -279,9 +332,25 @@ local function handle_event(data)
 
   if data.t == 'READY' then
     state.bot_id = data.d.user.id
+    state.session_id = data.d.session_id
+    state.reconnect_attempts = 0 -- Reset on successful connection
 
-    log.info('Discord gateway ready, bot_id=' .. state.bot_id)
+    log.info(
+      'Discord gateway ready, bot_id='
+        .. state.bot_id
+        .. ', session_id='
+        .. state.session_id
+    )
+    return
+  end
 
+  ------------------------------------------------
+  -- RESUMED
+  ------------------------------------------------
+
+  if data.t == 'RESUMED' then
+    state.reconnect_attempts = 0
+    log.info('Discord gateway resumed successfully')
     return
   end
 
@@ -319,33 +388,35 @@ local function handle_event(data)
 end
 
 --------------------------------------------------
--- connect gateway
+-- Internal connect function
 --------------------------------------------------
 
-function M.connect(callback)
-  state.callback = callback
-  state.buffer = '' -- Reset buffer
+local function connect_gateway()
+  state.buffer = ''
+  state.is_connecting = true
 
   state.jobid = job.start({
     'curl',
-    '-i',            -- Show HTTP headers
-    '-N',            -- No buffering
-    '--no-buffer',   -- Disable buffering
-    '--tcp-nodelay', -- Reduce latency
+    '-i',
+    '-N',
+    '--no-buffer',
+    '--tcp-nodelay',
     '-s',
-    '-H', 'Upgrade: websocket',
-    '-H', 'Connection: Upgrade',
-    '-H', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-    '-H', 'Sec-WebSocket-Version: 13',
+    '-H',
+    'Upgrade: websocket',
+    '-H',
+    'Connection: Upgrade',
+    '-H',
+    'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+    '-H',
+    'Sec-WebSocket-Version: 13',
     'wss://gateway.discord.gg/?v=10&encoding=json',
   }, {
-    raw  = true,
+    raw = true,
     on_stdout = function(_, data)
-      -- Parse WebSocket frames
       local frames = parse_frames(table.concat(data))
-      
+
       for _, frame in ipairs(frames) do
-        -- Handle different opcodes
         if frame.opcode == OPCODE.TEXT then
           log.debug('Text frame: ' .. frame.payload)
           local ok, obj = pcall(json.decode, frame.payload)
@@ -356,11 +427,24 @@ function M.connect(callback)
           end
         elseif frame.opcode == OPCODE.PING then
           log.debug('Received PING, sending PONG')
-          -- Send PONG
           local pong_frame = string.char(0x8A, 0) .. frame.payload
           job.send(state.jobid, pong_frame)
         elseif frame.opcode == OPCODE.CLOSE then
-          log.info('WebSocket connection closed by server')
+          -- Parse close code and reason
+          if #frame.payload >= 2 then
+            local code = bit.bor(
+              bit.lshift(frame.payload:byte(1), 8),
+              frame.payload:byte(2)
+            )
+            local reason = frame.payload:sub(3)
+            log.warn(
+              string.format(
+                'WebSocket close: code=%d, reason=%s',
+                code,
+                reason
+              )
+            )
+          end
           job.stop(state.jobid)
         end
       end
@@ -374,12 +458,12 @@ function M.connect(callback)
       end
     end,
 
-    on_exit = function(_, code, single)
+    on_exit = function(_, code, signal)
       log.info(
         string.format(
           'Discord gateway disconnected: code=%d, signal=%d',
           code,
-          single
+          signal
         )
       )
 
@@ -390,6 +474,32 @@ function M.connect(callback)
       end
       state.jobid = nil
       state.buffer = ''
+      state.is_connecting = false
+
+      -- Auto-reconnect with exponential backoff
+      if state.callback and state.reconnect_attempts < 5 then
+        state.reconnect_attempts = state.reconnect_attempts + 1
+        local delay = math.min(2 ^ state.reconnect_attempts, 30)
+
+        log.info(
+          string.format(
+            'Reconnecting in %d seconds (attempt %d/5)',
+            delay,
+            state.reconnect_attempts
+          )
+        )
+
+        vim.defer_fn(function()
+          if state.callback and not state.is_connecting then
+            connect_gateway()
+          end
+        end, delay * 1000)
+      elseif state.reconnect_attempts >= 5 then
+        log.error(
+          'Max reconnection attempts reached. Use M.connect() to retry.'
+        )
+        state.reconnect_attempts = 0
+      end
     end,
   })
 
@@ -397,7 +507,40 @@ function M.connect(callback)
 end
 
 --------------------------------------------------
--- send message
+-- Public connect function
+--------------------------------------------------
+
+function M.connect(callback)
+  state.callback = callback
+  state.reconnect_attempts = 0 -- Reset on manual connect
+  connect_gateway()
+end
+
+--------------------------------------------------
+-- Disconnect function
+--------------------------------------------------
+
+function M.disconnect()
+  state.callback = nil -- Prevent reconnection
+  state.reconnect_attempts = 5 -- Max out to stop auto-reconnect
+
+  if state.heartbeat then
+    state.heartbeat:stop()
+    state.heartbeat = nil
+  end
+
+  if state.jobid then
+    -- Send WebSocket close frame
+    local close_frame = string.char(0x88, 0) -- Close frame with no payload
+    job.send(state.jobid, close_frame)
+    job.stop(state.jobid)
+  end
+
+  log.info('Discord gateway disconnected manually')
+end
+
+--------------------------------------------------
+-- send message (unchanged)
 --------------------------------------------------
 
 function M.send_message(content)
@@ -435,7 +578,7 @@ function M.send_message(content)
 end
 
 --------------------------------------------------
--- reply message
+-- reply message (unchanged)
 --------------------------------------------------
 
 function M.reply(channel, message_id, text)
