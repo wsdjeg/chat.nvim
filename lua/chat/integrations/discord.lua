@@ -22,6 +22,10 @@ local state = {
   -- WebSocket frame buffer
   buffer = '',
 
+  -- HTTP handshake buffer
+  handshake_buffer = '',
+  handshake_complete = false,
+
   -- Connection management
   last_heartbeat_ack = 0,
   missed_heartbeats = 0,
@@ -388,20 +392,24 @@ local function handle_event(data)
 end
 
 --------------------------------------------------
--- Internal connect function
+-- Internal connect function with HTTP handshake handling
 --------------------------------------------------
 
 local function connect_gateway()
   state.buffer = ''
+  state.handshake_buffer = ''
+  state.handshake_complete = false
   state.is_connecting = true
 
+  -- Remove '-i' flag to avoid HTTP headers in output
+  -- Use --http1.1 to ensure proper upgrade
   state.jobid = job.start({
     'curl',
-    '-i',
-    '-N',
+    '-N',  -- No buffer
     '--no-buffer',
     '--tcp-nodelay',
-    '-s',
+    '-s',  -- Silent mode (no progress)
+    '--http1.1',
     '-H',
     'Upgrade: websocket',
     '-H',
@@ -414,43 +422,33 @@ local function connect_gateway()
   }, {
     raw = true,
     on_stdout = function(_, data)
-      for _, v in ipairs(data) do
-        log.debug(v)
-      end
-      local frames = parse_frames(table.concat(data))
-
-      for _, frame in ipairs(frames) do
-        if frame.opcode == OPCODE.TEXT then
-          log.debug('Text frame: ' .. frame.payload)
-          local ok, obj = pcall(json.decode, frame.payload)
-          if ok and obj then
-            handle_event(obj)
-          else
-            log.error('Failed to decode JSON: ' .. frame.payload)
-          end
-        elseif frame.opcode == OPCODE.PING then
-          log.debug('Received PING, sending PONG')
-          local pong_frame = string.char(0x8A, 0) .. frame.payload
-          job.send(state.jobid, pong_frame)
-        elseif frame.opcode == OPCODE.CLOSE then
-          -- Parse close code and reason
-          if #frame.payload >= 2 then
-            local code = bit.bor(
-              bit.lshift(frame.payload:byte(1), 8),
-              frame.payload:byte(2)
-            )
-            local reason = frame.payload:sub(3)
-            log.warn(
-              string.format(
-                'WebSocket close: code=%d, reason=%s',
-                code,
-                reason
-              )
-            )
-          end
-          job.stop(state.jobid)
+      local raw_data = table.concat(data)
+      
+      -- If handshake not complete, accumulate and check for end of headers
+      if not state.handshake_complete then
+        state.handshake_buffer = state.handshake_buffer .. raw_data
+        
+        -- Look for end of HTTP headers (empty line \r\n\r\n or \n\n)
+        local header_end = state.handshake_buffer:find('\r\n\r\n')
+        if not header_end then
+          header_end = state.handshake_buffer:find('\n\n')
         end
+        
+        if header_end then
+          state.handshake_complete = true
+          -- Extract remaining data after headers for WebSocket frames
+          local remaining = state.handshake_buffer:sub(header_end + (state.handshake_buffer:match('\r\n\r\n') and 4 or 2))
+          if remaining and #remaining > 0 then
+            local frames = parse_frames(remaining)
+            process_frames(frames)
+          end
+        end
+        return
       end
+      
+      -- Handshake complete, process WebSocket frames directly
+      local frames = parse_frames(raw_data)
+      process_frames(frames)
     end,
 
     on_stderr = function(_, data)
@@ -477,6 +475,8 @@ local function connect_gateway()
       end
       state.jobid = nil
       state.buffer = ''
+      state.handshake_buffer = ''
+      state.handshake_complete = false
       state.is_connecting = false
 
       -- Auto-reconnect with exponential backoff
@@ -507,6 +507,45 @@ local function connect_gateway()
   })
 
   log.debug('Discord gateway connecting, jobid=' .. state.jobid)
+end
+
+--------------------------------------------------
+-- Process WebSocket frames (extracted from on_stdout)
+--------------------------------------------------
+
+local function process_frames(frames)
+  for _, frame in ipairs(frames) do
+    if frame.opcode == OPCODE.TEXT then
+      log.debug('Text frame: ' .. frame.payload)
+      local ok, obj = pcall(json.decode, frame.payload)
+      if ok and obj then
+        handle_event(obj)
+      else
+        log.error('Failed to decode JSON: ' .. frame.payload)
+      end
+    elseif frame.opcode == OPCODE.PING then
+      log.debug('Received PING, sending PONG')
+      local pong_frame = string.char(0x8A, 0) .. frame.payload
+      job.send(state.jobid, pong_frame)
+    elseif frame.opcode == OPCODE.CLOSE then
+      -- Parse close code and reason
+      if #frame.payload >= 2 then
+        local code = bit.bor(
+          bit.lshift(frame.payload:byte(1), 8),
+          frame.payload:byte(2)
+        )
+        local reason = frame.payload:sub(3)
+        log.warn(
+          string.format(
+            'WebSocket close: code=%d, reason=%s',
+            code,
+            reason
+          )
+        )
+      end
+      job.stop(state.jobid)
+    end
+  end
 end
 
 --------------------------------------------------
