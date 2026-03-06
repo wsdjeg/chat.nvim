@@ -125,7 +125,6 @@ function M.generate_message(message, session)
     }
   elseif message.error then
     return {
-      '',
       string.format(
         '[%s] ❌ : %s',
         os.date(config.config.strftime, message.created),

@@ -13,7 +13,6 @@ local CURL_ERRORS = {
 
 local log = require('chat.log')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
 
 local sse_buffers = {}
 local body_buffers = {}
@@ -145,43 +144,25 @@ function M.on_exit(id, code, signal)
       -- finish_reason == content_filter warningMsg
     end
     sessions.on_progress_exit(id, code, signal)
-    if
-      session == require('chat.windows').current_session()
-      and not sessions.is_in_progress(session)
-    then
+    if session == require('chat.windows').current_session() then
       require('chat.spinners').stop()
     end
     if signal == 2 then
       local message = {
-        '',
-        string.format(
-          '[%s] ❌ : Request cancelled by user. Press r to retry.',
-          os.date(config.config.strftime)
-        ),
-        '',
+        error = 'Request cancelled by user. Press r to retry.',
+        created = os.time(),
       }
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 and CURL_ERRORS[code] then
       local message = {
-        '',
-        string.format(
-          '[%s] ❌ : %s',
-          os.date(config.config.strftime),
-          CURL_ERRORS[code]
-        ),
-        '',
+        error = CURL_ERRORS[code],
+        created = os.time(),
       }
       require('chat.windows').on_message(session, message)
-      -- Handle unknown errors
     elseif code ~= 0 then
       local message = {
-        '',
-        string.format(
-          '[%s] ❌ : Curl failed with exit code %d. Run `curl --help` for details.',
-          os.date(config.config.strftime),
-          code
-        ),
-        '',
+        error = 'Curl failed with exit code %d. Run `curl --help` for details.',
+        created = os.time(),
       }
       require('chat.windows').on_message(session, message)
     end
