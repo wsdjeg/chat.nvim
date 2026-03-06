@@ -16,10 +16,10 @@ function M.send_message(content)
     'curl',
     '-s',
     'https://discord.com/api/v10/channels/'
-      .. config.channel_id
+      .. config.config.integrations.discord.channel_id
       .. '/messages',
     '-H',
-    'Authorization: Bot ' .. config.token,
+    'Authorization: Bot ' .. config.config.integrations.discord.token,
     '-H',
     'Content-Type: application/json',
     '-X',
