@@ -414,6 +414,9 @@ local function connect_gateway()
   }, {
     raw = true,
     on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        log.debug(v)
+      end
       local frames = parse_frames(table.concat(data))
 
       for _, frame in ipairs(frames) do
