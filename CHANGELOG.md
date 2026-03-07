@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.4.0](https://github.com/wsdjeg/chat.nvim/compare/v1.3.0...v1.4.0) (2026-03-07)
+
+
+### Features
+
+* add `:Chat preview` & `ctrl-o` for picker ([d0be66c](https://github.com/wsdjeg/chat.nvim/commit/d0be66c138acd9adc3bd5dc935a7cc5abdcf2ea6))
+* add `:Chat save/share/load` ([b956f61](https://github.com/wsdjeg/chat.nvim/commit/b956f615d8b1d24b5758093ca9eceb7114d710ff))
+* add discord integration ([209a764](https://github.com/wsdjeg/chat.nvim/commit/209a764c6fddd0d40fe85effd55fb022f8c52029))
+* enhance HTML preview with code block ([a6444a2](https://github.com/wsdjeg/chat.nvim/commit/a6444a261cbdbe6f93a9f9affa5c8c3021f3b24b))
+
+
+### Bug Fixes
+
+* fix tbl_every function ([a034a4b](https://github.com/wsdjeg/chat.nvim/commit/a034a4b5cc6fc4d9ac1f30f6b1534adf5e43a951))
+* handle error message ([9dae9e7](https://github.com/wsdjeg/chat.nvim/commit/9dae9e770e973592c6b5e821d34852802adc1f18))
+* handle share http code ([4b4ca2e](https://github.com/wsdjeg/chat.nvim/commit/4b4ca2eed87e935fac605957ec4a65702a9f0d59))
+* simplify get_current_session ([dab80d7](https://github.com/wsdjeg/chat.nvim/commit/dab80d7aac5f841fce0493571a0232b0f88f2b8a))
+
 ## [1.3.0](https://github.com/wsdjeg/chat.nvim/compare/v1.2.0...v1.3.0) (2026-03-02)
 
 
