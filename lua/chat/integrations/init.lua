@@ -136,15 +136,24 @@ function M.on_response(session, content)
     return
   end
 
+  -- Check each IM independently, not with elseif
   if session == discord.current_session() then
     discord.send_message(content)
-  elseif session == lark.current_session() then
+  end
+
+  if session == lark.current_session() then
     lark.send_message(content)
-  elseif session == dingtalk.current_session() then
+  end
+
+  if session == dingtalk.current_session() then
     dingtalk.send_message(content)
-  elseif session == wecom.current_session() then
+  end
+
+  if session == wecom.current_session() then
     wecom.send_message(content)
-  elseif session == telegram.current_session() then
+  end
+
+  if session == telegram.current_session() then
     telegram.send_message(content)
   end
 end
