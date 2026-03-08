@@ -31,7 +31,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [File Access Control](#file-access-control)
     - [Memory System Configuration](#memory-system-configuration)
     - [system_prompt Usage Examples](#system_prompt-usage-examples)
-    - [Discord Bot Integration](#discord-bot-integration)
+    - [IM Integration Configuration](#im-integration-configuration)
     - [Complete Configuration Example](#complete-configuration-example)
     - [Configuration Notes](#configuration-notes)
 - [⚙️ Usage](#-usage)
@@ -76,6 +76,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Integration Ideas](#integration-ideas)
 - [🔍 Picker Integration](#-picker-integration)
 - [💬 IM Integration](#-im-integration)
+    - [Supported Platforms](#supported-platforms)
     - [Discord](#discord)
         - [Features](#features)
         - [Setup Guide](#setup-guide)
@@ -83,8 +84,29 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [Workflow](#workflow)
         - [Technical Details](#technical-details)
         - [Troubleshooting](#troubleshooting)
-    - [Future IM Platforms](#future-im-platforms)
-    - [Technical Details](#technical-details-1)
+    - [Lark (Feishu)](#lark-feishu)
+        - [Features](#features-1)
+        - [Setup Guide](#setup-guide-1)
+        - [Commands](#commands-1)
+        - [Technical Details](#technical-details-1)
+    - [DingTalk](#dingtalk)
+        - [Features](#features-2)
+        - [Setup Guide](#setup-guide-2)
+        - [Technical Details](#technical-details-2)
+    - [WeCom (Enterprise WeChat)](#wecom-enterprise-wechat)
+        - [Features](#features-3)
+        - [Setup Guide](#setup-guide-3)
+        - [Technical Details](#technical-details-3)
+    - [Telegram](#telegram)
+        - [Features](#features-4)
+        - [Setup Guide](#setup-guide-4)
+        - [Commands](#commands-2)
+        - [Workflow](#workflow-1)
+        - [Technical Details](#technical-details-4)
+        - [Troubleshooting](#troubleshooting-1)
+    - [Common Features](#common-features)
+    - [Platform-Specific Notes](#platform-specific-notes)
+    - [Contributing New Integrations](#contributing-new-integrations)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 - [📄 License](#-license)
@@ -96,7 +118,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
 - **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
-- **IM Integration**: Connect Discord channels to chat.nvim sessions for remote AI interaction
+- **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
 - **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), sharing (`:Chat share`), and bridging (`:Chat bridge`) sessions, plus changing working directory (`:Chat cd`)
@@ -450,41 +472,66 @@ system_prompt = function()
 end
 ```
 
-### Discord Bot Integration
+### IM Integration Configuration
 
-Configure Discord bot integration for remote AI interaction:
+Configure instant messaging platform integrations for remote AI interaction:
 
 ```lua
 integrations = {
+  -- Discord
   discord = {
     token = 'YOUR_DISCORD_BOT_TOKEN',     -- Discord bot token
     channel_id = 'YOUR_CHANNEL_ID',        -- Discord channel ID
   },
+
+  -- Lark (Feishu)
+  lark = {
+    app_id = 'YOUR_APP_ID',                -- Lark app ID
+    app_secret = 'YOUR_APP_SECRET',        -- Lark app secret
+    chat_id = 'YOUR_CHAT_ID',              -- Lark chat ID
+  },
+
+  -- DingTalk
+  dingtalk = {
+    -- Webhook mode (one-way, simpler)
+    webhook = 'https://oapi.dingtalk.com/robot/send?access_token=XXX',
+    -- OR API mode (two-way, requires app credentials)
+    app_key = 'YOUR_APP_KEY',
+    app_secret = 'YOUR_APP_SECRET',
+    conversation_id = 'YOUR_CONVERSATION_ID',
+    user_id = 'YOUR_USER_ID',
+  },
+
+  -- WeCom (Enterprise WeChat)
+  wecom = {
+    -- Webhook mode (one-way, simpler)
+    webhook_key = 'YOUR_WEBHOOK_KEY',
+    -- OR API mode (two-way, requires corporate credentials)
+    corp_id = 'YOUR_CORP_ID',
+    corp_secret = 'YOUR_CORP_SECRET',
+    agent_id = 'YOUR_AGENT_ID',
+    user_id = 'YOUR_USER_ID',
+  },
+
+  -- Telegram
+  telegram = {
+    bot_token = 'YOUR_BOT_TOKEN',          -- Telegram bot token
+    chat_id = 'YOUR_CHAT_ID',              -- Telegram chat ID
+  },
 },
 ```
 
-**Setup Steps:**
+**Platform Comparison:**
 
-1. Create a Discord application at https://discord.com/developers/applications
-2. Create a bot user and copy the token
-3. Enable "Message Content Intent" in bot settings
-4. Invite bot to your server with appropriate permissions
-5. Get the channel ID where you want the bot to listen
-6. Configure `token` and `channel_id` in chat.nvim setup
-
-**Usage:**
-
-- The bot will automatically listen to messages in the configured channel
-- Messages mentioning the bot will be forwarded to chat.nvim
-- Use `:Chat bridge discord` to bind current session to Discord
-- Use `/session` in Discord to check current session
-- Use `/clear` in Discord to clear current session
-
-**Notes:**
-
-- Requires `curl` for HTTP requests
-- Messages are processed via Discord API polling
-- Supports automatic session binding and message routing
+| Platform    | Mode       | Bidirectional | Setup Complexity | Message Limit |
+| ----------- | ---------- | ------------- | ---------------- | ------------- |
+| Discord     | Bot API    | ✅ Yes        | Medium           | 2,000 chars   |
+| Lark        | Bot API    | ✅ Yes        | Medium           | 30,720 chars  |
+| DingTalk    | Webhook    | ❌ No         | Low              | 20,000 chars  |
+| DingTalk    | API        | ✅ Yes        | High             | 20,000 chars  |
+| WeCom       | Webhook    | ❌ No         | Low              | 2,048 chars   |
+| WeCom       | API        | ✅ Yes        | High             | 2,048 chars   |
+| Telegram    | Bot API    | ✅ Yes        | Low              | 4,096 chars   |
 
 ### Complete Configuration Example
 
@@ -519,8 +566,6 @@ require('chat').setup({
 
   -- Other settings
   strftime = '%Y-%m-%d %H:%M',
-  -- system_prompt = 'You are a helpful programming assistant.',
-  -- system_prompt can be a string or a function that returns a string.
   system_prompt = function()
     local path = vim.fn.expand('./AGENTS.md')
     if vim.fn.filereadable(path) == 1 then
@@ -535,6 +580,16 @@ require('chat').setup({
     max_memories = 1000,
     retrieval_limit = 5,
     similarity_threshold = 0.25,
+  },
+
+  -- IM Integrations (configure platforms you need)
+  integrations = {
+    -- Discord
+    discord = {
+      token = 'YOUR_DISCORD_BOT_TOKEN',
+      channel_id = 'YOUR_CHANNEL_ID',
+    },
+    -- Add other platforms as needed...
   },
 })
 ```
@@ -2043,7 +2098,19 @@ These sources allow you to quickly access and manage your chat sessions, provide
 
 ## 💬 IM Integration
 
-chat.nvim supports integration with instant messaging platforms for remote AI interaction.
+chat.nvim supports integration with multiple instant messaging platforms for remote AI interaction.
+
+### Supported Platforms
+
+| Platform    | Icon | Bidirectional | Features                                      |
+| ----------- | ---- | ------------- | --------------------------------------------- |
+| Discord     | 💬   | ✅ Yes        | Full-featured bot with session binding        |
+| Lark        | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling          |
+| DingTalk    | 📱   | ✅ Yes*       | Webhook (one-way) or API (two-way)            |
+| WeCom       | 💼   | ✅ Yes*       | Enterprise WeChat webhook or API              |
+| Telegram    | ✈️   | ✅ Yes        | Bot API with group/private chat support       |
+
+*Webhook mode is one-way only; API mode supports bidirectional communication.
 
 ### Discord
 
@@ -2055,6 +2122,7 @@ Discord integration allows you to interact with AI assistants via Discord messag
 - **Session Binding**: Bind specific Discord channels to chat.nvim sessions
 - **Remote Control**: Use Discord commands to manage sessions remotely
 - **Automatic Polling**: Bot polls for new messages every 3 seconds
+- **Message Mentions**: Bot responds to mentions and replies
 
 #### Setup Guide
 
@@ -2092,14 +2160,12 @@ Discord integration allows you to interact with AI assistants via Discord messag
 **6. Configure chat.nvim**
 
 ```lua
-require('chat').setup({
-  integrations = {
-    discord = {
-      token = 'YOUR_DISCORD_BOT_TOKEN',
-      channel_id = 'YOUR_CHANNEL_ID',
-    },
+integrations = {
+  discord = {
+    token = 'YOUR_DISCORD_BOT_TOKEN',
+    channel_id = 'YOUR_CHANNEL_ID',
   },
-})
+}
 ```
 
 #### Commands
@@ -2111,9 +2177,7 @@ require('chat').setup({
 **Discord Commands:**
 
 - `/session` - Bind current Discord channel to active chat.nvim session
-- `/clear` - Clear messages in the bound session (won't work if session is in progress)
-
-**Note**: The bot responds to messages that mention it or reply to its messages.
+- `/clear` - Clear messages in the bound session
 
 #### Workflow
 
@@ -2128,12 +2192,9 @@ require('chat').setup({
 
 - **API**: Discord REST API v10
 - **Polling**: 3-second intervals
-- **Message Queue**: Sequential processing with queue system
-- **State Persistence**: `stdpath('data')/chat-discord-state.json`
 - **Message Limit**: Auto-chunking for messages > 2000 characters
-- **Deduplication**: Processed message IDs cache (max 100)
+- **State Persistence**: `stdpath('data')/chat-discord-state.json`
 - **Timeout Protection**: 5-second request timeout
-- **Session Binding**: Persistent across Neovim restarts
 
 #### Troubleshooting
 
@@ -2142,41 +2203,312 @@ require('chat').setup({
 1. Verify token and channel_id are correct
 2. Check bot has "Message Content Intent" enabled
 3. Ensure bot is invited with proper permissions
-4. Run `:messages` in Neovim to check error logs
-5. Make sure you're mentioning the bot or replying to its messages
-
-**Session not binding:**
-
-1. Run `/session` in Discord to check current binding
-2. Run `:Chat bridge discord` in Neovim to rebind
-3. Check if chat.nvim window is open
-
-**Messages not syncing:**
-
-1. Verify chat.nvim session is not in progress
-2. Check if session is bound with `/session`
-3. Try clearing state: `:lua require('chat.integrations.discord').clear_state()`
+4. Make sure you're mentioning the bot or replying to its messages
 
 **State issues:**
 
-- Clear state file manually: `rm ~/.local/share/nvim/chat-discord-state.json`
-- Or use Lua: `:lua require('chat.integrations.discord').clear_state()`
+- Clear state: `:lua require('chat.integrations.discord').clear_state()`
 
-### Future IM Platforms
+### Lark (Feishu)
 
-The following platforms are planned for future releases:
+Lark/Feishu integration for enterprise communication.
 
-- **Slack**: Slack bot integration (in development)
+#### Features
 
-If you're interested in contributing an integration, see `lua/chat/integrations/init.lua` for the public API.
+- **Bidirectional Communication**: Send and receive messages via Lark bot
+- **Session Binding**: Bind Lark chats to chat.nvim sessions
+- **Automatic Polling**: Polls for new messages every 3 seconds
+- **Long Message Support**: Handles messages up to 30,720 characters
 
-### Technical Details
+#### Setup Guide
 
-- Uses Discord REST API v10
-- Polls for new messages every 3 seconds
-- Supports message references (replies)
-- Handles message chunks for long responses (2000 char limit)
-- State persistence across Neovim restarts
+**1. Create Lark App**
+
+- Go to https://open.feishu.cn/app
+- Create a new custom app
+- Copy **App ID** and **App Secret**
+
+**2. Configure Bot Permissions**
+
+- Enable "Get and send messages" permission
+- Configure event subscriptions if needed
+
+**3. Get Chat ID**
+
+- Use Lark API or app to get your chat_id
+- For group chats, use the group ID
+
+**4. Configure chat.nvim**
+
+```lua
+integrations = {
+  lark = {
+    app_id = 'YOUR_APP_ID',
+    app_secret = 'YOUR_APP_SECRET',
+    chat_id = 'YOUR_CHAT_ID',
+  },
+}
+```
+
+#### Commands
+
+- `:Chat bridge lark` - Bind current session to Lark chat
+
+#### Technical Details
+
+- **API**: Lark Open API
+- **Authentication**: Tenant Access Token (auto-refresh)
+- **Polling**: 3-second intervals
+- **Message Limit**: 30,720 characters
+- **State Persistence**: `stdpath('data')/chat-lark-state.json`
+
+### DingTalk
+
+DingTalk integration with webhook or API mode.
+
+#### Features
+
+- **Two Modes**: Webhook (simple, one-way) or API (bidirectional)
+- **Message Queue**: Sequential message processing
+- **Long Message Support**: Auto-chunking for messages > 20,000 characters
+
+#### Setup Guide
+
+**Webhook Mode (Simple, One-Way):**
+
+1. Create a custom robot in DingTalk group
+2. Copy the webhook URL
+3. Configure:
+
+```lua
+integrations = {
+  dingtalk = {
+    webhook = 'https://oapi.dingtalk.com/robot/send?access_token=XXX',
+  },
+}
+```
+
+**API Mode (Advanced, Bidirectional):**
+
+1. Create an enterprise internal app
+2. Get AppKey and AppSecret
+3. Configure:
+
+```lua
+integrations = {
+  dingtalk = {
+    app_key = 'YOUR_APP_KEY',
+    app_secret = 'YOUR_APP_SECRET',
+    conversation_id = 'YOUR_CONVERSATION_ID',
+    user_id = 'YOUR_USER_ID',
+  },
+}
+```
+
+#### Technical Details
+
+- **API**: DingTalk Open Platform API
+- **Authentication**: Access Token (auto-refresh)
+- **Message Limit**: 20,000 characters
+- **State Persistence**: `stdpath('data')/chat-dingtalk-state.json`
+
+### WeCom (Enterprise WeChat)
+
+WeCom integration with webhook or API mode.
+
+#### Features
+
+- **Two Modes**: Webhook (simple, one-way) or API (bidirectional)
+- **Corporate Integration**: Full enterprise WeChat support
+- **Message Queue**: Sequential processing
+
+#### Setup Guide
+
+**Webhook Mode (Simple, One-Way):**
+
+1. Add a webhook robot in WeCom group
+2. Copy the webhook key
+3. Configure:
+
+```lua
+integrations = {
+  wecom = {
+    webhook_key = 'YOUR_WEBHOOK_KEY',
+  },
+}
+```
+
+**API Mode (Advanced, Bidirectional):**
+
+1. Create an enterprise application
+2. Get CorpID, CorpSecret, and AgentID
+3. Configure:
+
+```lua
+integrations = {
+  wecom = {
+    corp_id = 'YOUR_CORP_ID',
+    corp_secret = 'YOUR_CORP_SECRET',
+    agent_id = 'YOUR_AGENT_ID',
+    user_id = 'YOUR_USER_ID',
+  },
+}
+```
+
+#### Technical Details
+
+- **API**: WeCom API
+- **Authentication**: Access Token (auto-refresh)
+- **Message Limit**: 2,048 characters
+- **State Persistence**: `stdpath('data')/chat-wecom-state.json`
+
+### Telegram
+
+Telegram bot integration with full feature support.
+
+#### Features
+
+- **Full Bot API Support**: Works in groups and private chats
+- **Markdown Support**: Send formatted messages with Markdown
+- **Reply Support**: Reply to specific messages
+- **Long Message Support**: Auto-chunking for messages > 4,096 characters
+- **Bot Commands**: Support for `/session` and `/clear` commands
+
+#### Setup Guide
+
+**1. Create Telegram Bot**
+
+- Open Telegram and search for `@BotFather`
+- Send `/newbot` command
+- Follow instructions to create your bot
+- Copy the **Bot Token** (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+**2. Get Chat ID**
+
+**For Private Chat:**
+- Start a conversation with your bot
+- Send a message to the bot
+- Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+- Find the `"chat":{"id":` value in the response
+
+**For Group Chat:**
+- Add bot to group
+- Send a message mentioning the bot
+- Visit the same URL to get the group chat ID
+
+**3. Configure chat.nvim**
+
+```lua
+integrations = {
+  telegram = {
+    bot_token = 'YOUR_BOT_TOKEN',
+    chat_id = 'YOUR_CHAT_ID',
+  },
+}
+```
+
+#### Commands
+
+**Neovim Commands:**
+
+- `:Chat bridge telegram` - Bind current session to Telegram chat
+
+**Telegram Commands:**
+
+- `/session` - Bind current Telegram chat to active session
+- `/clear` - Clear messages in the bound session
+
+#### Workflow
+
+1. Configure Telegram bot token and chat ID
+2. Open chat.nvim and create/start a session
+3. Run `:Chat bridge telegram` to bind the session
+4. In Telegram, send a message to the bot or mention it in a group
+5. AI response will be sent back to Telegram automatically
+
+#### Technical Details
+
+- **API**: Telegram Bot API
+- **Polling**: 3-second intervals via getUpdates
+- **Message Format**: Markdown support
+- **Message Limit**: Auto-chunking for messages > 4,096 characters
+- **State Persistence**: `stdpath('data')/chat-telegram-state.json`
+- **Bot Detection**: Auto-fetches and caches bot username
+
+#### Troubleshooting
+
+**Bot not responding:**
+
+1. Verify bot token is correct
+2. Check if chat_id is correct (private chat or group)
+3. For groups, make sure bot has read permissions
+4. Try sending `/start` to the bot first
+
+**State issues:**
+
+- Clear state: `:lua require('chat.integrations.telegram').clear_state()`
+
+### Common Features
+
+All IM integrations share these common features:
+
+**Commands:**
+
+- `:Chat bridge <platform>` - Bind current session to platform
+- `/session` - Check/update session binding
+- `/clear` - Clear current session messages
+
+**Technical Details:**
+
+- **Polling Interval**: 3 seconds (configurable per platform)
+- **Message Queue**: Sequential processing to prevent race conditions
+- **State Persistence**: JSON files in `stdpath('data')`
+- **Auto-reconnect**: Automatic recovery from network issues
+- **Timeout Protection**: 5-second request timeout
+
+### Platform-Specific Notes
+
+**Discord:**
+- Requires "Message Content Intent" enabled
+- Bot must be mentioned or replied to in group chats
+- Private channels require direct messages
+
+**Lark:**
+- Requires app approval for production use
+- Tenant access token is auto-refreshed
+- Supports rich message types (text, cards, etc.)
+
+**DingTalk:**
+- Webhook mode is simplest but one-way only
+- API mode requires enterprise app registration
+- Stream mode recommended for bidirectional communication
+
+**WeCom:**
+- Webhook mode is simplest but one-way only
+- API mode requires corporate approval
+- Internal apps have more permissions
+
+**Telegram:**
+- Works in both private and group chats
+- Groups require bot to be admin for some features
+- Supports inline queries and callbacks
+
+### Contributing New Integrations
+
+To add a new IM platform integration:
+
+1. Create `lua/chat/integrations/<platform>.lua`
+2. Implement required functions:
+   - `connect(callback)` - Start listening for messages
+   - `disconnect()` - Stop listening
+   - `send_message(content)` - Send message
+   - `current_session()` - Get current session ID
+   - `set_session(session)` - Set current session
+   - `cleanup()` - Cleanup resources
+3. Update `lua/chat/integrations/init.lua`
+4. Add documentation to README
+
+See `lua/chat/integrations/discord.lua` for reference implementation.
 
 ## 📣 Self-Promotion
 
