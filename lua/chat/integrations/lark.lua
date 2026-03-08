@@ -11,7 +11,7 @@ local uv = vim.uv
 -- constants
 --------------------------------------------------
 local STATE_FILE = vim.fn.stdpath('data') .. '/chat-lark-state.json'
-local API_BASE = 'https://open.feishu.cn/open-api'
+local API_BASE = 'https://open.feishu.cn/open-apis'
 
 --------------------------------------------------
 -- state
