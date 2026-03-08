@@ -164,7 +164,7 @@ local function ensure_token(callback)
 end
 
 --------------------------------------------------
--- Fetch messages
+-- Fetch messages (FIXED)
 --------------------------------------------------
 local function fetch_messages()
   if state.is_fetching then
@@ -183,14 +183,11 @@ local function fetch_messages()
   state.is_fetching = true
 
   ensure_token(function(token)
+    -- Updated endpoint with container_id_type and container_id
     local endpoint = API_BASE
-      .. '/im/v1/messages?receive_id_type=chat_id&receive_id='
+      .. '/im/v1/messages?container_id_type=chat&container_id='
       .. chat_id
-      .. '&page_size=20'
-
-    if state.last_message_id then
-      endpoint = endpoint .. '&start_time=' .. state.last_message_id
-    end
+      .. '&page_size=50'
 
     local timeout = uv.new_timer()
     timeout:start(5000, 0, function()
@@ -200,37 +197,75 @@ local function fetch_messages()
       end
     end)
 
+    -- FIX: Accumulate response data
+    local response_chunks = {}
+
     job.start({
       'curl',
-      '-s',
+      '-sS',
+      '--compressed',
       '-X',
       'GET',
       endpoint,
       '-H',
       'Authorization: Bearer ' .. token,
     }, {
-      on_stdout = function(_, lines)
+      raw = true,
+
+      on_stdout = function(_, data)
+        for _, chunk in ipairs(data) do
+          table.insert(response_chunks, chunk)
+        end
+      end,
+      on_exit = function()
         timeout:stop()
         timeout:close()
         state.is_fetching = false
-
-        local output = table.concat(lines, '\n')
-        if not output or output == '' then
+        local response = table.concat(response_chunks)
+        if response == {} then
           return
         end
 
-        local ok, result = pcall(json.decode, output)
-        if not ok or not result or not result.data then
+        local ok, result = pcall(json.decode, response)
+        if not ok then
+          log.error('[Lark] JSON decode failed: ' .. response)
           return
         end
 
-        local messages = result.data.items or {}
-        local highest_id = state.last_message_id
+        if not result then
+          log.error('[Lark] Empty response')
+          return
+        end
+
+        -- Check for API errors
+        if result.code and result.code ~= 0 then
+          log.error(
+            '[Lark] API error ['
+              .. result.code
+              .. ']: '
+              .. (result.msg or 'unknown')
+          )
+          return
+        end
+
+        -- Get messages from response
+        local messages = {}
+        if result.data and result.data.items then
+          messages = result.data.items
+        elseif result.items then
+          messages = result.items
+        else
+          log.debug('[Lark] No messages in response')
+          return
+        end
+
         local has_new = false
 
+        -- Process messages in chronological order (oldest first)
         for i = #messages, 1, -1 do
           local msg = messages[i]
 
+          -- Skip already processed messages
           if state.processed_ids[msg.message_id] then
             goto continue
           end
@@ -238,11 +273,7 @@ local function fetch_messages()
           state.processed_ids[msg.message_id] = true
           has_new = true
 
-          if not highest_id or msg.create_time > highest_id then
-            highest_id = msg.create_time
-          end
-
-          -- Skip bot messages
+          -- Skip bot messages (messages from this app itself)
           if msg.sender and msg.sender.sender_type == 'app' then
             goto continue
           end
@@ -259,12 +290,11 @@ local function fetch_messages()
             goto continue
           end
 
+          -- Call callback with the message
           if state.callback then
             vim.schedule(function()
               state.callback({
-                author = msg.sender
-                  and msg.sender.id
-                  or 'Unknown',
+                author = msg.sender and msg.sender.id or 'Unknown',
                 content = content,
                 message_id = msg.message_id,
               })
@@ -274,10 +304,7 @@ local function fetch_messages()
           ::continue::
         end
 
-        if highest_id and highest_id ~= state.last_message_id then
-          state.last_message_id = highest_id
-        end
-
+        -- Save state if there are new messages
         if has_new then
           save_state()
         end
@@ -290,8 +317,13 @@ end
 -- Connect
 --------------------------------------------------
 function M.connect(callback)
-  local lark_config = config.config.integrations and config.config.integrations.lark
-  if not lark_config or not lark_config.app_id or not lark_config.app_secret then
+  local lark_config = config.config.integrations
+    and config.config.integrations.lark
+  if
+    not lark_config
+    or not lark_config.app_id
+    or not lark_config.app_secret
+  then
     log.error('[Lark] app_id or app_secret not configured')
     return
   end
@@ -367,8 +399,7 @@ local function send_message(content)
       '-s',
       '-X',
       'POST',
-      API_BASE
-        .. '/im/v1/messages?receive_id_type=chat_id',
+      API_BASE .. '/im/v1/messages?receive_id_type=chat_id',
       '-H',
       'Authorization: Bearer ' .. token,
       '-H',
@@ -394,11 +425,14 @@ local function send_message(content)
       end,
     })
 
-    job.send(send_message_jobid, json.encode({
-      receive_id = chat_id,
-      msg_type = 'text',
-      content = json.encode({ text = content }),
-    }))
+    job.send(
+      send_message_jobid,
+      json.encode({
+        receive_id = chat_id,
+        msg_type = 'text',
+        content = json.encode({ text = content }),
+      })
+    )
     job.send(send_message_jobid, nil)
   end)
 end
@@ -455,4 +489,3 @@ function M.cleanup()
 end
 
 return M
-
