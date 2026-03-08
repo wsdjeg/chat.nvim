@@ -523,15 +523,15 @@ integrations = {
 
 **Platform Comparison:**
 
-| Platform    | Mode       | Bidirectional | Setup Complexity | Message Limit |
-| ----------- | ---------- | ------------- | ---------------- | ------------- |
-| Discord     | Bot API    | ✅ Yes        | Medium           | 2,000 chars   |
-| Lark        | Bot API    | ✅ Yes        | Medium           | 30,720 chars  |
-| DingTalk    | Webhook    | ❌ No         | Low              | 20,000 chars  |
-| DingTalk    | API        | ✅ Yes        | High             | 20,000 chars  |
-| WeCom       | Webhook    | ❌ No         | Low              | 2,048 chars   |
-| WeCom       | API        | ✅ Yes        | High             | 2,048 chars   |
-| Telegram    | Bot API    | ✅ Yes        | Low              | 4,096 chars   |
+| Platform | Mode    | Bidirectional | Setup Complexity | Message Limit |
+| -------- | ------- | ------------- | ---------------- | ------------- |
+| Discord  | Bot API | ✅ Yes        | Medium           | 2,000 chars   |
+| Lark     | Bot API | ✅ Yes        | Medium           | 30,720 chars  |
+| DingTalk | Webhook | ❌ No         | Low              | 20,000 chars  |
+| DingTalk | API     | ✅ Yes        | High             | 20,000 chars  |
+| WeCom    | Webhook | ❌ No         | Low              | 2,048 chars   |
+| WeCom    | API     | ✅ Yes        | High             | 2,048 chars   |
+| Telegram | Bot API | ✅ Yes        | Low              | 4,096 chars   |
 
 ### Complete Configuration Example
 
@@ -833,6 +833,7 @@ A provider module must implement:
 2. **`request(opt)`** - Send HTTP request and return job ID
 
 **Optional fields:**
+
 - **`protocol`** - Specify which protocol to use (default: `openai`)
 
 **Example custom provider:**
@@ -899,6 +900,7 @@ Protocols handle parsing of API responses. Currently, chat.nvim supports:
 - **`openai`**: OpenAI-compatible API format (default for all built-in providers)
 
 Future protocols planned:
+
 - **`anthropic`**: Anthropic Claude API format
 - **`google`**: Google Gemini API format
 
@@ -2102,15 +2104,15 @@ chat.nvim supports integration with multiple instant messaging platforms for rem
 
 ### Supported Platforms
 
-| Platform    | Icon | Bidirectional | Features                                      |
-| ----------- | ---- | ------------- | --------------------------------------------- |
-| Discord     | 💬   | ✅ Yes        | Full-featured bot with session binding        |
-| Lark        | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling          |
-| DingTalk    | 📱   | ✅ Yes*       | Webhook (one-way) or API (two-way)            |
-| WeCom       | 💼   | ✅ Yes*       | Enterprise WeChat webhook or API              |
-| Telegram    | ✈️   | ✅ Yes        | Bot API with group/private chat support       |
+| Platform | Icon | Bidirectional | Features                                |
+| -------- | ---- | ------------- | --------------------------------------- |
+| Discord  | 💬   | ✅ Yes        | Full-featured bot with session binding  |
+| Lark     | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling    |
+| DingTalk | 📱   | ✅ Yes\*      | Webhook (one-way) or API (two-way)      |
+| WeCom    | 💼   | ✅ Yes\*      | Enterprise WeChat webhook or API        |
+| Telegram | ✈️   | ✅ Yes        | Bot API with group/private chat support |
 
-*Webhook mode is one-way only; API mode supports bidirectional communication.
+\*Webhook mode is one-way only; API mode supports bidirectional communication.
 
 ### Discord
 
@@ -2230,8 +2232,16 @@ Lark/Feishu integration for enterprise communication.
 
 **2. Configure Bot Permissions**
 
-- Enable "Get and send messages" permission
-- Configure event subscriptions if needed
+Required permissions:
+
+- `im:message.group_msg` - Get all messages in groups (sensitive permission)
+- `im:message` - Get and send messages in private chats and groups
+
+Configuration steps:
+
+1. Go to your app → "Permissions & Scopes"
+2. Search for and enable the required permissions above
+3. For sensitive permissions, you may need to apply for approval
 
 **3. Get Chat ID**
 
@@ -2386,12 +2396,14 @@ Telegram bot integration with full feature support.
 **2. Get Chat ID**
 
 **For Private Chat:**
+
 - Start a conversation with your bot
 - Send a message to the bot
 - Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
 - Find the `"chat":{"id":` value in the response
 
 **For Group Chat:**
+
 - Add bot to group
 - Send a message mentioning the bot
 - Visit the same URL to get the group chat ID
@@ -2469,26 +2481,31 @@ All IM integrations share these common features:
 ### Platform-Specific Notes
 
 **Discord:**
+
 - Requires "Message Content Intent" enabled
 - Bot must be mentioned or replied to in group chats
 - Private channels require direct messages
 
 **Lark:**
+
 - Requires app approval for production use
 - Tenant access token is auto-refreshed
 - Supports rich message types (text, cards, etc.)
 
 **DingTalk:**
+
 - Webhook mode is simplest but one-way only
 - API mode requires enterprise app registration
 - Stream mode recommended for bidirectional communication
 
 **WeCom:**
+
 - Webhook mode is simplest but one-way only
 - API mode requires corporate approval
 - Internal apps have more permissions
 
 **Telegram:**
+
 - Works in both private and group chats
 - Groups require bot to be admin for some features
 - Supports inline queries and callbacks

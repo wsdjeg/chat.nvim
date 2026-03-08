@@ -28,6 +28,7 @@ local state = {
   max_processed_cache = 100,
   poll_interval = 3000,
   session = nil,
+  bot_id = nil,
 }
 
 --------------------------------------------------
@@ -164,6 +165,82 @@ local function ensure_token(callback)
 end
 
 --------------------------------------------------
+-- Get bot info
+--------------------------------------------------
+local function get_bot_info()
+  ensure_token(function(token)
+    job.start({
+      'curl',
+      '-s',
+      '-X',
+      'GET',
+      API_BASE .. '/bot/v3/info',
+      '-H',
+      'Authorization: Bearer ' .. token,
+    }, {
+      on_stdout = function(_, lines)
+        local output = table.concat(lines, '\n')
+        if output and output ~= '' then
+          local ok, result = pcall(json.decode, output)
+          if ok and result and result.bot then
+            state.bot_id = result.bot.open_id
+            log.info('[Lark] Bot ID: ' .. state.bot_id)
+          end
+        end
+      end,
+    })
+  end)
+end
+
+--------------------------------------------------
+-- Check if message mentions bot
+--------------------------------------------------
+
+-- {
+--   body = {
+--     content = '{"text":"@_user_1 2"}'
+--   },
+--   chat_id = "oc_8270f8fe55cb85e92a15c1b6e357228b",
+--   create_time = "1772994314949",
+--   deleted = false,
+--   mentions = { {
+--       id = "ou_95904d939749487b272aaa73a91bb916",
+--       id_type = "open_id",
+--       key = "@_user_1",
+--       name = "chat.nvim",
+--       tenant_key = "1acdd6af5318d948"
+--     } },
+--   message_id = "om_x100b55efbe63a0a4ee6b8f2919d79a8",
+--   msg_type = "text",
+--   sender = {
+--     id = "ou_543e6f73f6eba025fa7fc536d39204bb",
+--     id_type = "open_id",
+--     sender_type = "user",
+--     tenant_key = "1acdd6af5318d948"
+--   },
+--   update_time = "1772994314988",
+--   updated = true
+-- }
+local function is_mention_bot(msg, bot_id)
+  if not bot_id or not msg then
+    return false
+  end
+
+  local mentions = msg.mentions
+  if not mentions then
+    return false
+  end
+
+  for _, m in ipairs(mentions) do
+    if m.id == bot_id then
+      return true
+    end
+  end
+
+  return false
+end
+
+--------------------------------------------------
 -- Fetch messages (FIXED)
 --------------------------------------------------
 local function fetch_messages()
@@ -278,6 +355,18 @@ local function fetch_messages()
             goto continue
           end
 
+          -- Check if should respond
+          local is_mention = is_mention_bot(msg, state.bot_id)
+
+          -- Only respond if mentioned or replied
+          if not is_mention then
+            log.debug(
+              -- '[Lark] Skip message (not mention):\n' .. vim.inspect(msg)
+              '[Lark] Skip message (not mention/reply): ' .. msg.message_id
+            )
+            goto continue
+          end
+
           local content = msg.body and msg.body.content or ''
           if msg.msg_type == 'text' then
             local ok2, text_data = pcall(json.decode, content)
@@ -341,6 +430,7 @@ function M.connect(callback)
   state.is_running = true
 
   load_state()
+  get_bot_info()
   log.info('[Lark] Starting polling...')
 
   state.timer = uv.new_timer()
