@@ -14,16 +14,18 @@ local test_files = {
   'test/memory_spec.lua',
   'test/tools_spec.lua',
   'test/platform_spec.lua',
+  'test/lark_spec.lua',
+  'test/integration_spec.lua',
 }
 
 -- Run all tests
 local function run_tests()
   print('=== Chat.nvim Test Suite ===')
   print('Loading test files...\n')
-  
+
   local loaded_count = 0
   local failed_count = 0
-  
+
   -- Load each test file
   for _, test_file in ipairs(test_files) do
     local ok, result = pcall(dofile, test_file)
@@ -36,20 +38,26 @@ local function run_tests()
       failed_count = failed_count + 1
     end
   end
-  
-  print(string.format('\n=== Loaded %d/%d test files ===', loaded_count, #test_files))
-  
+
+  print(
+    string.format(
+      '\n=== Loaded %d/%d test files ===',
+      loaded_count,
+      #test_files
+    )
+  )
+
   if failed_count > 0 then
     print(string.format('[ERROR] Failed to load %d test files', failed_count))
     return 1
   end
-  
+
   -- Run test suite with tap output (shows each test on separate line)
   print('\nRunning tests...\n')
   local runner = lu.LuaUnit:new()
   runner:setOutputType('tap')
   local result = runner:runSuite()
-  
+
   return result
 end
 
