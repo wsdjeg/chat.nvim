@@ -21,6 +21,7 @@ local state = {
   tenant_access_token = nil,
   token_expires_at = 0,
   last_message_id = nil,
+  last_message_time = nil,
   callback = nil,
   is_running = false,
   is_fetching = false,
@@ -37,6 +38,7 @@ local state = {
 local function save_state()
   local data = {
     last_message_id = state.last_message_id,
+    last_message_time = state.last_message_time,
     processed_ids = {},
     session = state.session,
   }
@@ -93,6 +95,7 @@ local function load_state()
   end
 
   state.last_message_id = data.last_message_id
+  state.last_message_time = data.last_message_time
   if data.processed_ids then
     state.processed_ids = data.processed_ids
   end
@@ -244,7 +247,10 @@ end
 -- Fetch messages (FIXED)
 --------------------------------------------------
 local function fetch_messages()
+  -- log.debug('[Lark] fetch_messages: called')
+
   if state.is_fetching then
+    log.debug('[Lark] fetch_messages: skipped (already fetching)')
     return
   end
 
@@ -258,13 +264,33 @@ local function fetch_messages()
   end
 
   state.is_fetching = true
+  -- log.debug('[Lark] fetch_messages: starting request')
 
   ensure_token(function(token)
     -- Updated endpoint with container_id_type and container_id
     local endpoint = API_BASE
       .. '/im/v1/messages?container_id_type=chat&container_id='
       .. chat_id
+      .. '&sort_type=ByCreateTimeDesc'
       .. '&page_size=50'
+
+    if state.last_message_time then
+      -- Convert milliseconds to seconds (Lark API expects seconds)
+      local start_time_seconds =
+        math.floor(tonumber(state.last_message_time) / 1000)
+
+      -- Ensure start_time is not in the future
+      local current_time_seconds = os.time()
+      if start_time_seconds > current_time_seconds then
+        log.warn(
+          '[Lark] start_time is in the future, resetting to current time'
+        )
+        start_time_seconds = current_time_seconds
+      end
+
+      endpoint = endpoint .. '&start_time=' .. start_time_seconds
+      -- log.debug('[Lark] Fetching messages after: ' .. start_time_seconds)
+    end
 
     local timeout = uv.new_timer()
     timeout:start(5000, 0, function()
@@ -300,6 +326,7 @@ local function fetch_messages()
         state.is_fetching = false
         local response = table.concat(response_chunks)
         if response == {} then
+          log.debug('[Lark] fetch_messages: empty response chunks')
           return
         end
 
@@ -336,7 +363,12 @@ local function fetch_messages()
           return
         end
 
+        if #messages == 0 then
+          return
+        end
+
         local has_new = false
+        local latest_time = state.last_message_time or '0'
 
         -- Process messages in chronological order (oldest first)
         for i = #messages, 1, -1 do
@@ -349,6 +381,14 @@ local function fetch_messages()
 
           state.processed_ids[msg.message_id] = true
           has_new = true
+
+          if msg.create_time then
+            local create_time_ms = msg.create_time
+            if not latest_time or create_time_ms > latest_time then
+              latest_time = create_time_ms
+              -- log.debug('[Lark] Updated latest_time to: ' .. latest_time)
+            end
+          end
 
           -- Skip bot messages (messages from this app itself)
           if msg.sender and msg.sender.sender_type == 'app' then
@@ -395,8 +435,11 @@ local function fetch_messages()
 
         -- Save state if there are new messages
         if has_new then
+          state.last_message_time = latest_time
+          log.info('[Lark] Updated last_message_time to: ' .. latest_time)
           save_state()
         end
+
       end,
     })
   end)
