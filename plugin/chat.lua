@@ -127,6 +127,20 @@ end, {
       return vim.fn.getcompletion(path_arg or '', 'file')
     end
 
+    if pre_cursor:match('^Chat bridge ') then
+      return vim.tbl_filter(
+        function(t)
+          return t ~= 'init' and vim.startswith(t, arglead)
+        end,
+        vim.tbl_map(
+          function(t)
+            return vim.fn.fnamemodify(t, ':t:r')
+          end,
+          vim.api.nvim_get_runtime_file('lua/chat/integrations/*.lua', true)
+        )
+      )
+    end
+
     if pre_cursor:match('^Chat cd ') then
       local path_arg = pre_cursor:match('^Chat cd%s+(.*)$')
       return vim.fn.getcompletion(path_arg or '', 'dir')
