@@ -26,8 +26,24 @@ function M.get()
       if #messages > 1 then
         local str = vim.split(messages[1].content, '\n')[1]
         table.insert(items, {
-          str = string.format('[%s] [%s] %s', v, bridge.current_session(), str),
+          str = string.format(
+            '[%s] [%s] %s',
+            v,
+            bridge.current_session(),
+            str
+          ),
           value = bridge.current_session(),
+          highlight = {
+            -- highlight of square brackets
+            { 0, 1, 'Comment' },
+            { #v + 1, #v + 2, 'Comment' },
+            { #v + 3, #v + 4, 'Comment' },
+            { #v + 23, #v + 24, 'Comment' },
+            --- highlight of bridge name
+            { 1, #v + 1, 'String' },
+            --- highlight of session ID
+            { 1 + #v + 3, 1 + #v + 24, 'Comment' },
+          },
         })
       end
     end
