@@ -263,12 +263,15 @@ local function send_message_via_webhook(content)
     end,
   })
 
-  job.send(send_message_jobid, json.encode({
-    msgtype = 'text',
-    text = {
-      content = content,
-    },
-  }))
+  job.send(
+    send_message_jobid,
+    json.encode({
+      msgtype = 'text',
+      text = {
+        content = content,
+      },
+    })
+  )
   job.send(send_message_jobid, nil)
 end
 
@@ -313,12 +316,15 @@ local function send_message_via_api(content)
       end,
     })
 
-    job.send(send_message_jobid, json.encode({
-      robotCode = config.config.integrations.dingtalk.app_key,
-      userIds = { config.config.integrations.dingtalk.user_id },
-      msgKey = 'sampleText',
-      msgParam = json.encode({ content = content }),
-    }))
+    job.send(
+      send_message_jobid,
+      json.encode({
+        robotCode = config.config.integrations.dingtalk.app_key,
+        userIds = { config.config.integrations.dingtalk.user_id },
+        msgKey = 'sampleText',
+        msgParam = json.encode({ content = content }),
+      })
+    )
     job.send(send_message_jobid, nil)
   end)
 end
@@ -382,4 +388,3 @@ function M.cleanup()
 end
 
 return M
-

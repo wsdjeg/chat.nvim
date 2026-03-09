@@ -16,7 +16,7 @@ function TestPlatform:testWindowsAbsolutePath()
     lu.assertStrContains(result, 'Users')
     lu.assertStrContains(result, 'test')
     lu.assertStrContains(result, 'file.lua')
-    
+
     -- UNC path
     result = util.resolve('\\\\server\\share\\file.lua', 'C:\\other')
     lu.assertStrContains(result, 'server')
@@ -41,7 +41,7 @@ function TestPlatform:testRelativePathResolution()
   -- Test relative path resolution
   local cwd = vim.fn.getcwd()
   local result = util.resolve('./test.lua', cwd)
-  
+
   lu.assertNotNil(result)
   lu.assertStrContains(result, 'test.lua')
 end
@@ -50,7 +50,7 @@ function TestPlatform:testParentDirectoryPath()
   -- Test parent directory path resolution
   local cwd = vim.fn.getcwd()
   local result = util.resolve('../test.lua', cwd)
-  
+
   lu.assertNotNil(result)
 end
 
@@ -58,7 +58,7 @@ function TestPlatform:testPathNormalization()
   -- Test path normalization
   local cwd = vim.fn.getcwd()
   local result = util.resolve('./subdir/../test.lua', cwd)
-  
+
   lu.assertNotNil(result)
   -- After normalization, should not contain 'subdir/..'
   -- Note: vim.fs.normalize might keep some parts, so we just check it doesn't error
@@ -96,7 +96,10 @@ function TestPlatform:testWindowsPathSeparators()
     lu.assertNotNil(result)
     lu.assertStrContains(result, 'test.lua')
   else
-    lu.assertTrue(true, 'Skipping Windows separator test on non-Windows platform')
+    lu.assertTrue(
+      true,
+      'Skipping Windows separator test on non-Windows platform'
+    )
   end
 end
 
@@ -107,7 +110,10 @@ function TestPlatform:testMixedPathSeparators()
     local result = util.resolve('./subdir/test.lua', cwd)
     lu.assertNotNil(result)
   else
-    lu.assertTrue(true, 'Skipping mixed separator test on non-Windows platform')
+    lu.assertTrue(
+      true,
+      'Skipping mixed separator test on non-Windows platform'
+    )
   end
 end
 
@@ -116,7 +122,7 @@ function TestPlatform:testLongPathHandling()
   local cwd = vim.fn.getcwd()
   local long_path = './' .. string.rep('subdir/', 20) .. 'file.lua'
   local result = util.resolve(long_path, cwd)
-  
+
   lu.assertNotNil(result)
 end
 
@@ -125,7 +131,7 @@ function TestPlatform:testSpecialCharactersInPath()
   local cwd = vim.fn.getcwd()
   local result = util.resolve('./test file with spaces.lua', cwd)
   lu.assertNotNil(result)
-  
+
   result = util.resolve('./test-file.lua', cwd)
   lu.assertNotNil(result)
 end

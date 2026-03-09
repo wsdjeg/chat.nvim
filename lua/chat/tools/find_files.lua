@@ -83,11 +83,7 @@ end
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
-    return string.format(
-      'find_files %s in %s',
-      arguments.pattern,
-      ctx.cwd
-    )
+    return string.format('find_files %s in %s', arguments.pattern, ctx.cwd)
   else
     return 'find_files'
   end

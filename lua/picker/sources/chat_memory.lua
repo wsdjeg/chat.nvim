@@ -15,9 +15,7 @@ end
 function M.actions()
   return {
     ['<C-d>'] = function(entry)
-
       memory.delete(entry.value.id)
-
     end,
   }
 end

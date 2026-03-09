@@ -34,15 +34,15 @@ local function parse_markdown_code_blocks(text)
   if not text then
     return ''
   end
-  
+
   local result = {}
   local pos = 1
   local len = #text
-  
+
   while pos <= len do
     -- Find opening code fence: ```language
     local start_fence = text:find('```', pos)
-    
+
     if not start_fence then
       -- No more code blocks, escape and add remaining text
       local remaining = text:sub(pos)
@@ -50,11 +50,12 @@ local function parse_markdown_code_blocks(text)
       -- Parse inline markdown (bold, italic, inline code)
       escaped = escaped:gsub('%*%*([^*]+)%*%*', '<strong>%1</strong>')
       escaped = escaped:gsub('%*([^*]+)%*', '<em>%1</em>')
-      escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+      escaped =
+        escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
       table.insert(result, escaped)
       break
     end
-    
+
     -- Check if this is on its own line (start of a code block)
     local before_fence = text:sub(pos, start_fence - 1)
     if start_fence > pos then
@@ -64,13 +65,14 @@ local function parse_markdown_code_blocks(text)
         -- Add text including the ```
         local escaped = escape_html(text:sub(pos, start_fence + 2))
         -- Check for inline code
-        escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+        escaped =
+          escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
         table.insert(result, escaped)
         pos = start_fence + 3
         goto continue
       end
     end
-    
+
     -- Add text before code block (with markdown parsing)
     if start_fence > pos then
       local before = text:sub(pos, start_fence - 1)
@@ -78,66 +80,79 @@ local function parse_markdown_code_blocks(text)
       -- Parse inline markdown
       escaped = escaped:gsub('%*%*([^*]+)%*%*', '<strong>%1</strong>')
       escaped = escaped:gsub('%*([^*]+)%*', '<em>%1</em>')
-      escaped = escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
+      escaped =
+        escaped:gsub('`([^`]+)`', '<code class="inline-code">%1</code>')
       table.insert(result, escaped)
     end
-    
+
     -- Extract language identifier
     local after_fence = text:sub(start_fence + 3)
     local lang_end = after_fence:find('\n')
     local lang = ''
     local code_start = 1
-    
+
     if lang_end then
       lang = after_fence:sub(1, lang_end - 1):match('^%s*(%S*)')
-      if not lang then lang = '' end
+      if not lang then
+        lang = ''
+      end
       code_start = lang_end + 1
     end
-    
+
     -- Find closing fence: ``` must be on its own line
     local code_and_rest = after_fence:sub(code_start)
     local end_fence = nil
     local search_pos = 1
-    
+
     while search_pos <= #code_and_rest do
       local possible_end = code_and_rest:find('```', search_pos)
-      if not possible_end then break end
-      
+      if not possible_end then
+        break
+      end
+
       -- Check if ``` is on its own line
       local before_match = code_and_rest:sub(1, possible_end - 1)
       local last_newline = before_match:match('\n([^\n]*)$') or before_match
-      
+
       -- Check character after ```
       local after_match = code_and_rest:sub(possible_end + 3)
       local next_char = after_match:sub(1, 1)
-      
+
       -- Valid end fence: preceded by newline (or at start), followed by newline or end of string
-      if (possible_end == 1 or code_and_rest:sub(possible_end - 1, possible_end - 1) == '\n') and
-         (next_char == '\n' or next_char == '' or next_char == nil) then
+      if
+        (
+          possible_end == 1
+          or code_and_rest:sub(possible_end - 1, possible_end - 1) == '\n'
+        )
+        and (next_char == '\n' or next_char == '' or next_char == nil)
+      then
         end_fence = possible_end
         break
       end
-      
+
       search_pos = possible_end + 1
     end
-    
+
     if end_fence then
       -- Extract and escape code content
       local code = code_and_rest:sub(1, end_fence - 1)
       -- Trim trailing newlines
       code = code:match('^(.-)%s*$') or code
       lang = lang ~= '' and lang or 'plaintext'
-      
+
       -- Escape code content for HTML
       local escaped_code = escape_html(code)
-      
+
       -- Build code block HTML
-      table.insert(result, string.format(
-        '<pre><code class="language-%s">%s</code></pre>',
-        lang,
-        escaped_code
-      ))
-      
+      table.insert(
+        result,
+        string.format(
+          '<pre><code class="language-%s">%s</code></pre>',
+          lang,
+          escaped_code
+        )
+      )
+
       -- Move position after closing fence
       pos = start_fence + 3 + code_start - 1 + end_fence + 2
     else
@@ -147,10 +162,10 @@ local function parse_markdown_code_blocks(text)
       table.insert(result, escaped)
       break
     end
-    
+
     ::continue::
   end
-  
+
   return table.concat(result, '')
 end
 
@@ -195,20 +210,26 @@ end
 -- Generate message HTML
 local function generate_message(msg)
   local html = '<div class="message">'
-  
+
   -- Message header
-  local role_emoji = msg.role == 'user' and '👤' 
+  local role_emoji = msg.role == 'user' and '👤'
     or (msg.role == 'assistant' and '🤖' or '🔧')
   local role_class = 'role-' .. (msg.role or 'unknown')
-  
+
   html = html
     .. '<div class="message-header">'
-    .. string.format('<span class="timestamp">[%s]</span>', 
-        format_timestamp(msg.created or os.time()))
-    .. string.format('<span class="role-badge %s">%s %s</span>', 
-        role_class, role_emoji, escape_html(msg.role or 'unknown'))
+    .. string.format(
+      '<span class="timestamp">[%s]</span>',
+      format_timestamp(msg.created or os.time())
+    )
+    .. string.format(
+      '<span class="role-badge %s">%s %s</span>',
+      role_class,
+      role_emoji,
+      escape_html(msg.role or 'unknown')
+    )
     .. '</div>'
-  
+
   -- Reasoning content (thinking)
   if msg.reasoning_content and #msg.reasoning_content > 0 then
     html = html
@@ -216,7 +237,7 @@ local function generate_message(msg)
       .. escape_html(msg.reasoning_content)
       .. '</div>'
   end
-  
+
   -- Tool calls
   if msg.tool_calls and #msg.tool_calls > 0 then
     html = html .. '<div class="tool-calls">'
@@ -225,15 +246,16 @@ local function generate_message(msg)
         html = html
           .. '<div class="tool-call">'
           .. string.format(
-              '<div class="tool-call-header">Executing tool: <span class="tool-function-name">%s</span></div>',
-              escape_html(tool_call['function'].name or 'unknown')
-            )
-        
+            '<div class="tool-call-header">Executing tool: <span class="tool-function-name">%s</span></div>',
+            escape_html(tool_call['function'].name or 'unknown')
+          )
+
         -- Parse and format arguments
         local args_str = tool_call['function'].arguments or ''
         local ok, args = pcall(vim.json.decode, args_str)
         if ok and args then
-          local formatted = vim.inspect(args, { indent = '  ', newline = '\n' })
+          local formatted =
+            vim.inspect(args, { indent = '  ', newline = '\n' })
           html = html
             .. '<div class="tool-arguments">'
             .. escape_html(formatted)
@@ -249,27 +271,35 @@ local function generate_message(msg)
     end
     html = html .. '</div>'
   end
-  
+
   -- Tool result
   if msg.role == 'tool' then
     if msg.tool_call_state and msg.tool_call_state.error then
       html = html
         .. '<div class="tool-error">'
         .. '<div class="tool-error-header">Tool Error</div>'
-        .. string.format('<div>%s</div>', escape_html(msg.tool_call_state.error))
+        .. string.format(
+          '<div>%s</div>',
+          escape_html(msg.tool_call_state.error)
+        )
         .. '</div>'
     else
-      local tool_name = (msg.tool_call_state and msg.tool_call_state.name) or 'unknown'
+      local tool_name = (msg.tool_call_state and msg.tool_call_state.name)
+        or 'unknown'
       html = html
         .. '<div class="tool-result">'
-        .. string.format('<div class="tool-result-header">Tool execution complete: %s</div>', 
-            escape_html(tool_name))
-        .. string.format('<div class="tool-result-content">%s</div>', 
-            escape_html(msg.content or ''))
+        .. string.format(
+          '<div class="tool-result-header">Tool execution complete: %s</div>',
+          escape_html(tool_name)
+        )
+        .. string.format(
+          '<div class="tool-result-content">%s</div>',
+          escape_html(msg.content or '')
+        )
         .. '</div>'
     end
   end
-  
+
   -- Message content with code highlighting
   if msg.content and msg.role ~= 'tool' then
     html = html
@@ -277,32 +307,35 @@ local function generate_message(msg)
       .. parse_markdown_code_blocks(msg.content)
       .. '</div>'
   end
-  
+
   -- On complete message
   if msg.on_complete then
-    html = html .. '<div class="on-complete"><div class="on-complete-header">Completed</div>'
+    html = html
+      .. '<div class="on-complete"><div class="on-complete-header">Completed</div>'
     if msg.usage then
       html = html
         .. string.format(
-            '<div class="usage-stats">Tokens: %d (%d↑/%d↓)</div>',
-            msg.usage.total_tokens or 0,
-            msg.usage.prompt_tokens or 0,
-            msg.usage.completion_tokens or 0
-          )
+          '<div class="usage-stats">Tokens: %d (%d↑/%d↓)</div>',
+          msg.usage.total_tokens or 0,
+          msg.usage.prompt_tokens or 0,
+          msg.usage.completion_tokens or 0
+        )
     end
     html = html .. '</div>'
   end
-  
+
   -- Error message
   if msg.error then
     html = html
       .. '<div class="error-message">'
-      .. string.format('<div>[%s] ❌ : %s</div>', 
-          format_timestamp(msg.created or os.time()),
-          escape_html(msg.error))
+      .. string.format(
+        '<div>[%s] ❌ : %s</div>',
+        format_timestamp(msg.created or os.time()),
+        escape_html(msg.error)
+      )
       .. '</div>'
   end
-  
+
   html = html .. '</div>'
   return html
 end
@@ -644,7 +677,7 @@ function M.generate_html(session_data)
       background: #ff6b8a;
     }
   ]]
-  
+
   local html = string.format(
     [[
 <!DOCTYPE html>
@@ -676,7 +709,7 @@ function M.generate_html(session_data)
       '\n'
     )
   )
-  
+
   return html
 end
 

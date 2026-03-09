@@ -5,13 +5,13 @@ local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  return { 
+  return {
     'glm-4.7-flash',
     'glm-5',
     'glm-4.7',
     'glm-4.6',
     'glm-4.5',
-}
+  }
 end
 
 function M.request(opt)

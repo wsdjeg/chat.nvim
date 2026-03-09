@@ -86,14 +86,15 @@ end
 
 -- 解析记忆内容（提取类型和分类）
 local function parse_memory(mem_content)
-  local memory_type, category, content = mem_content:match('%[(%w+)%]%[(%w+)%]%s*(.*)')
-  
+  local memory_type, category, content =
+    mem_content:match('%[(%w+)%]%[(%w+)%]%s*(.*)')
+
   if not memory_type then
     -- 尝试匹配旧格式 [category] content
     category, content = mem_content:match('%[(%w+)%]%s*(.*)')
     memory_type = 'long_term' -- 默认长期记忆
   end
-  
+
   return {
     memory_type = memory_type or 'long_term',
     category = category or 'uncategorized',
@@ -104,8 +105,8 @@ end
 -- 获取记忆类型图标
 local function get_memory_type_icon(memory_type)
   local icons = {
-    working = '⚡',  -- 工作记忆（高优先级）
-    daily = '📅',    -- 日常记忆（临时）
+    working = '⚡', -- 工作记忆（高优先级）
+    daily = '📅', -- 日常记忆（临时）
     long_term = '💾', -- 长期记忆（永久）
   }
   return icons[memory_type] or '📝'
@@ -125,7 +126,7 @@ end
 -- 获取优先级显示
 local function get_priority_display(mem)
   local priority = mem.priority or 1.0
-  
+
   if priority >= 2.0 then
     return '🔥 High Priority'
   elseif priority >= 1.5 then
@@ -194,7 +195,7 @@ function M.recall_memory(arguments, ctx)
     local keywords = extract_keywords(query, 1)
     if #keywords > 0 then
       memories = memory.retrieve_memories(keywords[1], ctx.session, limit)
-      
+
       if memory_type then
         memories = vim.tbl_filter(function(mem)
           local parsed = parse_memory(mem.content)
@@ -205,14 +206,18 @@ function M.recall_memory(arguments, ctx)
   end
 
   if #memories == 0 then
-    local type_hint = memory_type and string.format(' (type: %s)', memory_type) or ''
+    local type_hint = memory_type
+        and string.format(' (type: %s)', memory_type)
+      or ''
     return {
       content = string.format(
-        'No memories found related to "%s"%s.\n\nTry:\n' ..
-        '• @extract_memory text="your information"\n' ..
-        '• @recall_memory query="different keywords"\n' ..
-        '• @recall_memory memory_type="daily" query="%s"',
-        query, type_hint, query
+        'No memories found related to "%s"%s.\n\nTry:\n'
+          .. '• @extract_memory text="your information"\n'
+          .. '• @recall_memory query="different keywords"\n'
+          .. '• @recall_memory memory_type="daily" query="%s"',
+        query,
+        type_hint,
+        query
       ),
     }
   end
@@ -223,7 +228,7 @@ function M.recall_memory(arguments, ctx)
     daily = 0,
     long_term = 0,
   }
-  
+
   for _, mem in ipairs(memories) do
     local parsed = parse_memory(mem.content)
     type_stats[parsed.memory_type] = (type_stats[parsed.memory_type] or 0) + 1
@@ -233,51 +238,69 @@ function M.recall_memory(arguments, ctx)
   local output = {
     string.format('# 🔍 Found %d Related Memories\n', #memories),
   }
-  
+
   -- 显示统计
   local stats_parts = {}
   if type_stats.working > 0 then
-    table.insert(stats_parts, string.format('⚡ Working: %d', type_stats.working))
+    table.insert(
+      stats_parts,
+      string.format('⚡ Working: %d', type_stats.working)
+    )
   end
   if type_stats.daily > 0 then
-    table.insert(stats_parts, string.format('📅 Daily: %d', type_stats.daily))
+    table.insert(
+      stats_parts,
+      string.format('📅 Daily: %d', type_stats.daily)
+    )
   end
   if type_stats.long_term > 0 then
-    table.insert(stats_parts, string.format('💾 Long-term: %d', type_stats.long_term))
+    table.insert(
+      stats_parts,
+      string.format('💾 Long-term: %d', type_stats.long_term)
+    )
   end
-  table.insert(output, '📊 **Statistics:** ' .. table.concat(stats_parts, ' | ') .. '\n')
+  table.insert(
+    output,
+    '📊 **Statistics:** ' .. table.concat(stats_parts, ' | ') .. '\n'
+  )
 
   -- 显示记忆详情
   for i, mem in ipairs(memories) do
     local parsed = parse_memory(mem.content)
     local time_str = format_time(mem.timestamp)
-    
+
     local type_icon = get_memory_type_icon(parsed.memory_type)
     local category_icon = get_category_icon(parsed.category)
     local priority_display = get_priority_display(mem)
-    
+
     local entry = string.format(
       '\n%d. %s **%s** %s **[%s]**\n',
-      i, type_icon, parsed.memory_type, category_icon, parsed.category
+      i,
+      type_icon,
+      parsed.memory_type,
+      category_icon,
+      parsed.category
     )
     entry = entry .. string.format('   > %s\n', parsed.content)
-    entry = entry .. string.format('   🕒 %s | %s', time_str, priority_display)
-    
+    entry = entry
+      .. string.format('   🕒 %s | %s', time_str, priority_display)
+
     if mem.metadata and mem.metadata.cwd then
       local folder = mem.metadata.cwd:match('[^/\\]+$') or mem.metadata.cwd
       entry = entry .. string.format(' | 📁 %s', folder)
     end
-    
+
     -- 工作记忆显示额外信息
     if parsed.memory_type == 'working' and mem.metadata then
       if mem.metadata.type then
         entry = entry .. string.format(' | 🏷️ %s', mem.metadata.type)
       end
       if mem.metadata.importance then
-        entry = entry .. string.format(' | ⚠️ %s', mem.metadata.importance)
+        entry = entry
+          .. string.format(' | ⚠️ %s', mem.metadata.importance)
       end
     end
-    
+
     table.insert(output, entry)
   end
 
@@ -286,16 +309,22 @@ function M.recall_memory(arguments, ctx)
     output,
     '\n💡 **AI can reference these memories for better responses.**'
   )
-  
+
   -- 提示操作
   table.insert(output, '\n\n🔧 **Actions:**')
   if type_stats.working > 0 then
-    table.insert(output, '• Working memory will be cleaned after session ends')
+    table.insert(
+      output,
+      '• Working memory will be cleaned after session ends'
+    )
   end
   if type_stats.daily > 0 then
     table.insert(output, '• Daily memory expires in 7-30 days')
   end
-  table.insert(output, '• Use `@recall_memory memory_type="long_term"` to filter by type')
+  table.insert(
+    output,
+    '• Use `@recall_memory memory_type="long_term"` to filter by type'
+  )
 
   return { content = table.concat(output, '\n') }
 end
@@ -340,7 +369,10 @@ Examples:
       parameters = {
         type = 'object',
         properties = {
-          query = { type = 'string', description = 'Search query (auto-extracted if not provided)' },
+          query = {
+            type = 'string',
+            description = 'Search query (auto-extracted if not provided)',
+          },
           memory_type = {
             type = 'string',
             enum = { 'long_term', 'daily', 'working' },
@@ -366,15 +398,15 @@ end
 
 function M.info(arguments, ctx)
   local parts = { 'Recall' }
-  
+
   if arguments.query then
     table.insert(parts, string.format('"%s"', arguments.query:sub(1, 20)))
   end
-  
+
   if arguments.memory_type then
     table.insert(parts, string.format('[%s]', arguments.memory_type))
   end
-  
+
   return table.concat(parts, ' ')
 end
 

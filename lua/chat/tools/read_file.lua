@@ -56,10 +56,17 @@ function M.read_file(action, ctx)
   end
 
   -- Validate line_start <= line_to if both are provided
-  if action.line_start ~= nil and action.line_to ~= nil and action.line_start > action.line_to then
+  if
+    action.line_start ~= nil
+    and action.line_to ~= nil
+    and action.line_start > action.line_to
+  then
     return {
-      error = string.format('line_start (%d) cannot be greater than line_to (%d)', 
-        action.line_start, action.line_to),
+      error = string.format(
+        'line_start (%d) cannot be greater than line_to (%d)',
+        action.line_start,
+        action.line_to
+      ),
     }
   end
 
@@ -88,17 +95,17 @@ function M.read_file(action, ctx)
       -- Handle line range if specified
       local start_line = action.line_start or 1
       local end_line = action.line_to or #content
-      
+
       -- Validate line range against actual file content
       start_line = math.max(1, math.min(start_line, #content))
       end_line = math.max(start_line, math.min(end_line, #content))
-      
+
       -- Extract the range
       local range_content = {}
       for i = start_line, end_line do
         table.insert(range_content, content[i])
       end
-      
+
       -- Format output message
       local message
       if action.line_start ~= nil or action.line_to ~= nil then
@@ -114,7 +121,7 @@ function M.read_file(action, ctx)
           table.concat(content, '\n')
         )
       end
-      
+
       return {
         content = message,
       }
@@ -183,11 +190,17 @@ end
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
-    local info = string.format('read_file %s', util.resolve(arguments.filepath, ctx.cwd))
+    local info =
+      string.format('read_file %s', util.resolve(arguments.filepath, ctx.cwd))
     if arguments.line_start or arguments.line_to then
       local start_line = arguments.line_start or 1
       local end_line = arguments.line_to or 'end'
-      info = info .. string.format(' (lines %s-%s)', tostring(start_line), tostring(end_line))
+      info = info
+        .. string.format(
+          ' (lines %s-%s)',
+          tostring(start_line),
+          tostring(end_line)
+        )
     end
     return info
   else

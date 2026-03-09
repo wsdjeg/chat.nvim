@@ -26,7 +26,7 @@ function M.store(session, role, content, metadata)
 
   -- Use current session if not specified
   session = session or get_current_session()
-  
+
   local memory = {
     id = generate_id(),
     session = session,
@@ -82,7 +82,7 @@ function M.retrieve(query, limit)
 
     -- Calculate similarity
     local similarity = M.text_similarity(query, memory.content)
-    
+
     -- Session relevance bonus
     local session_bonus = 0
     if memory.session == session then
@@ -106,7 +106,10 @@ function M.retrieve(query, limit)
     local recency_bonus = math.max(0, (60 - age_minutes) / 60) * 0.2
 
     -- Total priority
-    local total_priority = similarity + session_bonus + importance_bonus + recency_bonus
+    local total_priority = similarity
+      + session_bonus
+      + importance_bonus
+      + recency_bonus
 
     if total_priority > 0 then
       table.insert(scored, {
@@ -128,7 +131,8 @@ function M.retrieve(query, limit)
   for i = 1, math.min(#scored, limit) do
     -- Apply working memory weight multiplier
     local mem = scored[i].memory
-    mem.priority = scored[i].priority * (config.config.memory.working.priority_weight or 2.0)
+    mem.priority = scored[i].priority
+      * (config.config.memory.working.priority_weight or 2.0)
     table.insert(results, mem)
   end
 
@@ -138,7 +142,7 @@ end
 -- Get all working memories for specified session
 function M.get_session_memories(session)
   session = session or get_current_session()
-  
+
   return vim.tbl_filter(function(mem)
     return mem.session == session and not mem.expired
   end, working_memories)
@@ -148,33 +152,33 @@ end
 function M.cleanup_expired()
   local now = os.time()
   local count_before = #working_memories
-  
+
   working_memories = vim.tbl_filter(function(mem)
     return (now - mem.created_at) <= mem.ttl
   end, working_memories)
-  
+
   local removed = count_before - #working_memories
   if removed > 0 then
     M.save()
   end
-  
+
   return removed
 end
 
 -- Cleanup working memories for specified session
 function M.cleanup_session(session)
   session = session or get_current_session()
-  
+
   local count_before = #working_memories
   working_memories = vim.tbl_filter(function(mem)
     return mem.session ~= session
   end, working_memories)
-  
+
   local removed = count_before - #working_memories
   if removed > 0 then
     M.save()
   end
-  
+
   return removed
 end
 
@@ -223,7 +227,7 @@ end
 -- Get statistics
 function M.get_stats(session)
   session = session or get_current_session()
-  
+
   local stats = {
     total = 0,
     by_type = {},
@@ -231,19 +235,20 @@ function M.get_stats(session)
     by_session = 0,
     expired = 0,
   }
-  
+
   for _, mem in ipairs(working_memories) do
     if not mem.expired then
       stats.total = stats.total + 1
-      
+
       -- Statistics by type
       local mem_type = mem.metadata and mem.metadata.type or 'general'
       stats.by_type[mem_type] = (stats.by_type[mem_type] or 0) + 1
-      
+
       -- Statistics by importance
       local importance = mem.metadata and mem.metadata.importance or 'normal'
-      stats.by_importance[importance] = (stats.by_importance[importance] or 0) + 1
-      
+      stats.by_importance[importance] = (stats.by_importance[importance] or 0)
+        + 1
+
       -- Current session statistics
       if mem.session == session then
         stats.by_session = stats.by_session + 1
@@ -252,7 +257,7 @@ function M.get_stats(session)
       stats.expired = stats.expired + 1
     end
   end
-  
+
   return stats
 end
 
@@ -322,9 +327,11 @@ function M.load()
     return
   end
 
-  local path = vim.fs.normalize(config.config.memory.storage_dir .. '/working_memories.json')
+  local path = vim.fs.normalize(
+    config.config.memory.storage_dir .. '/working_memories.json'
+  )
   local file = io.open(path, 'r')
-  
+
   if not file then
     working_memories = {}
     return
@@ -339,7 +346,7 @@ function M.load()
   else
     working_memories = {}
   end
-  
+
   -- Auto cleanup expired memories after loading
   M.cleanup_expired()
 end
@@ -355,9 +362,11 @@ function M.save()
     vim.fn.mkdir(config.config.memory.storage_dir, 'p')
   end
 
-  local path = vim.fs.normalize(config.config.memory.storage_dir .. '/working_memories.json')
+  local path = vim.fs.normalize(
+    config.config.memory.storage_dir .. '/working_memories.json'
+  )
   local file = io.open(path, 'w')
-  
+
   if file then
     file:write(vim.json.encode(working_memories))
     io.close(file)
@@ -370,7 +379,7 @@ function M.delete(memory_id)
   working_memories = vim.tbl_filter(function(mem)
     return mem.id ~= memory_id
   end, working_memories)
-  
+
   if #working_memories < count_before then
     M.save()
     return true
@@ -393,15 +402,16 @@ function M.promote_to_long_term(memory_id)
       break
     end
   end
-  
+
   if not memory then
     return nil, 'Memory not found'
   end
-  
+
   -- Call long-term memory module to store
   local long_term = require('chat.memory.long_term')
-  local long_term_id = long_term.store(memory.session, memory.role, memory.content)
-  
+  local long_term_id =
+    long_term.store(memory.session, memory.role, memory.content)
+
   if long_term_id then
     -- Mark as promoted
     memory.metadata = memory.metadata or {}
@@ -410,7 +420,7 @@ function M.promote_to_long_term(memory_id)
     M.save()
     return long_term_id
   end
-  
+
   return nil, 'Failed to promote to long-term memory'
 end
 

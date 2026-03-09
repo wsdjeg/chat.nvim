@@ -25,7 +25,7 @@ function TestConfig:testSetupWithCustomConfig()
     provider = 'openai',
     model = 'gpt-4',
   })
-  
+
   lu.assertEquals(config.config.width, 0.9)
   lu.assertEquals(config.config.height, 0.9)
   lu.assertEquals(config.config.provider, 'openai')
@@ -39,7 +39,7 @@ function TestConfig:testSetupWithAPIKeys()
       openai = 'sk-test-openai',
     },
   })
-  
+
   lu.assertEquals(config.config.api_key.deepseek, 'sk-test-deepseek')
   lu.assertEquals(config.config.api_key.openai, 'sk-test-openai')
 end
@@ -48,7 +48,7 @@ function TestConfig:testSystemPromptString()
   config.setup({
     system_prompt = 'You are a helpful assistant.',
   })
-  
+
   lu.assertEquals(config.config.system_prompt, 'You are a helpful assistant.')
 end
 
@@ -58,7 +58,7 @@ function TestConfig:testSystemPromptFunction()
       return 'Dynamic prompt'
     end,
   })
-  
+
   lu.assertEquals(type(config.config.system_prompt), 'function')
   lu.assertEquals(config.config.system_prompt(), 'Dynamic prompt')
 end
@@ -67,7 +67,7 @@ function TestConfig:testInvalidSystemPrompt()
   config.setup({
     system_prompt = 123, -- Invalid type
   })
-  
+
   -- Should not crash, but should log error
   -- The actual value depends on implementation
   lu.assertNotEquals(config.config.system_prompt, 123)
@@ -82,7 +82,7 @@ function TestConfig:testMemoryConfig()
       },
     },
   })
-  
+
   lu.assertEquals(config.config.memory.enable, true)
   lu.assertEquals(config.config.memory.long_term.max_memories, 1000)
 end
@@ -95,7 +95,7 @@ function TestConfig:testHTTPConfig()
       api_key = 'test-key',
     },
   })
-  
+
   lu.assertEquals(config.config.http.host, '127.0.0.1')
   lu.assertEquals(config.config.http.port, 8080)
   lu.assertEquals(config.config.http.api_key, 'test-key')
@@ -107,7 +107,7 @@ function TestConfig:testAllowedPath()
     allowed_path = '/home/user/project',
   })
   lu.assertEquals(config.config.allowed_path, '/home/user/project')
-  
+
   -- Test multiple paths
   config.setup({
     allowed_path = {

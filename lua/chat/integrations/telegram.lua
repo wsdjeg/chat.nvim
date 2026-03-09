@@ -239,7 +239,10 @@ local function fetch_updates()
         -- Check for @username mention
         if content:match('@' .. state.bot_username) then
           is_mentioned = true
-          content = content:gsub('@' .. state.bot_username, ''):gsub('^%s+', ''):gsub('%s+$', '')
+          content = content
+            :gsub('@' .. state.bot_username, '')
+            :gsub('^%s+', '')
+            :gsub('%s+$', '')
         end
 
         -- Check for reply to bot
@@ -410,11 +413,14 @@ local function send_message(content)
     end,
   })
 
-  job.send(send_message_jobid, json.encode({
-    chat_id = chat_id,
-    text = content,
-    parse_mode = 'Markdown',
-  }))
+  job.send(
+    send_message_jobid,
+    json.encode({
+      chat_id = chat_id,
+      text = content,
+      parse_mode = 'Markdown',
+    })
+  )
   job.send(send_message_jobid, nil)
 end
 
@@ -525,4 +531,3 @@ function M.cleanup()
 end
 
 return M
-

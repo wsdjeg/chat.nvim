@@ -439,7 +439,6 @@ local function fetch_messages()
           log.info('[Lark] Updated last_message_time to: ' .. latest_time)
           save_state()
         end
-
       end,
     })
   end)

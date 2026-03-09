@@ -74,4 +74,3 @@ function M.request(opt)
 end
 
 return M
-

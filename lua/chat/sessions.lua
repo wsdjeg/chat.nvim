@@ -648,10 +648,9 @@ function M.clear(session)
     else
       sessions[session].messages = {}
       M.write_cache(session)
-      if session == windows.current_session()
-        then
-          windows.render_result_buf()
-        end
+      if session == windows.current_session() then
+        windows.render_result_buf()
+      end
       return true
     end
   end

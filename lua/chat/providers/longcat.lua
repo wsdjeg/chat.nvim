@@ -5,12 +5,12 @@ local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  return { 
+  return {
     'LongCat-Flash-Chat',
     'LongCat-Flash-Thinking',
     'LongCat-Flash-Thinking-2601',
     'LongCat-Flash-Lite',
-}
+  }
 end
 
 function M.request(opt)
@@ -50,4 +50,3 @@ function M.request(opt)
 end
 
 return M
-

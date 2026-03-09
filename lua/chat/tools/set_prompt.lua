@@ -40,7 +40,8 @@ function M.set_prompt(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path = vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
+    is_allowed_path =
+      vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
   end
 
   if not is_allowed_path then

@@ -254,12 +254,15 @@ local function send_message_via_webhook(content)
     end,
   })
 
-  job.send(send_message_jobid, json.encode({
-    msgtype = 'text',
-    text = {
-      content = content,
-    },
-  }))
+  job.send(
+    send_message_jobid,
+    json.encode({
+      msgtype = 'text',
+      text = {
+        content = content,
+      },
+    })
+  )
   job.send(send_message_jobid, nil)
 end
 
@@ -305,14 +308,17 @@ local function send_message_via_api(content)
       end,
     })
 
-    job.send(send_message_jobid, json.encode({
-      touser = user_id,
-      msgtype = 'text',
-      agentid = agent_id,
-      text = {
-        content = content,
-      },
-    }))
+    job.send(
+      send_message_jobid,
+      json.encode({
+        touser = user_id,
+        msgtype = 'text',
+        agentid = agent_id,
+        text = {
+          content = content,
+        },
+      })
+    )
     job.send(send_message_jobid, nil)
   end)
 end
@@ -376,4 +382,3 @@ function M.cleanup()
 end
 
 return M
-

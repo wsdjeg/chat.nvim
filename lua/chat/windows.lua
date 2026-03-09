@@ -199,7 +199,8 @@ end
 
 function M.redraw_title()
   if vim.api.nvim_win_is_valid(prompt_win) then
-    local session_integrations = integrations.get_integrations(current_session)
+    local session_integrations =
+      integrations.get_integrations(current_session)
     local ins = ''
     for _, i in ipairs(session_integrations) do
       ins = ins .. '| ' .. i .. ' '

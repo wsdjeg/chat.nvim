@@ -1,6 +1,5 @@
 local M = {}
 
-
 ---@class ChatToolContext
 ---@field cwd? string  -- 会话工作目录
 ---@field session? string  -- 会话ID
@@ -19,7 +18,6 @@ function M.available_tools()
   end
   return tools
 end
-
 
 ---@param ctx ChatToolContext
 function M.call(func, arguments, ctx)
