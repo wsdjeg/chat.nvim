@@ -172,4 +172,30 @@ function M.set_session(bridge, session)
   end
 end
 
+function M.get_integrations(session)
+  local ins = {}
+
+  -- Check each IM independently, not with elseif
+  if session == discord.current_session() then
+    table.insert(ins, 'discord')
+  end
+
+  if session == lark.current_session() then
+    table.insert(ins, 'lark')
+  end
+
+  if session == dingtalk.current_session() then
+    table.insert(ins, 'dingtalk')
+  end
+
+  if session == wecom.current_session() then
+    table.insert(ins, 'wecom')
+  end
+
+  if session == telegram.current_session() then
+    table.insert(ins, 'telegram')
+  end
+  return ins
+end
+
 return M

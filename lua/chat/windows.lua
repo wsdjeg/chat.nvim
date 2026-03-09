@@ -7,6 +7,7 @@ local formatter = require('chat.formatter')
 local spinners = require('chat.spinners')
 local protocol = require('chat.protocol')
 local queue = require('chat.queue')
+local integrations = require('chat.integrations')
 
 local current_session
 
@@ -198,12 +199,18 @@ end
 
 function M.redraw_title()
   if vim.api.nvim_win_is_valid(prompt_win) then
+    local session_integrations = integrations.get_integrations(current_session)
+    local ins = ''
+    for _, i in ipairs(session_integrations) do
+      ins = ins .. '| ' .. i .. ' '
+    end
     vim.api.nvim_win_set_config(prompt_win, {
       title = ' Input ' .. string.format(
-        '| %s %s | %s ',
+        '| %s %s | %s %s',
         sessions.get_session_provider(current_session),
         sessions.get_session_model(current_session),
-        sessions.getcwd(current_session)
+        sessions.getcwd(current_session),
+        ins
       ),
     })
   end
