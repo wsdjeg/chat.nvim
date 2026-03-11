@@ -18,17 +18,6 @@ local result_win = -1
 local result_buf = -1
 local requestObj = {}
 
--- Define curl error codes and messages
-local CURL_ERRORS = {
-  [6] = "Couldn't resolve host. Check your network connection.",
-  [7] = 'Failed to connect to host. Check if the server is reachable.',
-  [22] = 'HTTP request failed with error response (>= 400).',
-  [28] = 'Operation timeout. The server took too long to respond.',
-  [35] = 'SSL/TLS handshake failure. Check your certificates.',
-  [52] = 'Empty reply from server. The server returned no data.',
-  [56] = 'Failure with receiving network data. Connection interrupted.',
-}
-
 function M.set_result_win_title(title)
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_set_config(result_win, {
