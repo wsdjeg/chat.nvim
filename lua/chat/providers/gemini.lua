@@ -74,7 +74,7 @@ function M.request(opt)
 
   local model = sessions.get_session_model(opt.session)
   local api_key = config.config.api_key.gemini
-  
+
   local cmd = {
     'curl',
     '-s',
@@ -111,9 +111,9 @@ function M._convert_tools(tools)
       table.insert(gemini_tools, {
         functionDeclarations = {
           {
-            name = tool.function.name,
-            description = tool.function.description,
-            parameters = tool.function.parameters,
+            name = tool['function'].name,
+            description = tool['function'].description,
+            parameters = tool['function'].parameters,
           },
         },
       })
@@ -123,4 +123,3 @@ function M._convert_tools(tools)
 end
 
 return M
-

@@ -98,9 +98,9 @@ function M._convert_tools(tools)
   for _, tool in ipairs(tools) do
     if tool.type == 'function' then
       table.insert(anthropic_tools, {
-        name = tool.function.name,
-        description = tool.function.description,
-        input_schema = tool.function.parameters,
+        name = tool['function'].name,
+        description = tool['function'].description,
+        input_schema = tool['function'].parameters,
       })
     end
   end
@@ -108,4 +108,3 @@ function M._convert_tools(tools)
 end
 
 return M
-
