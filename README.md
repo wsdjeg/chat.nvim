@@ -817,11 +817,16 @@ Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`
 8. `bigmodel` - [BigModel AI](https://bigmodel.cn/)
 9. `volcengine` - [Volcengine AI](https://console.volcengine.com)
 10. `openai` - [OpenAI](https://developers.openai.com/api/docs/)
-11. `longcat` - [LongCat AI](https://longcat.chat/platform/docs/)
-12. `cherryin` - [CherryIN AI](https://open.cherryin.ai/)
-13. `yuanjing` - [yuanjing AI](https://maas.ai-yuanjing.com/)
+11. `anthropic` - [Anthropic Claude](https://www.anthropic.com/)
+12. `gemini` - [Google Gemini](https://ai.google.dev/)
+13. `ollama` - [Ollama](https://ollama.ai/)
+14. `longcat` - [LongCat AI](https://longcat.chat/platform/docs/)
+15. `cherryin` - [CherryIN AI](https://open.cherryin.ai/)
+16. `yuanjing` - [yuanjing AI](https://maas.ai-yuanjing.com/)
 
-**Note**: All built-in providers use the OpenAI protocol by default.
+**Note**: Most built-in providers use the OpenAI protocol by default. Exceptions:
+- `anthropic` uses the Anthropic protocol
+- `gemini` uses the Gemini protocol
 
 ### Custom Providers
 
