@@ -898,11 +898,8 @@ return M
 Protocols handle parsing of API responses. Currently, chat.nvim supports:
 
 - **`openai`**: OpenAI-compatible API format (default for all built-in providers)
-
-Future protocols planned:
-
 - **`anthropic`**: Anthropic Claude API format
-- **`google`**: Google Gemini API format
+- **`gemini`**: Google Gemini API format
 
 If you need a custom protocol, create a file at `~/.config/nvim/lua/chat/protocols/<protocol_name>.lua` and implement:
 
