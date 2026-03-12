@@ -1,16 +1,8 @@
-local sessions = {}
+local M = {}
 
 local log = require('chat.log')
-
-local job = require('job')
-
--- 保存请求返回的 reasoning_content
-
-local progress_reasoning_contents = {}
-local progress_finish_reasons = {}
-local job_tool_calls = {}
-
 local tools = require('chat.tools')
+local job = require('job')
 
 ---@class ChatMessage
 ---@field role string
@@ -19,14 +11,20 @@ local tools = require('chat.tools')
 
 ---@class ChatSession
 ---@field id string
----@field messages table<ChatMessage>
+---@field messages ChatMessage[]
 ---@field provider? string
 ---@field model? string
 ---@field cwd string session working directory
 
 local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
-
-local M = {}
+local progress_reasoning_contents = {} ---@type table<string, string>
+local progress_finish_reasons = {} ---@type table<string, string>
+local job_tool_calls = {} ---@type table<string, table>
+local progress_usage = {} ---@type table<string, table>
+--- @type table<string, ChatSession>
+local sessions = {}
+local jobid_session = {}
+local progress_messages = {}
 
 function M.write_cache(session)
   if not sessions[session] then
@@ -214,13 +212,7 @@ function M.get()
   return sessions
 end
 
-local jobid_session = {}
-
--- 以 session 为 key，存储未完成的消息
-local progress_messages = {}
-
 ---@param jobid integer
----@return string
 function M.on_progress_done(jobid)
   if job_tool_calls[jobid] then
     M.on_progress_tool_call_done(jobid)
@@ -246,6 +238,9 @@ function M.on_progress_done(jobid)
   end
 end
 
+---@param id integer
+---@param code integer
+---@param signal integer
 function M.on_progress_exit(id, code, signal)
   local session = M.get_progress_session(id)
   progress_reasoning_contents[session] = nil
@@ -351,8 +346,6 @@ end
 function M.get_progress_session(id)
   return jobid_session[id]
 end
-
-local progress_usage = {}
 
 function M.set_progress_usage(id, usage)
   progress_usage[id] = usage
