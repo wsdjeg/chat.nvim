@@ -1,5 +1,9 @@
 local M = {}
 
+local available_models = {}
+
+local systemObj
+
 local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
@@ -8,12 +12,40 @@ local config = require('chat.config')
 M.protocol = 'gemini'
 
 function M.available_models()
-  return {
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-2.0-flash-exp',
-  }
+  if #available_models == 0 and not systemObj then
+    if config.config.api_key.gemini then
+      local cmd = {
+        'curl',
+        '-s',
+        string.format(
+          'https://generativelanguage.googleapis.com/v1beta/models?key=%s',
+          config.config.api_key.gemini
+        ),
+      }
+      systemObj = vim.system(cmd, { text = true }, function(out)
+        if out.code == 0 then
+          local ok, result = pcall(vim.json.decode, out.stdout)
+          if ok and result and result.models then
+            available_models = {}
+            for _, model in ipairs(result.models) do
+              -- Only include models that support generateContent
+              if model.supportedGenerationMethods then
+                for _, method in ipairs(model.supportedGenerationMethods) do
+                  if method == 'generateContent' then
+                    local model_name = model.name:gsub('^models/', '')
+                    table.insert(available_models, model_name)
+                    break
+                  end
+                end
+              end
+            end
+            table.sort(available_models)
+          end
+        end
+      end)
+    end
+  end
+  return available_models
 end
 
 function M.request(opt)
