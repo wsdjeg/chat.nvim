@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.4.0](https://github.com/wsdjeg/chat.nvim/compare/v1.3.0...v1.4.0) (2026-03-13)
+
+
+### Features
+
+* add `:Chat preview` & `ctrl-o` for picker ([d0be66c](https://github.com/wsdjeg/chat.nvim/commit/d0be66c138acd9adc3bd5dc935a7cc5abdcf2ea6))
+* add `:Chat save/share/load` ([b956f61](https://github.com/wsdjeg/chat.nvim/commit/b956f615d8b1d24b5758093ca9eceb7114d710ff))
+* add anthropic protocol and provider ([046a591](https://github.com/wsdjeg/chat.nvim/commit/046a591cf2a6fa139e61f3965779fcd31a932a9e))
+* add chat_integrations picker source ([809b67e](https://github.com/wsdjeg/chat.nvim/commit/809b67e2bf11767d01b638951c41961beb60acea))
+* add dingtalk integration ([e4fd244](https://github.com/wsdjeg/chat.nvim/commit/e4fd244635088ebc8c68a2b002be9347ad834d1d))
+* add discord integration ([209a764](https://github.com/wsdjeg/chat.nvim/commit/209a764c6fddd0d40fe85effd55fb022f8c52029))
+* add gemini protocol and provider ([89d2fbb](https://github.com/wsdjeg/chat.nvim/commit/89d2fbbd8d932e4d9c78b70614e31a80c92f9556))
+* add highlights to chat_integrations source ([e7f9105](https://github.com/wsdjeg/chat.nvim/commit/e7f910513e62ed7f0dc68a779b43ed0f3db12344))
+* add lark integration ([1ba2432](https://github.com/wsdjeg/chat.nvim/commit/1ba243260d8f977eac1990ee17c3fb0bbd0075fa))
+* add ollama provider ([0e82ca7](https://github.com/wsdjeg/chat.nvim/commit/0e82ca7d360badbab0356cf9feedefa0ac6e6e21))
+* add telegram integration ([db4eb42](https://github.com/wsdjeg/chat.nvim/commit/db4eb42ad4333d1ed10538e0ed1296043a81ef18))
+* add wecom integration ([e2c5e6b](https://github.com/wsdjeg/chat.nvim/commit/e2c5e6bcd30fd5059a93073bf47399923ebe6cdc))
+* complete integrations after `:Chat bridge` ([904b2ab](https://github.com/wsdjeg/chat.nvim/commit/904b2abae9b42cc8cafcf12a8bbeaafc26aed2fa))
+* display integrations on input window ([ba33990](https://github.com/wsdjeg/chat.nvim/commit/ba339905ad04e12c56dcc9b7024b5f2b079502ff))
+* enhance HTML preview with code block ([a6444a2](https://github.com/wsdjeg/chat.nvim/commit/a6444a261cbdbe6f93a9f9affa5c8c3021f3b24b))
+* generate gemini model list from api ([0444f1a](https://github.com/wsdjeg/chat.nvim/commit/0444f1a82ab80b8f0110ebafd41e6f737a3ff5d6))
+* **lark:** add time-based message filtering ([4d6a168](https://github.com/wsdjeg/chat.nvim/commit/4d6a1688c564c1b30d5a389592315c6e94e2c589))
+* **queue:** add on-demand timer management ([07d2913](https://github.com/wsdjeg/chat.nvim/commit/07d2913c34f77b9046731a0257a5d5fec04847e0))
+
+
+### Bug Fixes
+
+* add lsp annotation for local values ([cd59747](https://github.com/wsdjeg/chat.nvim/commit/cd59747de030569078bae898be903f7761f3165c))
+* check session exists ([49ef4b4](https://github.com/wsdjeg/chat.nvim/commit/49ef4b492aad041c545e9cbf6be8ef2d76378c3b))
+* clear lsp warnings ([c2daf15](https://github.com/wsdjeg/chat.nvim/commit/c2daf15f87cd33e416c2e4adc189ca1bd3930f88))
+* disconnect integrations when delete session ([07f560a](https://github.com/wsdjeg/chat.nvim/commit/07f560a7f864c361782b920beed35195e0f2d82d))
+* fix lark base url ([ed5e0bd](https://github.com/wsdjeg/chat.nvim/commit/ed5e0bd6408651bc1a8fa1dfaaefa1d1d39d08c4))
+* fix tbl_every function ([a034a4b](https://github.com/wsdjeg/chat.nvim/commit/a034a4b5cc6fc4d9ac1f30f6b1534adf5e43a951))
+* handle error message ([9dae9e7](https://github.com/wsdjeg/chat.nvim/commit/9dae9e770e973592c6b5e821d34852802adc1f18))
+* handle integrations messages ([6151be2](https://github.com/wsdjeg/chat.nvim/commit/6151be22e50abd1b3292be00aace233b59260cf2))
+* handle message for all integrations ([d2acb71](https://github.com/wsdjeg/chat.nvim/commit/d2acb71b8d0a4394b5b4ce600a577699116a0b8b))
+* handle newline in message.error ([26ff03c](https://github.com/wsdjeg/chat.nvim/commit/26ff03cc30f0f860cb10f46deaf298f3927836c8))
+* handle share http code ([4b4ca2e](https://github.com/wsdjeg/chat.nvim/commit/4b4ca2eed87e935fac605957ec4a65702a9f0d59))
+* **lark:** only handle messages for bot ([3cf0f8b](https://github.com/wsdjeg/chat.nvim/commit/3cf0f8b89beb7618b544a7b54bb0cbf88f3bd24b))
+* remove curl exit code ([29a695d](https://github.com/wsdjeg/chat.nvim/commit/29a695d1bacf306c9c194b1377d3e94994b57ffa))
+* simplify get_current_session ([dab80d7](https://github.com/wsdjeg/chat.nvim/commit/dab80d7aac5f841fce0493571a0232b0f88f2b8a))
+* use bracket notation for Lua reserved keyword ([d420f39](https://github.com/wsdjeg/chat.nvim/commit/d420f3913fa14d66c6b301ff321ac007d2178db2))
+* use raw stdout in fetch_messages of lark ([6c20aa7](https://github.com/wsdjeg/chat.nvim/commit/6c20aa76e4f949de5ece7f0a914d4917aadcfc28))
+
 ## [1.3.0](https://github.com/wsdjeg/chat.nvim/compare/v1.2.0...v1.3.0) (2026-03-02)
 
 
