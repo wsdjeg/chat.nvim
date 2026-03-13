@@ -115,13 +115,14 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 ## ✨ Features
 
-- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, and custom providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), and prompt management (`@set_prompt`)
-- **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
-- **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
-- **Memory System**: Long-term memory storage and retrieval with automatic extraction of factual information and preferences
+- **Three-Tier Memory System**: Working memory (session tasks), daily memory (short-term goals), and long-term memory (permanent knowledge) with automatic extraction and priority-based retrieval
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
-- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), sharing (`:Chat share`), and bridging (`:Chat bridge`) sessions, plus changing working directory (`:Chat cd`)
+- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom providers
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), task planning (`@plan`), and prompt management (`@set_prompt`)
+- **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create` and `@zettelkasten_get` tools for knowledge management (requires zettelkasten.nvim)
+- **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
+- **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
+- **Session Management**: Commands for creating (`:Chat new`), navigating (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`), saving (`:Chat save`), loading (`:Chat load`), sharing (`:Chat share`), bridging (`:Chat bridge`), previewing (`:Chat preview`), and changing working directory (`:Chat cd`)
 - **Picker Integration**: Seamless integration with picker.nvim for browsing chat history (`picker-chat`), switching providers (`chat_provider`), and selecting models (`chat_model`)
 - **Floating Window Interface**: Clean, non-intrusive dual-window layout with configurable dimensions and borders
 - **Streaming Responses**: Real-time AI responses with cancellation support (`Ctrl-C`) and retry mechanism (`r`)
@@ -129,6 +130,9 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Lightweight Implementation**: Pure Lua with minimal dependencies and comprehensive error handling
 - **Customizable Configuration**: Flexible setup for API keys, allowed paths, memory settings, and system prompts
 - **Session HTML Preview**: Generate and open HTML previews of chat sessions in your browser via `:Chat preview` command or `<C-o>` in picker
+- **Custom Tools**: Support for creating custom tools via `lua/chat/tools/<tool_name>.lua` with automatic discovery
+- **Custom Providers**: Support for creating custom AI providers with custom protocols
+- **Custom Protocols**: Support for custom API response parsing (OpenAI, Anthropic, Gemini, and extensible)
 
 ## 📦 Installation
 
