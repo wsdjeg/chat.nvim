@@ -172,6 +172,28 @@ function M.set_session(bridge, session)
   end
 end
 
+function M.on_session_deleted(session)
+  if session == discord.current_session() then
+    discord.disconnect()
+  end
+
+  if session == lark.current_session() then
+    lark.disconnect()
+  end
+
+  if session == dingtalk.current_session() then
+    dingtalk.disconnect()
+  end
+
+  if session == wecom.current_session() then
+    wecom.disconnect()
+  end
+
+  if session == telegram.current_session() then
+    telegram.disconnect()
+  end
+end
+
 function M.get_integrations(session)
   local ins = {}
 

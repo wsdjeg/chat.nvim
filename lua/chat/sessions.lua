@@ -82,6 +82,8 @@ function M.delete(session)
     end
   end
 
+  require('chat.integrations').on_session_deleted(session)
+
   if current_session == session then
     for i = 1, #s do
       if s[i] == session then
