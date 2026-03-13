@@ -51,9 +51,10 @@ function M.on_message(callback)
       end
       return
     end
-    if lark.current_session() then
+    local session = lark.current_session()
+    if session then
       callback({
-        session = lark.current_session(),
+        session = session,
         content = message.content,
       })
     end
@@ -74,9 +75,10 @@ function M.on_message(callback)
       end
       return
     end
-    if dingtalk.current_session() then
+    local session = dingtalk.current_session()
+    if session then
       callback({
-        session = dingtalk.current_session(),
+        session = session,
         content = message.content,
       })
     end
@@ -97,9 +99,10 @@ function M.on_message(callback)
       end
       return
     end
-    if wecom.current_session() then
+    local session = wecom.current_session()
+    if session then
       callback({
-        session = wecom.current_session(),
+        session = session,
         content = message.content,
       })
     end
@@ -120,9 +123,10 @@ function M.on_message(callback)
       end
       return
     end
-    if telegram.current_session() then
+    local session = telegram.current_session()
+    if session then
       callback({
-        session = telegram.current_session(),
+        session = session,
         content = message.content,
       })
     end
