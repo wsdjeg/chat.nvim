@@ -21,8 +21,9 @@ function M.get()
   )
   for _, v in ipairs(integrations) do
     local bridge = require('chat.integrations.' .. v)
-    if bridge.current_session() then
-      local messages = sessions.get_messages(bridge.current_session())
+    local session = bridge.current_session()
+    if session and sessions.exists(session) then
+      local messages = sessions.get_messages(session)
       if #messages > 1 then
         local str = vim.split(messages[1].content, '\n')[1]
         table.insert(items, {
