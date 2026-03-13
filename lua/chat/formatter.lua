@@ -124,14 +124,16 @@ function M.generate_message(message, session)
       '',
     }
   elseif message.error then
-    return {
+    local msg = vim.split(
       string.format(
         '[%s] ❌ : %s',
         os.date(config.config.strftime, message.created),
         message.error
       ),
-      '',
-    }
+      '\n'
+    )
+    table.insert(msg, '')
+    return msg
   else
     return {}
   end
