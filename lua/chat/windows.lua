@@ -466,11 +466,9 @@ function M.open(opt)
     require('chat.http').start()
   end
 
-  if config.config.integrations.discord.token then
-    require('chat.integrations').on_message(function(message)
-      queue.push(message.session, message.content)
-    end)
-  end
+  require('chat.integrations').on_message(function(message)
+    queue.push(message.session, message.content)
+  end)
 end
 
 function M.current_session()
