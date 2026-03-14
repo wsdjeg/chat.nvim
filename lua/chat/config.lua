@@ -57,6 +57,9 @@ function M.setup(opt)
     return
   end
   M.config = vim.tbl_deep_extend('force', M.config, opt)
+
+  require('chat.mcp').setup()
+
 end
 
 return M

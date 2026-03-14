@@ -31,6 +31,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [File Access Control](#file-access-control)
     - [Memory System Configuration](#memory-system-configuration)
     - [system_prompt Usage Examples](#system_prompt-usage-examples)
+    - [MCP Server Configuration](#mcp-server-configuration)
     - [IM Integration Configuration](#im-integration-configuration)
     - [Complete Configuration Example](#complete-configuration-example)
     - [Configuration Notes](#configuration-notes)
@@ -44,6 +45,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Custom Providers](#custom-providers)
     - [Protocols](#protocols)
 - [🛠️ Tools](#-tools)
+    - [MCP Tools](#mcp-tools)
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
         - [`find_files`](#find_files)
@@ -135,6 +137,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Custom Tools**: Support for creating custom tools via `lua/chat/tools/<tool_name>.lua` with automatic discovery
 - **Custom Providers**: Support for creating custom AI providers with custom protocols
 - **Custom Protocols**: Support for custom API response parsing (OpenAI, Anthropic, Gemini, and extensible)
+- **MCP (Model Context Protocol) Support**: Native integration with MCP servers for extended tool capabilities. Automatically discover and call MCP tools alongside built-in tools with seamless protocol handling and async execution
 
 ## 📦 Installation
 
@@ -478,6 +481,105 @@ system_prompt = function()
 end
 ```
 
+### MCP Server Configuration
+
+chat.nvim supports Model Context Protocol (MCP) servers for extended tool capabilities. MCP allows you to connect external tool servers that provide additional functionality.
+
+**Basic Configuration:**
+
+```lua
+mcp = {
+  -- Example: Web search MCP server
+  open_webSearch = {
+    command = 'mcp-server-websearch',
+    args = { '--port', '8080' },
+    disabled = false,  -- Set to true to disable this server
+  },
+
+  -- Example: Another MCP server
+  my_custom_server = {
+    command = '/path/to/mcp-server',
+    args = { '--config', '/path/to/config.json' },
+  },
+}
+```
+
+**MCP Tool Naming:**
+
+MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
+
+- Original MCP tool: `search`
+- MCP server name: `open_webSearch`
+- Final tool name: `mcp_open_webSearch_search`
+
+**Usage in Chat:**
+
+```
+@mcp_open_webSearch_search query="neovim plugins" limit=10
+```
+
+**Key Features:**
+
+- **Automatic Discovery**: MCP tools are automatically discovered and integrated
+- **Seamless Integration**: MCP tools work alongside built-in tools
+- **Async Execution**: All MCP tool calls are non-blocking
+- **Protocol Compliance**: Full JSON-RPC 2.0 protocol support
+- **Error Handling**: Graceful error handling and timeout protection
+
+**Configuration Parameters:**
+
+| Parameter  | Type    | Required | Description                                           |
+| ---------- | ------- | -------- | ----------------------------------------------------- |
+| `command`  | string  | ✅ Yes   | Path to MCP server executable                         |
+| `args`     | array   | ❌ No    | Command-line arguments for the server                 |
+| `disabled` | boolean | ❌ No    | Set to `true` to disable this server (default: false) |
+
+**Complete Example:**
+
+```lua
+require('chat').setup({
+  -- ... other configuration
+
+  -- MCP servers configuration
+  mcp = {
+    -- Web search MCP server
+    open_webSearch = {
+      command = 'mcp-server-websearch',
+      args = { '--engine', 'bing', '--limit', '10' },
+    },
+
+    -- Custom MCP server with config
+    my_tools = {
+      command = vim.fn.expand('~/.local/bin/my-mcp-server'),
+      args = { '--config', vim.fn.expand('~/.config/mcp/config.json') },
+    },
+
+    -- Disabled server (won't start)
+    experimental = {
+      command = 'mcp-experimental',
+      disabled = true,
+    },
+  },
+})
+```
+
+**Notes:**
+
+- MCP servers are started automatically when chat.nvim initializes
+- Server connections are managed automatically (reconnection on failure)
+- Tools are discovered during initialization with a small delay for protocol handshake
+- All MCP tool calls follow the same pattern as built-in tools
+- Check server logs with `:messages` for connection issues
+
+**Troubleshooting:**
+
+1. **Server not starting**: Verify the `command` path is correct and executable
+2. **Tools not appearing**: Wait a few seconds for the initialization handshake
+3. **Tool call failures**: Check server logs for error messages
+4. **Connection issues**: Ensure the MCP server is properly configured
+
+For more information about MCP, see the [Model Context Protocol specification](https://modelcontextprotocol.io/).
+
 ### IM Integration Configuration
 
 Configure instant messaging platform integrations for remote AI interaction:
@@ -596,6 +698,17 @@ require('chat').setup({
       channel_id = 'YOUR_CHANNEL_ID',
     },
     -- Add other platforms as needed...
+  },
+  -- MCP servers configuration
+  mcp = {
+    --https://github.com/Aas-ee/open-webSearch
+    open_webSearch = {
+      command = 'npx',
+      args = {
+        '-y',
+        'open-websearch@latest',
+      },
+    },
   },
 })
 ```
@@ -831,6 +944,7 @@ Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`
 16. `yuanjing` - [yuanjing AI](https://maas.ai-yuanjing.com/)
 
 **Note**: Most built-in providers use the OpenAI protocol by default. Exceptions:
+
 - `anthropic` uses the Anthropic protocol
 - `gemini` uses the Gemini protocol
 
@@ -923,6 +1037,27 @@ See `lua/chat/protocol/openai.lua` for reference implementation.
 ## 🛠️ Tools
 
 chat.nvim supports tool call functionality, allowing the AI assistant to interact with your filesystem, manage memories, and perform other operations during conversations. Tools are invoked using the `@tool_name` syntax directly in your messages.
+
+### MCP Tools
+
+MCP (Model Context Protocol) tools are automatically discovered and integrated when MCP servers are configured. These tools follow the naming pattern `mcp_<server>_<tool>` and work seamlessly with built-in tools.
+
+**Example MCP Tools:**
+
+- `mcp_open_webSearch_search` - Web search via MCP server
+- `mcp_open_webSearch_fetchGithubReadme` - Fetch GitHub README via MCP
+- `mcp_open_webSearch_fetchCsdnArticle` - Fetch CSDN article via MCP
+
+MCP tools are automatically available when their servers are configured in the `mcp` section of your setup configuration. See [MCP Server Configuration](#mcp-server-configuration) for details.
+
+**Using MCP Tools:**
+
+```
+@mcp_open_webSearch_search query="neovim plugins" engines=["bing"] limit=10
+@mcp_open_webSearch_fetchGithubReadme url="https://github.com/wsdjeg/chat.nvim"
+```
+
+MCP tools support all parameter types defined by their servers and execute asynchronously without blocking Neovim's UI.
 
 ### Available Tools
 
@@ -1822,7 +1957,7 @@ function M.get_weather(action)
   end
 
   -- ... synchronous implementation ...
-  
+
   return { content = 'Weather in ...' }
 end
 
@@ -1857,7 +1992,7 @@ function M.fetch_data(action, ctx)
 
   local stdout = {}
   local stderr = {}
-  
+
   local jobid = job.start({
     'curl',
     '-s',
