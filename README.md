@@ -60,6 +60,8 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`zettelkasten_get`](#zettelkasten_get)
     - [How to Use Tools](#how-to-use-tools)
     - [Custom Tools](#custom-tools)
+        - [Synchronous Tool Example](#synchronous-tool-example)
+        - [Asynchronous Tool Example](#asynchronous-tool-example)
 - [🌐 HTTP API](#-http-api)
     - [Enabling the HTTP Server](#enabling-the-http-server)
     - [API Endpoints](#api-endpoints)
@@ -118,7 +120,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Three-Tier Memory System**: Working memory (session tasks), daily memory (short-term goals), and long-term memory (permanent knowledge) with automatic extraction and priority-based retrieval
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), task planning (`@plan`), and prompt management (`@set_prompt`)
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), task planning (`@plan`), and prompt management (`@set_prompt`). Supports both synchronous and **asynchronous tool execution** for non-blocking operations
 - **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create` and `@zettelkasten_get` tools for knowledge management (requires zettelkasten.nvim)
 - **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
@@ -1570,6 +1572,7 @@ For more complex comparisons, you can provide a JSON object:
 - The `path` parameter restricts diff output to specific file or directory
 - Returns formatted git diff output with file names and change summaries
 - Particularly useful for code review, version control, and change tracking
+- **Asynchronous Execution**: This tool runs asynchronously without blocking Neovim's UI
 
 #### `plan`
 
@@ -1797,13 +1800,17 @@ The AI assistant will process the tool calls, execute the specified operations, 
 
 ### Custom Tools
 
-chat.nvim also supports custom tools. Users can create `lua/chat/tools/<tool_name>.lua` file in their Neovim runtime path.
+chat.nvim supports both synchronous and **asynchronous** custom tools. Users can create `lua/chat/tools/<tool_name>.lua` file in their Neovim runtime path.
 
 This module should provide at least two functions: `scheme()` and `<tool_name>` function. The `scheme()` function returns a table describing the tool's schema (name, description, parameters). The `<tool_name>` function is the actual implementation that will be called when the tool is invoked.
 
-The `tools.lua` module automatically discovers all tools in the `lua/chat/tools/` directory and provides an `available_tools()` function to list them, and a `call(func, arguments)` function to invoke a specific tool.
+**Synchronous Tool**: Returns `{ content = "..." }` or `{ error = "..." }` directly.
 
-Here is an example for a `get_weather` tool:
+**Asynchronous Tool**: Returns `{ jobid = <number> }` and calls `ctx.callback({ content = "..." })` when done.
+
+#### Synchronous Tool Example
+
+Here is an example for a synchronous `get_weather` tool:
 
 ```lua
 local M = {}
@@ -1811,40 +1818,12 @@ local M = {}
 ---@param action { city: string, unit?: string }
 function M.get_weather(action)
   if not action.city or action.city == '' then
-    return {
-      error = 'City name is required for weather information.',
-    }
+    return { error = 'City name is required for weather information.' }
   end
 
-  local unit = action.unit or 'celsius'
-  local valid_units = { 'celsius', 'fahrenheit' }
-  if not vim.tbl_contains(valid_units, unit) then
-    return {
-      error = 'Unit must be either "celsius" or "fahrenheit".',
-    }
-  end
-
-  -- Simulate fetching weather data (in a real implementation, you would call an API here)
-  local temperature = math.random(15, 35)  -- Random temperature between 15°C and 35°C
-  local conditions = { 'Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy', 'Windy' }
-  local condition = conditions[math.random(1, #conditions)]
-
-  -- Convert temperature if needed
-  if unit == 'fahrenheit' then
-    temperature = math.floor((temperature * 9/5) + 32)
-  end
-
-  return {
-    content = string.format(
-      'Weather in %s:\n- Temperature: %d°%s\n- Condition: %s\n- Humidity: %d%%\n- Wind Speed: %d km/h',
-      action.city,
-      temperature,
-      unit == 'celsius' and 'C' or 'F',
-      condition,
-      math.random(40, 90),
-      math.random(5, 25)
-    ),
-  }
+  -- ... synchronous implementation ...
+  
+  return { content = 'Weather in ...' }
 end
 
 function M.scheme()
@@ -1852,21 +1831,87 @@ function M.scheme()
     type = 'function',
     ['function'] = {
       name = 'get_weather',
-      description = 'Get weather information for a specific city. Use @get_weather {city: "City Name"} to get weather details.',
+      description = 'Get weather information for a specific city.',
+      parameters = { ... },
+    },
+  }
+end
+
+return M
+```
+
+#### Asynchronous Tool Example
+
+For long-running operations, you can create asynchronous tools using `job.nvim`:
+
+```lua
+local M = {}
+local job = require('job')
+
+---@param action { url: string }
+---@param ctx { cwd: string, session: string, callback: function }
+function M.fetch_data(action, ctx)
+  if not action.url or action.url == '' then
+    return { error = 'URL is required.' }
+  end
+
+  local stdout = {}
+  local stderr = {}
+  
+  local jobid = job.start({
+    'curl',
+    '-s',
+    action.url,
+  }, {
+    on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stdout, v)
+      end
+    end,
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
+    on_exit = function(id, code, signal)
+      if code == 0 and signal == 0 then
+        -- Call the callback with the result
+        ctx.callback({
+          content = table.concat(stdout, '\n'),
+          jobid = id,
+        })
+      else
+        ctx.callback({
+          error = 'Failed to fetch data: ' .. table.concat(stderr, '\n'),
+          jobid = id,
+        })
+      end
+    end,
+  })
+
+  -- Return jobid to indicate async execution
+  if jobid > 0 then
+    return { jobid = jobid }
+  else
+    return { error = 'Failed to start job' }
+  end
+end
+
+function M.scheme()
+  return {
+    type = 'function',
+    ['function'] = {
+      name = 'fetch_data',
+      description = 'Fetch data from a URL asynchronously.',
       parameters = {
         type = 'object',
         properties = {
-          city = {
+          url = {
             type = 'string',
-            description = 'City name for weather information',
-          },
-          unit = {
-            type = 'string',
-            description = 'Temperature unit: "celsius" or "fahrenheit"',
-            enum = { 'celsius', 'fahrenheit' },
+            description = 'URL to fetch data from',
           },
         },
-        required = { 'city' },
+        required = { 'url' },
       },
     },
   }
@@ -1874,6 +1919,14 @@ end
 
 return M
 ```
+
+**Key Points for Asynchronous Tools:**
+
+1. Accept a second `ctx` parameter containing `{ cwd, session, callback }`
+2. Return `{ jobid = <number> }` when starting async operation
+3. Call `ctx.callback({ content = "..." })` or `ctx.callback({ error = "..." })` when done
+4. The callback must include `jobid` in the result to match the async tracking
+5. chat.nvim will wait for all async tools to complete before sending results to AI
 
 ## 🌐 HTTP API
 

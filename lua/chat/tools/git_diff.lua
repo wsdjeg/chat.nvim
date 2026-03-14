@@ -1,13 +1,13 @@
 local M = {}
 
-local config = require('chat.config')
 local util = require('chat.util')
+local job = require('job')
 
 -- Cache git availability check
 local git_available = nil
 local function is_git_available()
   if git_available == nil then
-    local git_check = vim.fn.system({ 'git', '--version' })
+    vim.fn.system({ 'git', '--version' })
     git_available = vim.v.shell_error == 0
   end
   return git_available
@@ -48,66 +48,65 @@ function M.git_diff(action, ctx)
     table.insert(cmd, resolved_path)
   end
 
-  -- Execute command
-  local result
-  local exit_code
+  local stdout = {}
+  local stderr = {}
 
-  if vim.system then
-    local job = vim.system(cmd, {
-      text = true,
-    })
-    local system_result = job:wait()
-    result = system_result.stdout or ''
-    if
-      system_result.code ~= 0
-      and system_result.stderr
-      and system_result.stderr ~= ''
-    then
-      if result ~= '' then
-        result = result .. '\n\n' .. system_result.stderr
-      else
-        result = system_result.stderr
+  local jobid = job.start(cmd, {
+    on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stdout, v)
       end
-    end
-    exit_code = system_result.code
-  else
-    result = vim.fn.system(cmd)
-    exit_code = vim.v.shell_error
-  end
+    end,
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
+    on_exit = function(id, code, single)
+      local output = table.concat(stdout, '\n')
+      if #stderr > 0 then
+        output = output .. '\n\n' .. table.concat(stderr, '\n')
+      end
+      if output == '' then
+        output = 'No changes found.'
+      end
+      if code == 0 and single == 0 then
+        local summary = string.format(
+          'Git diff output for: %s\n\n',
+          resolved_path or 'repository'
+        )
 
-  -- Process results
-  if exit_code == 0 then
-    if result == '' then
-      result = 'No changes found.'
-    end
+        if action.cached then
+          summary = summary .. '(showing staged changes)\n\n'
+        end
 
-    local summary = string.format(
-      'Git diff output for: %s\n\n',
-      resolved_path or 'repository'
-    )
+        if action.branch then
+          summary = summary
+            .. string.format('(comparing with branch: %s)\n\n', action.branch)
+        end
+        ctx.callback({
+          content = summary .. output,
+          jobid = id,
+        })
+      else
+        local error_msg = string.format(
+          'Failed to run git diff (exit code: %d): %s\n\nCommand: %s\n\nError output: %s',
+          code,
+          resolved_path or '(no path)',
+          table.concat(cmd, ' '),
+          output
+        )
+        ctx.callback({
+          error = error_msg,
+          jobid = id,
+        })
+      end
+    end,
+  })
 
-    if action.cached then
-      summary = summary .. '(showing staged changes)\n\n'
-    end
-
-    if action.branch then
-      summary = summary
-        .. string.format('(comparing with branch: %s)\n\n', action.branch)
-    end
-
+  if jobid > 0 then
     return {
-      content = summary .. result,
-    }
-  else
-    local error_msg = string.format(
-      'Failed to run git diff (exit code: %d): %s\n\nCommand: %s\n\nError output: %s',
-      exit_code,
-      resolved_path or '(no path)',
-      table.concat(cmd, ' '),
-      result
-    )
-    return {
-      error = error_msg,
+      jobid = jobid,
     }
   end
 end

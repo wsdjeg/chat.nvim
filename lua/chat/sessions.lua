@@ -216,28 +216,25 @@ end
 
 ---@param jobid integer
 function M.on_progress_done(jobid)
-  if job_tool_calls[jobid] then
-    M.on_progress_tool_call_done(jobid)
-  else
-    local session = M.get_progress_session(jobid)
-    if progress_messages[session] then
-      local reasoning_content
-      if progress_reasoning_contents[session] then
-        reasoning_content = progress_reasoning_contents[session]
-        progress_reasoning_contents[session] = nil
-      end
-      M.append_message(session, {
-        role = 'assistant',
-        reasoning_content = reasoning_content,
-        content = progress_messages[session],
-        created = os.time(),
-      })
-      progress_messages[session] = nil
-    else
+  local session = M.get_progress_session(jobid)
+  if progress_messages[session] then
+    local reasoning_content
+    if progress_reasoning_contents[session] then
+      reasoning_content = progress_reasoning_contents[session]
       progress_reasoning_contents[session] = nil
-      progress_messages[session] = nil
     end
+    M.append_message(session, {
+      role = 'assistant',
+      reasoning_content = reasoning_content,
+      content = progress_messages[session],
+      created = os.time(),
+    })
+    progress_messages[session] = nil
+  else
+    progress_reasoning_contents[session] = nil
+    progress_messages[session] = nil
   end
+  M.write_cache(session)
 end
 
 ---@param id integer
@@ -252,11 +249,18 @@ end
 
 ---@return boolean
 function M.is_in_progress(session)
+  -- Check if there's an active job for this session
   for _, v in pairs(jobid_session) do
     if v == session then
       return true
     end
   end
+  
+  -- Also check if there are pending async tools
+  if M.has_pending_async_tools(session) then
+    return true
+  end
+  
   return false
 end
 
@@ -505,10 +509,6 @@ function M.on_progress_tool_call_done(id)
   progress_messages[session] = nil
   progress_reasoning_contents[session] = nil
   M.append_message(session, message)
-
-  local tool_done_messages = {}
-  -- reasoning_content 已展示，启动tool_call时，无需在传
-  -- reasoning_content，避免前台重复显示。
   windows.on_tool_call_start(session, {
     role = message.role,
     tool_calls = message.tool_calls,
@@ -520,24 +520,43 @@ function M.on_progress_tool_call_done(id)
     local ok, arguments =
       pcall(vim.json.decode, tool_call['function'].arguments)
     if ok then
-      local result = tools.call(
-        tool_call['function'].name,
-        arguments,
-        { cwd = sessions[session].cwd, session = session }
-      )
-      local tool_done_message = {
-        role = 'tool',
-        content = result.content
-          or ('tool_call run failed, error is: \n' .. result.error),
-        tool_call_id = tool_call.id,
-        created = os.time(),
-        tool_call_state = {
-          name = tool_call['function'].name,
-          error = result.error,
-        },
-      }
-      M.append_message(session, tool_done_message)
-      table.insert(tool_done_messages, tool_done_message)
+      local result = tools.call(tool_call['function'].name, arguments, {
+        cwd = sessions[session].cwd,
+        session = session,
+        callback = function(result)
+          local tool_done_message = {
+            role = 'tool',
+            content = result.content
+              or ('tool_call run failed, error is: \n' .. result.error),
+            tool_call_id = tool_call.id,
+            created = os.time(),
+            tool_call_state = {
+              name = tool_call['function'].name,
+              error = result.error,
+            },
+          }
+          M.append_message(session, tool_done_message)
+          windows.on_tool_call_done(session, { tool_done_message })
+          M.finish_async_tool(session, result.jobid)
+        end,
+      })
+      if result.jobid then
+        M.start_async_tool(session, result.jobid)
+      else
+        local tool_done_message = {
+          role = 'tool',
+          content = result.content
+            or ('tool_call run failed, error is: \n' .. result.error),
+          tool_call_id = tool_call.id,
+          created = os.time(),
+          tool_call_state = {
+            name = tool_call['function'].name,
+            error = result.error,
+          },
+        }
+        M.append_message(session, tool_done_message)
+        windows.on_tool_call_done(session, { tool_done_message })
+      end
     else
       local tool_done_message = {
         role = 'tool',
@@ -550,12 +569,11 @@ function M.on_progress_tool_call_done(id)
         },
       }
       M.append_message(session, tool_done_message)
-      table.insert(tool_done_messages, tool_done_message)
       log.info('failed to decode arguments, error is:' .. arguments)
       log.info('arguments is:' .. tool_call['function'].arguments)
+      windows.on_tool_call_done(session, { tool_done_message })
     end
   end
-  windows.on_tool_call_done(session, tool_done_messages)
 
   -- clear job_tool_calls by id
   job_tool_calls[id] = nil
@@ -910,6 +928,50 @@ function M.on_complete(session, id)
   M.append_message(session, message)
   M.write_cache(session)
   require('chat.windows').on_message(session, message)
+end
+function M.send_tool_results(session)
+  local messages = M.get_request_messages(session)
+  if messages[#messages].role == 'tool' then
+    local protocol = require('chat.protocol')
+    log.info('send tool_call results to server.')
+    local jobid = protocol.request({
+      session = session,
+      messages = M.get_request_messages(session),
+    })
+    log.info('curl request jobid is ' .. jobid)
+    if session == require('chat.windows').current_session() then
+      require('chat.spinners').start()
+    end
+  end
+end
+
+local pending_async_tools = {}
+
+function M.start_async_tool(session, jobid)
+  pending_async_tools[session] = pending_async_tools[session] or {}
+  table.insert(pending_async_tools[session], jobid)
+end
+
+function M.finish_async_tool(session, jobid)
+  local pending = pending_async_tools[session]
+  if pending then
+    for i, id in ipairs(pending) do
+      if id == jobid then
+        table.remove(pending, i)
+        break
+      end
+    end
+    if #pending == 0 then
+      pending_async_tools[session] = nil
+      M.write_cache(session)
+      M.send_tool_results(session)
+    end
+  end
+end
+
+function M.has_pending_async_tools(session)
+  local pending = pending_async_tools[session]
+  return pending and #pending > 0
 end
 
 M.get()

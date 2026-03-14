@@ -135,13 +135,12 @@ function M.on_exit(id, code, signal)
 
     log.info(string.format('job exit code %d signal %d', code, signal))
     local reason = sessions.get_progress_finish_reason(id)
-    if reason == 'stop' or reason == 'tool_calls' then
+    if reason == 'stop' then
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
-    else
-      -- @todo handle other finish_reason
-      -- finish_reason == length   support generate next text after the previous message
-      -- finish_reason == content_filter warningMsg
+    elseif reason == 'tool_calls' then
+      sessions.on_complete(session, id)
+      sessions.on_progress_tool_call_done(id)
     end
     sessions.on_progress_exit(id, code, signal)
     if session == require('chat.windows').current_session() then
@@ -169,23 +168,8 @@ function M.on_exit(id, code, signal)
     if code == 0 and signal == 0 then
       local messages = sessions.get_request_messages(session)
       if messages[#messages].role == 'tool' then
-        local ok, provider = pcall(
-          require,
-          'chat.providers.' .. sessions.get_session_provider(session)
-        )
-        if ok then
-          log.info('send tool_call results to server.')
-          local jobid = provider.request({
-            on_stdout = M.on_stdout,
-            on_stderr = M.on_stderr,
-            on_exit = M.on_exit,
-            session = session,
-            messages = sessions.get_request_messages(session),
-          })
-          log.info('curl request jobid is ' .. jobid)
-          if session == require('chat.windows').current_session() then
-            require('chat.spinners').start()
-          end
+        if not sessions.has_pending_async_tools(session) then
+          sessions.send_tool_results(session)
         end
       end
     end
