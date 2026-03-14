@@ -764,12 +764,10 @@ function M.share(session)
     'curl',
     '-s',
     '-w',
-    '\n%{http_code}', -- Append HTTP status code to output
-    '-X',
-    'POST',
-    url,
-    '-d',
+    '\n%{http_code}',
+    '--data-binary',
     '@-',
+    url,
   }, {
     on_stdout = function(id, data)
       for _, v in ipairs(data) do
