@@ -16,7 +16,6 @@ local prompt_win = -1
 local prompt_buf = -1
 local result_win = -1
 local result_buf = -1
-local requestObj = {}
 
 function M.set_result_win_title(title)
   if vim.api.nvim_win_is_valid(result_win) then
@@ -413,9 +412,6 @@ function M.open(opt)
         local messages = sessions.get_request_messages(current_session)
         if #messages > 0 and messages[#messages].role ~= 'assistant' then
           protocol.request({
-            on_stdout = requestObj.on_stdout,
-            on_stderr = requestObj.on_stderr,
-            on_exit = requestObj.on_exit,
             session = current_session,
             messages = messages,
           })
@@ -487,9 +483,6 @@ function M.send_message(session, content)
   sessions.append_message(session, msg)
   M.on_message(session, msg)
   protocol.request({
-    on_stdout = requestObj.on_stdout,
-    on_stderr = requestObj.on_stderr,
-    on_exit = requestObj.on_exit,
     session = session,
     messages = sessions.get_request_messages(session),
   })
