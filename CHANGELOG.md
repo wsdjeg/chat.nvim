@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0](https://github.com/wsdjeg/chat.nvim/compare/v1.4.0...v1.5.0) (2026-03-15)
+
+
+### Features
+
+* add async tool execution support ([202764e](https://github.com/wsdjeg/chat.nvim/commit/202764eff6f86b986045f8e64e2c122581230432))
+* add MCP (Model Context Protocol) support ([27e4abb](https://github.com/wsdjeg/chat.nvim/commit/27e4abb80708c0f4dc765b4a4301d5daacb327b9))
+* add transport support and mcp commands ([0608d2e](https://github.com/wsdjeg/chat.nvim/commit/0608d2ed01d546bfb1a67ea3892f8448046b6a2a))
+* switch to job module and handle job.env ([119d6bd](https://github.com/wsdjeg/chat.nvim/commit/119d6bd5a63a87419d2a8cb3712e18fbf42d7819))
+
+
+### Bug Fixes
+
+* remove unused requestObj ([879479d](https://github.com/wsdjeg/chat.nvim/commit/879479dd98d8846b9f88e75ccbf50d30820d8750))
+* **sessions:** use --data-binary for paste.rs ([7ca0dd5](https://github.com/wsdjeg/chat.nvim/commit/7ca0dd589a4e11a833abf0afca573f421cbe9cb7))
+
 ## [1.4.0](https://github.com/wsdjeg/chat.nvim/compare/v1.3.0...v1.4.0) (2026-03-13)
 
 
