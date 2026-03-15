@@ -19,10 +19,10 @@ function M.available_models()
     '-s',
     get_ollama_host() .. '/api/tags',
   }
-  
+
   local models = {}
   local result = vim.system(cmd, { text = true }):wait()
-  
+
   if result.code == 0 then
     local ok, data = pcall(vim.json.decode, result.stdout)
     if ok and data.models then
@@ -31,7 +31,7 @@ function M.available_models()
       end
     end
   end
-  
+
   return models
 end
 
@@ -40,7 +40,7 @@ function M.request(opt)
   local cmd = {
     'curl',
     '-s',
-    get_ollama_host() .. '/v1/chat/completions',  -- OpenAI compatible endpoint
+    get_ollama_host() .. '/v1/chat/completions', -- OpenAI compatible endpoint
     '-H',
     'Content-Type: application/json',
     '-X',
@@ -70,4 +70,3 @@ function M.request(opt)
 end
 
 return M
-

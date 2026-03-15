@@ -72,7 +72,10 @@ function M.info(tool_call, ctx)
   if tool_call['function'].name:match('^mcp_[^_]+_.+$') then
     local ok, mcp_module = pcall(get_mcp)
     if ok and mcp_module then
-      return mcp_module.tool_info(tool_call['function'].name, tool_call['function'].arguments)
+      return mcp_module.tool_info(
+        tool_call['function'].name,
+        tool_call['function'].arguments
+      )
     end
   end
 

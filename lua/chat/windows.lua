@@ -465,6 +465,7 @@ function M.open(opt)
   require('chat.integrations').on_message(function(message)
     queue.push(message.session, message.content)
   end)
+  require('chat.mcp').connect()
 end
 
 function M.current_session()

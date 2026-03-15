@@ -18,7 +18,7 @@ local function start_timer()
     timer_running = true
     id = vim.fn.timer_start(5000, function()
       local has_messages = false
-      
+
       for session, queue in pairs(message_queue) do
         if queue and #queue > 0 then
           has_messages = true
@@ -27,7 +27,7 @@ local function start_timer()
           end
         end
       end
-      
+
       -- Stop timer if no messages
       if not has_messages then
         stop_timer()

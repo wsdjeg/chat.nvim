@@ -37,6 +37,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [Configuration Notes](#configuration-notes)
 - [⚙️ Usage](#-usage)
     - [Basic Commands](#basic-commands)
+    - [MCP Commands](#mcp-commands)
     - [Parallel Sessions](#parallel-sessions)
     - [Examples](#examples)
     - [Key Bindings](#key-bindings)
@@ -485,24 +486,72 @@ end
 
 chat.nvim supports Model Context Protocol (MCP) servers for extended tool capabilities. MCP allows you to connect external tool servers that provide additional functionality.
 
-**Basic Configuration:**
+**Supported Transports:**
+
+- **stdio**: Standard input/output transport (default for command-based servers)
+- **streamable_http**: HTTP transport with SSE support (for HTTP-based servers)
+
+**Basic Configuration (stdio transport):**
 
 ```lua
 mcp = {
-  -- Example: Web search MCP server
+  -- Example: Web search MCP server using stdio transport
   open_webSearch = {
-    command = 'mcp-server-websearch',
-    args = { '--port', '8080' },
+    command = 'npx',
+    args = { '-y', 'open-websearch@latest' },
     disabled = false,  -- Set to true to disable this server
   },
 
-  -- Example: Another MCP server
+  -- Example: Another stdio MCP server
   my_custom_server = {
     command = '/path/to/mcp-server',
     args = { '--config', '/path/to/config.json' },
   },
 }
 ```
+
+**HTTP Transport Configuration:**
+
+For HTTP-based MCP servers, use the `streamable_http` transport:
+
+```lua
+mcp = {
+  -- HTTP-based MCP server
+  my_http_server = {
+    url = 'https://mcp-server.example.com',
+    headers = {
+      ['Authorization'] = 'Bearer YOUR_TOKEN',
+    },
+  },
+
+  -- HTTP server with command to start
+  my_managed_http_server = {
+    command = 'my-mcp-http-server',
+    args = { '--port', '8080' },
+    url = 'http://localhost:8080',
+    transport = {
+      type = 'streamable_http',
+      url = 'http://localhost:8080',
+    },
+  },
+}
+```
+
+**Transport Configuration Parameters:**
+
+| Parameter           | Type    | Required | Description                                           |
+| ------------------- | ------- | -------- | ----------------------------------------------------- |
+| `command`           | string  | ❌ No\*  | Path to MCP server executable (required for stdio)    |
+| `args`              | array   | ❌ No    | Command-line arguments for the server                 |
+| `url`               | string  | ❌ No\*  | HTTP URL for streamable_http transport                |
+| `headers`           | table   | ❌ No    | HTTP headers (key-value pairs)                        |
+| `transport`         | table   | ❌ No    | Explicit transport configuration                      |
+| `transport.type`    | string  | ❌ No    | Transport type: `"stdio"` or `"streamable_http"`      |
+| `transport.url`     | string  | ❌ No    | Override URL for transport                            |
+| `transport.headers` | table   | ❌ No    | Override headers for transport                        |
+| `disabled`          | boolean | ❌ No    | Set to `true` to disable this server (default: false) |
+
+\*Either `command` (for stdio) or `url` (for HTTP) is required.
 
 **MCP Tool Naming:**
 
@@ -520,19 +569,13 @@ MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
 
 **Key Features:**
 
+- **Multiple Transports**: Support for stdio and HTTP transports
 - **Automatic Discovery**: MCP tools are automatically discovered and integrated
 - **Seamless Integration**: MCP tools work alongside built-in tools
 - **Async Execution**: All MCP tool calls are non-blocking
 - **Protocol Compliance**: Full JSON-RPC 2.0 protocol support
 - **Error Handling**: Graceful error handling and timeout protection
-
-**Configuration Parameters:**
-
-| Parameter  | Type    | Required | Description                                           |
-| ---------- | ------- | -------- | ----------------------------------------------------- |
-| `command`  | string  | ✅ Yes   | Path to MCP server executable                         |
-| `args`     | array   | ❌ No    | Command-line arguments for the server                 |
-| `disabled` | boolean | ❌ No    | Set to `true` to disable this server (default: false) |
+- **Auto Management**: Servers are automatically started when opening chat and stopped on exit
 
 **Complete Example:**
 
@@ -542,16 +585,28 @@ require('chat').setup({
 
   -- MCP servers configuration
   mcp = {
-    -- Web search MCP server
+    -- Stdio-based MCP server
     open_webSearch = {
-      command = 'mcp-server-websearch',
-      args = { '--engine', 'bing', '--limit', '10' },
+      command = 'npx',
+      args = { '-y', 'open-websearch@latest' },
     },
 
-    -- Custom MCP server with config
-    my_tools = {
-      command = vim.fn.expand('~/.local/bin/my-mcp-server'),
-      args = { '--config', vim.fn.expand('~/.config/mcp/config.json') },
+    -- HTTP-based MCP server
+    remote_tools = {
+      url = 'https://mcp-api.example.com',
+      headers = {
+        ['Authorization'] = 'Bearer YOUR_API_KEY',
+      },
+    },
+
+    -- Managed HTTP server (starts local process)
+    local_http_server = {
+      command = 'my-mcp-server',
+      args = { '--port', '3000' },
+      transport = {
+        type = 'streamable_http',
+        url = 'http://localhost:3000',
+      },
     },
 
     -- Disabled server (won't start)
@@ -563,13 +618,22 @@ require('chat').setup({
 })
 ```
 
+**Transport Detection:**
+
+chat.nvim automatically detects the transport type:
+
+1. If `transport.type` is specified, use that transport
+2. If `command` exists without `transport`, use **stdio** transport
+3. If `url` exists without `command`, use **streamable_http** transport
+
 **Notes:**
 
-- MCP servers are started automatically when chat.nvim initializes
-- Server connections are managed automatically (reconnection on failure)
+- MCP servers are started automatically when opening the chat window
+- Server connections are managed automatically (cleanup on exit)
 - Tools are discovered during initialization with a small delay for protocol handshake
 - All MCP tool calls follow the same pattern as built-in tools
 - Check server logs with `:messages` for connection issues
+- Use `:Chat mcp` commands for manual server management
 
 **Troubleshooting:**
 
@@ -577,6 +641,7 @@ require('chat').setup({
 2. **Tools not appearing**: Wait a few seconds for the initialization handshake
 3. **Tool call failures**: Check server logs for error messages
 4. **Connection issues**: Ensure the MCP server is properly configured
+5. **HTTP transport issues**: Check that the URL is accessible and headers are correct
 
 For more information about MCP, see the [Model Context Protocol specification](https://modelcontextprotocol.io/).
 
@@ -745,6 +810,43 @@ You can also navigate between sessions using the following commands.
 | `:Chat share`       | Share current session via pastebin                  |
 | `:Chat preview`     | Open HTML preview of current session in browser     |
 | `:Chat bridge`      | Bind current session to external platform (Discord) |
+| `:Chat mcp stop`    | Stop all MCP servers                                |
+| `:Chat mcp start`   | Start all MCP servers                               |
+| `:Chat mcp restart` | Restart all MCP servers                             |
+
+### MCP Commands
+
+Manage MCP (Model Context Protocol) servers with the following commands:
+
+1. **Stop MCP servers**:
+
+   ```vim
+   :Chat mcp stop
+   ```
+
+   Stops all running MCP servers and cleans up resources.
+
+2. **Start MCP servers**:
+
+   ```vim
+   :Chat mcp start
+   ```
+
+   Starts all configured MCP servers. Note: Servers are automatically started when opening the chat window.
+
+3. **Restart MCP servers**:
+
+   ```vim
+   :Chat mcp restart
+   ```
+
+   Restarts all MCP servers (stops and starts with a delay for cleanup).
+
+**Notes:**
+
+- MCP servers are automatically started when you open the chat window (`:Chat`)
+- MCP servers are automatically stopped when you exit Neovim
+- Use these commands for manual control if needed (e.g., after changing configuration)
 
 ### Parallel Sessions
 

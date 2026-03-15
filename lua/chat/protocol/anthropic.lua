@@ -42,7 +42,7 @@ function M.on_stdout(id, data)
         if #sse_buffers[id] > 0 then
           local text = table.concat(sse_buffers[id], '\n')
           sse_buffers[id] = {}
-          
+
           if vim.trim(text) == '' then
             return
           end
@@ -68,7 +68,9 @@ function M.on_stdout(id, data)
                   log.info('handle text delta')
                   sessions.on_progress(id, chunk.delta.text)
                 end
-              elseif chunk.delta and chunk.delta.type == 'input_json_delta' then
+              elseif
+                chunk.delta and chunk.delta.type == 'input_json_delta'
+              then
                 -- Tool use streaming
                 log.info('handle tool_input delta')
                 -- Handle partial tool input if needed
@@ -79,7 +81,10 @@ function M.on_stdout(id, data)
             elseif chunk.type == 'message_delta' then
               -- Message update
               if chunk.delta and chunk.delta.stop_reason then
-                sessions.set_progress_finish_reason(id, chunk.delta.stop_reason)
+                sessions.set_progress_finish_reason(
+                  id,
+                  chunk.delta.stop_reason
+                )
               end
               if chunk.usage then
                 sessions.set_progress_usage(id, chunk.usage)
@@ -126,7 +131,7 @@ end
 function M.on_exit(id, code, signal)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
-    
+
     if body_buffers[id] and #body_buffers[id] > 0 then
       local text = table.concat(body_buffers[id], '\n')
       body_buffers[id] = {}
@@ -135,7 +140,11 @@ function M.on_exit(id, code, signal)
         local error_msg = chunk.error.message or 'Unknown error'
         local error_type = chunk.error.type or 'unknown'
         local message = {
-          error = string.format('Anthropic API Error (%s): %s', error_type, error_msg),
+          error = string.format(
+            'Anthropic API Error (%s): %s',
+            error_type,
+            error_msg
+          ),
           created = os.time(),
         }
         sessions.append_message(session, message)
@@ -144,7 +153,7 @@ function M.on_exit(id, code, signal)
     end
 
     log.info(string.format('job exit code %d signal %d', code, signal))
-    
+
     local reason = sessions.get_progress_finish_reason(id)
     if reason == 'end_turn' or reason == 'stop' or reason == 'tool_use' then
       sessions.on_progress_done(id)
@@ -152,7 +161,7 @@ function M.on_exit(id, code, signal)
     end
 
     sessions.on_progress_exit(id, code, signal)
-    
+
     if session == require('chat.windows').current_session() then
       require('chat.spinners').stop()
     end
@@ -185,4 +194,3 @@ function M.on_exit(id, code, signal)
 end
 
 return M
-

@@ -38,7 +38,7 @@ function M.on_stdout(id, data)
         elseif chunk then
           if chunk.candidates and #chunk.candidates > 0 then
             local candidate = chunk.candidates[1]
-            
+
             -- Handle content
             if candidate.content and candidate.content.parts then
               for _, part in ipairs(candidate.content.parts) do
@@ -69,7 +69,8 @@ function M.on_stdout(id, data)
           if chunk.usageMetadata then
             sessions.set_progress_usage(id, {
               prompt_tokens = chunk.usageMetadata.promptTokenCount or 0,
-              completion_tokens = chunk.usageMetadata.candidatesTokenCount or 0,
+              completion_tokens = chunk.usageMetadata.candidatesTokenCount
+                or 0,
               total_tokens = chunk.usageMetadata.totalTokenCount or 0,
             })
           end
@@ -79,7 +80,11 @@ function M.on_stdout(id, data)
             local error_msg = chunk.error.message or 'Unknown error'
             local error_code = chunk.error.code or 'unknown'
             local message = {
-              error = string.format('Gemini API Error (%s): %s', error_code, error_msg),
+              error = string.format(
+                'Gemini API Error (%s): %s',
+                error_code,
+                error_msg
+              ),
               created = os.time(),
             }
             local session = sessions.get_progress_session(id)
@@ -112,7 +117,11 @@ function M.on_exit(id, code, signal)
         local error_msg = chunk.error.message or 'Unknown error'
         local error_code = chunk.error.code or 'unknown'
         local message = {
-          error = string.format('Gemini API Error (%s): %s', error_code, error_msg),
+          error = string.format(
+            'Gemini API Error (%s): %s',
+            error_code,
+            error_msg
+          ),
           created = os.time(),
         }
         sessions.append_message(session, message)
@@ -161,4 +170,3 @@ function M.on_exit(id, code, signal)
 end
 
 return M
-

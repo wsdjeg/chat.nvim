@@ -27,6 +27,23 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat').open({
       redraw = sessions.clear(),
     })
+  elseif #opt.fargs >= 2 and opt.fargs[1] == 'mcp' then
+    local mcp = require('chat.mcp')
+    local subcmd = opt.fargs[2]
+
+    if subcmd == 'stop' then
+      mcp.stop()
+      require('chat.log').notify('MCP servers stopped')
+    elseif subcmd == 'start' then
+      mcp.connect()
+      require('chat.log').notify('MCP servers starting')
+    elseif subcmd == 'restart' then
+      mcp.stop()
+      vim.defer_fn(function()
+        mcp.connect()
+      end, 500)
+      require('chat.log').notify('MCP servers restarting')
+    end
   elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
     if #opt.fargs >= 2 then
       local dir = vim.fs.normalize(vim.fn.fnamemodify(opt.fargs[2], ':p'))
@@ -145,6 +162,16 @@ end, {
       local path_arg = pre_cursor:match('^Chat cd%s+(.*)$')
       return vim.fn.getcompletion(path_arg or '', 'dir')
     end
+    if pre_cursor:match('^Chat mcp ') then
+      -- MCP Subcommand completion
+      return vim.tbl_filter(function(t)
+        return vim.startswith(t, arglead)
+      end, {
+        'stop',
+        'start',
+        'restart',
+      })
+    end
 
     -- Subcommand completion
     return vim.tbl_filter(function(t)
@@ -159,6 +186,7 @@ end, {
       'save',
       'load',
       'share',
+      'mcp',
       'preview',
       'bridge',
     })

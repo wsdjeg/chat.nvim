@@ -255,12 +255,12 @@ function M.is_in_progress(session)
       return true
     end
   end
-  
+
   -- Also check if there are pending async tools
   if M.has_pending_async_tools(session) then
     return true
   end
-  
+
   return false
 end
 

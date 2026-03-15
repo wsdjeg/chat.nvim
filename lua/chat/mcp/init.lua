@@ -2,14 +2,13 @@ local M = {}
 
 local log = require('chat.log')
 local config = require('chat.config')
-
-local job = require('job')
+local transport = require('chat.mcp.transport')
 
 ---@class MCPServer
----@field jobid number
+---@field transport table
+---@field transport_type string
 ---@field tools MCPTool[]
 ---@field resources MCPResource[]
----@field pending_requests table<number, {callback: function}>
 
 ---@class MCPTool
 ---@field name string
@@ -20,56 +19,144 @@ local servers = {} ---@type table<string, MCPServer>
 local request_id = 0
 local pending_requests = {}
 
--- 初始化 MCP
 function M.setup()
-  local mcp_config = config.config.mcp or {}
+  -- 注册内置 transport
+  transport.register('stdio', require('chat.mcp.transport.stdio'))
+  transport.register(
+    'streamable_http',
+    require('chat.mcp.transport.streamable_http')
+  )
 
-  for server_name, server_config in pairs(mcp_config) do
-    if not server_config.disabled then
+  -- 添加清理自动命令
+  vim.api.nvim_create_autocmd('VimLeavePre', {
+    callback = function()
+      M.stop()
+    end,
+  })
+end
+
+-- 连接所有 MCP servers
+function M.connect()
+  local mcp_config = config.config.mcp or {}
+  local servers_config = mcp_config.mcpServers or mcp_config
+
+  for server_name, server_config in pairs(servers_config) do
+    if not server_config.disabled and not servers[server_name] then
       M.connect_server(server_name, server_config)
     end
   end
 end
 
--- 连接到 MCP server
-function M.connect_server(name, server_config)
-  local cmd = { server_config.command }
-  if server_config.args then
-    vim.list_extend(cmd, server_config.args)
+-- 检测 transport 类型
+local function detect_transport_type(server_config)
+  local t = nil
+
+  -- 如果有 transport.type，优先使用
+  if server_config.transport and server_config.transport.type then
+    t = server_config.transport.type
+  -- 旧格式: command 存在但没有 transport，则是 stdio
+  elseif server_config.command and not server_config.transport then
+    return 'stdio'
+  -- 只有 url，默认 streamable_http
+  elseif server_config.url then
+    return 'streamable_http'
+  else
+    return nil
   end
 
-  local jobid = job.start(cmd, {
-    on_stdout = function(_, data)
-      M.handle_stdout(name, data)
-    end,
-    on_stderr = function(_, data)
-      for _, v in ipairs(data) do
-        log.error('[MCP:' .. name .. '] ' .. v)
-      end
-    end,
-    on_exit = function(_, code, single)
-      log.warn(
-        '[MCP:'
-          .. name
-          .. '] Server exited with code '
-          .. code
-          .. ' single '
-          .. single
-      )
-      servers[name] = nil
-    end,
-    env = server_config.env,
-  })
+  -- 统一转换成 snake_case
+  t = t:gsub('-', '_')
+  t = t:gsub('([a-z])([A-Z])', '%1_%2')
+  t = t:lower()
 
-  if jobid > 0 then
-    servers[name] = {
-      jobid = jobid,
-      tools = {},
-      resources = {},
-      pending_requests = {},
+  return t
+end
+
+function M.remove_server(server_name)
+  local server = servers[server_name]
+  if server then
+    servers[server_name] = nil
+    log.info('[MCP] Removed disconnected server: ' .. server_name)
+  end
+end
+
+local function get_transport_config(
+  server_config,
+  transport_type,
+  server_name
+)
+  local base_config = {}
+
+  if transport_type == 'stdio' then
+    base_config = {
+      command = server_config.command,
+      args = server_config.args,
+      env = server_config.env,
     }
+  elseif transport_type == 'streamable_http' or transport_type == 'sse' then
+    base_config = {
+      command = server_config.command,
+      args = server_config.args,
+      env = server_config.env,
+      url = server_config.transport and server_config.transport.url
+        or server_config.url,
+      headers = server_config.transport and server_config.transport.headers
+        or server_config.headers,
+    }
+  end
 
-    -- 发送 initialize 请求
+  base_config.on_disconnect = function()
+    M.remove_server(server_name)
+  end
+
+  return base_config
+end
+
+-- 连接到 MCP server
+function M.connect_server(name, server_config)
+  local transport_type = detect_transport_type(server_config)
+
+  if not transport_type then
+    log.error('[MCP:' .. name .. '] Unknown transport configuration')
+    return
+  end
+
+  local transport_module = transport.get(transport_type)
+
+  if not transport_module then
+    log.error('[MCP:' .. name .. '] Transport not found: ' .. transport_type)
+    return
+  end
+
+  local transport_config =
+    get_transport_config(server_config, transport_type, name)
+
+  local t, err = transport_module.create(name, transport_config, function(msg)
+    M.handle_message(name, msg)
+  end)
+
+  if not t then
+    log.error(
+      '[MCP:'
+        .. name
+        .. '] Failed to create transport: '
+        .. (err or 'unknown')
+    )
+    return
+  end
+
+  servers[name] = {
+    transport = t,
+    transport_type = transport_type,
+    tools = {},
+    resources = {},
+  }
+
+  -- 发送 initialize 请求
+  -- 如果有 jobid，说明需要等待进程启动
+  local init_delay = t.jobid and 8000 or 0
+
+  local function send_initialize()
     M.send_request(name, 'initialize', {
       protocolVersion = '2024-11-05',
       capabilities = vim.empty_dict(),
@@ -88,7 +175,7 @@ function M.connect_server(name, server_config)
           'tools/list',
           vim.empty_dict(),
           function(list_result)
-            if list_result.tools then
+            if list_result and list_result.tools then
               servers[name].tools = list_result.tools
               log.info(
                 '[MCP:'
@@ -104,11 +191,20 @@ function M.connect_server(name, server_config)
         )
       end, 100)
     end)
-
-    log.info('[MCP] Connected to server: ' .. name)
-  else
-    log.error('[MCP] Failed to start server: ' .. name)
   end
+
+  if init_delay > 0 then
+    log.info(
+      '[MCP] Waiting ' .. init_delay .. 'ms for server to start: ' .. name
+    )
+    vim.defer_fn(send_initialize, init_delay)
+  else
+    send_initialize()
+  end
+
+  log.info(
+    '[MCP] Connected to server: ' .. name .. ' (' .. transport_type .. ')'
+  )
 end
 
 -- 发送 JSON-RPC 请求
@@ -136,7 +232,11 @@ function M.send_request(server_name, method, params, callback)
     params = params or vim.empty_dict(),
   }) .. '\n'
 
-  job.send(server.jobid, request)
+  local transport_module = transport.get(server.transport_type)
+  if transport_module and transport_module.send then
+    transport_module.send(server.transport, request)
+  end
+
   return id
 end
 
@@ -154,22 +254,9 @@ function M.send_notification(server_name, method, params)
     params = params or vim.empty_dict(),
   }) .. '\n'
 
-  job.send(server.jobid, notification)
-end
-
--- 处理 stdout 数据
-function M.handle_stdout(server_name, data)
-  local data_str = table.concat(data, '\n')
-
-  for line in data_str:gmatch('[^\r\n]+') do
-    if line:sub(1, 1) == '{' then
-      local ok, msg = pcall(vim.json.decode, line)
-      if ok then
-        M.handle_message(server_name, msg)
-      else
-        log.error('[MCP:' .. server_name .. '] JSON decode failed: ' .. line)
-      end
-    end
+  local transport_module = transport.get(server.transport_type)
+  if transport_module and transport_module.send then
+    transport_module.send(server.transport, notification)
   end
 end
 
@@ -343,6 +430,17 @@ function M.tool_info(tool_name, arguments_str)
   end
 
   return string.format('mcp_%s_%s%s', server_name, mcp_tool_name, args_info)
+end
+-- 停止所有 servers
+function M.stop()
+  for name, server in pairs(servers) do
+    local transport_module = transport.get(server.transport_type)
+    if transport_module and transport_module.close then
+      log.info('[MCP] Stopping server: ' .. name)
+      transport_module.close(server.transport)
+    end
+  end
+  servers = {}
 end
 
 return M
