@@ -3,6 +3,8 @@ local M = {}
 local log = require('chat.log')
 local config = require('chat.config')
 
+local job = require('job')
+
 ---@class MCPServer
 ---@field jobid number
 ---@field tools MCPTool[]
@@ -21,7 +23,7 @@ local pending_requests = {}
 -- 初始化 MCP
 function M.setup()
   local mcp_config = config.config.mcp or {}
-  
+
   for server_name, server_config in pairs(mcp_config) do
     if not server_config.disabled then
       M.connect_server(server_name, server_config)
@@ -36,17 +38,27 @@ function M.connect_server(name, server_config)
     vim.list_extend(cmd, server_config.args)
   end
 
-  local jobid = vim.fn.jobstart(cmd, {
-    on_stdout = function(_, data, _)
+  local jobid = job.start(cmd, {
+    on_stdout = function(_, data)
       M.handle_stdout(name, data)
     end,
-    on_stderr = function(_, data, _)
-      log.error('[MCP:' .. name .. '] ' .. table.concat(data, '\n'))
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        log.error('[MCP:' .. name .. '] ' .. v)
+      end
     end,
-    on_exit = function(_, code, _)
-      log.warn('[MCP:' .. name .. '] Server exited with code ' .. code)
+    on_exit = function(_, code, single)
+      log.warn(
+        '[MCP:'
+          .. name
+          .. '] Server exited with code '
+          .. code
+          .. ' single '
+          .. single
+      )
       servers[name] = nil
     end,
+    env = server_config.env,
   })
 
   if jobid > 0 then
@@ -68,17 +80,28 @@ function M.connect_server(name, server_config)
     }, function(result)
       -- 发送 initialized 通知（MCP 协议要求）
       M.send_notification(name, 'initialized', vim.empty_dict())
-      
+
       -- 延迟后请求工具列表
       vim.defer_fn(function()
-        M.send_request(name, 'tools/list', vim.empty_dict(), function(list_result)
-          if list_result.tools then
-            servers[name].tools = list_result.tools
-            log.info('[MCP:' .. name .. '] Registered ' .. #list_result.tools .. ' tools')
-          else
-            log.warn('[MCP:' .. name .. '] No tools found')
+        M.send_request(
+          name,
+          'tools/list',
+          vim.empty_dict(),
+          function(list_result)
+            if list_result.tools then
+              servers[name].tools = list_result.tools
+              log.info(
+                '[MCP:'
+                  .. name
+                  .. '] Registered '
+                  .. #list_result.tools
+                  .. ' tools'
+              )
+            else
+              log.warn('[MCP:' .. name .. '] No tools found')
+            end
           end
-        end)
+        )
       end, 100)
     end)
 
@@ -113,7 +136,7 @@ function M.send_request(server_name, method, params, callback)
     params = params or vim.empty_dict(),
   }) .. '\n'
 
-  vim.fn.chansend(server.jobid, request)
+  job.send(server.jobid, request)
   return id
 end
 
@@ -131,7 +154,7 @@ function M.send_notification(server_name, method, params)
     params = params or vim.empty_dict(),
   }) .. '\n'
 
-  vim.fn.chansend(server.jobid, notification)
+  job.send(server.jobid, notification)
 end
 
 -- 处理 stdout 数据
@@ -160,7 +183,12 @@ function M.handle_message(server_name, msg)
     if msg.result and request.callback then
       request.callback(msg.result)
     elseif msg.error then
-      log.error('[MCP:' .. server_name .. '] Request error: ' .. (msg.error.message or 'unknown'))
+      log.error(
+        '[MCP:'
+          .. server_name
+          .. '] Request error: '
+          .. (msg.error.message or 'unknown')
+      )
     end
 
   -- Notification
@@ -180,7 +208,7 @@ local function find_server_for_tool(full_tool_name)
       end
     end
   end
-  
+
   -- 方案2：从末尾解析最后一个下划线（备选方案，兼容未来可能的格式变化）
   -- mcp_open_webSearch_search -> server: "open_webSearch", tool: "search"
   -- 使用贪婪匹配，server_name 匹配尽可能多的内容
@@ -191,7 +219,7 @@ local function find_server_for_tool(full_tool_name)
       return server_name, mcp_tool_name
     end
   end
-  
+
   return nil, nil
 end
 
@@ -199,7 +227,7 @@ end
 function M.call_tool(tool_name, arguments, ctx)
   -- 查找 server 名称和 tool 名称
   local server_name, mcp_tool_name = find_server_for_tool(tool_name)
-  
+
   if not server_name or not mcp_tool_name then
     return { error = 'Invalid MCP tool name format: ' .. tool_name }
   end
@@ -269,7 +297,10 @@ function M.available_tools()
         type = 'function',
         ['function'] = {
           name = 'mcp_' .. server_name .. '_' .. mcp_tool.name,
-          description = '[MCP:' .. server_name .. '] ' .. mcp_tool.description,
+          description = '[MCP:'
+            .. server_name
+            .. '] '
+            .. mcp_tool.description,
           parameters = mcp_tool.inputSchema,
         },
       })
@@ -288,11 +319,11 @@ end
 function M.tool_info(tool_name, arguments_str)
   -- 查找 server 名称和 tool 名称
   local server_name, mcp_tool_name = find_server_for_tool(tool_name)
-  
+
   if not server_name or not mcp_tool_name then
     return tool_name
   end
-  
+
   -- 尝试解析 arguments JSON
   local args_info = ''
   local ok, arguments = pcall(vim.json.decode, arguments_str or '{}')
@@ -310,7 +341,7 @@ function M.tool_info(tool_name, arguments_str)
       args_info = ' ' .. table.concat(parts, ' ')
     end
   end
-  
+
   return string.format('mcp_%s_%s%s', server_name, mcp_tool_name, args_info)
 end
 
