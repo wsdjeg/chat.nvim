@@ -62,7 +62,19 @@ function M.git_diff(action, ctx)
         table.insert(stderr, v)
       end
     end,
-    on_exit = function(id, code, single)
+    on_exit = function(id, code, signal)
+      -- 检查是否被信号中断（如 Ctrl-C）
+      if signal ~= 0 then
+        ctx.callback({
+          error = string.format(
+            'Git diff cancelled by user (signal: %d)',
+            signal
+          ),
+          jobid = id,
+        })
+        return
+      end
+
       local output = table.concat(stdout, '\n')
       if #stderr > 0 then
         output = output .. '\n\n' .. table.concat(stderr, '\n')
@@ -70,7 +82,7 @@ function M.git_diff(action, ctx)
       if output == '' then
         output = 'No changes found.'
       end
-      if code == 0 and single == 0 then
+      if code == 0 then
         local summary = string.format(
           'Git diff output for: %s\n\n',
           resolved_path or 'repository'

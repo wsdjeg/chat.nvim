@@ -161,6 +161,16 @@ function M.search_text(action, ctx)
       end
     end,
     on_exit = function(id, code, signal)
+      if signal ~= 0 then
+        ctx.callback({
+          error = string.format(
+            'search_text cancelled by user (signal: %d)',
+            signal
+          ),
+          jobid = id,
+        })
+        return
+      end
       if code == 0 and signal == 0 then
         -- Parse JSON output from ripgrep
         local matches = {}

@@ -153,7 +153,9 @@ function M.on_exit(id, code, signal)
     end
     sessions.on_progress_exit(id, code, signal)
     if session == require('chat.windows').current_session() then
-      require('chat.spinners').stop()
+      if not sessions.has_pending_async_tools(session) then
+        require('chat.spinners').stop()
+      end
     end
     if signal == 2 then
       local message = {

@@ -109,6 +109,14 @@ function M.send(transport, message)
   -- 使用 -i 来获取 response headers
   local cmd = { 'curl', '-s', '-i', '-X', 'POST' }
 
+  -- 本地地址不走代理
+  if transport.url:match('^https?://127%.0%.0%.1')
+    or transport.url:match('^https?://localhost')
+    or transport.url:match('^https?://[::1]') then
+    table.insert(cmd, '--noproxy')
+    table.insert(cmd, '*')
+  end
+
   for _, h in ipairs(headers) do
     table.insert(cmd, '-H')
     table.insert(cmd, h)

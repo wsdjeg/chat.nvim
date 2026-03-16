@@ -18,6 +18,7 @@ local transport = require('chat.mcp.transport')
 local servers = {} ---@type table<string, MCPServer>
 local request_id = 0
 local pending_requests = {}
+local mcp_tool_call_to_request = {} -- 映射 mcp_tool_call_id -> {request_id, server_name}
 
 function M.setup()
   -- 注册内置 transport
@@ -189,7 +190,7 @@ function M.connect_server(name, server_config)
             end
           end
         )
-      end, 100)
+      end, 1000)
     end)
   end
 
@@ -222,6 +223,7 @@ function M.send_request(server_name, method, params, callback)
     pending_requests[id] = {
       server = server_name,
       callback = callback,
+      method = method, -- 保存 method 用于调试
     }
   end
 
@@ -263,9 +265,28 @@ end
 -- 处理 JSON-RPC 消息
 function M.handle_message(server_name, msg)
   -- Response
-  if msg.id and pending_requests[msg.id] then
+  if msg.id then
     local request = pending_requests[msg.id]
     pending_requests[msg.id] = nil
+
+    -- 检查请求是否存在（可能已被取消）
+    if not request then
+      log.debug(
+        '[MCP:'
+          .. server_name
+          .. '] Received response for cancelled request '
+          .. msg.id
+      )
+      return
+    end
+
+    -- 清理 mcp_tool_call_to_request 映射
+    for mcp_id, mapping in pairs(mcp_tool_call_to_request) do
+      if mapping.request_id == msg.id then
+        mcp_tool_call_to_request[mcp_id] = nil
+        break
+      end
+    end
 
     if msg.result and request.callback then
       request.callback(msg.result)
@@ -310,8 +331,14 @@ local function find_server_for_tool(full_tool_name)
   return nil, nil
 end
 
+-- 每次请求 mcp tool 减一
+local _mcp_tool_call_id = 0
+
 -- 调用 MCP tool
 function M.call_tool(tool_name, arguments, ctx)
+  _mcp_tool_call_id = _mcp_tool_call_id - 1
+  local current_mcp_tool_call_id = _mcp_tool_call_id -- 保存当前 ID
+
   -- 查找 server 名称和 tool 名称
   local server_name, mcp_tool_name = find_server_for_tool(tool_name)
 
@@ -324,62 +351,85 @@ function M.call_tool(tool_name, arguments, ctx)
     return { error = 'MCP server not found: ' .. server_name }
   end
 
-  -- 发送 tools/call 请求（异步）
-  local co = coroutine.running()
-  local result_received = false
-  local tool_result = nil
-
-  M.send_request(server_name, 'tools/call', {
+  local req_id = M.send_request(server_name, 'tools/call', {
     name = mcp_tool_name,
     arguments = arguments,
   }, function(result)
-    result_received = true
-    tool_result = result
-    if co then
-      local ok, resume_err = coroutine.resume(co)
-      if not ok then
-        log.error(
-          '[MCP:'
-            .. server_name
-            .. '] Coroutine resume failed: '
-            .. tostring(resume_err)
-        )
+    -- 清理映射
+    mcp_tool_call_to_request[current_mcp_tool_call_id] = nil
+
+    if result.content then
+      local content_parts = {}
+      for _, part in ipairs(result.content) do
+        if part.type == 'text' then
+          table.insert(content_parts, part.text)
+        end
       end
+      ctx.callback({
+        content = table.concat(content_parts, '\n'),
+        mcp_tool_call_id = current_mcp_tool_call_id,
+      })
+    elseif result.isError then
+      ctx.callback({
+        error = result.isError or 'MCP tool call failed',
+        mcp_tool_call_id = current_mcp_tool_call_id,
+      })
+    else
+      ctx.callback({
+        content = vim.inspect(result),
+        mcp_tool_call_id = current_mcp_tool_call_id,
+      })
     end
   end)
 
-  -- 如果在协程中，等待结果
-  if co then
-    coroutine.yield()
-  else
-    -- 同步等待（使用 vim.wait）
-    vim.wait(30000, function()
-      return result_received
-    end, 100)
+  -- 建立映射
+  if req_id then
+    mcp_tool_call_to_request[current_mcp_tool_call_id] = {
+      request_id = req_id,
+      server_name = server_name,
+      callback = ctx.callback, -- 保存原始 callback
+    }
   end
 
-  if not tool_result then
-    return { error = 'MCP tool call timeout or failed' }
+  return {
+    mcp_tool_call_id = current_mcp_tool_call_id,
+  }
+end
+
+--- 取消指定的 MCP tool call
+---@param mcp_tool_call_id number MCP tool call ID (负数)
+---@return boolean success 是否成功取消
+function M.cancel_request(mcp_tool_call_id)
+  local mapping = mcp_tool_call_to_request[mcp_tool_call_id]
+  if not mapping then
+    log.debug('[MCP] No pending request for mcp_tool_call_id: ' .. mcp_tool_call_id)
+    return false
   end
 
-  -- 处理 MCP tool 结果格式
-  if tool_result.content then
-    local content_parts = {}
-    for _, part in ipairs(tool_result.content) do
-      if part.type == 'text' then
-        table.insert(content_parts, part.text)
-      end
-    end
-    return {
-      content = table.concat(content_parts, '\n'),
-    }
-  elseif tool_result.isError then
-    return {
-      error = tool_result.isError or 'MCP tool call failed',
-    }
-  else
-    return { content = vim.inspect(tool_result) }
+  local server_name = mapping.server_name
+  local req_id = mapping.request_id
+  local callback = mapping.callback -- 获取保存的 callback
+
+  -- 发送取消通知（MCP 协议标准）
+  M.send_notification(server_name, 'notifications/cancelled', {
+    requestId = req_id,
+    reason = 'User cancelled',
+  })
+
+  -- 清理
+  mcp_tool_call_to_request[mcp_tool_call_id] = nil
+  pending_requests[req_id] = nil
+
+  -- 调用原始 callback 通知取消
+  if callback then
+    callback({
+      mcp_tool_call_id = mcp_tool_call_id,
+      error = 'Request cancelled by user',
+    })
   end
+
+  log.info('[MCP] Cancelled request ' .. req_id .. ' for tool call ' .. mcp_tool_call_id)
+  return true
 end
 
 -- 获取所有 MCP tools（转换为 chat.nvim 格式）

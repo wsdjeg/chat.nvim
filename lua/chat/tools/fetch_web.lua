@@ -118,6 +118,17 @@ function M.fetch_web(action, ctx)
       end
     end,
     on_exit = function(id, code, signal)
+      require('chat.log').debug('fetch_web job ' .. id ..' exit code ' .. code .. ' signal ' ..  signal)
+      if signal ~= 0 then
+        ctx.callback({
+          error = string.format(
+            'fetch_web cancelled by user (signal: %d)',
+            signal
+          ),
+          jobid = id,
+        })
+        return
+      end
       if code == 0 then
         local result = table.concat(stdout, '\n')
         -- Try to detect content type

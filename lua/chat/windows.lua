@@ -476,6 +476,7 @@ function M.send_message(session, content)
   if not content or not sessions.exists(session) then
     return
   end
+  sessions.clear_cancelled(session)
   local msg = {
     role = 'user',
     content = content,

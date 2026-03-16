@@ -21,10 +21,12 @@ local progress_reasoning_contents = {} ---@type table<string, string>
 local progress_finish_reasons = {} ---@type table<string, string>
 local job_tool_calls = {} ---@type table<string, table>
 local progress_usage = {} ---@type table<string, table>
+local cancelled_sessions = {} ---@type table<string, boolean> 被取消的会话
 --- @type table<string, ChatSession>
 local sessions = {}
 local jobid_session = {}
 local progress_messages = {}
+local pending_async_tools = {}
 
 function M.write_cache(session)
   if not sessions[session] then
@@ -265,19 +267,33 @@ function M.is_in_progress(session)
 end
 
 function M.cancel_progress(session)
+  --- if the llm progress is running, stop llm progress and return
   for jobid, v in pairs(jobid_session) do
     if v == session then
-      -- 1. Ctrl-C 对应的信号
-      --
-      -- 在类 Unix 系统里：
-      --
-      -- 操作	信号名称	信号编号
-      -- Ctrl-C	SIGINT	2
-      -- kill -9	SIGKILL	9
-      -- kill -15	SIGTERM	15
-      --
-      -- 所以，按 Ctrl-C 会发送 SIGINT，它对应的 数字是 2。
-      require('job').stop(jobid, 2)
+      job.stop(jobid, 2)
+      return
+    end
+  end
+
+  local pending = pending_async_tools[session]
+
+  -- 取消 MCP tool calls
+  if pending then
+    cancelled_sessions[session] = true
+    local ok, mcp = pcall(require, 'chat.mcp')
+    if ok and mcp then
+      for _, id in ipairs(pending) do
+        if id < 0 then
+          mcp.cancel_request(id)
+        else
+          job.stop(id, 2)
+        end
+      end
+    end
+
+    -- 停止 spinner
+    if session == require('chat.windows').current_session() then
+      require('chat.spinners').stop()
     end
   end
 end
@@ -537,11 +553,14 @@ function M.on_progress_tool_call_done(id)
           }
           M.append_message(session, tool_done_message)
           windows.on_tool_call_done(session, { tool_done_message })
-          M.finish_async_tool(session, result.jobid)
+          M.finish_async_tool(
+            session,
+            result.jobid or result.mcp_tool_call_id
+          )
         end,
       })
-      if result.jobid then
-        M.start_async_tool(session, result.jobid)
+      if result.jobid or result.mcp_tool_call_id then
+        M.start_async_tool(session, result.jobid or result.mcp_tool_call_id)
       else
         local tool_done_message = {
           role = 'tool',
@@ -930,6 +949,12 @@ function M.on_complete(session, id)
   require('chat.windows').on_message(session, message)
 end
 function M.send_tool_results(session)
+  -- 检查会话是否被取消
+  if cancelled_sessions[session] then
+    log.info('Session cancelled, skip sending tool results.')
+    cancelled_sessions[session] = nil -- 清理标志
+    return
+  end
   local messages = M.get_request_messages(session)
   if messages[#messages].role == 'tool' then
     local protocol = require('chat.protocol')
@@ -944,8 +969,6 @@ function M.send_tool_results(session)
     end
   end
 end
-
-local pending_async_tools = {}
 
 function M.start_async_tool(session, jobid)
   pending_async_tools[session] = pending_async_tools[session] or {}
@@ -972,6 +995,12 @@ end
 function M.has_pending_async_tools(session)
   local pending = pending_async_tools[session]
   return pending and #pending > 0
+end
+
+--- 清理会话的取消标志
+---@param session string
+function M.clear_cancelled(session)
+  cancelled_sessions[session] = nil
 end
 
 M.get()
