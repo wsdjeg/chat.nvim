@@ -299,7 +299,7 @@ local function find_server_for_tool(full_tool_name)
   -- 方案2：从末尾解析最后一个下划线（备选方案，兼容未来可能的格式变化）
   -- mcp_open_webSearch_search -> server: "open_webSearch", tool: "search"
   -- 使用贪婪匹配，server_name 匹配尽可能多的内容
-  local server_name, mcp_tool_name = full_tool_name:match('^mcp_(.+)_(.-)$')
+  local server_name, mcp_tool_name = full_tool_name:match('^mcp_(.-)_(.+)$')
   if server_name and mcp_tool_name then
     -- 验证服务器是否存在
     if servers[server_name] then
@@ -336,7 +336,15 @@ function M.call_tool(tool_name, arguments, ctx)
     result_received = true
     tool_result = result
     if co then
-      coroutine.resume(co)
+      local ok, resume_err = coroutine.resume(co)
+      if not ok then
+        log.error(
+          '[MCP:'
+            .. server_name
+            .. '] Coroutine resume failed: '
+            .. tostring(resume_err)
+        )
+      end
     end
   end)
 
@@ -388,7 +396,17 @@ function M.available_tools()
             .. server_name
             .. '] '
             .. mcp_tool.description,
-          parameters = mcp_tool.inputSchema,
+          parameters = (function()
+            local schema = mcp_tool.inputSchema or vim.empty_dict()
+            if not schema.type then
+              return {
+                type = 'object',
+                properties = schema.properties or schema,
+                required = schema.required or vim.empty_dict(),
+              }
+            end
+            return schema
+          end)(),
         },
       })
     end

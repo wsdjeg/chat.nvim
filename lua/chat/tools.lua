@@ -43,7 +43,7 @@ end
 ---@param ctx ChatToolContext
 function M.call(func, arguments, ctx)
   -- 检查是否是 MCP tool (格式: mcp_<server>_<tool>)
-  if func:match('^mcp_[^_]+_.+$') then
+  if func:match('^mcp_.+_.+$') then
     local ok, mcp_module = pcall(get_mcp)
     if ok and mcp_module then
       return mcp_module.call_tool(func, arguments, ctx)
@@ -69,7 +69,7 @@ end
 
 function M.info(tool_call, ctx)
   -- 检查是否是 MCP tool
-  if tool_call['function'].name:match('^mcp_[^_]+_.+$') then
+  if tool_call['function'].name:match('^mcp_.+_.+$') then
     local ok, mcp_module = pcall(get_mcp)
     if ok and mcp_module then
       return mcp_module.tool_info(

@@ -240,9 +240,10 @@ function M.close(transport)
       )
 
       table.insert(pids, 1, root_pid)
+      local signal = vim.fn.has('win32') == 1 and 'sigint' or 'sigterm'
 
       for _, v in ipairs(pids) do
-        local code, err = vim.uv.kill(v)
+        local code, err = vim.uv.kill(v, signal)
         if code ~= 0 then
           log.warn(
             '[MCP:'
