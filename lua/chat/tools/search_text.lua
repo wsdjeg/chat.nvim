@@ -1,6 +1,7 @@
 local M = {}
 
 local config = require('chat.config')
+local job = require('job')
 
 -- Compatibility: provide startsWith function for older Neovim versions
 local function starts_with(str, prefix)
@@ -137,103 +138,146 @@ function M.search_text(action, ctx)
     end
   end
 
-  -- Output format
-  table.insert(cmd, '--color=never')
-  table.insert(cmd, '-n')
-  table.insert(cmd, '--with-filename')
-  table.insert(cmd, '--heading')
+  -- Output format: JSON for better parsing
+  table.insert(cmd, '--json')
   table.insert(cmd, '--sort=path')
 
   -- Search pattern and directory
   table.insert(cmd, action.pattern)
   table.insert(cmd, search_directory)
 
-  -- Execute search
-  local result = vim.fn.system(cmd)
-  local exit_code = vim.v.shell_error
+  local stdout = {}
+  local stderr = {}
 
-  -- Process results
-  if exit_code == 0 then
-    local lines = vim.split(result:gsub('\r\n', '\n'), '\n')
-    local match_count = 0
-    local file_count = 0
-    local current_file = nil
+  local jobid = job.start(cmd, {
+    on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stdout, v)
+      end
+    end,
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
+    on_exit = function(id, code, signal)
+      if code == 0 and signal == 0 then
+        -- Parse JSON output from ripgrep
+        local matches = {}
+        local file_set = {}
 
-    -- More accurate match counting
-    for _, line in ipairs(lines) do
-      if #line > 0 then
-        -- Check if line is a match line (rg output format: file:line:content)
-        if line:match('^[^:]+:%d+[:%d]*:') then
-          match_count = match_count + 1
-          local file_name = line:match('^([^:]+):%d+')
-          if file_name ~= current_file then
-            current_file = file_name
-            file_count = file_count + 1
+        for _, line in ipairs(stdout) do
+          if #line > 0 then
+            local ok, json_obj = pcall(vim.json.decode, line)
+            if ok and json_obj then
+              if json_obj.type == 'match' then
+                local data = json_obj.data
+                if data and data.path and data.path.text then
+                  local file_path = data.path.text
+                  local line_number = data.line_number or 1
+                  local line_text = data.lines and data.lines.text or ''
+                  
+                  -- Extract match info
+                  local column = 1
+                  if data.submatches and #data.submatches > 0 then
+                    column = (data.submatches[1].start or 0) + 1
+                  end
+                  
+                  table.insert(matches, {
+                    file = file_path,
+                    lnum = line_number,
+                    col = column,
+                    text = line_text:gsub('\n$', ''), -- Remove trailing newline
+                  })
+                  
+                  file_set[file_path] = true
+                end
+              end
+            end
           end
         end
+
+        local match_count = #matches
+        local file_count = vim.tbl_count(file_set)
+
+        local summary = string.format(
+          'Found %d matches in %d files for "%s" in directory "%s"\n',
+          match_count,
+          file_count,
+          action.pattern,
+          search_directory
+        )
+
+        if action.file_types then
+          summary = summary
+            .. string.format(
+              'File types: %s\n',
+              table.concat(action.file_types, ', ')
+            )
+        end
+
+        if action.exclude_patterns then
+          summary = summary
+            .. string.format(
+              'Excluded patterns: %s\n',
+              table.concat(action.exclude_patterns, ', ')
+            )
+        end
+
+        if match_count > 0 then
+          -- Format output similar to rg default format
+          local output_lines = {}
+          for _, match in ipairs(matches) do
+            table.insert(
+              output_lines,
+              string.format('%s:%d:%d:%s', match.file, match.lnum, match.col, match.text)
+            )
+          end
+          
+          ctx.callback({
+            content = summary .. '\n' .. table.concat(output_lines, '\n'),
+            jobid = id,
+          })
+        else
+          ctx.callback({
+            content = summary .. '\n(No specific match content)',
+            jobid = id,
+          })
+        end
+      elseif code == 1 then
+        ctx.callback({
+          content = string.format(
+            'No matches found for "%s" in directory "%s"\n\n'
+              .. 'Search parameters:\n'
+              .. '  Directory: %s\n'
+              .. '  Case sensitive: %s\n'
+              .. '  Regex: %s\n'
+              .. '  Max results: %d',
+            action.pattern,
+            search_directory,
+            search_directory,
+            action.ignore_case and 'no' or 'yes',
+            action.regex == false and 'no' or 'yes',
+            max_results
+          ),
+          jobid = id
+        })
+      else
+        ctx.callback({
+          error = string.format(
+            'Search command failed (exit code: %d):\n\nCommand: %s\n\nOutput:\n%s',
+            code,
+            table.concat(cmd, ' '),
+            table.concat(stderr, '\n')
+          ),
+          jobid = id
+        })
       end
-    end
-
-    local summary = string.format(
-      'Found %d matches in %d files for "%s" in directory "%s"\n',
-      match_count,
-      file_count,
-      action.pattern,
-      search_directory
-    )
-
-    if action.file_types then
-      summary = summary
-        .. string.format(
-          'File types: %s\n',
-          table.concat(action.file_types, ', ')
-        )
-    end
-
-    if action.exclude_patterns then
-      summary = summary
-        .. string.format(
-          'Excluded patterns: %s\n',
-          table.concat(action.exclude_patterns, ', ')
-        )
-    end
-
-    if #result > 0 then
-      return {
-        content = summary .. '\n' .. result,
-      }
-    else
-      return {
-        content = summary .. '\n(No specific match content)',
-      }
-    end
-  elseif exit_code == 1 then
-    return {
-      content = string.format(
-        'No matches found for "%s" in directory "%s"\n\n'
-          .. 'Search parameters:\n'
-          .. '  Directory: %s\n'
-          .. '  Case sensitive: %s\n'
-          .. '  Regex: %s\n'
-          .. '  Max results: %d',
-        action.pattern,
-        search_directory,
-        search_directory,
-        action.ignore_case and 'no' or 'yes',
-        action.regex == false and 'no' or 'yes',
-        max_results
-      ),
-    }
-  else
-    return {
-      error = string.format(
-        'Search command failed (exit code: %d):\n\nCommand: %s\n\nOutput:\n%s',
-        exit_code,
-        table.concat(cmd, ' '),
-        result
-      ),
-    }
-  end
+    end,
+  })
+  return {
+    jobid = jobid,
+  }
 end
 
 function M.scheme()
