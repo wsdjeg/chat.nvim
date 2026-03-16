@@ -130,6 +130,15 @@ function M.on_exit(id, code, signal)
         }
         sessions.append_message(session, message)
         require('chat.windows').on_message(session, message)
+      elseif ok and chunk.code then
+        local error_msg = chunk.msg or 'Unknown error'
+        local error_code = chunk.code or chunk.type or 'unknown'
+        local message = {
+          error = string.format('API Error (%s): %s', error_code, error_msg),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
       end
     end
 
