@@ -17,10 +17,15 @@ local prompt_buf = -1
 local result_win = -1
 local result_buf = -1
 
-function M.set_result_win_title(title)
+function M.set_result_win_title(text)
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_set_config(result_win, {
-      title = title,
+      title = {
+        { '', 'ChatTitleCurve' },
+        { text, 'ChatTitle' },
+        { '', 'ChatTitleCurve' },
+      },
+      title_pos = 'center',
     })
   end
 end
@@ -194,13 +199,21 @@ function M.redraw_title()
       ins = ins .. '| ' .. i .. ' '
     end
     vim.api.nvim_win_set_config(prompt_win, {
-      title = ' Input ' .. string.format(
-        '| %s %s | %s %s',
-        sessions.get_session_provider(current_session),
-        sessions.get_session_model(current_session),
-        sessions.getcwd(current_session),
-        ins
-      ),
+      title = {
+        { '', 'ChatTitleCurve' },
+        {
+          ' Input ' .. string.format(
+            '| %s %s | %s %s',
+            sessions.get_session_provider(current_session),
+            sessions.get_session_model(current_session),
+            sessions.getcwd(current_session),
+            ins
+          ),
+          'ChatTitle',
+        },
+        { '', 'ChatTitleCurve' },
+      },
+      title_pos = 'center',
     })
   end
 end
@@ -285,7 +298,11 @@ function M.open(opt)
       height = screen_height - 5,
       width = screen_width,
       border = config.config.border,
-      title = ' chat.nvim ',
+      title = {
+        { '', 'ChatTitleCurve' },
+        { 'chat.nvim', 'ChatTitle' },
+        { '', 'ChatTitleCurve' },
+      },
       title_pos = 'center',
     })
     vim.api.nvim_set_option_value(
@@ -421,15 +438,29 @@ function M.open(opt)
     })
   end
   if not vim.api.nvim_win_is_valid(prompt_win) then
+    local session_integrations =
+      integrations.get_integrations(current_session)
+    local ins = ''
+    for _, i in ipairs(session_integrations) do
+      ins = ins .. '| ' .. i .. ' '
+    end
     prompt_win = vim.api.nvim_open_win(prompt_buf, true, {
       relative = 'editor',
       border = config.config.border,
-      title = ' Input ' .. string.format(
-        '| %s %s | %s ',
-        sessions.get_session_provider(current_session),
-        sessions.get_session_model(current_session),
-        sessions.getcwd(current_session)
-      ),
+      title = {
+        { '', 'ChatTitleCurve' },
+        {
+          ' Input ' .. string.format(
+            '| %s %s | %s %s',
+            sessions.get_session_provider(current_session),
+            sessions.get_session_model(current_session),
+            sessions.getcwd(current_session),
+            ins
+          ),
+          'ChatTitle',
+        },
+        { '', 'ChatTitleCurve' },
+      },
       title_pos = 'center',
       col = start_col,
       row = start_row + screen_height - 3,
