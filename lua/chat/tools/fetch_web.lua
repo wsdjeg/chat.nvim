@@ -1,7 +1,7 @@
 -- lua/chat/tools/fetch_web.lua
 local M = {}
 
-local config = require('chat.config')
+local job = require('job')
 
 -- Cache curl availability check
 local curl_available = nil
@@ -103,106 +103,104 @@ function M.fetch_web(action, ctx)
   -- Add URL at the end
   table.insert(cmd, action.url)
 
-  -- Execute using vim.system() (Neovim 0.10+)
-  local result
-  local exit_code
+  local stdout = {}
+  local stderr = {}
 
-  if vim.system then
-    local job = vim.system(cmd, {
-      text = true,
-      timeout = timeout * 1000, -- Convert to milliseconds
-    })
-
-    local system_result = job:wait()
-    result = system_result.stdout or ''
-    if
-      system_result.code ~= 0
-      and system_result.stderr
-      and system_result.stderr ~= ''
-    then
-      if result ~= '' then
-        result = result .. '\n\n' .. system_result.stderr
-      else
-        result = system_result.stderr
+  local jobid = job.start(cmd, {
+    on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stdout, v)
       end
-    end
-    exit_code = system_result.code
-  else
-    -- Fallback for older Neovim versions
-    result = vim.fn.system(cmd)
-    exit_code = vim.v.shell_error
-  end
+    end,
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
+    on_exit = function(id, code, signal)
+      if code == 0 then
+        local result = table.concat(stdout, '\n')
+        -- Try to detect content type
+        local content_type = 'text/plain'
+        if result:match('<!DOCTYPE') or result:match('<html') then
+          content_type = 'text/html'
+        elseif result:match('^{') or result:match('^%[') then
+          content_type = 'application/json'
+        end
 
-  -- Process results
-  if exit_code == 0 then
-    -- Try to detect content type
-    local content_type = 'text/plain'
-    if result:match('<!DOCTYPE') or result:match('<html') then
-      content_type = 'text/html'
-    elseif result:match('^{') or result:match('^%[') then
-      content_type = 'application/json'
-    end
+        local summary = string.format(
+          'Successfully fetched content from: %s\n'
+            .. 'Method: %s\n'
+            .. 'Timeout: %d seconds\n'
+            .. 'Content-Type: %s\n'
+            .. 'Content-Length: %d characters\n\n',
+          action.url,
+          method:upper(),
+          timeout,
+          content_type,
+          #result
+        )
 
-    local summary = string.format(
-      'Successfully fetched content from: %s\n'
-        .. 'Method: %s\n'
-        .. 'Timeout: %d seconds\n'
-        .. 'Content-Type: %s\n'
-        .. 'Content-Length: %d characters\n\n',
-      action.url,
-      method:upper(),
-      timeout,
-      content_type,
-      #result
-    )
+        -- Truncate very large responses
+        local max_content_length = 10000
+        local display_result = result
+        local truncation_note = ''
 
-    -- Truncate very large responses
-    local max_content_length = 10000
-    local display_result = result
-    local truncation_note = ''
+        if #result > max_content_length then
+          display_result = result:sub(1, max_content_length)
+          truncation_note = string.format(
+            '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
+            #result,
+            max_content_length
+          )
+        end
 
-    if #result > max_content_length then
-      display_result = result:sub(1, max_content_length)
-      truncation_note = string.format(
-        '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
-        #result,
-        max_content_length
-      )
-    end
+        ctx.callback({
+          content = summary .. display_result .. truncation_note,
+          jobid = id
+        })
+      else
+        local result = table.concat(stdout, '\n')
+        if result ~= '' then
+          result = result .. '\n\n' .. table.concat(stderr, '\n')
+        else
+          result = table.concat(stderr, '\n')
+        end
+        local error_msg = string.format(
+          'Failed to fetch URL (exit code: %d): %s\n\n'
+            .. 'Command: %s\n\n'
+            .. 'Error output: %s',
+          code,
+          action.url,
+          table.concat(cmd, ' '),
+          result
+        )
 
-    return {
-      content = summary .. display_result .. truncation_note,
-    }
-  else
-    local error_msg = string.format(
-      'Failed to fetch URL (exit code: %d): %s\n\n'
-        .. 'Command: %s\n\n'
-        .. 'Error output: %s',
-      exit_code,
-      action.url,
-      table.concat(cmd, ' '),
-      result
-    )
+        -- Provide troubleshooting tips
+        if code == 6 then
+          error_msg = error_msg
+            .. '\n\nTroubleshooting: Could not resolve host. Check URL and network connection.'
+        elseif code == 7 then
+          error_msg = error_msg
+            .. '\n\nTroubleshooting: Failed to connect to host. Check if the server is accessible.'
+        elseif code == 28 then
+          error_msg = error_msg
+            .. '\n\nTroubleshooting: Operation timeout. Try increasing timeout value.'
+        elseif code == 60 then
+          error_msg = error_msg
+            .. '\n\nTroubleshooting: SSL certificate problem. Try using insecure=true for testing.'
+        end
 
-    -- Provide troubleshooting tips
-    if exit_code == 6 then
-      error_msg = error_msg
-        .. '\n\nTroubleshooting: Could not resolve host. Check URL and network connection.'
-    elseif exit_code == 7 then
-      error_msg = error_msg
-        .. '\n\nTroubleshooting: Failed to connect to host. Check if the server is accessible.'
-    elseif exit_code == 28 then
-      error_msg = error_msg
-        .. '\n\nTroubleshooting: Operation timeout. Try increasing timeout value.'
-    elseif exit_code == 60 then
-      error_msg = error_msg
-        .. '\n\nTroubleshooting: SSL certificate problem. Try using insecure=true for testing.'
-    end
-
-    return {
-      error = error_msg,
-    }
-  end
+        ctx.callback({
+          error = error_msg,
+          jobid = id
+        })
+      end
+    end,
+  })
+  return {
+    jobid = jobid
+  }
 end
 
 function M.scheme()
