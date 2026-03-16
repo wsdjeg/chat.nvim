@@ -64,7 +64,12 @@ function M.create(server_name, config, on_message)
       return nil, 'Failed to start server: ' .. server_name
     end
 
-    log.info('[MCP] Starting server: ' .. server_name)
+    log.info(
+      '[MCP] Starting server: '
+        .. server_name
+        .. ' pid:'
+        .. job.pid(transport.jobid)
+    )
   end
 
   log.info(
@@ -205,13 +210,60 @@ end
 -- Close transport
 ---@param transport table
 function M.close(transport)
-  -- Stop job if running
+  -- Local process: kill directly
   if transport.jobid then
-    job.stop(transport.jobid, 2)
+    local root_pid = job.pid(transport.jobid)
+    local function get_all_children(pid, pids)
+      pids = pids or {}
+      local children = vim.api.nvim_get_proc_children(pid)
+
+      for _, child_pid in ipairs(children) do
+        table.insert(pids, child_pid)
+        get_all_children(child_pid, pids) -- 递归
+      end
+
+      return pids
+    end
+
+    -- 使用
+    local pids = get_all_children(root_pid)
+    if #pids > 0 then
+      log.debug(
+        '[MCP:'
+          .. transport.server_name
+          .. '] Cleaning up '
+          .. ' processes (root: '
+          .. root_pid
+          .. ' child: '
+          .. table.concat(pids, ', ')
+          .. ')'
+      )
+
+      table.insert(pids, 1, root_pid)
+
+      for _, v in ipairs(pids) do
+        local code, err = vim.uv.kill(v)
+        if code ~= 0 then
+          log.warn(
+            '[MCP:'
+              .. transport.server_name
+              .. '] '
+              .. 'Failed to kill PID '
+              .. v
+              .. '  code: '
+              .. tostring(code)
+              .. ' err: '
+              .. tostring(err)
+          )
+        end
+      end
+    end
     transport.jobid = nil
+    transport.session_id = nil
+    return
   end
 
-  -- Send DELETE to terminate session if session_id exists
+  -- Remote MCP: send DELETE to terminate session
   if transport.session_id then
     local cmd = { 'curl', '-s', '-X', 'DELETE' }
     table.insert(cmd, '-H')

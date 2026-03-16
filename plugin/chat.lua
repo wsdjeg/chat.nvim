@@ -41,7 +41,7 @@ vim.api.nvim_create_user_command('Chat', function(opt)
       mcp.stop()
       vim.defer_fn(function()
         mcp.connect()
-      end, 500)
+      end, 1000)
       require('chat.log').notify('MCP servers restarting')
     end
   elseif #opt.fargs > 0 and opt.fargs[1] == 'cd' then
