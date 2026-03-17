@@ -21,9 +21,9 @@ function M.set_result_win_title(text)
   if vim.api.nvim_win_is_valid(result_win) then
     vim.api.nvim_win_set_config(result_win, {
       title = {
-        { '', 'ChatTitleCurve' },
-        { text, 'ChatTitle' },
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
+        { text, config.config.highlights.title },
+        { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',
     })
@@ -200,7 +200,7 @@ function M.redraw_title()
     end
     vim.api.nvim_win_set_config(prompt_win, {
       title = {
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
         {
           ' Input ' .. string.format(
             '| %s %s | %s %s',
@@ -209,9 +209,9 @@ function M.redraw_title()
             sessions.getcwd(current_session),
             ins
           ),
-          'ChatTitle',
+          config.config.highlights.title,
         },
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',
     })
@@ -299,9 +299,9 @@ function M.open(opt)
       width = screen_width,
       border = config.config.border,
       title = {
-        { '', 'ChatTitleCurve' },
-        { 'chat.nvim', 'ChatTitle' },
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
+        { 'chat.nvim', config.config.highlights.title },
+        { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',
     })
@@ -448,7 +448,7 @@ function M.open(opt)
       relative = 'editor',
       border = config.config.border,
       title = {
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
         {
           ' Input ' .. string.format(
             '| %s %s | %s %s',
@@ -457,9 +457,9 @@ function M.open(opt)
             sessions.getcwd(current_session),
             ins
           ),
-          'ChatTitle',
+          config.config.highlights.title,
         },
-        { '', 'ChatTitleCurve' },
+        { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',
       col = start_col,

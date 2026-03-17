@@ -9,6 +9,13 @@ local default = {
   provider = 'deepseek',
   model = 'deepseek-chat',
   border = 'rounded',
+  -- Highlight groups for the floating window
+  highlights = {
+    -- Title text highlight group
+    title = 'ChatNvimTitle',
+    -- Title badge highlight group (decorative symbols on both sides of the title)
+    title_badge = 'ChatNvimTitleBadge',
+  },
   api_key = '',
   http = {
     host = '127.0.0.1',
