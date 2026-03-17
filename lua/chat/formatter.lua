@@ -115,6 +115,17 @@ function M.generate_message(message, session)
           message.usage.prompt_tokens,
           message.usage.completion_tokens
         )
+
+      if
+        message.usage.prompt_tokens_details
+        and message.usage.prompt_tokens_details ~= vim.NIL
+        and message.usage.prompt_tokens_details.cached_tokens
+        and message.usage.prompt_tokens_details.cached_tokens > 0
+      then
+        local cached = message.usage.prompt_tokens_details.cached_tokens
+        local percent = math.floor(cached / message.usage.prompt_tokens * 100)
+        complete_str = complete_str .. string.format(' 💾 %d%%', percent)
+      end
     end
     return {
       '['

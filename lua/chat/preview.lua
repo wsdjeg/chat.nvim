@@ -320,6 +320,22 @@ local function generate_message(msg)
           msg.usage.prompt_tokens or 0,
           msg.usage.completion_tokens or 0
         )
+
+      if
+        msg.usage.prompt_tokens_details
+        and msg.usage.prompt_tokens_details ~= vim.NIL
+        and msg.usage.prompt_tokens_details.cached_tokens
+        and msg.usage.prompt_tokens_details.cached_tokens > 0
+      then
+        local cached = msg.usage.prompt_tokens_details.cached_tokens
+        local percent = math.floor(cached / msg.usage.prompt_tokens * 100)
+        html = html
+          .. string.format(
+            '<div class="usage-stats cached">Cached: %d tokens (%d%%)</div>',
+            cached,
+            percent
+          )
+      end
     end
     html = html .. '</div>'
   end
@@ -631,6 +647,15 @@ function M.generate_html(session_data)
     
     .usage-stats::before {
       content: '📊 ';
+    }
+
+    .usage-stats.cached {
+      color: #4CAF50;
+      margin-top: 4px;
+    }
+    
+    .usage-stats.cached::before {
+      content: '💾 ';
     }
     
     .error-message {
