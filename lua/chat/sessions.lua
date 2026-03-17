@@ -173,46 +173,7 @@ function M.get()
   if not vim.tbl_isempty(sessions) then
     return sessions
   end
-  local files = vim.fn.globpath(cache_dir, '*.json', false, true)
-  for _, v in ipairs(files) do
-    local file = io.open(v, 'r')
-    if file then
-      local context = file:read('*a')
-      io.close(file)
-      local ok, obj = pcall(vim.json.decode, context)
-      if ok and obj ~= vim.NIL then
-        -- 兼容老版本 session
-        -- 如果没有 id key，说明是最老的版本直接是一组消息列表
-        if not obj.id then
-          obj.id = vim.fn.fnamemodify(v, ':t:r')
-          obj = {
-            id = obj.id,
-            messages = obj,
-            provider = require('chat.config').config.provider,
-            model = require('chat.config').config.model,
-            cwd = vim.fn.getcwd(),
-          }
-          sessions[obj.id] = obj
-          M.write_cache(obj.id)
-        end
-        -- 检测完 id 后，如果有 id，但是 没有 cwd 选项
-        -- 说明是 id 加上后到 cwd 加之前的版本。
-        if not obj.cwd then
-          obj.cwd = vim.fn.getcwd()
-          sessions[obj.id] = obj
-          M.write_cache(obj.id)
-        end
-
-        if not obj.prompt then
-          obj.prompt = get_config_system_prompt()
-          sessions[obj.id] = obj
-          M.write_cache(obj.id)
-        end
-
-        sessions[obj.id] = obj
-      end
-    end
-  end
+  for _ in M.iter_sessions() do end
   return sessions
 end
 
@@ -1001,6 +962,69 @@ end
 ---@param session string
 function M.clear_cancelled(session)
   cancelled_sessions[session] = nil
+end
+
+function M.iter_sessions()
+  if vim.fn.isdirectory(cache_dir) == 0 then
+    return coroutine.wrap(function() end)
+  end
+
+  local files = vim.fn.globpath(cache_dir, '*.json', false, true)
+  local index = 0
+  local count = #files
+
+  return coroutine.wrap(function()
+    while index < count do
+      index = index + 1
+      local filepath = files[index]
+      local session_id = vim.fn.fnamemodify(filepath, ':t:r')
+
+      if sessions[session_id] then
+        coroutine.yield(session_id, sessions[session_id])
+      else
+        local file = io.open(filepath, 'r')
+        if file then
+          local content = file:read('*a')
+          io.close(file)
+          local ok, obj = pcall(vim.json.decode, content)
+          if ok and obj ~= vim.NIL then
+            local need_save = false
+
+            -- Compatibility: old version without id field
+            if not obj.id then
+              obj.id = session_id
+              obj = {
+                id = obj.id,
+                messages = obj,
+                provider = require('chat.config').config.provider,
+                model = require('chat.config').config.model,
+                cwd = vim.fn.getcwd(),
+              }
+              need_save = true
+            end
+
+            -- Compatibility: old version without cwd field
+            if not obj.cwd then
+              obj.cwd = vim.fn.getcwd()
+              need_save = true
+            end
+
+            -- Compatibility: old version without prompt field
+            if not obj.prompt then
+              obj.prompt = get_config_system_prompt()
+              need_save = true
+            end
+
+            sessions[obj.id] = obj
+            if need_save then
+              M.write_cache(obj.id)
+            end
+            coroutine.yield(obj.id, obj)
+          end
+        end
+      end
+    end
+  end)
 end
 
 M.get()
