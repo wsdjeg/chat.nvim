@@ -177,10 +177,15 @@ function M.on_exit(id, code, signal)
       require('chat.windows').on_message(session, message)
     end
     if code == 0 and signal == 0 then
-      local messages = sessions.get_request_messages(session)
-      if messages[#messages].role == 'tool' then
-        if not sessions.has_pending_async_tools(session) then
-          sessions.send_tool_results(session)
+      local session_messages = sessions.get_messages(session)
+      if session_messages[#session_messages].error then
+        log.info('API error detected, skip sending tool results')
+      else
+        local messages = sessions.get_request_messages(session)
+        if messages[#messages].role == 'tool' then
+          if not sessions.has_pending_async_tools(session) then
+            sessions.send_tool_results(session)
+          end
         end
       end
     end

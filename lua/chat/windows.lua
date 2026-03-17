@@ -384,10 +384,10 @@ function M.open(opt)
             session = current_session,
             messages = sessions.get_request_messages(current_session),
           })
-          if jobid then
+          if jobid > 0 then
             spinners.start()
-            log.info('curl request jobid is ' .. jobid)
           end
+          log.info('curl request jobid is ' .. jobid)
         end
       end,
       silent = true,
@@ -428,11 +428,14 @@ function M.open(opt)
         end
         local messages = sessions.get_request_messages(current_session)
         if #messages > 0 and messages[#messages].role ~= 'assistant' then
-          protocol.request({
+          local jobid = protocol.request({
             session = current_session,
             messages = messages,
           })
-          spinners.start()
+          if jobid > 0 then
+            spinners.start()
+          end
+          log.info('curl request jobid is ' .. jobid)
         end
       end,
     })
@@ -515,10 +518,14 @@ function M.send_message(session, content)
   }
   sessions.append_message(session, msg)
   M.on_message(session, msg)
-  protocol.request({
+  local jobid = protocol.request({
     session = session,
     messages = sessions.get_request_messages(session),
   })
+  if jobid > 0 and session == current_session then
+    spinners.start()
+  end
+  log.info('curl request jobid is ' .. jobid)
 end
 
 function M.render_result_buf()
