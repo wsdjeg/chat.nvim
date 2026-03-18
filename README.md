@@ -29,6 +29,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [HTTP Server Configuration](#http-server-configuration)
     - [API Key Configuration](#api-key-configuration)
     - [File Access Control](#file-access-control)
+    - [Context Window Configuration](#context-window-configuration)
     - [Memory System Configuration](#memory-system-configuration)
     - [system_prompt Usage Examples](#system_prompt-usage-examples)
     - [MCP Server Configuration](#mcp-server-configuration)
@@ -57,6 +58,8 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`fetch_web`](#fetch_web)
         - [`web_search`](#web_search)
         - [`git_diff`](#git_diff)
+        - [`git_log`](#git_log)
+        - [`get_history`](#get_history)
         - [`plan`](#plan)
     - [Third-party Tools](#third-party-tools)
         - [`zettelkasten_create`](#zettelkasten_create)
@@ -123,7 +126,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Three-Tier Memory System**: Working memory (session tasks), daily memory (short-term goals), and long-term memory (permanent knowledge) with automatic extraction and priority-based retrieval
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`), memory management (`@extract_memory`, `@recall_memory`), web operations (`@fetch_web`, `@web_search`), task planning (`@plan`), and prompt management (`@set_prompt`). Supports both synchronous and **asynchronous tool execution** for non-blocking operations
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`, `@git_log`), conversation history (`@get_history`), memory management...
 - **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create` and `@zettelkasten_get` tools for knowledge management (requires zettelkasten.nvim)
 - **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
@@ -138,6 +141,10 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Custom Tools**: Support for creating custom tools via `lua/chat/tools/<tool_name>.lua` with automatic discovery
 - **Custom Providers**: Support for creating custom AI providers with custom protocols
 - **Custom Protocols**: Support for custom API response parsing (OpenAI, Anthropic, Gemini, and extensible)
+- **Context Window Truncation**: Automatic context management with configurable trigger threshold and recent message preservation to prevent token limit issues
+- **Token Usage Tracking**: Display real-time token consumption including cached tokens for each response
+- **Customizable Highlights**: Configure title text and badge highlight groups to match your colorscheme
+- **Title Icons**: Visual session indicators with customizable icons for different session states
 - **MCP (Model Context Protocol) Support**: Native integration with MCP servers for extended tool capabilities. Automatically discover and call MCP tools alongside built-in tools with seamless protocol handling and async execution
 
 ## 📦 Installation
@@ -264,6 +271,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `model`         | string             | `'deepseek-chat'`  | Default AI model                                                           |
 | `strftime`      | string             | `'%m-%d %H:%M:%S'` | Time display format                                                        |
 | `system_prompt` | string or function | `''`               | Default system prompt, can be a string or a function that returns a string |
+| `highlights`    | table  | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges |
 
 ### HTTP Server Configuration
 
@@ -332,6 +340,24 @@ allowed_path = {
   '/etc',                        -- System configuration files
 }
 ```
+
+### Context Window Configuration
+
+Configure automatic context truncation to manage token usage:
+
+```lua
+context = {
+  enable = true,           -- Enable/disable context truncation
+  trigger_threshold = 50,  -- Number of messages to trigger truncation
+  keep_recent = 10,        -- Keep recent N messages (not included in truncation search)
+}
+```
+
+**Notes:**
+
+- When conversation exceeds `trigger_threshold` messages, older messages may be summarized or removed
+- The `keep_recent` parameter ensures recent context is preserved
+- Helps prevent token limit errors during long conversations
 
 ### Memory System Configuration
 
@@ -1214,10 +1240,11 @@ Finds files in the current working directory that match a given pattern.
 
 **Notes:**
 
-- The pattern follows Vim's `globpath` syntax
+- Uses ripgrep (rg) for fast file finding with glob pattern support
+- Smart case: lowercase patterns are case-insensitive, uppercase are case-sensitive
+- Supports additional parameters: `directory`, `hidden`, `no_ignore`, `exclude`
 - Searches are limited to the current working directory
 - Returns a list of found files, with one file path per line
-- Returns a message if no files are found based on the given pattern
 - File searching is restricted by the `allowed_path` configuration setting
 
 #### `search_text`
@@ -1810,6 +1837,79 @@ For more complex comparisons, you can provide a JSON object:
 - Returns formatted git diff output with file names and change summaries
 - Particularly useful for code review, version control, and change tracking
 - **Asynchronous Execution**: This tool runs asynchronously without blocking Neovim's UI
+
+#### `git_log`
+
+Show commit logs with various filters and options.
+
+**Usage:**
+
+```
+@git_log [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_log` - Show last 5 commits (default)
+- `@git_log count=10` - Show last 10 commits
+- `@git_log count=0` - Show all commits (no limit)
+- `@git_log path="./src/main.lua"` - Show commits for specific file
+- `@git_log author="john"` - Filter by author
+- `@git_log since="2024-01-01"` - Commits since date
+- `@git_log from="v1.4.0"` - Commits from tag to HEAD
+- `@git_log from="v1.0.0" to="v2.0.0"` - Commits between tags
+- `@git_log grep="fix"` - Search in commit messages
+
+**Parameters:**
+
+| Parameter  | Type    | Description                                                          |
+| ---------- | ------- | -------------------------------------------------------------------- |
+| `path`     | string  | File or directory path (default: current working directory)          |
+| `count`    | integer | Limit number of commits (default: 5, use 0 for no limit)             |
+| `oneline`  | boolean | Show each commit on a single line (default: true)                    |
+| `author`   | string  | Filter commits by author name or email                               |
+| `since`    | string  | Show commits after this date (e.g., "2024-01-01", "2 weeks ago")     |
+| `from`     | string  | Starting tag/commit for range (e.g., "v1.4.0")                        |
+| `to`       | string  | Ending tag/commit for range (default: HEAD)                          |
+| `grep`     | string  | Search for pattern in commit messages                                |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- If filters are set (author/since/grep/from/to), count defaults to no limit
+- Date formats: "2024-01-01", "2 weeks ago", "yesterday", etc.
+- Grep supports regex patterns in commit messages
+
+#### `get_history`
+
+Get conversation history messages from the current session.
+
+**Usage:**
+
+```
+@get_history [parameters]
+```
+
+**Basic Examples:**
+
+- `@get_history` - Get first 20 messages (default)
+- `@get_history offset=0 limit=20` - Get first 20 messages (oldest)
+- `@get_history offset=20 limit=20` - Get messages 21-40
+- `@get_history offset=0 limit=50` - Get first 50 messages (max)
+
+**Parameters:**
+
+| Parameter | Type    | Description                                           |
+| --------- | ------- | ----------------------------------------------------- |
+| `offset`  | integer | Starting index (0 = oldest message, default: 0)       |
+| `limit`   | integer | Number of messages to retrieve (default: 20, max: 50) |
+
+**Notes:**
+
+- Use this tool when you need to reference earlier messages not in current context window
+- Returns messages with their role, content, and timestamp
+- Maximum 50 messages per request
+- Useful for maintaining context across long conversations
 
 #### `plan`
 
