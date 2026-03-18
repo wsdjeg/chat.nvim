@@ -1,22 +1,40 @@
 local M = {}
 
 local config = require('chat.config')
+local job = require('job')
+
+-- Cache rg availability check result
+local rg_available = nil
+local function is_rg_available()
+  if rg_available == nil then
+    local rg_check = vim.fn.system({ 'rg', '--version' })
+    rg_available = vim.v.shell_error == 0
+  end
+  return rg_available
+end
+
+-- Smart case: if pattern has uppercase, use case-sensitive; otherwise case-insensitive
+local function should_ignore_case(pattern)
+  return not pattern:match('%u')
+end
 
 ---@class ChatToolsFindFilesAction
 ---@field pattern string
+---@field directory? string
+---@field hidden? boolean
+---@field no_ignore? boolean
+---@field exclude? string | string[]
 
 ---@param action ChatToolsFindFilesAction
 function M.find_files(action, ctx)
-  if not action.pattern then
+  -- Parameter validation
+  if not action.pattern or type(action.pattern) ~= 'string' or action.pattern == '' then
     return {
-      error = 'failed to find finds, pattern is required.',
+      error = 'Pattern is required and must be a non-empty string.',
     }
   end
-  if type(action.pattern) ~= 'string' then
-    return {
-      error = 'the type of pattern should be string.',
-    }
-  end
+
+  -- Security check for ctx.cwd
   local is_allowed_path = false
 
   if type(config.config.allowed_path) == 'table' then
@@ -38,22 +56,148 @@ function M.find_files(action, ctx)
 
   if not is_allowed_path then
     return {
-      error = 'can not find files in not allowed path.',
+      error = 'Cannot find files in non-allowed path.',
     }
   end
 
-  local files = vim.fn.globpath(ctx.cwd, action.pattern, false, true)
+  -- Resolve search directory (must be within ctx.cwd)
+  local search_dir = ctx.cwd
+  if action.directory and type(action.directory) == 'string' and #action.directory > 0 then
+    search_dir = vim.fs.normalize(vim.fn.simplify(ctx.cwd .. '/' .. action.directory))
+    
+    -- Security check: ensure search_dir is within ctx.cwd
+    if not vim.startswith(search_dir, vim.fs.normalize(ctx.cwd)) then
+      return {
+        error = 'Cannot search outside the current working directory.',
+      }
+    end
+    
+    -- Verify directory exists
+    if vim.fn.isdirectory(search_dir) == 0 then
+      return {
+        error = string.format('Directory does not exist: %s', action.directory),
+      }
+    end
+  end
 
-  if #files > 0 then
+  -- Check if rg is available
+  if not is_rg_available() then
     return {
-      content = string.format(
-        'here is founded files: \n\n%s',
-        table.concat(files, '\n')
-      ),
+      error = 'ripgrep (rg) is not installed or not in PATH. Please install it first.',
     }
-  else
+  end
+
+  -- Smart case: detect if pattern has uppercase
+  local ignore_case = should_ignore_case(action.pattern)
+
+  -- Build command: rg --files [options] --glob <pattern> [--glob !<exclude>]
+  local cmd = { 'rg', '--files' }
+
+  -- Add glob-case-insensitive if smart case determines it
+  if ignore_case then
+    table.insert(cmd, '--glob-case-insensitive')
+  end
+
+  -- Include hidden files
+  if action.hidden then
+    table.insert(cmd, '--hidden')
+  end
+
+  -- Don't respect .gitignore and other ignore files
+  if action.no_ignore then
+    table.insert(cmd, '--no-ignore')
+  end
+
+  -- Add include glob pattern
+  table.insert(cmd, '--glob')
+  table.insert(cmd, action.pattern)
+
+  -- Add exclude patterns with ! prefix
+  if action.exclude then
+    local excludes = type(action.exclude) == 'string' and { action.exclude } or action.exclude
+    if type(excludes) == 'table' then
+      for _, excl in ipairs(excludes) do
+        if type(excl) == 'string' and #excl > 0 then
+          table.insert(cmd, '--glob')
+          table.insert(cmd, '!' .. excl)
+        end
+      end
+    end
+  end
+
+  -- Add search directory
+  table.insert(cmd, search_dir)
+
+  local stdout = {}
+  local stderr = {}
+
+  local jobid = job.start(cmd, {
+    on_stdout = function(_, data)
+      for _, v in ipairs(data) do
+        if #v > 0 then
+          table.insert(stdout, v)
+        end
+      end
+    end,
+    on_stderr = function(_, data)
+      for _, v in ipairs(data) do
+        table.insert(stderr, v)
+      end
+    end,
+    on_exit = function(id, code, signal)
+      if signal ~= 0 then
+        ctx.callback({
+          error = string.format(
+            'find_files cancelled by user (signal: %d)',
+            signal
+          ),
+          jobid = id,
+        })
+        return
+      end
+
+      if code == 0 then
+        local file_count = #stdout
+
+        if file_count > 0 then
+          local output = string.format(
+            'Found %d files matching "%s" in %s:\n\n%s',
+            file_count,
+            action.pattern,
+            search_dir,
+            table.concat(stdout, '\n')
+          )
+          ctx.callback({
+            content = output,
+            jobid = id,
+          })
+        else
+          ctx.callback({
+            content = string.format(
+              'No files found matching "%s" in %s',
+              action.pattern,
+              search_dir
+            ),
+            jobid = id,
+          })
+        end
+      else
+        ctx.callback({
+          error = string.format(
+            'find_files command failed (exit code: %d):\n\nCommand: %s\n\nOutput:\n%s',
+            code,
+            table.concat(cmd, ' '),
+            table.concat(stderr, '\n')
+          ),
+          jobid = id,
+        })
+      end
+    end,
+  })
+
+  if jobid > 0 then
     return {
-      content = 'there is not files based on given pattern.',
+      jobid = jobid,
     }
   end
 end
@@ -65,13 +209,33 @@ function M.scheme()
       name = 'find_files',
       description = [[
       user can use @find_files <pattern> to find files in current working directory.
+      Uses ripgrep (rg) for fast file finding.
       ]],
       parameters = {
         type = 'object',
         properties = {
           pattern = {
             type = 'string',
-            description = 'pattern used to run globpath to find files in current directory.',
+            description = 'Glob pattern to match files (e.g., "*.lua", "**/*.md"). Smart case: lowercase = case-insensitive, uppercase = case-sensitive.',
+          },
+          directory = {
+            type = 'string',
+            description = 'Subdirectory to search in (relative to current working directory, must be within cwd)',
+          },
+          hidden = {
+            type = 'boolean',
+            description = 'Include hidden files (default: false)',
+          },
+          no_ignore = {
+            type = 'boolean',
+            description = 'Do not respect .gitignore and ignore files (default: false)',
+          },
+          exclude = {
+            description = 'Glob pattern(s) to exclude files (e.g., "*.test.lua" or ["*.test.lua", "node_modules/*"])',
+            oneOf = {
+              { type = 'string' },
+              { type = 'array', items = { type = 'string' } },
+            },
           },
         },
         required = { 'pattern' },
@@ -83,7 +247,35 @@ end
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
-    return string.format('find_files %s in %s', arguments.pattern, ctx.cwd)
+    local info_parts = {
+      string.format('find_files "%s"', arguments.pattern),
+      string.format('in %s', arguments.directory and (ctx.cwd .. '/' .. arguments.directory) or ctx.cwd),
+    }
+
+    local options = {}
+    if not arguments.pattern:match('%u') then
+      table.insert(options, 'ignore_case')
+    end
+    if arguments.hidden then
+      table.insert(options, 'hidden')
+    end
+    if arguments.no_ignore then
+      table.insert(options, 'no_ignore')
+    end
+    if arguments.exclude then
+      local excludes = type(arguments.exclude) == 'string' and { arguments.exclude } or arguments.exclude
+      local excl_strs = {}
+      for _, excl in ipairs(excludes) do
+        table.insert(excl_strs, '!' .. excl)
+      end
+      table.insert(options, 'exclude=' .. table.concat(excl_strs, ','))
+    end
+
+    if #options > 0 then
+      table.insert(info_parts, '[' .. table.concat(options, ', ') .. ']')
+    end
+
+    return table.concat(info_parts, ' ')
   else
     return 'find_files'
   end
