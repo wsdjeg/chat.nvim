@@ -6,22 +6,22 @@ local lu = require('luaunit')
 -- Add test directory to runtime path
 vim.opt.runtimepath:append('.')
 
--- Test files to load in order
-local test_files = {
-  'test/util_spec.lua',
-  'test/config_spec.lua',
-  'test/sessions_spec.lua',
-  'test/memory_spec.lua',
-  'test/tools_spec.lua',
-  'test/platform_spec.lua',
-  'test/lark_spec.lua',
-  'test/integration_spec.lua',
-}
+-- Get all test files dynamically
+local test_files = vim.split(vim.fn.globpath('test', '*_spec.lua'), '\n')
+-- Remove empty string if no matches
+if test_files[#test_files] == '' then
+  table.remove(test_files)
+end
 
 -- Run all tests
 local function run_tests()
   print('=== Chat.nvim Test Suite ===')
-  print('Loading test files...\n')
+  print(string.format('Found %d test file(s)\n', #test_files))
+
+  if #test_files == 0 then
+    print('[ERROR] No test files found')
+    return 1
+  end
 
   local loaded_count = 0
   local failed_count = 0
