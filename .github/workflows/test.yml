@@ -27,6 +27,11 @@ jobs:
         with:
           neovim: true
           version: ${{ matrix.nvim-version }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep curl
       
       - name: Download luaunit to test directory
         run: |
