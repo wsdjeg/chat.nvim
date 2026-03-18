@@ -7,8 +7,7 @@ local job = require('job')
 local rg_available = nil
 local function is_rg_available()
   if rg_available == nil then
-    local rg_check = vim.fn.system({ 'rg', '--version' })
-    rg_available = vim.v.shell_error == 0
+    rg_available = vim.fn.executable('rg') == 1
   end
   return rg_available
 end

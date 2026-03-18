@@ -6,8 +6,7 @@ local config = require('chat.config')
 local curl_available = nil
 local function is_curl_available()
   if curl_available == nil then
-    local curl_check = vim.fn.system({ 'curl', '--version' })
-    curl_available = vim.v.shell_error == 0
+    curl_available = vim.fn.executable('curl') == 1
   end
   return curl_available
 end
