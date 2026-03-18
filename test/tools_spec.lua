@@ -1,7 +1,36 @@
--- test/tools_spec.lua
 local lu = require('luaunit')
 local tools = require('chat.tools')
 local config = require('chat.config')
+
+-- Helper function to test async tools
+local function call_async_tool(func, arguments, ctx, timeout)
+  timeout = timeout or 2000
+  local result_received = false
+  local actual_result = nil
+  
+  local result = tools.call(func, arguments, vim.tbl_extend('force', ctx, {
+    callback = function(res)
+      result_received = true
+      actual_result = res
+    end
+  }))
+  
+  -- If immediate error, return it
+  if result.error then
+    return result
+  end
+  
+  -- Wait for async completion
+  local wait_ok = vim.wait(timeout, function()
+    return result_received
+  end, 50)
+  
+  if not wait_ok then
+    return { error = 'Async tool did not complete within ' .. timeout .. 'ms' }
+  end
+  
+  return actual_result
+end
 
 TestTools = {}
 
@@ -107,7 +136,7 @@ function TestTools:testCallFindFiles()
   -- Use normalized path for cwd
   local cwd = vim.fs.normalize(vim.fn.getcwd())
 
-  local result = tools.call('find_files', {
+  local result = call_async_tool('find_files', {
     pattern = '**/test_find.lua',
   }, { cwd = cwd })
 
@@ -128,7 +157,7 @@ end
 
 function TestTools:testCallExtractMemory()
   local result = tools.call('extract_memory', {
-    text = '测试提取记忆功能',
+    text = 'Test memory extraction functionality',
     memory_type = 'long_term',
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 'test-session' })
 
