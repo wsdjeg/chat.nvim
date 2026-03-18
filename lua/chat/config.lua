@@ -26,6 +26,11 @@ local default = {
   allowed_path = '',
   strftime = '%m-%d %H:%M:%S',
   system_prompt = '',
+  context = {
+    enable = true,
+    trigger_threshold = 50, -- 触发截断的消息数
+    keep_recent = 10, -- 最近 N 条不参与截断搜索
+  },
   memory = {
     enable = true,
     long_term = {

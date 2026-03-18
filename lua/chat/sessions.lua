@@ -3,6 +3,7 @@ local M = {}
 local log = require('chat.log')
 local tools = require('chat.tools')
 local job = require('job')
+local context = require('chat.context')
 
 ---@class ChatMessage
 ---@field role string
@@ -407,6 +408,13 @@ function M.get_request_messages(session)
       })
     end
   end
+  
+  -- Apply context truncation
+  local cfg = require('chat.config').config.context or {}
+  if cfg.enable ~= false then
+    message = context.truncate_messages(message, cfg)
+  end
+  
   return message
 end
 
