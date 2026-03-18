@@ -23,11 +23,16 @@ end
 ---@field hidden? boolean
 ---@field no_ignore? boolean
 ---@field exclude? string | string[]
+---@field max_results? integer
 
 ---@param action ChatToolsFindFilesAction
 function M.find_files(action, ctx)
   -- Parameter validation
-  if not action.pattern or type(action.pattern) ~= 'string' or action.pattern == '' then
+  if
+    not action.pattern
+    or type(action.pattern) ~= 'string'
+    or action.pattern == ''
+  then
     return {
       error = 'Pattern is required and must be a non-empty string.',
     }
@@ -61,20 +66,28 @@ function M.find_files(action, ctx)
 
   -- Resolve search directory (must be within ctx.cwd)
   local search_dir = ctx.cwd
-  if action.directory and type(action.directory) == 'string' and #action.directory > 0 then
-    search_dir = vim.fs.normalize(vim.fn.simplify(ctx.cwd .. '/' .. action.directory))
-    
+  if
+    action.directory
+    and type(action.directory) == 'string'
+    and #action.directory > 0
+  then
+    search_dir =
+      vim.fs.normalize(vim.fn.simplify(ctx.cwd .. '/' .. action.directory))
+
     -- Security check: ensure search_dir is within ctx.cwd
     if not vim.startswith(search_dir, vim.fs.normalize(ctx.cwd)) then
       return {
         error = 'Cannot search outside the current working directory.',
       }
     end
-    
+
     -- Verify directory exists
     if vim.fn.isdirectory(search_dir) == 0 then
       return {
-        error = string.format('Directory does not exist: %s', action.directory),
+        error = string.format(
+          'Directory does not exist: %s',
+          action.directory
+        ),
       }
     end
   end
@@ -113,7 +126,8 @@ function M.find_files(action, ctx)
 
   -- Add exclude patterns with ! prefix
   if action.exclude then
-    local excludes = type(action.exclude) == 'string' and { action.exclude } or action.exclude
+    local excludes = type(action.exclude) == 'string' and { action.exclude }
+      or action.exclude
     if type(excludes) == 'table' then
       for _, excl in ipairs(excludes) do
         if type(excl) == 'string' and #excl > 0 then
@@ -130,11 +144,20 @@ function M.find_files(action, ctx)
   local stdout = {}
   local stderr = {}
 
+  -- Default max_results to 100, clamp to [1, 1000]
+  local max_results = action.max_results or 100
+  max_results = math.max(1, math.min(1000, max_results))
+  local truncated = false
+
   local jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         if #v > 0 then
-          table.insert(stdout, v)
+          if #stdout < max_results then
+            table.insert(stdout, v)
+          else
+            truncated = true
+          end
         end
       end
     end,
@@ -159,13 +182,25 @@ function M.find_files(action, ctx)
         local file_count = #stdout
 
         if file_count > 0 then
-          local output = string.format(
-            'Found %d files matching "%s" in %s:\n\n%s',
-            file_count,
-            action.pattern,
-            search_dir,
-            table.concat(stdout, '\n')
-          )
+          local output
+          if truncated then
+            output = string.format(
+              'Found more than %d files matching "%s" in %s (showing first %d):\n\n%s\n\n⚠️ Result truncated. Use a more specific pattern or set max_results higher to see more.',
+              max_results,
+              action.pattern,
+              search_dir,
+              file_count,
+              table.concat(stdout, '\n')
+            )
+          else
+            output = string.format(
+              'Found %d files matching "%s" in %s:\n\n%s',
+              file_count,
+              action.pattern,
+              search_dir,
+              table.concat(stdout, '\n')
+            )
+          end
           ctx.callback({
             content = output,
             jobid = id,
@@ -236,6 +271,12 @@ function M.scheme()
               { type = 'array', items = { type = 'string' } },
             },
           },
+          max_results = {
+            type = 'integer',
+            description = 'Maximum number of results to return (default: 100, max: 1000). ⚠️ Only increase when necessary - large results may exceed context limits.',
+            minimum = 1,
+            maximum = 1000,
+          },
         },
         required = { 'pattern' },
       },
@@ -248,7 +289,11 @@ function M.info(action, ctx)
   if ok then
     local info_parts = {
       string.format('find_files "%s"', arguments.pattern),
-      string.format('in %s', arguments.directory and (ctx.cwd .. '/' .. arguments.directory) or ctx.cwd),
+      string.format(
+        'in %s',
+        arguments.directory and (ctx.cwd .. '/' .. arguments.directory)
+          or ctx.cwd
+      ),
     }
 
     local options = {}
@@ -262,12 +307,17 @@ function M.info(action, ctx)
       table.insert(options, 'no_ignore')
     end
     if arguments.exclude then
-      local excludes = type(arguments.exclude) == 'string' and { arguments.exclude } or arguments.exclude
+      local excludes = type(arguments.exclude) == 'string'
+          and { arguments.exclude }
+        or arguments.exclude
       local excl_strs = {}
       for _, excl in ipairs(excludes) do
         table.insert(excl_strs, '!' .. excl)
       end
       table.insert(options, 'exclude=' .. table.concat(excl_strs, ','))
+    end
+    if arguments.max_results then
+      table.insert(options, 'max_results=' .. arguments.max_results)
     end
 
     if #options > 0 then
