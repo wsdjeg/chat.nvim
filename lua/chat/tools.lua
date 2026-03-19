@@ -4,6 +4,7 @@ local M = {}
 ---@field cwd? string  -- 会话工作目录
 ---@field session? string  -- 会话ID
 ---@field user? string  -- 用户信息
+---@field callback? function async tool callback
 
 -- 延迟加载 MCP 模块（避免循环依赖）
 local mcp = nil
