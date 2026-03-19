@@ -59,6 +59,8 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`web_search`](#web_search)
         - [`git_diff`](#git_diff)
         - [`git_log`](#git_log)
+        - [`git_status`](#git_status)
+        - [`git_show`](#git_show)
         - [`get_history`](#get_history)
         - [`plan`](#plan)
     - [Third-party Tools](#third-party-tools)
@@ -126,7 +128,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 - **Three-Tier Memory System**: Working memory (session tasks), daily memory (short-term goals), and long-term memory (permanent knowledge) with automatic extraction and priority-based retrieval
 - **Parallel Sessions**: Run multiple independent conversations with different AI models, each maintaining separate context and settings
 - **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine, OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`, `@git_log`), conversation history (`@get_history`), memory management...
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`, `@find_files`, `@search_text`), version control (`@git_diff`, `@git_log`, `@git_status`, `@git_show`), conversation history (`@get_history`), memory management...
 - **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create` and `@zettelkasten_get` tools for knowledge management (requires zettelkasten.nvim)
 - **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote AI interaction
 - **HTTP API Server**: Built-in HTTP server for receiving external messages with API key authentication and message queue support
@@ -1879,6 +1881,83 @@ Show commit logs with various filters and options.
 - If filters are set (author/since/grep/from/to), count defaults to no limit
 - Date formats: "2024-01-01", "2 weeks ago", "yesterday", etc.
 - Grep supports regex patterns in commit messages
+
+#### `git_status`
+
+Show the working tree status.
+
+**Usage:**
+
+```
+@git_status [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_status` - Show repository status (short format)
+- `@git_status path="./src"` - Status for specific path
+- `@git_status short=false` - Long format output
+- `@git_status show_branch=false` - Hide branch info
+
+**Parameters:**
+
+| Parameter     | Type    | Description                                           |
+| ------------- | ------- | ----------------------------------------------------- |
+| `path`        | string  | File or directory path (optional)                     |
+| `short`       | boolean | Use short format (default: true)                      |
+| `show_branch` | boolean | Show branch info (default: true)                      |
+
+**Output (short mode):**
+
+```
+Branch: master...origin/master
+
+  M  file.lua (staged)
+   M file.lua (modified)
+  ?? file.lua (untracked)
+```
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Short format shows status codes with file names
+- Status codes: `M` (modified), `A` (added), `D` (deleted), `R` (renamed), `C` (copied), `??` (untracked), `!!` (ignored)
+- Left column: staged status, Right column: unstaged status
+- Particularly useful for quick repository status checks
+
+#### `git_show`
+
+Show detailed changes of a specific commit.
+
+**Usage:**
+
+```
+@git_show commit=<commit> [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_show commit="abc123"` - Show commit details
+- `@git_show commit="v1.0.0"` - Show tag commit
+- `@git_show commit="HEAD~1"` - Show previous commit
+- `@git_show commit="abc123" stat=true` - Show stat only (file list)
+- `@git_show commit="abc123" path="./src/main.lua"` - Show changes for specific file
+
+**Parameters:**
+
+| Parameter | Type    | Description                                                          |
+| --------- | ------- | -------------------------------------------------------------------- |
+| `commit`  | string  | Commit hash, tag, or reference (e.g., "abc123", "v1.0.0", "HEAD~1")  |
+| `stat`    | boolean | Show stat only (file list with change counts) (optional)             |
+| `path`    | string  | Filter to specific file path (optional)                              |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- `commit` can be a commit hash, tag, or relative reference
+- Use `stat=true` to see only the file list with change counts
+- Use `path` to filter changes to a specific file
+- Particularly useful for reviewing specific commits without switching branches
 
 #### `get_history`
 
