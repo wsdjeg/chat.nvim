@@ -28,9 +28,11 @@ end
 function M.git_log(action, ctx)
   -- Security check for ctx.cwd
   local is_allowed_path = false
+  local allowed_path = config.config.allowed_path
 
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
+  if type(allowed_path) == 'table' then
+    ---@cast allowed_path string[]
+    for _, v in ipairs(allowed_path) do
       if type(v) == 'string' and #v > 0 then
         if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
           is_allowed_path = true
@@ -39,11 +41,11 @@ function M.git_log(action, ctx)
       end
     end
   elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
+    type(allowed_path) == 'string'
+    and #allowed_path > 0
   then
     is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
+      vim.startswith(ctx.cwd, vim.fs.normalize(allowed_path))
   end
 
   if not is_allowed_path then
@@ -290,7 +292,7 @@ function M.scheme()
   }
 end
 
-function M.info(action, ctx)
+function M.info(action, _)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
     local info_parts = { 'git_log' }

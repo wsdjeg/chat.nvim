@@ -484,6 +484,19 @@ function M.reply(chat_id, message_id, text)
       reply_to_message_id = message_id,
       parse_mode = 'Markdown',
     }),
+  }, {
+    on_exit = function(id, code, signal)
+      if code ~= 0 or signal ~= 0 then
+        log.debug(
+          string.format(
+            '[telegram] reply job %d exit with code %d signal %d',
+            id,
+            code,
+            signal
+          )
+        )
+      end
+    end,
   })
 end
 

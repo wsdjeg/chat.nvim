@@ -10,6 +10,12 @@ local transport = require('chat.mcp.transport')
 ---@field tools MCPTool[]
 ---@field resources MCPResource[]
 
+---@class MCPResource
+---@field uri string
+---@field name string
+---@field description? string
+---@field mimeType? string
+
 ---@class MCPTool
 ---@field name string
 ---@field description string
@@ -166,6 +172,23 @@ function M.connect_server(name, server_config)
         version = '1.0.0',
       },
     }, function(result)
+      if not result then
+        log.error('[MCP:' .. name .. '] Initialize failed')
+        return
+      end
+
+      -- 记录服务器信息
+      if result.serverInfo then
+        log.info(
+          '[MCP:'
+            .. name
+            .. '] Connected to '
+            .. result.serverInfo.name
+            .. ' v'
+            .. result.serverInfo.version
+        )
+      end
+
       -- 发送 initialized 通知（MCP 协议要求）
       M.send_notification(name, 'initialized', vim.empty_dict())
 

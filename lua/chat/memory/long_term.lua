@@ -433,8 +433,9 @@ function M.export(format)
     return vim.json.encode(long_term_memories, { indent = 2 })
   elseif format == 'markdown' then
     local lines = { '# Long-term Memories\n' }
+    local stats = M.get_stats() -- 获取统计信息
 
-    for category, memories in pairs(stats.by_category) do
+    for category, _ in pairs(stats.by_category) do
       table.insert(lines, string.format('\n## %s\n', category))
       for _, mem in ipairs(M.retrieve_by_category(category, 100)) do
         table.insert(lines, string.format('- %s\n', mem.content))

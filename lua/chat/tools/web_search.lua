@@ -22,8 +22,7 @@ end
 ---@field serpapi_engine? string  -- SerpAPI search engine (google, bing, duckduckgo, etc.)
 
 ---@param action ChatToolsWebSearchAction
----@param ctx ChatContext
-function M.web_search(action, ctx)
+function M.web_search(action, _)
   -- Parameter validation
   if
     not action.query
@@ -71,7 +70,7 @@ function M.web_search(action, ctx)
         type(config.config.api_key) == 'string'
         and config.config.api_key ~= ''
       then
-        api_key = config.config.api_key
+        api_key = config.config.api_key --[[@as string]]
       end
     end
   end
@@ -534,7 +533,7 @@ function M.scheme()
   }
 end
 
-function M.info(action, ctx)
+function M.info(action, _)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
     local info_parts = {

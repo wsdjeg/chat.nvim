@@ -33,7 +33,7 @@ end
 ---@field context_lines? integer
 
 ---@param action ChatToolsSearchTextAction
----@param ctx ChatContext
+---@param ctx ChatToolContext
 function M.search_text(action, ctx)
   -- Parameter validation (enhanced)
   if
@@ -72,10 +72,9 @@ function M.search_text(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path = starts_with(
-      search_directory,
-      vim.fs.normalize(config.config.allowed_path)
-    )
+    local allowed_path = config.config.allowed_path --[[@as string]]
+    is_allowed_path =
+      starts_with(search_directory, vim.fs.normalize(allowed_path))
   end
 
   if not is_allowed_path then
@@ -185,20 +184,17 @@ function M.search_text(action, ctx)
                   local file_path = data.path.text
                   local line_number = data.line_number or 1
                   local line_text = data.lines and data.lines.text or ''
-                  
                   -- Extract match info
                   local column = 1
                   if data.submatches and #data.submatches > 0 then
                     column = (data.submatches[1].start or 0) + 1
                   end
-                  
                   table.insert(matches, {
                     file = file_path,
                     lnum = line_number,
                     col = column,
                     text = line_text:gsub('\n$', ''), -- Remove trailing newline
                   })
-                  
                   file_set[file_path] = true
                 end
               end
@@ -239,10 +235,15 @@ function M.search_text(action, ctx)
           for _, match in ipairs(matches) do
             table.insert(
               output_lines,
-              string.format('%s:%d:%d:%s', match.file, match.lnum, match.col, match.text)
+              string.format(
+                '%s:%d:%d:%s',
+                match.file,
+                match.lnum,
+                match.col,
+                match.text
+              )
             )
           end
-          
           ctx.callback({
             content = summary .. '\n' .. table.concat(output_lines, '\n'),
             jobid = id,
@@ -269,7 +270,7 @@ function M.search_text(action, ctx)
             action.regex == false and 'no' or 'yes',
             max_results
           ),
-          jobid = id
+          jobid = id,
         })
       else
         ctx.callback({
@@ -279,7 +280,7 @@ function M.search_text(action, ctx)
             table.concat(cmd, ' '),
             table.concat(stderr, '\n')
           ),
-          jobid = id
+          jobid = id,
         })
       end
     end,

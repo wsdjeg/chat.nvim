@@ -526,6 +526,19 @@ function M.reply(channel, message_id, text)
         message_id = message_id,
       },
     }),
+  }, {
+    on_exit = function(id, code, signal)
+      if code ~= 0 or signal ~= 0 then
+        log.debug(
+          string.format(
+            '[discord] reply job %d exit with code %d signal %d',
+            id,
+            code,
+            signal
+          )
+        )
+      end
+    end,
   })
 
   return jobid

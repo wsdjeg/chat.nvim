@@ -4,19 +4,19 @@ local bit = require('bit')
 local DISCORD_EPOCH = 1420070400000
 
 function M.iso_to_snowflake(iso)
-  local y, m, d, H, M, S, ms =
+  local year, month, day, hour, minute, second, millisecond =
     iso:match('(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)%.(%d+)')
 
-  local t = os.time({
-    year = y,
-    month = m,
-    day = d,
-    hour = H,
-    min = M,
-    sec = S,
+  local timestamp = os.time({
+    year = year,
+    month = month,
+    day = day,
+    hour = hour,
+    min = minute,
+    sec = second,
   })
 
-  local timestamp_ms = t * 1000 + tonumber(ms)
+  local timestamp_ms = timestamp * 1000 + tonumber(millisecond)
 
   return bit.lshift(timestamp_ms - DISCORD_EPOCH, 22)
 end

@@ -1,5 +1,25 @@
 local M = {}
 
+---@alias ChatConfigApiKey table<string, string>
+
+---@class ChatConfig
+---@field width? number
+---@field height? number
+---@field auto_scroll? boolean
+---@field provider? string
+---@field model? string
+---@field border? string
+---@field highlights? table
+---@field api_key? string | ChatConfigApiKey
+---@field http? table
+---@field allowed_path? string | string[]
+---@field strftime? string
+---@field system_prompt? string | function
+---@field context? table
+---@field memory? table
+---@field integrations? table
+---@field mcp? table
+
 local default = {
   width = 0.8, -- 80% of screen
   height = 0.8,
@@ -54,8 +74,10 @@ local default = {
   },
 }
 
+---@type ChatConfig
 M.config = vim.tbl_deep_extend('force', default, {})
 
+---@param opt ChatConfig
 function M.setup(opt)
   if
     opt.system_prompt
