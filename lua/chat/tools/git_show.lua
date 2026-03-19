@@ -1,5 +1,6 @@
 local M = {}
 
+local config = require('chat.config')
 local util = require('chat.util')
 local job = require('job')
 
@@ -20,6 +21,32 @@ end
 ---@param action ChatToolsGitShowAction
 ---@param ctx ChatToolContext
 function M.git_show(action, ctx)
+  -- Security check for ctx.cwd
+  local is_allowed_path = false
+
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
+          is_allowed_path = true
+          break
+        end
+      end
+    end
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
+    is_allowed_path =
+      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
+  end
+
+  if not is_allowed_path then
+    return {
+      error = 'Cannot run git show in non-allowed path.',
+    }
+  end
+
   if not is_git_available() then
     return {
       error = 'git is not installed or not in PATH.',
@@ -33,7 +60,15 @@ function M.git_show(action, ctx)
     }
   end
 
-  local cmd = { 'git', 'show', action.commit }
+  -- Validate commit doesn't contain dangerous characters
+  local commit = action.commit
+  if commit:match('[;|&`$%(%)%[%]{}]') then
+    return {
+      error = 'Invalid commit format.',
+    }
+  end
+
+  local cmd = { 'git', 'show', commit }
 
   if action.stat then
     table.insert(cmd, '--stat')
@@ -41,8 +76,16 @@ function M.git_show(action, ctx)
 
   local resolved_path = nil
   if action.path and type(action.path) == 'string' and action.path ~= '' then
-    table.insert(cmd, '--')
     resolved_path = util.resolve(action.path, ctx.cwd)
+    
+    -- Security: ensure resolved_path is within ctx.cwd
+    if not vim.startswith(vim.fs.normalize(resolved_path), vim.fs.normalize(ctx.cwd)) then
+      return {
+        error = 'Cannot access path outside working directory.',
+      }
+    end
+    
+    table.insert(cmd, '--')
     table.insert(cmd, resolved_path)
   end
 
@@ -50,6 +93,7 @@ function M.git_show(action, ctx)
   local stderr = {}
 
   local jobid = job.start(cmd, {
+    cwd = ctx.cwd,
     on_stdout = function(_, data)
       vim.list_extend(stdout, data)
     end,
@@ -75,7 +119,7 @@ function M.git_show(action, ctx)
           output = 'No output.'
         end
 
-        local summary = string.format('Git show: %s\n\n', action.commit)
+        local summary = string.format('Git show: %s\n\n', commit)
         if action.stat then
           summary = summary .. '(showing stat only)\n\n'
         end
