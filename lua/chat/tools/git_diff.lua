@@ -1,5 +1,6 @@
 local M = {}
 
+local config = require('chat.config')
 local util = require('chat.util')
 local job = require('job')
 
@@ -21,6 +22,32 @@ end
 ---@param action ChatToolsGitDiffAction
 ---@param ctx ChatToolContext
 function M.git_diff(action, ctx)
+  -- Security check for ctx.cwd
+  local is_allowed_path = false
+
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
+          is_allowed_path = true
+          break
+        end
+      end
+    end
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
+    is_allowed_path =
+      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
+  end
+
+  if not is_allowed_path then
+    return {
+      error = 'Cannot run git_diff in non-allowed path.',
+    }
+  end
+
   -- Check if git is available
   if not is_git_available() then
     return {
@@ -45,6 +72,14 @@ function M.git_diff(action, ctx)
   local resolved_path = nil
   if action.path and type(action.path) == 'string' then
     resolved_path = util.resolve(action.path, ctx.cwd)
+    
+    -- Security: ensure resolved_path is within ctx.cwd
+    if not vim.startswith(vim.fs.normalize(resolved_path), vim.fs.normalize(ctx.cwd)) then
+      return {
+        error = 'Cannot access path outside working directory.',
+      }
+    end
+    
     table.insert(cmd, resolved_path)
   end
 
