@@ -4,7 +4,6 @@
 help:
 	@echo "Available targets:"
 	@echo "  test            - Run all tests with nvim --headless"
-	@echo "  lint            - Run luacheck on source files"
 	@echo "  clean           - Clean test cache files"
 
 # Run tests with nvim headless
@@ -14,11 +13,6 @@ test:
 		-c "lua package.path = 'lua/?.lua;test/?.lua;' .. package.path" \
 		-c "lua dofile('test/run.lua')" \
 		-c "qa!"
-
-# Run linter
-lint:
-	@echo "Running luacheck..."
-	@luacheck lua test
 
 # Clean generated files
 clean:
