@@ -3,7 +3,7 @@ local lu = require('luaunit')
 local memory = require('chat.memory')
 local config = require('chat.config')
 
-TestMemory = {}
+local TestMemory = {}
 
 function TestMemory:setUp()
   -- Setup test configuration

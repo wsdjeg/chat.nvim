@@ -1,10 +1,7 @@
 local lu = require('luaunit')
 local config = require('chat.config')
 
--- Mock lark module for testing
-local lark = {}
-
-TestLark = {}
+local TestLark = {}
 
 function TestLark:setUp()
   -- Setup test configuration

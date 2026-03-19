@@ -2,7 +2,7 @@
 local lu = require('luaunit')
 local config = require('chat.config')
 
-TestConfig = {}
+local TestConfig = {}
 
 function TestConfig:setUp()
   -- Reset config before each test

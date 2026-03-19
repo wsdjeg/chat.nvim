@@ -7,32 +7,27 @@ local function call_async_tool(func, arguments, ctx, timeout)
   timeout = timeout or 2000
   local result_received = false
   local actual_result = nil
-  
   local result = tools.call(func, arguments, vim.tbl_extend('force', ctx, {
     callback = function(res)
       result_received = true
       actual_result = res
     end
   }))
-  
   -- If immediate error, return it
   if result.error then
     return result
   end
-  
   -- Wait for async completion
   local wait_ok = vim.wait(timeout, function()
     return result_received
   end, 50)
-  
   if not wait_ok then
     return { error = 'Async tool did not complete within ' .. timeout .. 'ms' }
   end
-  
   return actual_result
 end
 
-TestTools = {}
+local TestTools = {}
 
 function TestTools:setUp()
   -- Set up a temporary directory for test files
