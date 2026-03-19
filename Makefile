@@ -37,7 +37,7 @@ install-luaunit:
 # Run linter
 lint:
 	@echo "Running luacheck..."
-	@luacheck lua/ test/
+	@luacheck lua/*.lua lua/**/*.lua test/*.lua test/**/*.lua
 
 # Clean generated files
 clean:
