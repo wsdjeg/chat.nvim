@@ -4,7 +4,7 @@
 local lu = require('luaunit')
 local util = require('chat.util')
 
-local TestPlatform = {}
+TestPlatform = {}
 
 function TestPlatform:testWindowsAbsolutePath()
   -- Test Windows absolute path detection

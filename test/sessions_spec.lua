@@ -3,7 +3,7 @@ local lu = require('luaunit')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
-local TestSessions = {}
+TestSessions = {}
 
 function TestSessions:setUp()
   -- Setup test configuration

@@ -1,7 +1,7 @@
 local lu = require('luaunit')
 local config = require('chat.config')
 
-local TestIntegration = {}
+TestIntegration = {}
 
 function TestIntegration:setUp()
   -- Setup test configuration

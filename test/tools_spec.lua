@@ -27,7 +27,7 @@ local function call_async_tool(func, arguments, ctx, timeout)
   return actual_result
 end
 
-local TestTools = {}
+TestTools = {}
 
 function TestTools:setUp()
   -- Set up a temporary directory for test files

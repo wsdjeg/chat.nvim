@@ -2,7 +2,7 @@
 local lu = require('luaunit')
 local util = require('chat.util')
 
-local TestUtil = {}
+TestUtil = {}
 
 function TestUtil:testResolveAbsolutePath()
   -- Test absolute path on Unix-like systems

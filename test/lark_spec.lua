@@ -1,7 +1,7 @@
 local lu = require('luaunit')
 local config = require('chat.config')
 
-local TestLark = {}
+TestLark = {}
 
 function TestLark:setUp()
   -- Setup test configuration
