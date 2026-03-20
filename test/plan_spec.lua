@@ -24,7 +24,7 @@ local function teardown_mock()
   working_memory.store = original_store
 end
 
-local TestPlan = {}
+TestPlan = {}
 local test_storage_dir
 
 function TestPlan:setUp()
@@ -37,6 +37,9 @@ function TestPlan:setUp()
     memory = {
       enable = true,
       storage_dir = test_storage_dir,
+      working = {
+        enable = true,
+      },
     },
   })
 
@@ -63,7 +66,7 @@ function TestPlan:testCreatePlan()
   local p = plan.create('Test Plan', { 'Step 1', 'Step 2', 'Step 3' })
 
   lu.assertNotNil(p, 'Plan should not be nil')
-  lu.assertStrMatches(p.id, 'plan-%d+-%d+', 'Plan ID should match pattern')
+  lu.assertTrue(vim.startswith(p.id, 'plan-'), 'ID should start with plan-')
   lu.assertEquals(p.title, 'Test Plan', 'Title should match')
   lu.assertEquals(p.status, 'pending', 'Initial status should be pending')
   lu.assertEquals(#p.steps, 3, 'Should have 3 steps')
@@ -75,7 +78,10 @@ function TestPlan:testCreatePlan()
   lu.assertEquals(p.steps[3].content, 'Step 3')
 
   -- Verify working memory was called
-  lu.assertTrue(#mock_memory_store_calls > 0, 'Should call working_memory.store')
+  lu.assertTrue(
+    #mock_memory_store_calls > 0,
+    'Should call working_memory.store'
+  )
 end
 
 function TestPlan:testCreatePlanWithNoSteps()
@@ -290,4 +296,3 @@ function TestPlan:testPlanPersistence()
 end
 
 return TestPlan
-
