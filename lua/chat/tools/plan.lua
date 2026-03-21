@@ -311,8 +311,13 @@ Examples:
   }
 end
 
-function M.info(arguments, ctx)
-  return string.format('Plan: %s', arguments.action)
+function M.info(action, ctx)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if ok then
+    return string.format('Plan: %s', arguments.action)
+  else
+    return 'Plan'
+  end
 end
 
 return M
