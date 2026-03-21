@@ -112,7 +112,12 @@ end
 --- @param arguments table: Tool arguments
 --- @param ctx table: Context
 --- @return string: Formatted info
-function M.info(arguments, ctx)
+function M.info(action, ctx)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if not ok then
+    return 'get_history'
+  end
+
   local offset = arguments.offset or 0
   local limit = arguments.limit or 20
   return string.format('get_history(offset=%d, limit=%d)', offset, limit)

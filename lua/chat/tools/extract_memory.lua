@@ -546,7 +546,12 @@ Examples:
   }
 end
 
-function M.info(arguments, ctx)
+function M.info(action, ctx)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if not ok then
+    return 'extract_memory'
+  end
+
   local parts = {}
 
   if arguments.text then

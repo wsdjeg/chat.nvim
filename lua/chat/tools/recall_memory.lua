@@ -396,7 +396,12 @@ Examples:
   }
 end
 
-function M.info(arguments, ctx)
+function M.info(action, ctx)
+  local ok, arguments = pcall(vim.json.decode, action)
+  if not ok then
+    return 'Recall'
+  end
+
   local parts = { 'Recall' }
 
   if arguments.query then
