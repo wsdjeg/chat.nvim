@@ -199,6 +199,11 @@ function M.connect_server(name, server_config)
           'tools/list',
           vim.empty_dict(),
           function(list_result)
+            -- Check if server still exists (might have been stopped)
+            if not servers[name] then
+              log.warn('[MCP:' .. name .. '] Server disconnected before tools were registered')
+              return
+            end
             if list_result and list_result.tools then
               servers[name].tools = list_result.tools
               log.info(
