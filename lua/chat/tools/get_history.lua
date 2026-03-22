@@ -5,6 +5,10 @@ local M = {}
 
 local log = require('chat.log')
 
+---@class ChatToolsGetHistoryAction
+---@field offset? integer Starting index (0 = oldest message, default 0)
+---@field limit? integer Number of messages to retrieve (default 20, max 50)
+
 --- Get tool schema for LLM
 --- @return table: Tool schema
 function M.scheme()
@@ -43,10 +47,10 @@ Examples:
 end
 
 --- Handle tool call
---- @param arguments table: Tool arguments { offset?, limit? }
---- @param ctx table: Context { session, cwd, user }
---- @return table: Result { content } or { error }
-function M.get_history(arguments, ctx)
+---@param action ChatToolsGetHistoryAction
+---@param ctx ChatToolContext
+---@return table: Result { content } or { error }
+function M.get_history(action, ctx)
   local sessions = require('chat.sessions')
 
   if not ctx.session or not sessions.exists(ctx.session) then
@@ -58,8 +62,8 @@ function M.get_history(arguments, ctx)
     return { content = 'No messages in session history.' }
   end
 
-  local offset = arguments.offset or 0
-  local limit = math.min(arguments.limit or 20, 50)
+  local offset = action.offset or 0
+  local limit = math.min(action.limit or 20, 50)
 
   -- Validate offset
   if offset < 0 then
@@ -109,10 +113,9 @@ function M.get_history(arguments, ctx)
 end
 
 --- Format tool info for display
---- @param arguments table: Tool arguments
---- @param ctx table: Context
---- @return string: Formatted info
-function M.info(action, ctx)
+---@param action string
+---@return string: Formatted info
+function M.info(action, _)
   local ok, arguments = pcall(vim.json.decode, action)
   if not ok then
     return 'get_history'
