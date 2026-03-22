@@ -5,6 +5,7 @@ local lark = require('chat.integrations.lark')
 local dingtalk = require('chat.integrations.dingtalk')
 local wecom = require('chat.integrations.wecom')
 local telegram = require('chat.integrations.telegram')
+local weixin = require('chat.integrations.weixin')  -- 新增
 local log = require('chat.log')
 
 ---@class ChatIntegrationMessage
@@ -131,6 +132,31 @@ function M.on_message(callback)
       })
     end
   end)
+
+  -- Weixin (OpenClaw WeChat) - 新增
+  weixin.connect(function(message)
+    log.debug('[Weixin] ' .. message.content)
+    if message.content == '/session' then
+      weixin.set_session(require('chat.windows').current_session())
+      return
+    elseif message.content == '/clear' then
+      local sessions = require('chat.sessions')
+      local session = weixin.current_session()
+      if session and not sessions.is_in_progress(session) then
+        require('chat.sessions').clear(weixin.current_session())
+        -- 发送到默认用户
+        weixin.send_message('session messages cleared!')
+      end
+      return
+    end
+    local session = weixin.current_session()
+    if session then
+      callback({
+        session = session,
+        content = message.content,
+      })
+    end
+  end)
 end
 
 ---@param session string session ID
@@ -160,6 +186,11 @@ function M.on_response(session, content)
   if session == telegram.current_session() then
     telegram.send_message(content)
   end
+
+  -- Weixin - 新增
+  if session == weixin.current_session() then
+    weixin.send_message(content)
+  end
 end
 
 function M.set_session(bridge, session)
@@ -173,6 +204,8 @@ function M.set_session(bridge, session)
     wecom.set_session(session)
   elseif bridge == 'telegram' then
     telegram.set_session(session)
+  elseif bridge == 'weixin' then  -- 新增
+    weixin.set_session(session)
   end
 end
 
@@ -195,6 +228,11 @@ function M.on_session_deleted(session)
 
   if session == telegram.current_session() then
     telegram.disconnect()
+  end
+
+  -- Weixin - 新增
+  if session == weixin.current_session() then
+    weixin.disconnect()
   end
 end
 
@@ -221,6 +259,12 @@ function M.get_integrations(session)
   if session == telegram.current_session() then
     table.insert(ins, 'telegram')
   end
+
+  -- Weixin - 新增
+  if session == weixin.current_session() then
+    table.insert(ins, 'weixin')
+  end
+
   return ins
 end
 

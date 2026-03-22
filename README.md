@@ -107,12 +107,17 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [Features](#features-3)
         - [Setup Guide](#setup-guide-3)
         - [Technical Details](#technical-details-3)
-    - [Telegram](#telegram)
+    - [Weixin (Personal WeChat)](#weixin-personal-wechat)
         - [Features](#features-4)
         - [Setup Guide](#setup-guide-4)
         - [Commands](#commands-2)
-        - [Workflow](#workflow-1)
         - [Technical Details](#technical-details-4)
+    - [Telegram](#telegram)
+        - [Features](#features-5)
+        - [Setup Guide](#setup-guide-5)
+        - [Commands](#commands-3)
+        - [Workflow](#workflow-1)
+        - [Technical Details](#technical-details-5)
         - [Troubleshooting](#troubleshooting-1)
     - [Common Features](#common-features)
     - [Platform-Specific Notes](#platform-specific-notes)
@@ -263,17 +268,17 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 
 ### Basic Options
 
-| Option          | Type               | Default            | Description                                                                |
-| --------------- | ------------------ | ------------------ | -------------------------------------------------------------------------- |
-| `width`         | number             | `0.8`              | Chat window width (percentage of screen width, 0.0-1.0)                    |
-| `height`        | number             | `0.8`              | Chat window height (percentage of screen height, 0.0-1.0)                  |
-| `auto_scroll`   | boolean            | `true`             | Controls automatic scrolling behavior of the result window                 |
-| `border`        | string             | `'rounded'`        | Window border style, supports all Neovim border options                    |
-| `provider`      | string             | `'deepseek'`       | Default AI provider                                                        |
-| `model`         | string             | `'deepseek-chat'`  | Default AI model                                                           |
-| `strftime`      | string             | `'%m-%d %H:%M:%S'` | Time display format                                                        |
-| `system_prompt` | string or function | `''`               | Default system prompt, can be a string or a function that returns a string |
-| `highlights`    | table  | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges |
+| Option          | Type               | Default                                                         | Description                                                                |
+| --------------- | ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `width`         | number             | `0.8`                                                           | Chat window width (percentage of screen width, 0.0-1.0)                    |
+| `height`        | number             | `0.8`                                                           | Chat window height (percentage of screen height, 0.0-1.0)                  |
+| `auto_scroll`   | boolean            | `true`                                                          | Controls automatic scrolling behavior of the result window                 |
+| `border`        | string             | `'rounded'`                                                     | Window border style, supports all Neovim border options                    |
+| `provider`      | string             | `'deepseek'`                                                    | Default AI provider                                                        |
+| `model`         | string             | `'deepseek-chat'`                                               | Default AI model                                                           |
+| `strftime`      | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
+| `system_prompt` | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
+| `highlights`    | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
 
 ### HTTP Server Configuration
 
@@ -1864,16 +1869,16 @@ Show commit logs with various filters and options.
 
 **Parameters:**
 
-| Parameter  | Type    | Description                                                          |
-| ---------- | ------- | -------------------------------------------------------------------- |
-| `path`     | string  | File or directory path (default: current working directory)          |
-| `count`    | integer | Limit number of commits (default: 5, use 0 for no limit)             |
-| `oneline`  | boolean | Show each commit on a single line (default: true)                    |
-| `author`   | string  | Filter commits by author name or email                               |
-| `since`    | string  | Show commits after this date (e.g., "2024-01-01", "2 weeks ago")     |
-| `from`     | string  | Starting tag/commit for range (e.g., "v1.4.0")                        |
-| `to`       | string  | Ending tag/commit for range (default: HEAD)                          |
-| `grep`     | string  | Search for pattern in commit messages                                |
+| Parameter | Type    | Description                                                      |
+| --------- | ------- | ---------------------------------------------------------------- |
+| `path`    | string  | File or directory path (default: current working directory)      |
+| `count`   | integer | Limit number of commits (default: 5, use 0 for no limit)         |
+| `oneline` | boolean | Show each commit on a single line (default: true)                |
+| `author`  | string  | Filter commits by author name or email                           |
+| `since`   | string  | Show commits after this date (e.g., "2024-01-01", "2 weeks ago") |
+| `from`    | string  | Starting tag/commit for range (e.g., "v1.4.0")                   |
+| `to`      | string  | Ending tag/commit for range (default: HEAD)                      |
+| `grep`    | string  | Search for pattern in commit messages                            |
 
 **Notes:**
 
@@ -1901,11 +1906,11 @@ Show the working tree status.
 
 **Parameters:**
 
-| Parameter     | Type    | Description                                           |
-| ------------- | ------- | ----------------------------------------------------- |
-| `path`        | string  | File or directory path (optional)                     |
-| `short`       | boolean | Use short format (default: true)                      |
-| `show_branch` | boolean | Show branch info (default: true)                      |
+| Parameter     | Type    | Description                       |
+| ------------- | ------- | --------------------------------- |
+| `path`        | string  | File or directory path (optional) |
+| `short`       | boolean | Use short format (default: true)  |
+| `show_branch` | boolean | Show branch info (default: true)  |
 
 **Output (short mode):**
 
@@ -1945,11 +1950,11 @@ Show detailed changes of a specific commit.
 
 **Parameters:**
 
-| Parameter | Type    | Description                                                          |
-| --------- | ------- | -------------------------------------------------------------------- |
-| `commit`  | string  | Commit hash, tag, or reference (e.g., "abc123", "v1.0.0", "HEAD~1")  |
-| `stat`    | boolean | Show stat only (file list with change counts) (optional)             |
-| `path`    | string  | Filter to specific file path (optional)                              |
+| Parameter | Type    | Description                                                         |
+| --------- | ------- | ------------------------------------------------------------------- |
+| `commit`  | string  | Commit hash, tag, or reference (e.g., "abc123", "v1.0.0", "HEAD~1") |
+| `stat`    | boolean | Show stat only (file list with change counts) (optional)            |
+| `path`    | string  | Filter to specific file path (optional)                             |
 
 **Notes:**
 
@@ -2585,6 +2590,7 @@ chat.nvim supports integration with multiple instant messaging platforms for rem
 | Lark     | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling    |
 | DingTalk | 📱   | ✅ Yes\*      | Webhook (one-way) or API (two-way)      |
 | WeCom    | 💼   | ✅ Yes\*      | Enterprise WeChat webhook or API        |
+| Weixin   | 💬   | ✅ Yes\*      | Personal WeChat via external API        |
 | Telegram | ✈️   | ✅ Yes        | Bot API with group/private chat support |
 
 \*Webhook mode is one-way only; API mode supports bidirectional communication.
@@ -2846,6 +2852,61 @@ integrations = {
 - **Authentication**: Access Token (auto-refresh)
 - **Message Limit**: 2,048 characters
 - **State Persistence**: `stdpath('data')/chat-wecom-state.json`
+
+### Weixin (Personal WeChat)
+
+Weixin integration for personal WeChat accounts via QR code login.
+
+#### Features
+
+- **QR Code Login**: Scan with WeChat to login
+- **Auto Credential Caching**: Login credentials saved locally
+- **Auto Reconnect**: Automatically reconnects on restart
+- **Long Message Support**: Auto-chunking for messages > 2,048 characters
+
+#### Setup Guide
+
+**1. First-Time Login**
+
+Run the following Lua command in Neovim:
+
+```lua
+:lua require('chat.integrations.weixin').login()
+```
+
+A QR code will be displayed in a floating window.
+
+**2. Scan QR Code**
+
+- Open WeChat on your phone
+- Scan the QR code
+- Confirm login on your phone
+
+**3. Done!**
+
+Login credentials are automatically saved to:
+
+```
+stdpath('data')/chat-weixin-state.json
+```
+
+Subsequent restarts will auto-connect using saved credentials.
+
+#### Commands
+
+| Command                                                | Description                  |
+| ------------------------------------------------------ | ---------------------------- |
+| `:lua require('chat.integrations.weixin').login()`     | Start QR code login          |
+| `:lua require('chat.integrations.weixin').logout()`    | Logout and clear credentials |
+| `:lua require('chat.integrations.weixin').get_state()` | Check connection status      |
+
+#### Technical Details
+
+- **API**: OpenClaw WeChat Gateway
+- **Authentication**: QR Code Login (auto-refresh)
+- **Message Limit**: 2,048 characters (auto-chunking)
+- **State Persistence**: `stdpath('data')/chat-weixin-state.json`
+- **Polling**: Long-poll every 3 seconds
 
 ### Telegram
 
