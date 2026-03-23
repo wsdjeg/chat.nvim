@@ -51,17 +51,16 @@ M.ErrorCode = {
 
 -- Default timeouts (ms)
 M.Timeout = {
-  LONG_POLL = 35000,     -- Long-poll timeout
-  API_REQUEST = 15000,   -- Regular API timeout
+  LONG_POLL = 35000, -- Long-poll timeout
+  API_REQUEST = 15000, -- Regular API timeout
   CONFIG_REQUEST = 10000, -- Config/typing timeout
 }
 
 -- Message limits
 M.Limits = {
   MAX_MESSAGE_LENGTH = 2048, -- WeChat message length limit
-  MAX_QUEUE_SIZE = 100,       -- Max messages in queue
-  MAX_PROCESSED_CACHE = 100,  -- Max processed message IDs to cache
+  MAX_QUEUE_SIZE = 100, -- Max messages in queue
+  MAX_PROCESSED_CACHE = 100, -- Max processed message IDs to cache
 }
 
 return M
-

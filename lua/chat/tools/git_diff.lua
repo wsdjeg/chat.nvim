@@ -72,14 +72,19 @@ function M.git_diff(action, ctx)
   local resolved_path = nil
   if action.path and type(action.path) == 'string' then
     resolved_path = util.resolve(action.path, ctx.cwd)
-    
+
     -- Security: ensure resolved_path is within ctx.cwd
-    if not vim.startswith(vim.fs.normalize(resolved_path), vim.fs.normalize(ctx.cwd)) then
+    if
+      not vim.startswith(
+        vim.fs.normalize(resolved_path),
+        vim.fs.normalize(ctx.cwd)
+      )
+    then
       return {
         error = 'Cannot access path outside working directory.',
       }
     end
-    
+
     table.insert(cmd, resolved_path)
   end
 

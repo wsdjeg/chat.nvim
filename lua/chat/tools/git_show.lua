@@ -54,7 +54,11 @@ function M.git_show(action, ctx)
   end
 
   -- commit is required
-  if not action.commit or type(action.commit) ~= 'string' or action.commit == '' then
+  if
+    not action.commit
+    or type(action.commit) ~= 'string'
+    or action.commit == ''
+  then
     return {
       error = 'commit parameter is required.',
     }
@@ -77,14 +81,19 @@ function M.git_show(action, ctx)
   local resolved_path = nil
   if action.path and type(action.path) == 'string' and action.path ~= '' then
     resolved_path = util.resolve(action.path, ctx.cwd)
-    
+
     -- Security: ensure resolved_path is within ctx.cwd
-    if not vim.startswith(vim.fs.normalize(resolved_path), vim.fs.normalize(ctx.cwd)) then
+    if
+      not vim.startswith(
+        vim.fs.normalize(resolved_path),
+        vim.fs.normalize(ctx.cwd)
+      )
+    then
       return {
         error = 'Cannot access path outside working directory.',
       }
     end
-    
+
     table.insert(cmd, '--')
     table.insert(cmd, resolved_path)
   end
@@ -214,4 +223,3 @@ function M.info(action, ctx)
 end
 
 return M
-

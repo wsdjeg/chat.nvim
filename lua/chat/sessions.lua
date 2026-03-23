@@ -174,7 +174,8 @@ function M.get()
   if not vim.tbl_isempty(sessions) then
     return sessions
   end
-  for _ in M.iter_sessions() do end
+  for _ in M.iter_sessions() do
+  end
   return sessions
 end
 
@@ -408,13 +409,13 @@ function M.get_request_messages(session)
       })
     end
   end
-  
+
   -- Apply context truncation
   local cfg = require('chat.config').config.context or {}
   if cfg.enable ~= false then
     message = context.truncate_messages(message, cfg)
   end
-  
+
   return message
 end
 

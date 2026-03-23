@@ -588,4 +588,34 @@ function M.set_session(session)
   save_state()
 end
 
+--------------------------------------------------
+-- Send typing indicator
+--------------------------------------------------
+function M.send_typing(is_typing)
+  if not is_typing then
+    return
+  end
+
+  local channel = config.config.integrations
+    and config.config.integrations.discord
+    and config.config.integrations.discord.channel_id
+  local token = config.config.integrations
+    and config.config.integrations.discord
+    and config.config.integrations.discord.token
+
+  if not channel or not token then
+    return
+  end
+
+  job.start({
+    'curl',
+    '-s',
+    '-X',
+    'POST',
+    'https://discord.com/api/v10/channels/' .. channel .. '/typing',
+    '-H',
+    'Authorization: Bot ' .. token,
+  })
+end
+
 return M

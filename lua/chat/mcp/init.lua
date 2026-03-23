@@ -201,7 +201,11 @@ function M.connect_server(name, server_config)
           function(list_result)
             -- Check if server still exists (might have been stopped)
             if not servers[name] then
-              log.warn('[MCP:' .. name .. '] Server disconnected before tools were registered')
+              log.warn(
+                '[MCP:'
+                  .. name
+                  .. '] Server disconnected before tools were registered'
+              )
               return
             end
             if list_result and list_result.tools then
@@ -430,7 +434,9 @@ end
 function M.cancel_request(mcp_tool_call_id)
   local mapping = mcp_tool_call_to_request[mcp_tool_call_id]
   if not mapping then
-    log.debug('[MCP] No pending request for mcp_tool_call_id: ' .. mcp_tool_call_id)
+    log.debug(
+      '[MCP] No pending request for mcp_tool_call_id: ' .. mcp_tool_call_id
+    )
     return false
   end
 
@@ -456,7 +462,12 @@ function M.cancel_request(mcp_tool_call_id)
     })
   end
 
-  log.info('[MCP] Cancelled request ' .. req_id .. ' for tool call ' .. mcp_tool_call_id)
+  log.info(
+    '[MCP] Cancelled request '
+      .. req_id
+      .. ' for tool call '
+      .. mcp_tool_call_id
+  )
   return true
 end
 

@@ -24,7 +24,12 @@ function M.available_tools()
   local tools = {}
   for _, t in ipairs(tool_modules) do
     local ok, tool = pcall(require, t)
-    if ok and tool and type(tool) == "table" and type(tool.scheme) == "function" then
+    if
+      ok
+      and tool
+      and type(tool) == 'table'
+      and type(tool.scheme) == 'function'
+    then
       table.insert(tools, tool.scheme())
     end
   end

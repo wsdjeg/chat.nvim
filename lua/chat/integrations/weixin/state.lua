@@ -13,25 +13,25 @@ local state = {
   -- Connection state
   is_running = false,
   is_polling = false,
-  
+
   -- Sync cursor for long-polling
   get_updates_buf = '',
-  
+
   -- Context tokens per user (for reply)
   context_tokens = {},
-  
+
   -- Typing ticket (for typing indicator)
   typing_ticket = nil,
-  
+
   -- Current session binding
   session = nil,
-  
+
   -- Timer reference
   timer = nil,
-  
+
   -- Callback
   callback = nil,
-  
+
   -- Login credentials (新增)
   bot_token = nil,
   account_id = nil,

@@ -40,23 +40,32 @@ local function process_queue()
     return
   end
 
-  local context_token = msg_data.context_token or State.get_context_token(to_user_id)
+  local context_token = msg_data.context_token
+    or State.get_context_token(to_user_id)
 
-  send_jobid = Api.send_message(to_user_id, context_token, msg_data.content, function(result, err)
-    -- Reset job ID in callback
-    send_jobid = -1
-    
-    if err then
-      log.error('[Weixin] Failed to send message: ' .. err)
-    elseif not result or result.ret ~= 0 then
-      log.error('[Weixin] Failed to send message: ' .. (result and result.errmsg or 'unknown'))
-    end
+  send_jobid = Api.send_message(
+    to_user_id,
+    context_token,
+    msg_data.content,
+    function(result, err)
+      -- Reset job ID in callback
+      send_jobid = -1
 
-    -- Process next message in queue
-    if #message_queue > 0 then
-      vim.schedule(process_queue)
+      if err then
+        log.error('[Weixin] Failed to send message: ' .. err)
+      elseif not result or result.ret ~= 0 then
+        log.error(
+          '[Weixin] Failed to send message: '
+            .. (result and result.errmsg or 'unknown')
+        )
+      end
+
+      -- Process next message in queue
+      if #message_queue > 0 then
+        vim.schedule(process_queue)
+      end
     end
-  end)
+  )
 end
 
 --------------------------------------------------
@@ -119,7 +128,7 @@ local function poll_updates()
     -- Check for errors
     if result.ret ~= 0 then
       log.error('[Weixin] getupdates error: ' .. (result.errmsg or 'unknown'))
-      
+
       -- Session expired
       if result.errcode == Types.ErrorCode.SESSION_EXPIRED then
         log.error('[Weixin] Session expired, please re-login')
@@ -136,7 +145,8 @@ local function poll_updates()
     -- Process messages
     if result.msgs and #result.msgs > 0 then
       local state = State.get()
-      local inbound = Message.extract_inbound(result.msgs, state.context_tokens)
+      local inbound =
+        Message.extract_inbound(result.msgs, state.context_tokens)
 
       -- Save context tokens
       State.save()
@@ -191,7 +201,7 @@ function M.connect(callback)
   if State.has_credentials() then
     local creds = State.get_credentials()
     log.info('[Weixin] Found cached credentials, using token...')
-    
+
     -- 设置 API 使用缓存的 token
     Api.set_credentials(creds.bot_token, creds.account_id, creds.base_url)
   end
@@ -207,16 +217,20 @@ function M.connect(callback)
   State.set_running(true)
 
   log.info('[Weixin] Starting long-polling...')
-  
+
   -- Start polling timer
   local timer = uv.new_timer()
   State.set_timer(timer)
-  
-  timer:start(0, 3000, vim.schedule_wrap(function()
-    if State.is_running() then
-      poll_updates()
-    end
-  end))
+
+  timer:start(
+    0,
+    3000,
+    vim.schedule_wrap(function()
+      if State.is_running() then
+        poll_updates()
+      end
+    end)
+  )
 
   log.info('[Weixin] Connected')
 end
@@ -328,7 +342,7 @@ local Login = require('chat.integrations.weixin.login')
 --------------------------------------------------
 function M.login(callback)
   log.info('[Weixin] Starting QR code login...')
-  
+
   Login.start_qr_login({
     callback = function(result, err)
       if err then
@@ -359,7 +373,7 @@ function M.login(callback)
           log.info('✅ ' .. login_result.message)
           log.info('Bot Token: ' .. (login_result.bot_token or 'N/A'))
           log.info('Account ID: ' .. login_result.account_id)
-          
+
           -- 保存登录凭证到 state (新增)
           State.set_credentials({
             bot_token = login_result.bot_token,
@@ -369,14 +383,14 @@ function M.login(callback)
           })
           State.save()
           log.info('[Weixin] Credentials saved')
-          
+
           -- 同时更新 API 配置 (新增)
           Api.set_credentials(
             login_result.bot_token,
             login_result.account_id,
             login_result.base_url
           )
-          
+
           if callback then
             callback(login_result, nil)
           end

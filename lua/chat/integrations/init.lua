@@ -5,7 +5,7 @@ local lark = require('chat.integrations.lark')
 local dingtalk = require('chat.integrations.dingtalk')
 local wecom = require('chat.integrations.wecom')
 local telegram = require('chat.integrations.telegram')
-local weixin = require('chat.integrations.weixin')  -- 新增
+local weixin = require('chat.integrations.weixin') -- 新增
 local log = require('chat.log')
 
 ---@class ChatIntegrationMessage
@@ -17,6 +17,8 @@ function M.on_message(callback)
   -- Discord
   discord.connect(function(message)
     log.debug('[Discord] ' .. message.content)
+    -- 发送 typing 指示器
+    discord.send_typing(true)
     if message.content == '/session' then
       discord.set_session(require('chat.windows').current_session())
       return
@@ -204,7 +206,7 @@ function M.set_session(bridge, session)
     wecom.set_session(session)
   elseif bridge == 'telegram' then
     telegram.set_session(session)
-  elseif bridge == 'weixin' then  -- 新增
+  elseif bridge == 'weixin' then -- 新增
     weixin.set_session(session)
   end
 end

@@ -49,7 +49,8 @@ end
 -- Get config
 --------------------------------------------------
 local function get_config()
-  local weixin_config = config.config.integrations and config.config.integrations.weixin
+  local weixin_config = config.config.integrations
+    and config.config.integrations.weixin
   if not weixin_config then
     return nil, 'Integration not configured'
   end
@@ -72,7 +73,7 @@ end
 --------------------------------------------------
 function M.request(endpoint, data, callback, opts)
   opts = opts or {}
-  
+
   local cfg, err = get_config()
   if not cfg then
     log.error('[Weixin] ' .. err)
@@ -88,10 +89,13 @@ function M.request(endpoint, data, callback, opts)
   local cmd = {
     'curl',
     '-s',
-    '-X', 'POST',
+    '-X',
+    'POST',
     url,
-    '--connect-timeout', '10',
-    '--max-time', tostring(opts.timeout or Types.Timeout.API_REQUEST),
+    '--connect-timeout',
+    '10',
+    '--max-time',
+    tostring(opts.timeout or Types.Timeout.API_REQUEST),
   }
 
   for _, h in ipairs(headers) do
@@ -154,7 +158,7 @@ function M.get_config(user_id, callback)
       callback(nil, err)
       return
     end
-    
+
     if result and result.ret == 0 and result.typing_ticket then
       callback(result.typing_ticket, nil)
     else
@@ -172,7 +176,8 @@ function M.send_typing(user_id, typing_ticket, is_typing, callback)
   M.request(M.Endpoints.SEND_TYPING, {
     ilink_user_id = user_id,
     typing_ticket = typing_ticket,
-    status = is_typing and Types.TypingStatus.TYPING or Types.TypingStatus.CANCEL,
+    status = is_typing and Types.TypingStatus.TYPING
+      or Types.TypingStatus.CANCEL,
   }, function(result, err)
     if callback then
       callback(result, err)
@@ -186,11 +191,16 @@ end
 -- Get updates (long-poll)
 --------------------------------------------------
 function M.get_updates(get_updates_buf, callback)
-  M.request(M.Endpoints.GET_UPDATES, {
-    get_updates_buf = get_updates_buf or '',
-  }, callback, {
-    timeout = Types.Timeout.LONG_POLL,
-  })
+  M.request(
+    M.Endpoints.GET_UPDATES,
+    {
+      get_updates_buf = get_updates_buf or '',
+    },
+    callback,
+    {
+      timeout = Types.Timeout.LONG_POLL,
+    }
+  )
 end
 
 --------------------------------------------------
@@ -236,21 +246,21 @@ function M.set_credentials(token, account_id, base_url)
   if not config.config.integrations then
     config.config.integrations = {}
   end
-  
+
   if not config.config.integrations.weixin then
     config.config.integrations.weixin = {}
   end
-  
+
   config.config.integrations.weixin.token = token
-  
+
   if account_id then
     config.config.integrations.weixin.default_user_id = account_id
   end
-  
+
   if base_url then
     M.BASE_URL = base_url
   end
-  
+
   log.info('[Weixin] Credentials updated')
 end
 

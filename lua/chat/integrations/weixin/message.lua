@@ -24,26 +24,30 @@ function M.parse_item(item)
     return {
       type = 'image',
       aes_key = item.image_item and item.image_item.aes_key,
-      encrypt_query_param = item.image_item and item.image_item.encrypt_query_param,
+      encrypt_query_param = item.image_item
+        and item.image_item.encrypt_query_param,
     }
   elseif msg_type == Types.MessageItemType.VOICE then
     return {
       type = 'voice',
       aes_key = item.voice_item and item.voice_item.aes_key,
-      encrypt_query_param = item.voice_item and item.voice_item.encrypt_query_param,
+      encrypt_query_param = item.voice_item
+        and item.voice_item.encrypt_query_param,
       text = item.voice_item and item.voice_item.text, -- Voice-to-text
     }
   elseif msg_type == Types.MessageItemType.FILE then
     return {
       type = 'file',
       aes_key = item.file_item and item.file_item.aes_key,
-      encrypt_query_param = item.file_item and item.file_item.encrypt_query_param,
+      encrypt_query_param = item.file_item
+        and item.file_item.encrypt_query_param,
     }
   elseif msg_type == Types.MessageItemType.VIDEO then
     return {
       type = 'video',
       aes_key = item.video_item and item.video_item.aes_key,
-      encrypt_query_param = item.video_item and item.video_item.encrypt_query_param,
+      encrypt_query_param = item.video_item
+        and item.video_item.encrypt_query_param,
     }
   end
 
@@ -163,4 +167,3 @@ function M.extract_inbound(msgs, context_tokens)
 end
 
 return M
-

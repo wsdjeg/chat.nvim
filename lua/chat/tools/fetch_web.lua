@@ -117,7 +117,14 @@ function M.fetch_web(action, ctx)
       end
     end,
     on_exit = function(id, code, signal)
-      require('chat.log').debug('fetch_web job ' .. id ..' exit code ' .. code .. ' signal ' ..  signal)
+      require('chat.log').debug(
+        'fetch_web job '
+          .. id
+          .. ' exit code '
+          .. code
+          .. ' signal '
+          .. signal
+      )
       if signal ~= 0 then
         ctx.callback({
           error = string.format(
@@ -167,7 +174,7 @@ function M.fetch_web(action, ctx)
 
         ctx.callback({
           content = summary .. display_result .. truncation_note,
-          jobid = id
+          jobid = id,
         })
       else
         local result = table.concat(stdout, '\n')
@@ -203,13 +210,13 @@ function M.fetch_web(action, ctx)
 
         ctx.callback({
           error = error_msg,
-          jobid = id
+          jobid = id,
         })
       end
     end,
   })
   return {
-    jobid = jobid
+    jobid = jobid,
   }
 end
 

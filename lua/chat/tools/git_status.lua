@@ -69,14 +69,19 @@ function M.git_status(action, ctx)
   if action.path and type(action.path) == 'string' then
     table.insert(cmd, '--')
     resolved_path = util.resolve(action.path, ctx.cwd)
-    
+
     -- Security: ensure resolved_path is within ctx.cwd
-    if not vim.startswith(vim.fs.normalize(resolved_path), vim.fs.normalize(ctx.cwd)) then
+    if
+      not vim.startswith(
+        vim.fs.normalize(resolved_path),
+        vim.fs.normalize(ctx.cwd)
+      )
+    then
       return {
         error = 'Cannot access path outside working directory.',
       }
     end
-    
+
     table.insert(cmd, resolved_path)
   end
 
@@ -109,10 +114,8 @@ function M.git_status(action, ctx)
           output = 'Working tree clean.'
         end
 
-        local summary = string.format(
-          'Git status: %s\n\n',
-          resolved_path or 'repository'
-        )
+        local summary =
+          string.format('Git status: %s\n\n', resolved_path or 'repository')
         ctx.callback({
           content = summary .. M.format_status(output, use_short),
           jobid = id,
@@ -237,4 +240,3 @@ function M.info(action, ctx)
 end
 
 return M
-

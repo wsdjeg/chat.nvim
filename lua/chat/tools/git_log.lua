@@ -40,12 +40,8 @@ function M.git_log(action, ctx)
         end
       end
     end
-  elseif
-    type(allowed_path) == 'string'
-    and #allowed_path > 0
-  then
-    is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(allowed_path))
+  elseif type(allowed_path) == 'string' and #allowed_path > 0 then
+    is_allowed_path = vim.startswith(ctx.cwd, vim.fs.normalize(allowed_path))
   end
 
   if not is_allowed_path then
@@ -67,7 +63,11 @@ function M.git_log(action, ctx)
     action.count = nil
   elseif action.count == nil then
     -- Only default count=5 when no filters are set
-    local has_filters = action.author or action.since or action.grep or action.from or action.to
+    local has_filters = action.author
+      or action.since
+      or action.grep
+      or action.from
+      or action.to
     if not has_filters then
       action.count = 5
     end
@@ -299,7 +299,11 @@ function M.info(action, _)
     if arguments.from or arguments.to then
       table.insert(
         info_parts,
-        string.format('range=%s..%s', arguments.from or '', arguments.to or '')
+        string.format(
+          'range=%s..%s',
+          arguments.from or '',
+          arguments.to or ''
+        )
       )
     end
     if arguments.count then

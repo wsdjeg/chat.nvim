@@ -7,12 +7,16 @@ local function call_async_tool(func, arguments, ctx, timeout)
   timeout = timeout or 2000
   local result_received = false
   local actual_result = nil
-  local result = tools.call(func, arguments, vim.tbl_extend('force', ctx, {
-    callback = function(res)
-      result_received = true
-      actual_result = res
-    end
-  }))
+  local result = tools.call(
+    func,
+    arguments,
+    vim.tbl_extend('force', ctx, {
+      callback = function(res)
+        result_received = true
+        actual_result = res
+      end,
+    })
+  )
   -- If immediate error, return it
   if result.error then
     return result
