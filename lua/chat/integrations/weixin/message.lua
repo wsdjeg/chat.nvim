@@ -58,6 +58,10 @@ end
 -- Parse WeixinMessage (proto: WeixinMessage)
 --------------------------------------------------
 function M.parse(msg)
+  local ok, json_str = pcall(vim.json.encode, msg)
+  if ok then
+    log.debug(string.format('[WeChat] parse raw message: %s', json_str))
+  end
   if not msg then
     return nil
   end
@@ -115,19 +119,34 @@ end
 --------------------------------------------------
 function M.should_process(parsed_msg)
   if not parsed_msg then
+    log.warn('[WeChat] should_process: parsed_msg is nil')
     return false
   end
+
+  log.debug(
+    string.format(
+      '[WeChat] should_process: message_type=%s (expect USER=%s), message_state=%s (expect NEW=%s)',
+      parsed_msg.message_type,
+      Types.MessageType.USER,
+      parsed_msg.message_state,
+      Types.MessageState.NEW
+    )
+  )
 
   -- Only process USER messages
   if parsed_msg.message_type ~= Types.MessageType.USER then
+    log.warn(
+      string.format(
+        '[WeChat] should_process: skip non-USER message, type=%s',
+        parsed_msg.message_type
+      )
+    )
     return false
   end
 
-  -- Only process NEW messages
-  if parsed_msg.message_state ~= Types.MessageState.NEW then
-    return false
-  end
-
+  -- Process USER messages (regardless of state for now)
+  -- NOTE: Weixin API returns FINISH state for regular messages
+  log.debug('[WeChat] should_process: message accepted')
   return true
 end
 
@@ -148,6 +167,13 @@ function M.extract_inbound(msgs, context_tokens)
       -- Store context_token for this user
       if parsed.from_user_id and parsed.context_token then
         context_tokens[parsed.from_user_id] = parsed.context_token
+        log.debug(
+          string.format(
+            '[Weixin] Stored context_token for user %s: %s',
+            parsed.from_user_id,
+            parsed.context_token:sub(1, 20) .. '...'
+          )
+        )
       end
 
       -- Extract text

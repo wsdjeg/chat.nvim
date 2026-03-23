@@ -5,8 +5,11 @@ local M = {}
 
 local log = require('chat.log')
 local json = vim.json
+local uv = vim.uv
 
 local STATE_FILE = vim.fn.stdpath('data') .. '/chat-weixin-state.json'
+
+local TYPING_TICKET_TTL_MS = 24 * 60 * 60 * 1000  -- 24小时
 
 -- Internal state
 local state = {
@@ -20,8 +23,8 @@ local state = {
   -- Context tokens per user (for reply)
   context_tokens = {},
 
-  -- Typing ticket (for typing indicator)
-  typing_ticket = nil,
+  -- Typing tickets per user (for typing indicator)
+  typing_tickets = {},  -- {[user_id] = {ticket = "xxx", fetched_at = timestamp}}
 
   -- Current session binding
   session = nil,
@@ -32,11 +35,14 @@ local state = {
   -- Callback
   callback = nil,
 
-  -- Login credentials (新增)
+  -- Login credentials
   bot_token = nil,
   account_id = nil,
   base_url = nil,
   user_id = nil,
+
+  -- Last sender user_id (for reply)
+  last_from_user_id = nil,
 }
 
 --------------------------------------------------
@@ -47,11 +53,15 @@ function M.save()
     get_updates_buf = state.get_updates_buf,
     context_tokens = state.context_tokens,
     session = state.session,
-    -- 保存登录凭证 (新增)
+    -- 保存登录凭证
     bot_token = state.bot_token,
     account_id = state.account_id,
     base_url = state.base_url,
     user_id = state.user_id,
+    -- 保存最后发送者 ID
+    last_from_user_id = state.last_from_user_id,
+    -- 保存 typing tickets
+    typing_tickets = state.typing_tickets,
   }
 
   local ok, encoded = pcall(json.encode, data)
@@ -101,11 +111,15 @@ function M.load()
   state.get_updates_buf = data.get_updates_buf or ''
   state.context_tokens = data.context_tokens or {}
   state.session = data.session
-  -- 加载登录凭证 (新增)
+  -- 加载登录凭证
   state.bot_token = data.bot_token
   state.account_id = data.account_id
   state.base_url = data.base_url
   state.user_id = data.user_id
+  -- 加载最后发送者 ID
+  state.last_from_user_id = data.last_from_user_id
+  -- 加载 typing tickets
+  state.typing_tickets = data.typing_tickets or {}
 
   log.debug('[Weixin] State loaded')
   return true
@@ -117,13 +131,15 @@ end
 function M.clear()
   state.get_updates_buf = ''
   state.context_tokens = {}
-  state.typing_ticket = nil
+  state.typing_tickets = {}
   state.session = nil
-  -- 清除登录凭证 (新增)
+  -- 清除登录凭证
   state.bot_token = nil
   state.account_id = nil
   state.base_url = nil
   state.user_id = nil
+  -- 清除最后发送者 ID
+  state.last_from_user_id = nil
   os.remove(STATE_FILE)
   log.info('[Weixin] State cleared')
 end
@@ -188,19 +204,31 @@ function M.set_context_token(user_id, token)
   state.context_tokens[user_id] = token
 end
 
-function M.set_typing_ticket(ticket)
-  state.typing_ticket = ticket
+function M.set_typing_ticket(user_id, ticket)
+  state.typing_tickets[user_id] = {
+    ticket = ticket,
+    fetched_at = uv.now(),
+  }
 end
 
-function M.get_typing_ticket()
-  return state.typing_ticket
+function M.get_typing_ticket(user_id)
+  local entry = state.typing_tickets[user_id]
+  if not entry then
+    return nil
+  end
+  -- 检查过期
+  if uv.now() - entry.fetched_at > TYPING_TICKET_TTL_MS then
+    state.typing_tickets[user_id] = nil
+    return nil
+  end
+  return entry.ticket
 end
 
 function M.get_timer()
   return state.timer
 end
 
--- 新增: 登录凭证相关 getter/setter
+-- 登录凭证相关 getter/setter
 function M.get_credentials()
   return {
     bot_token = state.bot_token,
@@ -221,6 +249,16 @@ function M.has_credentials()
   return state.bot_token ~= nil and state.account_id ~= nil
 end
 
+-- 最后发送者 ID 相关 getter/setter
+function M.get_last_from_user_id()
+  return state.last_from_user_id
+end
+
+function M.set_last_from_user_id(user_id)
+  state.last_from_user_id = user_id
+  M.save()
+end
+
 --------------------------------------------------
 -- Get state info for debugging
 --------------------------------------------------
@@ -230,9 +268,10 @@ function M.get_info()
     is_polling = state.is_polling,
     has_updates_buf = #state.get_updates_buf > 0,
     context_token_count = vim.tbl_count(state.context_tokens),
-    has_typing_ticket = state.typing_ticket ~= nil,
+    typing_ticket_count = vim.tbl_count(state.typing_tickets),
     session = state.session,
-    has_credentials = M.has_credentials(), -- 新增
+    has_credentials = M.has_credentials(),
+    last_from_user_id = state.last_from_user_id,
   }
 end
 

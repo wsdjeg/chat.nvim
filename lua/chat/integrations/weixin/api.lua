@@ -1,4 +1,5 @@
 -- lua/chat/integrations/weixin/api.lua
+-- https://raw.githubusercontent.com/epiral/weixin-bot/refs/heads/main/PROTOCOL.md
 -- WeChat API wrapper (via OpenClaw gateway)
 
 local M = {}
@@ -25,6 +26,9 @@ M.Endpoints = {
   GET_CONFIG = 'ilink/bot/getconfig',
 }
 
+-- SDK version
+M.CHANNEL_VERSION = '1.0.0'
+
 --------------------------------------------------
 -- Generate random X-WECHAT-UIN header
 --------------------------------------------------
@@ -42,6 +46,15 @@ local function build_headers(token)
     'AuthorizationType: ilink_bot_token',
     'Authorization: Bearer ' .. token,
     'X-WECHAT-UIN: ' .. generate_wechat_uin(),
+  }
+end
+
+--------------------------------------------------
+-- Build base_info
+--------------------------------------------------
+local function build_base_info()
+  return {
+    channel_version = M.CHANNEL_VERSION,
   }
 end
 
@@ -104,6 +117,9 @@ function M.request(endpoint, data, callback, opts)
   end
 
   if data then
+    -- Add base_info to all business requests
+    data.base_info = data.base_info or build_base_info()
+    
     table.insert(cmd, '-d')
     table.insert(cmd, '@-')
   end
@@ -128,7 +144,7 @@ function M.request(endpoint, data, callback, opts)
     on_stderr = function(_, lines)
       for _, line in ipairs(lines) do
         if line and line ~= '' then
-          log.error('[Weixin] ' .. line)
+          log.debug('[Weixin] ' .. line)
         end
       end
     end,
@@ -204,12 +220,36 @@ function M.get_updates(get_updates_buf, callback)
 end
 
 --------------------------------------------------
+-- Generate or get session client ID
+--------------------------------------------------
+local function get_client_id()
+  return string.format(
+    'openclaw-weixin:%d-%s',
+    os.time() * 1000,  -- 毫秒时间戳
+    vim.base64.encode(tostring(math.random(1, 99999999)))
+  )
+end
+
+--------------------------------------------------
 -- Send message
 --------------------------------------------------
 function M.send_message(to_user_id, context_token, content, callback)
+  -- Validate context_token (required by API)
+  if not context_token or context_token == '' then
+    log.error('[Weixin] Cannot send message: missing context_token')
+    if callback then
+      callback(nil, 'Missing context_token')
+    end
+    return
+  end
+
   M.request(M.Endpoints.SEND_MESSAGE, {
     msg = {
+      from_user_id = '',
       to_user_id = to_user_id,
+      client_id = get_client_id(),
+      message_type = Types.MessageType.BOT,
+      message_state = Types.MessageState.FINISH,
       context_token = context_token,
       item_list = {
         {
@@ -239,7 +279,7 @@ function M.is_configured()
 end
 
 --------------------------------------------------
--- Set credentials dynamically (新增)
+-- Set credentials dynamically
 --------------------------------------------------
 function M.set_credentials(token, account_id, base_url)
   -- 更新 config

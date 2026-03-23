@@ -45,7 +45,7 @@ local qr_buf = -1
 local qr_win = -1
 local function display_qrcode(url)
   M.close_qrcode()
-  local cmd = { 'npx', '-y', 'qrcode-terminal', url }
+  local cmd = 'npx -y qrcode-terminal "' .. url .. '"'
 
   if not vim.api.nvim_buf_is_valid(qr_buf) then
     qr_buf = vim.api.nvim_create_buf(false, true)
@@ -55,8 +55,8 @@ local function display_qrcode(url)
   if not vim.api.nvim_win_is_valid(qr_win) then
     qr_win = vim.api.nvim_open_win(qr_buf, false, {
       relative = 'editor',
-      width = 70,
-      height = 35,
+      width = 80,
+      height = 40,
       row = 5,
       col = 5,
       style = 'minimal',
@@ -329,6 +329,8 @@ function M.wait_for_login(opts)
         log.info('[Weixin] Login confirmed! bot_id=' .. resp.ilink_bot_id)
 
         login_state.status = 'confirmed'
+
+        M.close_qrcode()
 
         if opts.callback then
           opts.callback({

@@ -31,7 +31,10 @@ local function process_queue()
 
   local msg_data = table.remove(message_queue, 1)
   local default_user_id = Api.get_default_user_id()
-  local to_user_id = msg_data.to_user_id or default_user_id
+  -- 优先使用 last_from_user_id
+  local to_user_id = msg_data.to_user_id
+    or State.get_last_from_user_id()
+    or default_user_id
 
   if not to_user_id then
     log.error('[Weixin] No user_id to send to')
@@ -43,6 +46,13 @@ local function process_queue()
   local context_token = msg_data.context_token
     or State.get_context_token(to_user_id)
 
+  log.debug(
+    string.format(
+      '[Weixin] Getting context_token for user %s: %s',
+      to_user_id,
+      context_token and (context_token:sub(1, 20) .. '...') or 'nil'
+    )
+  )
   send_jobid = Api.send_message(
     to_user_id,
     context_token,
@@ -51,13 +61,29 @@ local function process_queue()
       -- Reset job ID in callback
       send_jobid = -1
 
+      log.debug(vim.inspect(result))
+
       if err then
         log.error('[Weixin] Failed to send message: ' .. err)
-      elseif not result or result.ret ~= 0 then
-        log.error(
-          '[Weixin] Failed to send message: '
-            .. (result and result.errmsg or 'unknown')
-        )
+      elseif not result then
+        log.error('[Weixin] Failed to send message: empty response')
+      elseif result.ret and result.ret ~= 0 then
+        log.error('[Weixin] Failed to send message:')
+        log.error('  ret=' .. (result.ret or '?'))
+        log.error('  errcode=' .. (result.errcode or '?'))
+        log.error('  errmsg=' .. (result.errmsg or 'unknown'))
+        log.error('  Full response: ' .. vim.json.encode(result))
+
+        -- Session expired
+        if
+          result.ret == -14
+          or result.errcode == Types.ErrorCode.SESSION_EXPIRED
+        then
+          log.error('[Weixin] Session expired, please re-login')
+          State.clear_credentials()
+        end
+      else
+         log.debug(string.format('[Weixin] Message sent to %s', to_user_id))
       end
 
       -- Process next message in queue
@@ -117,6 +143,7 @@ local function poll_updates()
 
     if err then
       log.error('[Weixin] getupdates error: ' .. err)
+      -- Retry after 3 seconds
       return
     end
 
@@ -125,13 +152,20 @@ local function poll_updates()
       return
     end
 
-    -- Check for errors
-    if result.ret ~= 0 then
-      log.error('[Weixin] getupdates error: ' .. (result.errmsg or 'unknown'))
+    -- Check for errors (ret is optional, nil or 0 means success)
+    if result.ret and result.ret ~= 0 then
+      log.error('[Weixin] getupdates failed:')
+      log.error('  ret=' .. (result.ret or '?'))
+      log.error('  errcode=' .. (result.errcode or '?'))
+      log.error('  errmsg=' .. (result.errmsg or 'unknown'))
 
       -- Session expired
-      if result.errcode == Types.ErrorCode.SESSION_EXPIRED then
+      if
+        result.ret == -14
+        or result.errcode == Types.ErrorCode.SESSION_EXPIRED
+      then
         log.error('[Weixin] Session expired, please re-login')
+        State.clear_credentials()
       end
       return
     end
@@ -147,6 +181,11 @@ local function poll_updates()
       local state = State.get()
       local inbound =
         Message.extract_inbound(result.msgs, state.context_tokens)
+
+      -- Update last sender
+      if #inbound > 0 then
+        State.set_last_from_user_id(inbound[#inbound].user_id)
+      end
 
       -- Save context tokens
       State.save()
@@ -168,7 +207,7 @@ end
 -- Get typing ticket (lazy load)
 --------------------------------------------------
 local function ensure_typing_ticket(user_id, callback)
-  local ticket = State.get_typing_ticket()
+  local ticket = State.get_typing_ticket(user_id)
   if ticket then
     callback(ticket)
     return
@@ -180,7 +219,7 @@ local function ensure_typing_ticket(user_id, callback)
       return
     end
 
-    State.set_typing_ticket(new_ticket)
+    State.set_typing_ticket(user_id, new_ticket)
     callback(new_ticket)
   end)
 end
@@ -372,9 +411,9 @@ function M.login(callback)
           log.info('')
           log.info('✅ ' .. login_result.message)
           log.info('Bot Token: ' .. (login_result.bot_token or 'N/A'))
-          log.info('Account ID: ' .. login_result.account_id)
+          log.info('Account ID: ' .. (login_result.account_id))
 
-          -- 保存登录凭证到 state (新增)
+          -- 保存登录凭证到 state
           State.set_credentials({
             bot_token = login_result.bot_token,
             account_id = login_result.account_id,
@@ -384,7 +423,7 @@ function M.login(callback)
           State.save()
           log.info('[Weixin] Credentials saved')
 
-          -- 同时更新 API 配置 (新增)
+          -- 同时更新 API 配置
           Api.set_credentials(
             login_result.bot_token,
             login_result.account_id,
@@ -408,7 +447,7 @@ function M.get_login_state()
 end
 
 --------------------------------------------------
--- Public API: Logout (新增)
+-- Public API: Logout
 --------------------------------------------------
 function M.logout()
   M.disconnect()
