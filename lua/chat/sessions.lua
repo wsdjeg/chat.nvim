@@ -463,6 +463,7 @@ function M.on_progress_tool_call(id, tool_call)
     tool_call['function']
     and tool_call['function'].name ~= nil
     and tool_call['function'].name ~= vim.NIL
+    and tool_call['function'].name ~= ''
   then
     state['function'].name = tool_call['function'].name
   end
