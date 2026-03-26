@@ -2,13 +2,15 @@ local M = {}
 
 local available_models = {}
 
+local systemObj
+
 local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  if #available_models == 0 then
-    if config.config.api_key.baidu then
+  if #available_models == 0 and not systemObj then
+    if config.config.api_key.aliyuncs then
       local cmd = {
         'curl',
         '-s',
@@ -18,15 +20,16 @@ function M.available_models()
         'Authorization: Bearer ' .. config.config.api_key.baidu,
         'https://qianfan.baidubce.com/v2/models',
       }
-      local systemObj = vim.system(cmd):wait()
-      if systemObj.code == 0 then
-        local ok, result = pcall(vim.json.decode, systemObj.stdout)
-        if ok then
-          for _, model in ipairs(result.data) do
-            table.insert(available_models, model.id)
+      systemObj = vim.system(cmd, { text = true }, function(out)
+        if out.code == 0 then
+          local ok, result = pcall(vim.json.decode, out.stdout)
+          if ok then
+            for _, model in ipairs(result.data) do
+              table.insert(available_models, model.id)
+            end
           end
         end
-      end
+      end)
     end
   end
   return available_models
@@ -50,9 +53,7 @@ function M.request(opt)
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
-    thinking = {
-      type = 'enabled',
-    },
+    enable_thinking = true,
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
@@ -71,6 +72,3 @@ function M.request(opt)
 end
 
 return M
-
-
-
