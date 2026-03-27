@@ -135,18 +135,12 @@ local function api_request(method, endpoint, data, callback)
     table.insert(cmd, '@-')
   end
 
+  local stdout = {}
+
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
-      if callback then
-        local output = table.concat(lines, '\n')
-        if output and output ~= '' then
-          local ok, result = pcall(json.decode, output)
-          if ok and result then
-            callback(result)
-          else
-            log.error('[Discord] Failed to decode: ' .. output)
-          end
-        end
+      for _, v in ipairs(lines) do
+        table.insert(stdout, v)
       end
     end,
     on_stderr = function(_, lines)
@@ -156,7 +150,24 @@ local function api_request(method, endpoint, data, callback)
         end
       end
     end,
+    on_exit = function(_, code, signal)
+      if callback then
+        if code == 0 and signal == 0 then
+          local output = table.concat(stdout, '\n')
+          if output and output ~= '' then
+            local ok, result = pcall(json.decode, output)
+            if ok and result then
+              return callback(result)
+            else
+              log.error('[Discord] Failed to decode: ' .. output)
+            end
+          end
+        end
+        callback(nil)
+      end
+    end,
   })
+
   job.send(jobid, json.encode(data))
   job.send(jobid, nil)
 end
@@ -170,7 +181,7 @@ local function get_bot_id()
   end
 
   api_request('GET', '/users/@me', nil, function(data)
-    if data.id then
+    if data and data.id then
       state.bot_id = data.id
       save_state()
       log.info('[Discord] Bot ID: ' .. state.bot_id)
