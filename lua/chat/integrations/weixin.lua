@@ -229,7 +229,6 @@ end
 --------------------------------------------------
 function M.connect(callback)
   if State.is_running() then
-    log.warn('[Weixin] Already running')
     return
   end
 
