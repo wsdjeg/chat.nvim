@@ -2,6 +2,7 @@ local M = {}
 
 local config = require('chat.config')
 local job = require('job')
+local util = require('chat.util')
 
 -- Cache rg availability check result
 local rg_available = nil
@@ -15,6 +16,25 @@ end
 -- Smart case: if pattern has uppercase, use case-sensitive; otherwise case-insensitive
 local function should_ignore_case(pattern)
   return not pattern:match('%u')
+end
+
+-- Check if path is within allowed_path
+local function is_path_allowed(path)
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(path, vim.fs.normalize(v)) then
+          return true
+        end
+      end
+    end
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
+    return vim.startswith(path, vim.fs.normalize(config.config.allowed_path))
+  end
+  return false
 end
 
 ---@class ChatToolsFindFilesAction
@@ -39,45 +59,26 @@ function M.find_files(action, ctx)
   end
 
   -- Security check for ctx.cwd
-  local is_allowed_path = false
-
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
-          is_allowed_path = true
-          break
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
-  end
-
-  if not is_allowed_path then
+  if not is_path_allowed(ctx.cwd) then
     return {
       error = 'Cannot find files in non-allowed path.',
     }
   end
 
-  -- Resolve search directory (must be within ctx.cwd)
+  -- Resolve search directory
   local search_dir = ctx.cwd
   if
     action.directory
     and type(action.directory) == 'string'
     and #action.directory > 0
   then
-    search_dir =
-      vim.fs.normalize(vim.fn.simplify(ctx.cwd .. '/' .. action.directory))
+    -- 使用 util.resolve 自动处理绝对/相对路径
+    search_dir = util.resolve(action.directory, ctx.cwd)
 
-    -- Security check: ensure search_dir is within ctx.cwd
-    if not vim.startswith(search_dir, vim.fs.normalize(ctx.cwd)) then
+    -- Security check: ensure search_dir is within allowed path
+    if not is_path_allowed(search_dir) then
       return {
-        error = 'Cannot search outside the current working directory.',
+        error = 'Cannot search outside allowed path.',
       }
     end
 
@@ -287,13 +288,13 @@ end
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
+    local display_dir = arguments.directory
+        and util.resolve(arguments.directory, ctx.cwd)
+      or ctx.cwd
+
     local info_parts = {
       string.format('find_files "%s"', arguments.pattern),
-      string.format(
-        'in %s',
-        arguments.directory and (ctx.cwd .. '/' .. arguments.directory)
-          or ctx.cwd
-      ),
+      string.format('in %s', display_dir),
     }
 
     local options = {}
