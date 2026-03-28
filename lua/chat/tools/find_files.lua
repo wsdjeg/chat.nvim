@@ -180,43 +180,43 @@ function M.find_files(action, ctx)
       end
 
       if code == 0 then
+        -- Found matching files
         local file_count = #stdout
-
-        if file_count > 0 then
-          local output
-          if truncated then
-            output = string.format(
-              'Found more than %d files matching "%s" in %s (showing first %d):\n\n%s\n\n⚠️ Result truncated. Use a more specific pattern or set max_results higher to see more.',
-              max_results,
-              action.pattern,
-              search_dir,
-              file_count,
-              table.concat(stdout, '\n')
-            )
-          else
-            output = string.format(
-              'Found %d files matching "%s" in %s:\n\n%s',
-              file_count,
-              action.pattern,
-              search_dir,
-              table.concat(stdout, '\n')
-            )
-          end
-          ctx.callback({
-            content = output,
-            jobid = id,
-          })
+        local output
+        if truncated then
+          output = string.format(
+            'Found more than %d files matching "%s" in %s (showing first %d):\n\n%s\n\n⚠️ Result truncated. Use a more specific pattern or set max_results higher to see more.',
+            max_results,
+            action.pattern,
+            search_dir,
+            file_count,
+            table.concat(stdout, '\n')
+          )
         else
-          ctx.callback({
-            content = string.format(
-              'No files found matching "%s" in %s',
-              action.pattern,
-              search_dir
-            ),
-            jobid = id,
-          })
+          output = string.format(
+            'Found %d files matching "%s" in %s:\n\n%s',
+            file_count,
+            action.pattern,
+            search_dir,
+            table.concat(stdout, '\n')
+          )
         end
+        ctx.callback({
+          content = output,
+          jobid = id,
+        })
+      elseif code == 1 then
+        -- No files found (normal case, not an error)
+        ctx.callback({
+          content = string.format(
+            'No files found matching "%s" in %s',
+            action.pattern,
+            search_dir
+          ),
+          jobid = id,
+        })
       else
+        -- Exit code >= 2: actual error
         ctx.callback({
           error = string.format(
             'find_files command failed (exit code: %d):\n\nCommand: %s\n\nOutput:\n%s',
