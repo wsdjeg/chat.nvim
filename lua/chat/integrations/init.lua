@@ -10,6 +10,7 @@ local integrations = {
   wecom = require('chat.integrations.wecom'),
   telegram = require('chat.integrations.telegram'),
   weixin = require('chat.integrations.weixin'),
+  slack = require('chat.integrations.slack'),
 }
 
 ---@class ChatIntegrationMessage
@@ -20,12 +21,12 @@ local integrations = {
 local function handle_message(integration, name, callback)
   return function(message)
     log.debug(string.format('[%s] %s', name, message.content))
-    
+
     -- Discord 特殊处理：发送 typing 指示器
     if name == 'discord' then
       integration.send_typing(true)
     end
-    
+
     -- 处理命令
     if message.content == '/session' then
       integration.set_session(require('chat.windows').current_session())
@@ -39,7 +40,7 @@ local function handle_message(integration, name, callback)
       end
       return
     end
-    
+
     -- 正常消息
     local session = integration.current_session()
     if session then
