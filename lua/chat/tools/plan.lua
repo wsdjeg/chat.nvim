@@ -1,7 +1,30 @@
+-- lua/chat/tools/plan.lua
+
+---@class ChatToolPlanAction
+---@field action '"create"'|'"show"'|'"list"'|'"add"'|'"next"'|'"done"'|'"review"'|'"delete"' Plan action to perform
+---@field title? string Plan title (for create)
+---@field steps? string[] Initial steps (for create)
+---@field plan_id? string Plan ID
+---@field step_content? string Step content (for add)
+---@field step_id? integer Step ID (for done)
+---@field notes? string Notes for step completion
+---@field status? string Filter by status (for list)
+---@field summary? string Plan summary (for review)
+---@field lessons? string[] Lessons learned (for review)
+---@field issues? string[] Issues encountered (for review)
+
+---@class ChatToolPlanResult
+---@field content? string Result content
+---@field error? string Error message
+
 local M = {}
 local plan_module = require('chat.plan')
 local config = require('chat.config')
 
+---Handle plan tool call
+---@param arguments ChatToolPlanAction Tool arguments
+---@param ctx ChatToolContext Tool context
+---@return ChatToolPlanResult Result with content or error
 function M.plan(arguments, ctx)
   local action = arguments.action
   local title = arguments.title
@@ -228,6 +251,8 @@ function M.plan(arguments, ctx)
   return { error = 'Unknown action: ' .. action }
 end
 
+---Get tool schema for LLM
+---@return table Tool schema
 function M.scheme()
   return {
     type = 'function',
@@ -311,6 +336,10 @@ Examples:
   }
 end
 
+---Format tool info for display
+---@param action string Action string (JSON)
+---@param ctx ChatToolContext Tool context
+---@return string Formatted info
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then

@@ -1,11 +1,52 @@
 -- lua/chat/plan.lua
+
+---@alias ChatPlanStatus '"pending"'|'"in_progress"'|'"completed"'|'"paused"'
+
+---@alias ChatPlanStepStatus '"pending"'|'"in_progress"'|'"completed"'|'"cancelled"'
+
+---@class ChatPlanContext
+---@field working_dir string Working directory
+---@field session? string Session ID
+---@field related_files? string[] Related files
+
+---@class ChatPlanStep
+---@field id integer Step ID
+---@field content string Step content
+---@field status '"pending"'|'"in_progress"'|'"completed"'|'"cancelled"'
+---@field created_at integer Creation timestamp
+---@field started_at? integer Start timestamp
+---@field completed_at? integer Completion timestamp
+---@field notes? string Step notes
+---@field updated_at? integer Last update timestamp
+
+---@class ChatPlanReview
+---@field completed_at? integer Completion timestamp
+---@field summary? string Plan summary
+---@field lessons_learned? string[] Lessons learned
+---@field issues_encountered? string[] Issues encountered
+
+---@class ChatPlan
+---@field id string Plan ID (format: plan-YYYYMMDD-XXXX)
+---@field title string Plan title
+---@field created_at integer Creation timestamp
+---@field updated_at integer Last update timestamp
+---@field status '"pending"'|'"in_progress"'|'"completed"'|'"paused"'
+---@field steps ChatPlanStep[] Plan steps
+---@field context ChatPlanContext Plan context
+---@field review ChatPlanReview Plan review
+---@field paused_at? integer Pause timestamp
+---@field pause_reason? string Pause reason
+---@field resumed_at? integer Resume timestamp
+
 local M = {}
 local config = require('chat.config')
 local working_memory = require('chat.memory.working')
 
+---@type ChatPlan[]
 local plans = {}
 
--- Generate plan ID
+---Generate plan ID
+---@return string Plan ID in format plan-YYYYMMDD-XXXX
 local function generate_plan_id()
   return string.format(
     'plan-%s-%s',
@@ -14,7 +55,11 @@ local function generate_plan_id()
   )
 end
 
--- Create new plan
+---Create new plan
+---@param title string Plan title
+---@param steps? string[] Initial steps
+---@param context? ChatPlanContext Plan context
+---@return ChatPlan Created plan
 function M.create(title, steps, context)
   local plan = {
     id = generate_plan_id(),
@@ -62,7 +107,9 @@ function M.create(title, steps, context)
   return plan
 end
 
--- Get plan by ID
+---Get plan by ID
+---@param plan_id string Plan ID
+---@return ChatPlan|nil Plan if found, nil otherwise
 function M.get(plan_id)
   for _, plan in ipairs(plans) do
     if plan.id == plan_id then
@@ -72,7 +119,9 @@ function M.get(plan_id)
   return nil
 end
 
--- List all plans
+---List all plans
+---@param status? string Filter by status (optional)
+---@return ChatPlan[] List of plans
 function M.list(status)
   if not status then
     return plans
@@ -83,7 +132,11 @@ function M.list(status)
   end, plans)
 end
 
--- Add step to plan
+---Add step to plan
+---@param plan_id string Plan ID
+---@param step_content string Step content
+---@return ChatPlanStep|nil step Added step if success
+---@return string|nil error Error message if failed
 function M.add_step(plan_id, step_content)
   local plan = M.get(plan_id)
   if not plan then
@@ -111,7 +164,10 @@ function M.add_step(plan_id, step_content)
   return step
 end
 
--- Start next step
+---Start next pending step
+---@param plan_id string Plan ID
+---@return ChatPlanStep|nil step Started step if success
+---@return string|nil error Error message if failed
 function M.start_next(plan_id)
   local plan = M.get(plan_id)
   if not plan then
@@ -141,6 +197,10 @@ function M.start_next(plan_id)
   return nil, 'No pending steps'
 end
 
+---@generic T
+---@param check fun(item: T): boolean
+---@param items T[]
+---@return boolean
 local function tbl_every(check, items)
   for _, item in ipairs(items) do
     if not check(item) then
@@ -150,7 +210,12 @@ local function tbl_every(check, items)
   return true
 end
 
--- Complete step
+---Complete step
+---@param plan_id string Plan ID
+---@param step_id integer Step ID
+---@param notes? string Completion notes
+---@return ChatPlanStep|nil step Completed step if success
+---@return string|nil error Error message if failed
 function M.complete_step(plan_id, step_id, notes)
   local plan = M.get(plan_id)
   if not plan then
@@ -182,7 +247,13 @@ function M.complete_step(plan_id, step_id, notes)
   return nil, 'Step not found'
 end
 
--- Complete plan and review
+---Complete plan and add review
+---@param plan_id string Plan ID
+---@param summary? string Plan summary
+---@param lessons? string[] Lessons learned
+---@param issues? string[] Issues encountered
+---@return ChatPlan|nil plan Reviewed plan if success
+---@return string|nil error Error message if failed
 function M.review_plan(plan_id, summary, lessons, issues)
   local plan = M.get(plan_id)
   if not plan then
@@ -209,7 +280,8 @@ function M.review_plan(plan_id, summary, lessons, issues)
   return plan
 end
 
--- Delete plan
+---Delete plan
+---@param plan_id string Plan ID
 function M.delete(plan_id)
   plans = vim.tbl_filter(function(p)
     return p.id ~= plan_id
@@ -217,7 +289,7 @@ function M.delete(plan_id)
   M.save()
 end
 
--- Load/Save
+---Load plans from storage
 function M.load()
   local path = config.config.memory.storage_dir .. 'plans.json'
   local file = io.open(path, 'r')
@@ -230,6 +302,7 @@ function M.load()
   end
 end
 
+---Save plans to storage
 function M.save()
   local path = config.config.memory.storage_dir .. 'plans.json'
   local file = io.open(path, 'w')
