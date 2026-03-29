@@ -149,11 +149,12 @@ function M.scheme()
       - @read_file ./src/main.lua line_start=10 line_to=20 - Read lines 10-20
       - @read_file ./src/main.lua line_start=50           - Read from line 50 to end
       - @read_file ./src/main.lua line_to=10              - Read first 10 lines
-      
       Notes:
       - Line numbers are 1-indexed (first line is line 1)
+      - line_start and line_to are both inclusive (e.g., line_start=10 line_to=20 reads lines 10-20, including both)
       - If line_start is not specified, defaults to line 1
       - If line_to is not specified, defaults to last line
+      - If both line_start and line_to are specified, line_start must be <= line_to
       - If both line_start and line_to are specified, line_start must be <= line_to
       
       before using this function, you need to setup allowed_path in chat.nvim config. for example:

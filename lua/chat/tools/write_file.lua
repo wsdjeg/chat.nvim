@@ -553,9 +553,9 @@ EXAMPLES:
 - @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"
 - @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines" validate=true
 - @write_file filepath="./src/main.lua" action="remove"
-
 NOTES:
 - Line numbers are 1-indexed (first line is line 1)
+- line_start and line_to are both inclusive (e.g., line_start=5 line_to=10 deletes lines 5-10, including both)
 - Requires allowed_path in chat.nvim config
 - For insert: line_start can be #lines+1 to append at end
 - The 'p' flag is used to automatically create parent directories if they don't exist
