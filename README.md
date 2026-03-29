@@ -1863,6 +1863,180 @@ When using SerpAPI, you can specify different search engines via the `serpapi_en
 - Search results are returned in a formatted list with titles, URLs, and snippets
 - Supports both Firecrawl, Google, and SerpAPI search engines with configurable options
 
+
+#### `git_add`
+
+Stage file changes for commit.
+
+**Usage:**
+
+```
+@git_add [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_add path="file.lua"` - Add specific file
+- `@git_add path=["a.lua", "b.lua"]` - Add multiple files
+- `@git_add all=true` - Add all changes (git add -A)
+- `@git_add path="./src"` - Add all changes in directory
+
+**Advanced Usage with JSON Parameters:**
+
+For more control, you can provide a JSON object:
+
+```
+@git_add {"path": ["src/main.lua", "src/utils.lua"]}
+```
+
+**Parameters:**
+
+| Parameter | Type                  | Description                                                |
+| --------- | --------------------- | ---------------------------------------------------------- |
+| `path`    | string or array       | File or directory path(s) to add (optional)                |
+| `all`     | boolean               | Add all changes in the repository (optional)               |
+
+**More Examples:**
+
+1. **Add a single file:**
+
+   ```
+   @git_add path="src/main.lua"
+   ```
+
+2. **Add multiple files:**
+
+   ```
+   @git_add path=["src/main.lua", "src/utils.lua", "README.md"]
+   ```
+
+3. **Add all changes in repository:**
+
+   ```
+   @git_add all=true
+   ```
+
+4. **Add changes in current directory:**
+
+   ```
+   @git_add
+   ```
+
+5. **Add all changes in a specific directory:**
+
+   ```
+   @git_add path="./src"
+   ```
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- By default (no arguments), adds changes in current directory
+- Use `all=true` to add all changes in the repository (equivalent to `git add -A`)
+- Changes must be staged before using `git_commit`
+- **Security**: Can only be used within allowed_path directories
+
+#### `git_commit`
+
+Create a git commit with staged changes.
+
+**Usage:**
+
+```
+@git_commit message="<commit message>" [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_commit message="feat: add new feature"` - Create commit
+- `@git_commit message="fix: bug fix" allow_empty=true` - Allow empty commit
+- `@git_commit message="update" amend=true` - Amend previous commit
+
+**Advanced Usage with JSON Parameters:**
+
+For more control, you can provide a JSON object:
+
+```
+@git_commit {"message": "feat: implement new feature", "allow_empty": false, "amend": false}
+```
+
+**Parameters:**
+
+| Parameter     | Type    | Description                                    |
+| ------------- | ------- | ---------------------------------------------- |
+| `message`     | string  | **Required**. Commit message                   |
+| `allow_empty` | boolean | Allow empty commit (optional)                  |
+| `amend`       | boolean | Amend previous commit (optional)               |
+
+**More Examples:**
+
+1. **Create a feature commit:**
+
+   ```
+   @git_commit message="feat: implement user authentication"
+   ```
+
+2. **Create a bug fix commit:**
+
+   ```
+   @git_commit message="fix: resolve login validation issue"
+   ```
+
+3. **Create an empty commit (for CI/CD triggers):**
+
+   ```
+   @git_commit message="chore: trigger deployment" allow_empty=true
+   ```
+
+4. **Amend the last commit:**
+
+   ```
+   @git_commit message="fix: update implementation" amend=true
+   ```
+
+5. **Documentation update:**
+
+   ```
+   @git_commit message="docs: update API documentation"
+   ```
+
+**Recommended Commit Message Format:**
+
+Follow conventional commits specification:
+
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks
+- `style:` - Code style changes (formatting, etc.)
+- `perf:` - Performance improvements
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Requires changes to be staged first (use `git_add` tool)
+- Commit message is required
+- Use `allow_empty=true` to create commits without staged changes
+- Use `amend=true` to modify the previous commit instead of creating a new one
+- **Security**: Can only be used within allowed_path directories
+- Git user name and email must be configured
+
+**Workflow Example:**
+
+```
+# 1. Stage changes
+@git_add path="src/main.lua"
+
+# 2. Create commit
+@git_commit message="feat: implement new feature"
+
+# 3. View the commit
+@git_log count=1
+```
+
+
 #### `git_diff`
 
 Run git diff to compare changes between working directory, index, or different branches.

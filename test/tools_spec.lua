@@ -393,3 +393,380 @@ end
 
 
 return TestTools
+
+
+-- ============================================
+-- Git Add Tests
+-- ============================================
+
+function TestTools:testGitAddAvailable()
+  -- Test that git_add tool is available
+  local available = tools.available_tools()
+  local tool_names = {}
+  for _, tool in ipairs(available) do
+    tool_names[tool['function'].name] = true
+  end
+  lu.assertTrue(tool_names['git_add'], 'git_add tool should be available')
+end
+
+function TestTools:testGitAddSecurityOutsideAllowedPath()
+  -- Test that git_add rejects paths outside allowed_path
+  local temp_dir = vim.fn.tempname()
+  vim.fn.mkdir(temp_dir, 'p')
+
+  local result = tools.call('git_add', {
+    path = temp_dir .. '/test.lua',
+  }, { cwd = temp_dir })
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should reject path outside allowed_path')
+  lu.assertStrContains(result.error, 'allowed')
+
+  -- Cleanup
+  vim.fn.delete(temp_dir, 'rf')
+end
+
+function TestTools:testGitAddNoGitRepo()
+  -- Test git_add in a non-git directory
+  local test_subdir = self.test_dir .. '/no_git_repo'
+  vim.fn.mkdir(test_subdir, 'p')
+
+  local test_file = test_subdir .. '/test.lua'
+  vim.fn.writefile({ '-- test file' }, test_file)
+
+  local result = call_async_tool('git_add', {
+    path = test_file,
+  }, { cwd = test_subdir }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should fail in non-git directory')
+  lu.assertStrContains(result.error:lower(), 'git')
+
+  -- Cleanup
+  vim.fn.delete(test_subdir, 'rf')
+end
+
+function TestTools:testGitAddInGitRepo()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddInGitRepo: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_test_repo'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitAddInGitRepo: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create a test file
+  local test_file = git_repo .. '/test.lua'
+  vim.fn.writefile({ 'print("hello")' }, test_file)
+
+  -- Test adding a file
+  local result = call_async_tool('git_add', {
+    path = test_file,
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestTools:testGitAddMultipleFiles()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddMultipleFiles: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_test_repo_multi'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitAddMultipleFiles: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create test files
+  local test_file1 = git_repo .. '/file1.lua'
+  local test_file2 = git_repo .. '/file2.lua'
+  vim.fn.writefile({ '-- file 1' }, test_file1)
+  vim.fn.writefile({ '-- file 2' }, test_file2)
+
+  -- Test adding multiple files
+  local result = call_async_tool('git_add', {
+    path = { test_file1, test_file2 },
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestTools:testGitAddAll()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddAll: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_test_repo_all'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitAddAll: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create test files
+  vim.fn.writefile({ '-- test 1' }, git_repo .. '/test1.lua')
+  vim.fn.writefile({ '-- test 2' }, git_repo .. '/test2.lua')
+
+  -- Test adding all files
+  local result = call_async_tool('git_add', {
+    all = true,
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+-- ============================================
+-- Git Commit Tests
+-- ============================================
+
+function TestTools:testGitCommitAvailable()
+  -- Test that git_commit tool is available
+  local available = tools.available_tools()
+  local tool_names = {}
+  for _, tool in ipairs(available) do
+    tool_names[tool['function'].name] = true
+  end
+  lu.assertTrue(tool_names['git_commit'], 'git_commit tool should be available')
+end
+
+function TestTools:testGitCommitNoMessage()
+  -- Test that git_commit requires a message
+  local result = tools.call('git_commit', {}, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should require commit message')
+  lu.assertStrContains(result.error:lower(), 'message')
+end
+
+function TestTools:testGitCommitEmptyMessage()
+  -- Test that git_commit rejects empty message
+  local result = tools.call('git_commit', {
+    message = '',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should reject empty commit message')
+  lu.assertStrContains(result.error:lower(), 'message')
+end
+
+function TestTools:testGitCommitSecurityOutsideAllowedPath()
+  -- Test that git_commit rejects paths outside allowed_path
+  local temp_dir = vim.fn.tempname()
+  vim.fn.mkdir(temp_dir, 'p')
+
+  local result = tools.call('git_commit', {
+    message = 'test commit',
+  }, { cwd = temp_dir })
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should reject path outside allowed_path')
+  lu.assertStrContains(result.error, 'allowed')
+
+  -- Cleanup
+  vim.fn.delete(temp_dir, 'rf')
+end
+
+function TestTools:testGitCommitNothingToCommit()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitCommitNothingToCommit: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_commit_repo'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitCommitNothingToCommit: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Try to commit without staging anything
+  local result = call_async_tool('git_commit', {
+    message = 'test commit',
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error, 'Should fail when nothing to commit')
+  lu.assertStrContains(result.error:lower(), 'nothing')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestTools:testGitCommitWithStagedChanges()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitCommitWithStagedChanges: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_commit_repo_staged'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitCommitWithStagedChanges: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create and stage a file
+  local test_file = git_repo .. '/test.lua'
+  vim.fn.writefile({ 'print("test")' }, test_file)
+  vim.fn.system('cd "' .. git_repo .. '" && git add ' .. test_file)
+
+  -- Commit the changes
+  local result = call_async_tool('git_commit', {
+    message = 'Initial commit',
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+  lu.assertStrContains(result.content, 'Initial commit')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestTools:testGitCommitAllowEmpty()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitCommitAllowEmpty: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_commit_repo_empty'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitCommitAllowEmpty: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create an empty commit
+  local result = call_async_tool('git_commit', {
+    message = 'Empty commit',
+    allow_empty = true,
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestTools:testGitCommitAmend()
+  -- Skip test if git is not available
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitCommitAmend: git not available')
+    return
+  end
+
+  -- Create a temporary git repository
+  local git_repo = self.test_dir .. '/git_commit_repo_amend'
+  vim.fn.mkdir(git_repo, 'p')
+
+  -- Initialize git repo
+  local init_result = vim.fn.system('cd "' .. git_repo .. '" && git init')
+  if vim.v.shell_error ~= 0 then
+    print('Skipping testGitCommitAmend: failed to init git repo')
+    return
+  end
+
+  -- Configure git user
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.email "test@test.com"')
+  vim.fn.system('cd "' .. git_repo .. '" && git config user.name "Test User"')
+
+  -- Create and commit a file
+  local test_file = git_repo .. '/test.lua'
+  vim.fn.writefile({ 'print("test")' }, test_file)
+  vim.fn.system('cd "' .. git_repo .. '" && git add ' .. test_file)
+  vim.fn.system('cd "' .. git_repo .. '" && git commit -m "Initial commit"')
+
+  -- Amend the commit
+  local result = call_async_tool('git_commit', {
+    message = 'Amended commit',
+    amend = true,
+  }, { cwd = git_repo }, 3000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content:lower(), 'success')
+
+  -- Cleanup
+  vim.fn.delete(git_repo, 'rf')
+end
+
