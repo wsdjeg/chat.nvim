@@ -53,7 +53,8 @@ function M.git_status(action, ctx)
     }
   end
 
-  local cmd = { 'git', 'status' }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'status' }
 
   local use_short = action.short ~= false
   if use_short then

@@ -75,7 +75,8 @@ function M.git_log(action, ctx)
   action.oneline = action.oneline ~= false -- default to true
 
   -- Build git command
-  local cmd = { 'git', 'log' }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'log' }
 
   -- Add count limit
   if action.count and type(action.count) == 'number' then

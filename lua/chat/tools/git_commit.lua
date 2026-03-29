@@ -22,11 +22,12 @@ end
 function M.git_commit(action, ctx)
   -- Security check for ctx.cwd
   local is_allowed_path = false
+  local normalized_cwd = vim.fs.normalize(ctx.cwd)
 
   if type(config.config.allowed_path) == 'table' then
     for _, v in ipairs(config.config.allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
+        if vim.startswith(normalized_cwd, vim.fs.normalize(v)) then
           is_allowed_path = true
           break
         end
@@ -37,7 +38,7 @@ function M.git_commit(action, ctx)
     and #config.config.allowed_path > 0
   then
     is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
+      vim.startswith(normalized_cwd, vim.fs.normalize(config.config.allowed_path))
   end
 
   if not is_allowed_path then
@@ -60,7 +61,8 @@ function M.git_commit(action, ctx)
   end
 
   -- Build git command
-  local cmd = { 'git', 'commit', '-m', action.message }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'commit', '-m', action.message }
 
   -- Add optional flags
   if action.allow_empty then

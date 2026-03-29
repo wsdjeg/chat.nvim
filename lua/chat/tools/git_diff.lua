@@ -56,7 +56,8 @@ function M.git_diff(action, ctx)
   end
 
   -- Build git command
-  local cmd = { 'git', 'diff' }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'diff' }
 
   -- Add cached flag if requested
   if action.cached then

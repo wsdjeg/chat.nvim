@@ -57,7 +57,8 @@ function M.git_remote(action, ctx)
     }
   end
 
-  local cmd = { 'git', 'remote' }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'remote' }
 
   local action_type = action.action or 'list'
 

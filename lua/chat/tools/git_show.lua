@@ -72,7 +72,8 @@ function M.git_show(action, ctx)
     }
   end
 
-  local cmd = { 'git', 'show', commit }
+  -- Build git command
+  local cmd = { 'git', '-C', ctx.cwd, 'show', commit }
 
   if action.stat then
     table.insert(cmd, '--stat')
