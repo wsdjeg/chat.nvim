@@ -10,24 +10,24 @@ CONTENTS                                                                *chat*
   2. Features                                                  |chat-features|
   3. Installation                                          |chat-installation|
       Prerequisites                                        |chat-prerequisites|
-      Package Manager Installation    |chat-package-manager-installation|
-      Manual Installation                              |chat-manual-installation|
-      Post-Installation Setup                    |chat-post-installation-setup|
+      Package Manager Installation                |chat-package-manager-installation|
+      Manual Installation                                |chat-manual-installation|
+      Post-Installation Setup                        |chat-post-installation-setup|
       Quick Start                                            |chat-quick-start|
   4. Configuration                                        |chat-configuration|
       Basic Options                                        |chat-basic-options|
       HTTP Server Configuration                    |chat-http-server-configuration|
       API Key Configuration                            |chat-api-key-configuration|
       File Access Control                              |chat-file-access-control|
-      Context Window Configuration            |chat-context-window-configuration|
-      Memory System Configuration              |chat-memory-system-configuration|
-      system_prompt Usage Examples          |chat-system_prompt-usage-examples|
+      Context Window Configuration                |chat-context-window-configuration|
+      Memory System Configuration                  |chat-memory-system-configuration|
+      system_prompt Usage Examples                |chat-system_prompt-usage-examples|
       MCP Server Configuration                    |chat-mcp-server-configuration|
-      IM Integration Configuration              |chat-im-integration-configuration|
-      Complete Configuration Example          |chat-complete-configuration-example|
+      IM Integration Configuration                |chat-im-integration-configuration|
+      Complete Configuration Example              |chat-complete-configuration-example|
   5. Usage                                                        |chat-usage|
       Basic Commands                                   |chat-basic-commands|
-      MCP Commands                                         |chat-mcp-commands|
+      MCP Commands                                       |chat-mcp-commands|
       Parallel Sessions                                 |chat-parallel-sessions|
       Examples                                               |chat-examples|
       Key Bindings                                       |chat-key-bindings|
@@ -36,27 +36,27 @@ CONTENTS                                                                *chat*
       Custom Providers                               |chat-custom-providers|
       Protocols                                               |chat-protocols|
   7. Tools                                                        |chat-tools|
-      MCP Tools                                                 |chat-mcp-tools|
+      MCP Tools                                               |chat-mcp-tools|
       Available Tools                                 |chat-available-tools|
       Third-party Tools                             |chat-third-party-tools|
       How to Use Tools                               |chat-how-to-use-tools|
       Custom Tools                                       |chat-custom-tools|
   8. HTTP API                                                    |chat-http-api|
       Enabling the HTTP Server                    |chat-enabling-the-http-server|
-      API Endpoints                                         |chat-api-endpoints|
-      Request Format                                       |chat-request-format|
-      Response Format                                     |chat-response-format|
-      Message Queue System                           |chat-message-queue-system|
-      Usage Examples                                       |chat-usage-examples|
-      Security Considerations                     |chat-security-considerations|
+      API Endpoints                                       |chat-api-endpoints|
+      Request Format                                     |chat-request-format|
+      Response Format                                   |chat-response-format|
+      Message Queue System                         |chat-message-queue-system|
+      Usage Examples                                     |chat-usage-examples|
+      Security Considerations                   |chat-security-considerations|
   9. Picker Integration                              |chat-picker-integration|
   10. IM Integration                                         |chat-im-integration|
-      Discord                                                   |chat-discord|
+      Discord                                                 |chat-discord|
       Lark (Feishu)                                         |chat-lark|
-      DingTalk                                                 |chat-dingtalk|
+      DingTalk                                               |chat-dingtalk|
       WeCom                                                     |chat-wecom|
-      Telegram                                                 |chat-telegram|
-      Slack                                                       |chat-slack|
+      Telegram                                               |chat-telegram|
+      Slack                                                     |chat-slack|
   11. Self-Promotion                                      |chat-self-promotion|
   12. Feedback                                                  |chat-feedback|
   13. License                                                   |chat-license|
@@ -69,7 +69,7 @@ integration. Chat with AI assistants directly in your editor using a clean,
 floating window interface.
 
 ==============================================================================
- 2. Features                                                   *chat-features*
+ 2. FEATURES                                                  *chat-features*
 
 - **Three-Tier Memory System**: Working memory (session tasks), daily memory
   (short-term goals), and long-term memory (permanent knowledge) with
@@ -123,7 +123,7 @@ floating window interface.
   servers for extended tool capabilities
 
 ==============================================================================
- 3. Installation                                           *chat-installation*
+ 3. INSTALLATION                                           *chat-installation*
 
 ------------------------------------------------------------------------------
  3.1 Prerequisites                                            *chat-prerequisites*
@@ -204,7 +204,7 @@ Using packer.nvim:
 <
 
 ------------------------------------------------------------------------------
- 3.4 Post-Installation Setup                      *chat-post-installation-setup*
+ 3.4 Post-Installation Setup                        *chat-post-installation-setup*
 
 1. **API Keys**: Configure at least one AI provider API key in the `api_key`
    table
@@ -226,7 +226,7 @@ After installation, you can immediately start using chat.nvim:
 <
 
 ==============================================================================
- 4. Configuration                                        *chat-configuration*
+ 4. CONFIGURATION                                        *chat-configuration*
 
 chat.nvim provides flexible configuration options through the
 `require('chat').setup()` function. All configurations have sensible defaults.
@@ -266,7 +266,7 @@ Notes:
 - Messages are queued and processed when the chat window is not busy
 
 ------------------------------------------------------------------------------
- 4.3 API Key Configuration                            |chat-api-key-configuration|
+ 4.3 API Key Configuration                            |chat-api-key-configuration*
 
 Configure API keys for the AI providers you plan to use:
 >
@@ -308,7 +308,7 @@ Control which file paths tools can access for security:
 <
 
 ------------------------------------------------------------------------------
- 4.5 Context Window Configuration            |chat-context-window-configuration*
+ 4.5 Context Window Configuration                |chat-context-window-configuration*
 
 Configure automatic context truncation to manage token usage:
 >
@@ -320,7 +320,7 @@ Configure automatic context truncation to manage token usage:
 <
 
 ------------------------------------------------------------------------------
- 4.6 Memory System Configuration              |chat-memory-system-configuration*
+ 4.6 Memory System Configuration                  |chat-memory-system-configuration*
 
 chat.nvim implements a sophisticated three-tier memory system:
 
@@ -375,7 +375,7 @@ chat.nvim implements a sophisticated three-tier memory system:
 | Long-term | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
 
 ------------------------------------------------------------------------------
- 4.7 system_prompt Usage Examples          |chat-system_prompt-usage-examples|
+ 4.7 system_prompt Usage Examples                |chat-system_prompt-usage-examples*
 
 Here are different ways to use the `system_prompt` option:
 
@@ -409,7 +409,7 @@ Here are different ways to use the `system_prompt` option:
 <
 
 ------------------------------------------------------------------------------
- 4.8 MCP Server Configuration                    |chat-mcp-server-configuration*
+ 4.8 MCP Server Configuration                    *chat-mcp-server-configuration*
 
 chat.nvim supports Model Context Protocol (MCP) servers for extended tool
 capabilities. MCP allows you to connect external tool servers that provide
@@ -454,7 +454,7 @@ MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
 <
 
 ------------------------------------------------------------------------------
- 4.9 IM Integration Configuration              |chat-im-integration-configuration*
+ 4.9 IM Integration Configuration                |chat-im-integration-configuration*
 
 Configure instant messaging platform integrations:
 >
@@ -497,7 +497,7 @@ Configure instant messaging platform integrations:
 <
 
 ------------------------------------------------------------------------------
- 4.10 Complete Configuration Example          |chat-complete-configuration-example*
+ 4.10 Complete Configuration Example              *chat-complete-configuration-example*
 
 >
     require('chat').setup({
@@ -557,7 +557,7 @@ Configure instant messaging platform integrations:
 <
 
 ==============================================================================
- 5. Usage                                                         *chat-usage*
+ 5. USAGE                                                         *chat-usage*
 
 ------------------------------------------------------------------------------
  5.1 Basic Commands                                      *chat-basic-commands*
@@ -605,7 +605,7 @@ Manage MCP (Model Context Protocol) servers with the following commands:
    Restarts all MCP servers (stops and starts with a delay for cleanup).
 
 ------------------------------------------------------------------------------
- 5.3 Parallel Sessions                                 |chat-parallel-sessions|
+ 5.3 Parallel Sessions                                 |chat-parallel-sessions*
 
 chat.nvim supports running multiple chat sessions simultaneously, with each
 session operating independently:
@@ -752,7 +752,7 @@ The following key bindings are available in the `Result` window:
 | `Normal` | `<Tab>`     | Switch between input and result windows |
 
 ==============================================================================
- 6. Providers                                                 *chat-providers*
+ 6. PROVIDERS                                                 *chat-providers*
 
 chat.nvim uses a two-layer architecture for AI service integration:
 
@@ -879,7 +879,7 @@ If you need a custom protocol, create a file at
 See `lua/chat/protocol/openai.lua` for reference implementation.
 
 ==============================================================================
- 7. Tools                                                         *chat-tools*
+ 7. TOOLS                                                         *chat-tools*
 
 chat.nvim supports tool call functionality, allowing the AI assistant to
 interact with your filesystem, manage memories, and perform other operations
@@ -1336,7 +1336,7 @@ is set to a non-empty value:
 <
 
 ------------------------------------------------------------------------------
- 8.2 API Endpoints                                         *chat-api-endpoints*
+ 8.2 API Endpoints                                       *chat-api-endpoints*
 
 | Endpoint    | Method | Description                                             |
 | ----------- | ------ | ------------------------------------------------------- |
@@ -1350,7 +1350,7 @@ is set to a non-empty value:
 configured API key.
 
 ------------------------------------------------------------------------------
- 8.3 Request Format                                       *chat-request-format*
+ 8.3 Request Format                                     *chat-request-format*
 
 >
     {
@@ -1364,7 +1364,7 @@ Parameters:
 - `content` - Message content to send to the chat session
 
 ------------------------------------------------------------------------------
- 8.4 Response Format                                     *chat-response-format*
+ 8.4 Response Format                                   *chat-response-format*
 
 POST `/`:
 - **Success**: HTTP 204 No Content
@@ -1386,7 +1386,7 @@ GET `/session`:
 - **Session Not Found**: HTTP 404 Not Found
 
 ------------------------------------------------------------------------------
- 8.5 Message Queue System                           *chat-message-queue-system*
+ 8.5 Message Queue System                         *chat-message-queue-system*
 
 Incoming messages are processed through a queue system:
 
@@ -1396,7 +1396,7 @@ Incoming messages are processed through a queue system:
 4. If a session is busy, messages remain in the queue until available
 
 ------------------------------------------------------------------------------
- 8.6 Usage Examples                                       *chat-usage-examples*
+ 8.6 Usage Examples                                     *chat-usage-examples*
 
 Using curl:
 >
@@ -1429,7 +1429,7 @@ Using Python:
 <
 
 ------------------------------------------------------------------------------
- 8.7 Security Considerations                     |chat-security-considerations*
+ 8.7 Security Considerations                   *chat-security-considerations*
 
 1. **API Key Protection**: Keep your API key secure and never commit it to
    version control
@@ -1483,7 +1483,7 @@ Supported Platforms:
 | Slack    | 💼   | ✅ Yes        | Workspace bot with message polling      |
 
 ------------------------------------------------------------------------------
- 10.1 Discord                                                   *chat-discord*
+ 10.1 Discord                                                 *chat-discord*
 
 Discord integration allows you to interact with AI assistants via Discord
 messages.
