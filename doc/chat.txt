@@ -9,24 +9,57 @@ CONTENTS                                                                *chat*
   1. Introduction                                          |chat-introduction|
   2. Features                                                  |chat-features|
   3. Installation                                          |chat-installation|
-  4. Usage                                                        |chat-usage|
-    4.1 Basic Commands                                   |chat-basic-commands|
-    4.2 Examples                                               |chat-examples|
-    4.3 Key Bindings                                       |chat-key-bindings|
-  5. Providers                                                |chat-providers|
-    5.1 Built-in Providers                           |chat-built-in-providers|
-    5.2 Custom Providers                               |chat-custom-providers|
-  6. Tools                                                        |chat-tools|
-    6.1 Available Tools                                 |chat-available-tools|
-      6.1.1 read_file                                    |chat-tool-read_file|
-      6.1.2 find_files                                  |chat-tool-find_files|
-    6.2 Third party Tools                             |chat-third-party-tools|
-    6.3 How to Use Tools                               |chat-how-to-use-tools|
-    6.4 Custom Tools                                       |chat-custom-tools|
-  7. Picker Integration                              |chat-picker-integration|
-  8. Self-Promotion                                      |chat-self-promotion|
-  9. Feedback                                                  |chat-feedback|
-  10. License                                                   |chat-license|
+      Prerequisites                                        |chat-prerequisites|
+      Package Manager Installation    |chat-package-manager-installation|
+      Manual Installation                              |chat-manual-installation|
+      Post-Installation Setup                    |chat-post-installation-setup|
+      Quick Start                                            |chat-quick-start|
+  4. Configuration                                        |chat-configuration|
+      Basic Options                                        |chat-basic-options|
+      HTTP Server Configuration                    |chat-http-server-configuration|
+      API Key Configuration                            |chat-api-key-configuration|
+      File Access Control                              |chat-file-access-control|
+      Context Window Configuration            |chat-context-window-configuration|
+      Memory System Configuration              |chat-memory-system-configuration|
+      system_prompt Usage Examples          |chat-system_prompt-usage-examples|
+      MCP Server Configuration                    |chat-mcp-server-configuration|
+      IM Integration Configuration              |chat-im-integration-configuration|
+      Complete Configuration Example          |chat-complete-configuration-example|
+  5. Usage                                                        |chat-usage|
+      Basic Commands                                   |chat-basic-commands|
+      MCP Commands                                         |chat-mcp-commands|
+      Parallel Sessions                                 |chat-parallel-sessions|
+      Examples                                               |chat-examples|
+      Key Bindings                                       |chat-key-bindings|
+  6. Providers                                                |chat-providers|
+      Built-in Providers                           |chat-built-in-providers|
+      Custom Providers                               |chat-custom-providers|
+      Protocols                                               |chat-protocols|
+  7. Tools                                                        |chat-tools|
+      MCP Tools                                                 |chat-mcp-tools|
+      Available Tools                                 |chat-available-tools|
+      Third-party Tools                             |chat-third-party-tools|
+      How to Use Tools                               |chat-how-to-use-tools|
+      Custom Tools                                       |chat-custom-tools|
+  8. HTTP API                                                    |chat-http-api|
+      Enabling the HTTP Server                    |chat-enabling-the-http-server|
+      API Endpoints                                         |chat-api-endpoints|
+      Request Format                                       |chat-request-format|
+      Response Format                                     |chat-response-format|
+      Message Queue System                           |chat-message-queue-system|
+      Usage Examples                                       |chat-usage-examples|
+      Security Considerations                     |chat-security-considerations|
+  9. Picker Integration                              |chat-picker-integration|
+  10. IM Integration                                         |chat-im-integration|
+      Discord                                                   |chat-discord|
+      Lark (Feishu)                                         |chat-lark|
+      DingTalk                                                 |chat-dingtalk|
+      WeCom                                                     |chat-wecom|
+      Telegram                                                 |chat-telegram|
+      Slack                                                       |chat-slack|
+  11. Self-Promotion                                      |chat-self-promotion|
+  12. Feedback                                                  |chat-feedback|
+  13. License                                                   |chat-license|
 
 ==============================================================================
  1. INTRODUCTION                                           *chat-introduction*
@@ -38,103 +71,601 @@ floating window interface.
 ==============================================================================
  2. Features                                                   *chat-features*
 
-- Multiple AI Providers: Built-in support for DeepSeek, GitHub AI, Moonshot,
-  OpenRouter, Qwen, SiliconFlow, Tencent, and more
-- Custom Provider Support: Easily add your own AI providers via Lua modules
-- Tool Call Integration: Built-in tools for file operations (`@read_file`,
-  `@find_files`) with custom tool support
-- Floating Window Interface: Clean, non-intrusive chat interface
-- Session Management: Resume previous conversations
-- Picker Integration: Seamless integration with [picker.nvim]
-- Streaming Responses: Real-time AI responses with cancellation support
-- Lightweight: Pure Lua implementation with minimal dependencies
+- **Three-Tier Memory System**: Working memory (session tasks), daily memory
+  (short-term goals), and long-term memory (permanent knowledge) with
+  automatic extraction and priority-based retrieval
+- **Parallel Sessions**: Run multiple independent conversations with different
+  AI models, each maintaining separate context and settings
+- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI,
+  Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine,
+  OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom
+  providers
+- **Tool Call Integration**: Built-in tools for file operations (`@read_file`,
+  `@find_files`, `@search_text`), version control (`@git_diff`, `@git_log`,
+  `@git_status`, `@git_show`), conversation history (`@get_history`), memory
+  management, and more
+- **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create`
+  and `@zettelkasten_get` tools for knowledge management
+- **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom
+  (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote
+  AI interaction
+- **HTTP API Server**: Built-in HTTP server for receiving external messages
+  with API key authentication and message queue support
+- **Session Management**: Commands for creating (`:Chat new`), navigating
+  (`:Chat prev/next`), clearing (`:Chat clear`), deleting (`:Chat delete`),
+  saving (`:Chat save`), loading (`:Chat load`), sharing (`:Chat share`),
+  bridging (`:Chat bridge`), previewing (`:Chat preview`), and changing
+  working directory (`:Chat cd`)
+- **Picker Integration**: Seamless integration with picker.nvim for browsing
+  chat history (`picker-chat`), switching providers (`chat_provider`), and
+  selecting models (`chat_model`)
+- **Floating Window Interface**: Clean, non-intrusive dual-window layout with
+  configurable dimensions and borders
+- **Streaming Responses**: Real-time AI responses with cancellation support
+  (`Ctrl-C`) and retry mechanism (`r`)
+- **Token Usage Tracking**: Display real-time token consumption for each
+  response
+- **Lightweight Implementation**: Pure Lua with minimal dependencies and
+  comprehensive error handling
+- **Customizable Configuration**: Flexible setup for API keys, allowed paths,
+  memory settings, and system prompts
+- **Session HTML Preview**: Generate and open HTML previews of chat sessions
+  in your browser via `:Chat preview` command
+- **Custom Tools**: Support for creating custom tools via
+  `lua/chat/tools/<tool_name>.lua` with automatic discovery
+- **Custom Providers**: Support for creating custom AI providers with custom
+  protocols
+- **Custom Protocols**: Support for custom API response parsing (OpenAI,
+  Anthropic, Gemini, and extensible)
+- **Context Window Truncation**: Automatic context management with
+  configurable trigger threshold and recent message preservation
+- **MCP (Model Context Protocol) Support**: Native integration with MCP
+  servers for extended tool capabilities
 
 ==============================================================================
  3. Installation                                           *chat-installation*
+
+------------------------------------------------------------------------------
+ 3.1 Prerequisites                                            *chat-prerequisites*
+
+1. **System Dependencies** (optional but recommended for full functionality):
+>
+   # Ubuntu/Debian
+   sudo apt install ripgrep curl git
+
+   # macOS
+   brew install ripgrep curl git
+
+   # Arch Linux
+   sudo pacman -S ripgrep curl git
+<
+
+2. **Neovim Plugin Dependencies**:
+   - `job.nvim` - **Required** dependency for asynchronous operations
+   - `picker.nvim` - **Recommended** for enhanced session and provider
+     management
+
+------------------------------------------------------------------------------
+ 3.2 Package Manager Installation                *chat-package-manager-installation*
 
 Using nvim-plug:
 >
     require('plug').add({
       {
         'wsdjeg/chat.nvim',
-        depends = { {
-          'wsdjeg/job.nvim',
-        } },
-        opt = {
-          provider = 'deepseek',
-          api_key = {
-            deepseek = 'xxxxx',
-            github = 'xxxxx',
+        depends = {
+          {
+            'wsdjeg/job.nvim', -- Required
+            'wsdjeg/picker.nvim', -- Optional but recommended
           },
-          width = 0.8, -- 80% of vim.o.columns
-          height = 0.8, -- 80% of vim.o.lines
-          border = 'rounded',
-          -- default allowed_path is empty string, which means no files is
-          -- allowed. this also can be a table of string.
-          allowed_path = '',
+        },
+      },
+    })
+<
+
+Using lazy.nvim:
+>
+    {
+      'wsdjeg/chat.nvim',
+      dependencies = {
+        'wsdjeg/job.nvim', -- Required
+        'wsdjeg/picker.nvim', -- Optional but recommended
+      },
+    }
+<
+
+Using packer.nvim:
+>
+    use({
+      'wsdjeg/chat.nvim',
+      requires = {
+        'wsdjeg/job.nvim', -- Required
+        'wsdjeg/picker.nvim', -- Optional but recommended
+      },
+    })
+<
+
+------------------------------------------------------------------------------
+ 3.3 Manual Installation                                *chat-manual-installation*
+
+1. Clone the repositories:
+>
+   git clone https://github.com/wsdjeg/chat.nvim ~/.local/share/nvim/site/pack/chat/start/chat.nvim
+   git clone https://github.com/wsdjeg/job.nvim ~/.local/share/nvim/site/pack/chat/start/job.nvim
+<
+
+2. Add to your Neovim configuration:
+>
+   vim.cmd[[packadd job.nvim]]
+   vim.cmd[[packadd chat.nvim]]
+   require('chat').setup({
+     -- Your configuration here
+   })
+<
+
+------------------------------------------------------------------------------
+ 3.4 Post-Installation Setup                      *chat-post-installation-setup*
+
+1. **API Keys**: Configure at least one AI provider API key in the `api_key`
+   table
+2. **File Access**: Set `allowed_path` to control which directories tools can
+   access
+3. **Memory System**: Configure memory settings based on your needs
+4. **HTTP Server** (optional): Configure HTTP server settings if you want to
+   enable external message integration
+
+------------------------------------------------------------------------------
+ 3.5 Quick Start                                                *chat-quick-start*
+
+After installation, you can immediately start using chat.nvim:
+>
+   :Chat          " Open chat window
+   :Chat new      " Start a new session
+   :Chat prev     " Switch to previous session
+   :Chat next     " Switch to next session
+<
+
+==============================================================================
+ 4. Configuration                                        *chat-configuration*
+
+chat.nvim provides flexible configuration options through the
+`require('chat').setup()` function. All configurations have sensible defaults.
+
+------------------------------------------------------------------------------
+ 4.1 Basic Options                                            *chat-basic-options*
+
+| Option          | Type               | Default                         |
+| --------------- | ------------------ | ------------------------------- |
+| `width`         | number             | `0.8`                           |
+| `height`        | number             | `0.8`                           |
+| `auto_scroll`   | boolean            | `true`                          |
+| `border`        | string             | `'rounded'`                     |
+| `provider`      | string             | `'deepseek'`                    |
+| `model`         | string             | `'deepseek-chat'`               |
+| `strftime`      | string             | `'%m-%d %H:%M:%S'`              |
+| `system_prompt` | string or function | `''`                            |
+| `highlights`    | table              | `{title = 'ChatNvimTitle', ...}`|
+
+Width/height are percentages of screen (0.0-1.0).
+
+------------------------------------------------------------------------------
+ 4.2 HTTP Server Configuration                    *chat-http-server-configuration*
+
+Configure the built-in HTTP server for receiving external messages:
+>
+    http = {
+      host = '127.0.0.1',
+      port = 7777,
+      api_key = 'your-secret-api-key-here',
+    }
+<
+
+Notes:
+- The HTTP server is automatically started when `http.api_key` is not empty
+- Incoming requests must include the API key in the `X-API-Key` header
+- Messages are queued and processed when the chat window is not busy
+
+------------------------------------------------------------------------------
+ 4.3 API Key Configuration                            |chat-api-key-configuration|
+
+Configure API keys for the AI providers you plan to use:
+>
+    api_key = {
+      deepseek = 'sk-xxxxxxxxxxxx',        -- DeepSeek AI
+      github = 'github_pat_xxxxxxxx',      -- GitHub AI
+      moonshot = 'sk-xxxxxxxxxxxx',        -- Moonshot AI
+      openrouter = 'sk-or-xxxxxxxx',       -- OpenRouter
+      qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen
+      siliconflow = 'xxxxxxxx-xxxx-xxxx',  -- SiliconFlow
+      tencent = 'xxxxxxxx-xxxx-xxxx',      -- Tencent Hunyuan
+      bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI
+      volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI
+      openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
+      longcat = 'lc-xxxxxxxxxxxx',         -- LongCat AI
+      cherryin = 'sk-xxxxxxxxxxxx',        -- CherryIN AI
+    }
+<
+
+Only configure keys for providers you plan to use; others can be omitted.
+
+------------------------------------------------------------------------------
+ 4.4 File Access Control                              *chat-file-access-control*
+
+Control which file paths tools can access for security:
+>
+    -- Option 1: Disable all file access (default)
+    allowed_path = ''
+
+    -- Option 2: Allow a single directory
+    allowed_path = '/home/user/projects'
+
+    -- Option 3: Allow multiple directories
+    allowed_path = {
+      vim.fn.getcwd(),               -- Current working directory
+      vim.fn.expand('~/.config/nvim'), -- Neovim config directory
+      '/etc',                        -- System configuration files
+    }
+<
+
+------------------------------------------------------------------------------
+ 4.5 Context Window Configuration            |chat-context-window-configuration*
+
+Configure automatic context truncation to manage token usage:
+>
+    context = {
+      enable = true,           -- Enable/disable context truncation
+      trigger_threshold = 50,  -- Number of messages to trigger truncation
+      keep_recent = 10,        -- Keep recent N messages
+    }
+<
+
+------------------------------------------------------------------------------
+ 4.6 Memory System Configuration              |chat-memory-system-configuration*
+
+chat.nvim implements a sophisticated three-tier memory system:
+
+**Memory Architecture:**
+
+1. **Working Memory** ⚡ - High-priority, session-scoped memory for current
+   tasks and decisions
+2. **Daily Memory** 📅 - Temporary memory for daily tasks and short-term
+   goals (auto-expires)
+3. **Long-term Memory** 💾 - Permanent knowledge storage for facts,
+   preferences, and skills
+
+**Configuration:**
+>
+    memory = {
+      enable = true,  -- Global memory system switch
+
+      -- Long-term memory: Permanent knowledge (never expires)
+      long_term = {
+        enable = true,
+        max_memories = 500,           -- Maximum memories to store
+        retrieval_limit = 3,          -- Maximum memories to retrieve per query
+        similarity_threshold = 0.3,   -- Text similarity threshold (0-1)
+      },
+
+      -- Daily memory: Temporary tasks and goals (auto-expires)
+      daily = {
+        enable = true,
+        retention_days = 7,           -- Days before auto-deletion
+        max_memories = 100,           -- Maximum daily memories
+        similarity_threshold = 0.3,
+      },
+
+      -- Working memory: Current session focus (highest priority)
+      working = {
+        enable = true,
+        max_memories = 20,            -- Maximum working memories per session
+        priority_weight = 2.0,        -- Priority multiplier
+      },
+
+      -- Storage location
+      storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+    }
+<
+
+**Memory Type Characteristics:**
+
+| Type      | Lifetime     | Priority | Use Case                                   |
+| --------- | ------------ | -------- | ------------------------------------------ |
+| Working   | Session only | Highest  | Current tasks, decisions, active context   |
+| Daily     | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders |
+| Long-term | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
+
+------------------------------------------------------------------------------
+ 4.7 system_prompt Usage Examples          |chat-system_prompt-usage-examples|
+
+Here are different ways to use the `system_prompt` option:
+
+**String (simple):**
+>
+    system_prompt = 'You are a helpful programming assistant.',
+<
+
+**Function loading from file:**
+>
+    system_prompt = function()
+      local path = vim.fn.expand('~/.config/nvim/AGENTS.md')
+      if vim.fn.filereadable(path) == 1 then
+        return table.concat(vim.fn.readfile(path), '\n')
+      end
+      return 'Default system prompt'
+    end
+<
+
+**Function with project-specific prompts:**
+>
+    system_prompt = function()
+      local cwd = vim.fn.getcwd()
+      if string.find(cwd, 'chat%.nvim') then
+        return 'You are a specialized assistant for chat.nvim plugin development.'
+      elseif string.find(cwd, 'picker%.nvim') then
+        return 'You are a specialized assistant for picker.nvim plugin development.'
+      end
+      return 'You are a general programming assistant.'
+    end
+<
+
+------------------------------------------------------------------------------
+ 4.8 MCP Server Configuration                    |chat-mcp-server-configuration*
+
+chat.nvim supports Model Context Protocol (MCP) servers for extended tool
+capabilities. MCP allows you to connect external tool servers that provide
+additional functionality.
+
+**Basic Configuration (stdio transport):**
+>
+    mcp = {
+      -- Example: Web search MCP server
+      open_webSearch = {
+        command = 'npx',
+        args = { '-y', 'open-websearch@latest' },
+        disabled = false,  -- Set to true to disable this server
+      },
+    }
+<
+
+**HTTP Transport Configuration:**
+>
+    mcp = {
+      -- HTTP-based MCP server
+      my_http_server = {
+        url = 'https://mcp-server.example.com',
+        headers = {
+          ['Authorization'] = 'Bearer YOUR_TOKEN',
+        },
+      },
+    }
+<
+
+**MCP Tool Naming:**
+
+MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
+
+- Original MCP tool: `search`
+- MCP server name: `open_webSearch`
+- Final tool name: `mcp_open_webSearch_search`
+
+**Usage in Chat:**
+>
+    @mcp_open_webSearch_search query="neovim plugins" limit=10
+<
+
+------------------------------------------------------------------------------
+ 4.9 IM Integration Configuration              |chat-im-integration-configuration*
+
+Configure instant messaging platform integrations:
+>
+    integrations = {
+      -- Discord
+      discord = {
+        token = 'YOUR_DISCORD_BOT_TOKEN',
+        channel_id = 'YOUR_CHANNEL_ID',
+      },
+
+      -- Lark (Feishu)
+      lark = {
+        app_id = 'YOUR_APP_ID',
+        app_secret = 'YOUR_APP_SECRET',
+        chat_id = 'YOUR_CHAT_ID',
+      },
+
+      -- DingTalk
+      dingtalk = {
+        webhook = 'https://oapi.dingtalk.com/robot/send?access_token=XXX',
+      },
+
+      -- WeCom (Enterprise WeChat)
+      wecom = {
+        webhook_key = 'YOUR_WEBHOOK_KEY',
+      },
+
+      -- Telegram
+      telegram = {
+        bot_token = 'YOUR_BOT_TOKEN',
+        chat_id = 'YOUR_CHAT_ID',
+      },
+
+      -- Slack
+      slack = {
+        bot_token = 'xoxb-YOUR-BOT-TOKEN',
+        channel_id = 'CXXXXXXXXXX',
+      },
+    }
+<
+
+------------------------------------------------------------------------------
+ 4.10 Complete Configuration Example          |chat-complete-configuration-example*
+
+>
+    require('chat').setup({
+      -- Window settings
+      width = 0.8,
+      height = 0.8,
+      auto_scroll = true,
+      border = 'rounded',
+
+      -- AI provider settings
+      provider = 'deepseek',
+      model = 'deepseek-chat',
+      api_key = {
+        deepseek = 'sk-xxxxxxxxxxxx',
+        github = 'github_pat_xxxxxxxx',
+      },
+
+      -- HTTP server configuration
+      http = {
+        host = '127.0.0.1',
+        port = 7777,
+        api_key = 'your-secret-key-here',
+      },
+
+      -- File access control
+      allowed_path = {
+        vim.fn.getcwd(),
+        vim.fn.expand('~/.config/nvim'),
+      },
+
+      -- Other settings
+      strftime = '%Y-%m-%d %H:%M',
+      system_prompt = function()
+        local path = vim.fn.expand('./AGENTS.md')
+        if vim.fn.filereadable(path) == 1 then
+          return table.concat(vim.fn.readfile(path), '\n')
+        end
+        return 'You are a helpful programming assistant.'
+      end,
+
+      -- Memory system
+      memory = {
+        enable = true,
+        max_memories = 1000,
+        retrieval_limit = 5,
+        similarity_threshold = 0.25,
+      },
+
+      -- MCP servers configuration
+      mcp = {
+        open_webSearch = {
+          command = 'npx',
+          args = { '-y', 'open-websearch@latest' },
         },
       },
     })
 <
 
 ==============================================================================
- 4. Usage                                                         *chat-usage*
+ 5. Usage                                                         *chat-usage*
 
 ------------------------------------------------------------------------------
- 4.1 Basic Commands                                      *chat-basic-commands*
+ 5.1 Basic Commands                                      *chat-basic-commands*
 
-| Command          | Description                                         |
-| ---------------- | --------------------------------------------------- |
-| `:Chat`            | Open the chat window with the current session       |
-| `:Chat new`        | Start a new chat session                            |
-| `:Chat prev`       | Switch to the previous chat session                 |
-| `:Chat next`       | Switch to the next chat session                     |
-| `:Chat delete`     | Delete current session and create new empty session |
-| `:Chat clear`      | Clear all messages in current session               |
-| `:Chat cd <dir>`   | Change current session cwd, open chat window        |
+| Command             | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `:Chat`             | Open the chat window with the current session       |
+| `:Chat new`         | Start a new chat session                            |
+| `:Chat prev`        | Switch to the previous chat session                 |
+| `:Chat next`        | Switch to the next chat session                     |
+| `:Chat delete`      | Delete current session and create new empty session |
+| `:Chat clear`       | Clear all messages in current session               |
+| `:Chat cd <dir>`    | Change current session cwd, open chat window        |
+| `:Chat save <path>` | Save current session to specified file path         |
+| `:Chat load <path>` | Load session from file path or URL                  |
+| `:Chat share`       | Share current session via pastebin                  |
+| `:Chat preview`     | Open HTML preview of current session in browser     |
+| `:Chat bridge`      | Bind current session to external platform (Discord) |
+| `:Chat mcp stop`    | Stop all MCP servers                                |
+| `:Chat mcp start`   | Start all MCP servers                               |
+| `:Chat mcp restart` | Restart all MCP servers                             |
 
 ------------------------------------------------------------------------------
- 4.2 Examples                                                  *chat-examples*
+ 5.2 MCP Commands                                            *chat-mcp-commands*
 
-1. Start a new conversation:
+Manage MCP (Model Context Protocol) servers with the following commands:
+
+1. **Stop MCP servers**:
+>
+   :Chat mcp stop
+<
+   Stops all running MCP servers and cleans up resources.
+
+2. **Start MCP servers**:
+>
+   :Chat mcp start
+<
+   Starts all configured MCP servers. Note: Servers are automatically started
+   when opening the chat window.
+
+3. **Restart MCP servers**:
+>
+   :Chat mcp restart
+<
+   Restarts all MCP servers (stops and starts with a delay for cleanup).
+
+------------------------------------------------------------------------------
+ 5.3 Parallel Sessions                                 |chat-parallel-sessions|
+
+chat.nvim supports running multiple chat sessions simultaneously, with each
+session operating independently:
+
+- **Independent Model Selection**: Each session can use a different AI model
+- **Separate Contexts**: Sessions maintain their own conversation history,
+  working directory, and settings
+- **Quick Switching**: Use `:Chat prev` and `:Chat next` to navigate between
+  active sessions
+- **Isolated Workflows**: Perfect for comparing model responses or working on
+  multiple projects simultaneously
+
+**Workflow Example:**
+
+1. Start a session with DeepSeek: `:Chat new` (then select DeepSeek model)
+2. Switch to GitHub AI for a different task: `:Chat new` (select GitHub model)
+3. Toggle between sessions: `:Chat prev` / `:Chat next`
+
+------------------------------------------------------------------------------
+ 5.4 Examples                                                  *chat-examples*
+
+1. **Start a new conversation**:
 >
    :Chat new
 <
    This creates a fresh session and opens the chat window.
 
-2. Resume a previous conversation:
+2. **Resume a previous conversation**:
 >
    :Chat prev
 <
    Cycles backward through your saved sessions.
 
-3. Switch to the next conversation:
+3. **Switch to the next conversation**:
 >
    :Chat next
 <
    Cycles forward through your saved sessions.
 
-4. Open or forced to the chat window:
+4. **Open or forced to the chat window**:
 >
    :Chat
 <
    This command will not change current sessions.
 
-5. Delete current session:
+5. **Delete current session**:
 >
    :Chat delete
 <
    Cycles to next session or create a new session if current session is
    latest one.
 
-6. Change the working directory of current session:
+6. **Change the working directory of current session**:
 >
    :Chat cd ../picker.nvim/
 <
    If the current session is in progress, the working directory will not be
    changed, and a warning message will be printed.
 
-7. Clear messages in current session:
+7. **Clear messages in current session**:
 >
    :Chat clear
 <
@@ -142,8 +673,55 @@ Using nvim-plug:
    and current session will not be cleared. This command also will forced
    to chat window.
 
+8. **Work with multiple parallel sessions**:
+>
+   " Start first session with DeepSeek
+   :Chat new
+   " Select DeepSeek as provider and choose a model
+
+   " Start second session with GitHub AI
+   :Chat new
+   " Select GitHub as provider and choose a model
+
+   " Switch between sessions
+   :Chat prev  " Go to first session
+   :Chat next  " Go to second session
+<
+   This enables simultaneous conversations with different AI assistants for
+   different tasks.
+
+9. **Save current session to a file**:
+>
+   :Chat save ~/sessions/my-session.json
+<
+   Saves the current session to a JSON file for backup or sharing.
+
+10. **Load session from file**:
+>
+    :Chat load ~/sessions/my-session.json
+<
+    Loads a previously saved session from a JSON file.
+
+11. **Load session from URL**:
+>
+    :Chat load https://paste.rs/xxxxx
+<
+    Loads a session from a URL (e.g., from paste.rs).
+
+12. **Share current session**:
+>
+    :Chat share
+<
+    Uploads the current session to paste.rs and copies the URL to clipboard.
+
+13. **Preview current session in browser**:
+>
+    :Chat preview
+<
+    Opens an HTML preview of the current session in your default browser.
+
 ------------------------------------------------------------------------------
- 4.3 Key Bindings                                          *chat-key-bindings*
+ 5.5 Key Bindings                                          *chat-key-bindings*
 
 NOTE: The plugin is currently in active development phase.
 Key bindings may change and may reflect the author's personal preferences.
@@ -154,48 +732,80 @@ The following key bindings are available in the `Input` window:
 
 | Mode     | Key Binding  | Description                             |
 | -------- | ------------ | --------------------------------------- |
-| `Normal`   | `<Enter>`      | Send message                            |
-| `Normal`   | `q`            | Close chat window                       |
-| `Normal`   | `<Tab>`        | Switch between input and result windows |
-| `Normal`   | `Ctrl-C`       | Cancel current request                  |
-| `Normal`   | `r`            | Retry last cancelled request            |
-| `Normal`   | `alt-h`        | previous chat session                   |
-| `Normal`   | `alt-l`        | next chat session                       |
-| `Normal`   | `<Leaer>fr`    | run `:Picker chat`                        |
-| `Normal`   | `<Leaer>fp`    | run `:Picker chat_provider`               |
-| `Normal`   | `<Leader>fm`   | run `:Picker chat_model`                  |
+| `Normal` | `<Enter>`    | Send message                            |
+| `Normal` | `q`          | Close chat window                       |
+| `Normal` | `<Tab>`      | Switch between input and result windows |
+| `Normal` | `Ctrl-C`     | Cancel current request                  |
+| `Normal` | `Ctrl-N`     | Open new session                        |
+| `Normal` | `r`          | Retry last cancelled request            |
+| `Normal` | `alt-h`      | previous chat session                   |
+| `Normal` | `alt-l`      | next chat session                       |
+| `Normal` | `<Leader>fr` | run `:Picker chat`                      |
+| `Normal` | `<Leader>fp` | run `:Picker chat_provider`             |
+| `Normal` | `<Leader>fm` | run `:Picker chat_model`                |
 
 The following key bindings are available in the `Result` window:
 
 | Mode     | Key Binding | Description                             |
 | -------- | ----------- | --------------------------------------- |
-| `Normal`   | `q`           | Close chat window                       |
-| `Normal`   | `<Tab>`       | Switch between input and result windows |
+| `Normal` | `q`         | Close chat window                       |
+| `Normal` | `<Tab>`     | Switch between input and result windows |
 
 ==============================================================================
- 5. Providers                                                 *chat-providers*
+ 6. Providers                                                 *chat-providers*
+
+chat.nvim uses a two-layer architecture for AI service integration:
+
+- **Providers**: Handle HTTP requests to specific AI services (DeepSeek,
+  OpenAI, GitHub, etc.)
+- **Protocols**: Parse API responses from different AI services (OpenAI,
+  Anthropic, etc.)
+
+Most AI services use OpenAI-compatible APIs, so the default protocol is
+`openai`. Providers can specify a custom protocol via the `protocol` field
+if needed.
 
 ------------------------------------------------------------------------------
- 5.1 Built-in Providers                              *chat-built-in-providers*
+ 6.1 Built-in Providers                              *chat-built-in-providers*
 
-1. `deepseek` - DeepSeek AI https://platform.deepseek.com/
-2. `github` - GitHub AI https://github.com/features/ai
-3. `moonshot` - Moonshot AI https://platform.moonshot.cn/
-4. `openrouter` - OpenRouter https://openrouter.ai/
-5. `qwen` - Alibaba Cloud Qwen https://www.aliyun.com/product/bailian
-6. `siliconflow` - SiliconFlow https://www.siliconflow.cn/
-7. `tencent` - Tencent Hunyuan https://cloud.tencent.com/document/product/1729
+1. `deepseek` - https://platform.deepseek.com/
+2. `github` - https://github.com/features/ai
+3. `moonshot` - https://platform.moonshot.cn/
+4. `openrouter` - https://openrouter.ai/
+5. `qwen` - https://www.aliyun.com/product/bailian
+6. `siliconflow` - https://www.siliconflow.cn/
+7. `tencent` - https://cloud.tencent.com/document/product/1729
+8. `bigmodel` - https://bigmodel.cn/
+9. `volcengine` - https://console.volcengine.com
+10. `openai` - https://developers.openai.com/api/docs/
+11. `anthropic` - https://www.anthropic.com/
+12. `gemini` - https://ai.google.dev/
+13. `ollama` - https://ollama.ai/
+14. `longcat` - https://longcat.chat/platform/docs/
+15. `cherryin` - https://open.cherryin.ai/
+16. `yuanjing` - https://maas.ai-yuanjing.com/
+
+Note: Most built-in providers use the OpenAI protocol by default. Exceptions:
+- `anthropic` uses the Anthropic protocol
+- `gemini` uses the Gemini protocol
 
 ------------------------------------------------------------------------------
- 5.2 Custom Providers                                  *chat-custom-providers*
+ 6.2 Custom Providers                                  *chat-custom-providers*
 
-chat.nvim also supports custom provider, just create
-`lua/chat/providers/<provider_name>.lua`, this lua module should provides
-two functions `request` and `available_models`,
-here is an example for using [free_chatgpt_api]
+You can create custom providers for AI services not in the built-in list.
+Create a file at `~/.config/nvim/lua/chat/providers/<provider_name>.lua`.
 
-file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
+A provider module must implement:
+
+1. **`available_models()`** - Return a list of available model names
+2. **`request(opt)`** - Send HTTP request and return job ID
+
+**Optional fields:**
+- **`protocol`** - Specify which protocol to use (default: `openai`)
+
+**Example custom provider:**
 >
+    -- ~/.config/nvim/lua/chat/providers/my_provider.lua
     local M = {}
     local job = require('job')
     local sessions = require('chat.sessions')
@@ -203,30 +813,29 @@ file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
 
     function M.available_models()
       return {
-        'gpt-4o-mini',
+        'model-1',
+        'model-2',
       }
     end
 
-    function M.request(requestObj)
+    function M.request(opt)
       local cmd = {
         'curl',
         '-s',
-        'https://free.v36.cm/v1/chat/completions',
+        'https://api.example.com/v1/chat/completions',
         '-H',
         'Content-Type: application/json',
         '-H',
-        'Authorization: Bearer ' .. config.config.api_key.free_chatgpt,
+        'Authorization: Bearer ' .. config.config.api_key.my_provider,
         '-X',
         'POST',
+        '-d',
         '@-',
       }
 
       local body = vim.json.encode({
         model = sessions.get_session_model(opt.session),
         messages = opt.messages,
-        thinking = {
-          type = 'enabled',
-        },
         stream = true,
         stream_options = { include_usage = true },
         tools = require('chat.tools').available_tools(),
@@ -244,107 +853,361 @@ file: `~/.config/nvim/lua/chat/provides/free_chatgpt_api.lua`
       return jobid
     end
 
+    -- Optional: specify custom protocol (defaults to 'openai')
+    -- M.protocol = 'anthropic'
+
     return M
 <
+
+------------------------------------------------------------------------------
+ 6.3 Protocols                                               *chat-protocols*
+
+Protocols handle parsing of API responses. Currently, chat.nvim supports:
+
+- **`openai`**: OpenAI-compatible API format (default for all built-in
+  providers)
+- **`anthropic`**: Anthropic Claude API format
+- **`gemini`**: Google Gemini API format
+
+If you need a custom protocol, create a file at
+`~/.config/nvim/lua/chat/protocols/<protocol_name>.lua` and implement:
+
+- `on_stdout(id, data)` - Handle stdout data from curl
+- `on_stderr(id, data)` - Handle stderr data
+- `on_exit(id, code, signal)` - Handle request completion
+
+See `lua/chat/protocol/openai.lua` for reference implementation.
+
 ==============================================================================
- 6. Tools                                                         *chat-tools*
+ 7. Tools                                                         *chat-tools*
 
 chat.nvim supports tool call functionality, allowing the AI assistant to
-interact with your filesystem and other resources during conversations.
-Tools are invoked using the `@tool_name` syntax directly in your messages.
+interact with your filesystem, manage memories, and perform other operations
+during conversations. Tools are invoked using the `@tool_name` syntax directly
+in your messages.
 
 ------------------------------------------------------------------------------
- 6.1 Available Tools                                    *chat-available-tools*
+ 7.1 MCP Tools                                                 *chat-mcp-tools*
+
+MCP (Model Context Protocol) tools are automatically discovered and integrated
+when MCP servers are configured. These tools follow the naming pattern
+`mcp_<server>_<tool>` and work seamlessly with built-in tools.
+
+**Example MCP Tools:**
+
+- `mcp_open_webSearch_search` - Web search via MCP server
+- `mcp_open_webSearch_fetchGithubReadme` - Fetch GitHub README via MCP
+
+MCP tools are automatically available when their servers are configured in the
+`mcp` section of your setup configuration.
+
+**Using MCP Tools:**
+>
+    @mcp_open_webSearch_search query="neovim plugins" engines=["bing"] limit=10
+    @mcp_open_webSearch_fetchGithubReadme url="https://github.com/wsdjeg/chat.nvim"
+<
 
 ------------------------------------------------------------------------------
- 6.1.1 read_file                                         *chat-tool-read_file*
+ 7.2 Available Tools                                    *chat-available-tools*
 
-Reads the content of a file and makes it available to the AI assistant.
+**read_file**                                              *chat-tool-read_file*
+
+Reads the content of a file or specific line range.
 
 Usage:
 >
-   @read_file <filepath>
+    @read_file <filepath>
+    @read_file <filepath> line_start=10 line_to=20
 <
-Examples:
-
-- `@read_file ./src/main.lua` - Read a Lua file in the current directory
-- `@read_file /etc/hosts` - Read a system file using absolute path
-- `@read_file ../config.json` - Read a file from a parent directory
 
 Notes:
+- Line numbers are 1-indexed (first line is line 1)
+- File path must be within `allowed_path` configuration
 
-- File paths can be relative to the current working directory or absolute
-- The AI will receive the complete file content for context
-- This is particularly useful for code review, debugging, or analyzing
-  configuration files
+**write_file**                                            *chat-tool-write_file*
 
-------------------------------------------------------------------------------
- 6.1.2 find_files                                       *chat-tool-find_files*
+Write, modify, or delete file content with automatic parent directory
+creation.
+
+Actions:
+- `create` - Create new file (fails if exists)
+- `overwrite` - Overwrite entire file content
+- `append` - Append content to end of file
+- `insert` - Insert content at specific line
+- `delete` - Delete specific line range
+- `replace` - Replace specific line range with new content
+- `remove` - Delete entire file
+
+Examples:
+>
+    @write_file filepath="./src/main.lua" action="create" content="print('hello')"
+    @write_file filepath="./src/main.lua" action="overwrite" content="new content"
+    @write_file filepath="./src/main.lua" action="append" content="\n-- added"
+    @write_file filepath="./src/main.lua" action="insert" line_start=5 content="-- comment"
+    @write_file filepath="./src/main.lua" action="delete" line_start=5 line_to=10
+    @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"
+    @write_file filepath="./src/main.lua" action="remove"
+<
+
+**find_files**                                            *chat-tool-find_files*
 
 Finds files in the current working directory that match a given pattern.
 
 Usage:
 >
-   @find_files <pattern>
+    @find_files <pattern>
 <
 Examples:
-
 - `@find_files *.lua` - Find all Lua files in the current directory
 - `@find_files **/*.md` - Recursively find all Markdown files
 - `@find_files src/**/*.js` - Find JavaScript files in the `src` directory
-- `@find_files README*` - Find files starting with "README"
 
-Notes:
+**search_text**                                          *chat-tool-search_text*
 
-- The pattern follows Vim's `globpath` syntax
-- Searches are limited to the current working directory
-- Returns a list of found files, with one file path per line
-- Returns a message if no files are found based on the given pattern
-- File searching is restricted by the `allowed_path` configuration setting
+Advanced text search using ripgrep (rg) with regex support.
+
+Usage:
+>
+    @search_text <pattern> [options]
+<
+Parameters:
+- `pattern` - Text pattern to search for (supports regex)
+- `directory` - Directory path to search in
+- `ignore_case` - Whether to ignore case (default: false)
+- `regex` - Whether to use regex (default: true)
+- `max_results` - Maximum number of results (default: 100)
+- `context_lines` - Number of context lines to show (default: 0)
+- `whole_word` - Whether to match whole words only (default: false)
+- `file_types` - File type filter, e.g., `["*.py", "*.md"]`
+- `exclude_patterns` - Exclude file patterns, e.g., `["*.log", "node_modules/*"]`
+
+**extract_memory**                                      *chat-tool-extract_memory*
+
+Extract memories from conversation text into three-tier memory system.
+
+Memory Types:
+- `working` - Session only, highest priority
+- `daily` - 7-30 days, medium priority
+- `long_term` - Permanent, normal priority
+
+Usage:
+>
+    @extract_memory text="Python的GIL是全局解释器锁" memory_type="long_term"
+    @extract_memory text="今天要完成用户登录功能" memory_type="daily"
+    @extract_memory text="当前正在修复登录bug" memory_type="working"
+<
+
+**recall_memory**                                        *chat-tool-recall_memory*
+
+Retrieve relevant information from the three-tier memory system.
+
+Usage:
+>
+    @recall_memory query="vim configuration"
+    @recall_memory query="current task" memory_type="working"
+    @recall_memory query="today" memory_type="daily"
+<
+
+**set_prompt**                                            *chat-tool-set_prompt*
+
+Read a prompt file and set it as the current session's system prompt.
+
+Usage:
+>
+    @set_prompt ./AGENTS.md
+    @set_prompt ~/.config/chat.nvim/default_prompt.md
+<
+
+**fetch_web**                                              *chat-tool-fetch_web*
+
+Fetch content from web URLs using curl.
+
+Usage:
+>
+    @fetch_web url="https://example.com"
+    @fetch_web url="https://api.github.com/repos/neovim/neovim" timeout=60
+    @fetch_web url="https://api.example.com/data" method="POST" data='{"key":"value"}'
+<
+
+**web_search**                                            *chat-tool-web_search*
+
+Search the web using Firecrawl, Google Custom Search API, or SerpAPI.
+
+Engines:
+- `firecrawl` (default): https://firecrawl.dev
+- `google`: Google Custom Search JSON API
+- `serpapi`: https://serpapi.com
+
+Usage:
+>
+    @web_search query="firecrawl web scraping"
+    @web_search query="neovim plugins" engine="google"
+    @web_search query="latest news" engine="serpapi" serpapi_engine="bing"
+<
+
+**git_diff**                                                *chat-tool-git_diff*
+
+Run git diff to show changes between working directory and index.
+
+Usage:
+>
+    @git_diff
+    @git_diff cached=true
+    @git_diff branch="main"
+    @git_diff path="./src"
+<
+
+**git_log**                                                *chat-tool-git_log*
+
+Show commit logs with various filters and options.
+
+Usage:
+>
+    @git_log
+    @git_log count=10
+    @git_log path="./src/main.lua"
+    @git_log author="john" since="2024-01-01"
+    @git_log from="v1.0.0" to="v2.0.0"
+<
+
+**git_status**                                            *chat-tool-git_status*
+
+Show the working tree status.
+
+Usage:
+>
+    @git_status
+    @git_status path="./src"
+<
+
+**git_show**                                                *chat-tool-git_show*
+
+Show detailed changes of a specific commit.
+
+Usage:
+>
+    @git_show commit="abc123"
+    @git_show commit="v1.0.0"
+    @git_show commit="HEAD~1"
+    @git_show commit="abc123" stat=true
+<
+
+**git_add**                                                  *chat-tool-git_add*
+
+Stage file changes for commit.
+
+Usage:
+>
+    @git_add path="file.lua"
+    @git_add path=["a.lua", "b.lua"]
+    @git_add all=true
+<
+
+**git_commit**                                            *chat-tool-git_commit*
+
+Create a git commit with staged changes.
+
+Usage:
+>
+    @git_commit message="feat: add new feature"
+    @git_commit message="fix: bug fix" allow_empty=true
+    @git_commit message="update" amend=true
+<
+
+**get_history**                                          *chat-tool-get_history*
+
+Get conversation history messages from the current session.
+
+Usage:
+>
+    @get_history
+    @get_history offset=0 limit=20
+    @get_history offset=20 limit=20
+<
+
+**plan**                                                        *chat-tool-plan*
+
+Plan mode for creating, managing, and reviewing task plans.
+
+Actions:
+- `create` - Create new plan with title and optional steps
+- `show` - Show plan details by ID
+- `list` - List all plans (optional status filter)
+- `add` - Add step to existing plan
+- `next` - Start next pending step
+- `done` - Mark current/completed step as done
+- `review` - Review completed plan with summary
+- `delete` - Delete a plan
+
+Usage:
+>
+    @plan action="create" title="Implement feature X" steps=["Design API", "Write code", "Test"]
+    @plan action="list" status="in_progress"
+    @plan action="next" plan_id="plan-20250110-xxxx"
+    @plan action="done" plan_id="plan-20250110-xxxx" notes="Completed successfully"
+<
 
 ------------------------------------------------------------------------------
- 6.2 Third party Tools                                *chat-third-party-tools*
+ 7.3 Third-party Tools                                |chat-third-party-tools*
 
-- `zettelkasten_create` - create new zettelkasten notes, provided by
-  [zettelkasten.nvim]
+**zettelkasten_create**                          *chat-tool-zettelkasten_create*
+
+Create new zettelkasten notes, provided by zettelkasten.nvim.
+
+Usage:
+>
+    @zettelkasten_create title="Note title" content="Note content" tags=["tag1", "tag2"]
+<
+
+**zettelkasten_get**                              *chat-tool-zettelkasten_get*
+
+Retrieve zettelkasten notes by tags, provided by zettelkasten.nvim.
+
+Usage:
+>
+    @zettelkasten_get tags=["programming", "vim"]
+<
 
 ------------------------------------------------------------------------------
- 6.3 How to Use Tools                                  *chat-how-to-use-tools*
+ 7.4 How to Use Tools                                  *chat-how-to-use-tools*
 
-1. Direct invocation: Include the tool call directly in your message:
+1. **Direct invocation**: Include the tool call directly in your message:
 >
- Can you review this code? @read_file ./my_script.lua
+   Can you review this code? @read_file ./my_script.lua
 <
-2. Multiple tools: Combine multiple tools in a single message:
+
+2. **Multiple tools**: Combine multiple tools in a single message:
 >
- Compare these two files: @read_file ./config1.json @read_file ./config2.json
+   Compare these two files: @read_file ./config1.json @read_file ./config2.json
 <
-3. Natural integration: The tool calls can be embedded naturally within
+
+3. **Natural integration**: The tool calls can be embedded naturally within
    your questions:
 >
- What's wrong with this function? @read_file ./utils.lua
+   What's wrong with this function? @read_file ./utils.lua
 <
-The AI assistant will process the tool calls, read the specified files, and
-incorporate their content into its response. This enables more context-aware
-assistance without needing to manually copy-paste file contents.
+
+The AI assistant will process the tool calls, execute the specified operations,
+and incorporate their results into its response.
 
 ------------------------------------------------------------------------------
- 6.4 Custom Tools                                          *chat-custom-tools*
+ 7.5 Custom Tools                                          *chat-custom-tools*
 
-chat.nvim also supports custom tools. User can create
-`lua/chat/tools/<tool_name>.lua` file in their neovim runtime path.
+chat.nvim supports both synchronous and asynchronous custom tools. Users can
+create `lua/chat/tools/<tool_name>.lua` file in their Neovim runtime path.
 
 This module should provide at least two functions: `scheme()` and
-`<tool_name>` function. The `scheme()` function returns a table describing
-the tool's schema (name, description, parameters). The `<tool_name>`
-function is the actual implementation that will be called when the tool is
-invoked.
+`<tool_name>` function. The `scheme()` function returns a table describing the
+tool's schema (name, description, parameters). The `<tool_name>` function is
+the actual implementation that will be called when the tool is invoked.
 
-The `tools.lua` module automatically discovers all tools in the
-`lua/chat/tools/` directory and provides an `available_tools()` function to
-list them, and a `call(func, arguments)` function to invoke a specific tool.
+**Synchronous Tool**: Returns `{ content = "..." }` or `{ error = "..." }`
+directly.
 
-Here is an example for a `get_weather` tool:
+**Asynchronous Tool**: Returns `{ jobid = <number> }` and calls
+`ctx.callback({ content = "..." })` when done.
+
+**Synchronous Tool Example:**
 
 >
     local M = {}
@@ -352,38 +1215,12 @@ Here is an example for a `get_weather` tool:
     ---@param action { city: string, unit?: string }
     function M.get_weather(action)
       if not action.city or action.city == '' then
-        return {
-          error = 'City name is required for weather information.',
-        }
+        return { error = 'City name is required for weather information.' }
       end
 
-      local unit = action.unit or 'celsius'
-      local valid_units = { 'celsius', 'fahrenheit' }
-      if not vim.tbl_contains(valid_units, unit) then
-        return {
-          error = 'Unit must be either "celsius" or "fahrenheit".',
-        }
-      end
+      -- ... synchronous implementation ...
 
-      -- Simulate fetching weather data
-      local temperature = math.random(15, 35)
-      local conditions = { 'Sunny', 'Cloudy', 'Rainy', 'Partly Cloudy' }
-      local condition = conditions[math.random(1, #conditions)]
-
-      -- Convert temperature if needed
-      if unit == 'fahrenheit' then
-        temperature = math.floor((temperature * 9/5) + 32)
-      end
-
-      return {
-        content = string.format(
-          'Weather in %s:\n- Temperature: %d°%s\n- Condition: %s\n',
-          action.city,
-          temperature,
-          unit == 'celsius' and 'C' or 'F',
-          condition
-        ),
-      }
+      return { content = 'Weather in ...' }
     end
 
     function M.scheme()
@@ -392,20 +1229,83 @@ Here is an example for a `get_weather` tool:
         ['function'] = {
           name = 'get_weather',
           description = 'Get weather information for a specific city.',
+          parameters = { ... },
+        },
+      }
+    end
+
+    return M
+<
+
+**Asynchronous Tool Example:**
+
+For long-running operations, you can create asynchronous tools using `job.nvim`:
+>
+    local M = {}
+    local job = require('job')
+
+    ---@param action { url: string }
+    ---@param ctx { cwd: string, session: string, callback: function }
+    function M.fetch_data(action, ctx)
+      if not action.url or action.url == '' then
+        return { error = 'URL is required.' }
+      end
+
+      local stdout = {}
+      local stderr = {}
+
+      local jobid = job.start({
+        'curl',
+        '-s',
+        action.url,
+      }, {
+        on_stdout = function(_, data)
+          for _, v in ipairs(data) do
+            table.insert(stdout, v)
+          end
+        end,
+        on_stderr = function(_, data)
+          for _, v in ipairs(data) do
+            table.insert(stderr, v)
+          end
+        end,
+        on_exit = function(id, code, signal)
+          if code == 0 and signal == 0 then
+            ctx.callback({
+              content = table.concat(stdout, '\n'),
+              jobid = id,
+            })
+          else
+            ctx.callback({
+              error = 'Failed to fetch data: ' .. table.concat(stderr, '\n'),
+              jobid = id,
+            })
+          end
+        end,
+      })
+
+      if jobid > 0 then
+        return { jobid = jobid }
+      else
+        return { error = 'Failed to start job' }
+      end
+    end
+
+    function M.scheme()
+      return {
+        type = 'function',
+        ['function'] = {
+          name = 'fetch_data',
+          description = 'Fetch data from a URL asynchronously.',
           parameters = {
             type = 'object',
             properties = {
-              city = {
+              url = {
                 type = 'string',
-                description = 'City name for weather information',
-              },
-              unit = {
-                type = 'string',
-                description = 'Temperature unit: "celsius" or "fahrenheit"',
-                enum = { 'celsius', 'fahrenheit' },
+                description = 'URL to fetch data from',
               },
             },
-            required = { 'city' },
+            required = { 'url' },
           },
         },
       }
@@ -415,11 +1315,135 @@ Here is an example for a `get_weather` tool:
 <
 
 ==============================================================================
- 7. Picker Integration                               *chat-picker-integration*
+ 8. HTTP API                                                    *chat-http-api*
+
+chat.nvim includes a built-in HTTP server that allows external applications
+to send messages to your chat sessions.
+
+------------------------------------------------------------------------------
+ 8.1 Enabling the HTTP Server                    |chat-enabling-the-http-server|
+
+The HTTP server is automatically started when the `http.api_key` configuration
+is set to a non-empty value:
+>
+    require('chat').setup({
+      http = {
+        host = '127.0.0.1',
+        port = 7777,
+        api_key = 'your-secret-key',
+      },
+    })
+<
+
+------------------------------------------------------------------------------
+ 8.2 API Endpoints                                         *chat-api-endpoints*
+
+| Endpoint    | Method | Description                                             |
+| ----------- | ------ | ------------------------------------------------------- |
+| `/`         | POST   | Send messages to a specified chat session               |
+| `/sessions` | GET    | Get a list of all active session IDs                    |
+| `/session`  | GET    | Get HTML preview of a session (requires `id` parameter) |
+
+**Base URL**: `http://{host}:{port}/` (default: `127.0.0.1:7777`)
+
+**Authentication**: All requests require the `X-API-Key` header containing your
+configured API key.
+
+------------------------------------------------------------------------------
+ 8.3 Request Format                                       *chat-request-format*
+
+>
+    {
+      "session": "session-id",
+      "content": "Message content from external application"
+    }
+<
+
+Parameters:
+- `session` - Chat session ID
+- `content` - Message content to send to the chat session
+
+------------------------------------------------------------------------------
+ 8.4 Response Format                                     *chat-response-format*
+
+POST `/`:
+- **Success**: HTTP 204 No Content
+- **Authentication Error**: HTTP 401 Unauthorized
+- **Validation Error**: HTTP 400 Bad Request
+
+GET `/sessions`:
+- **Success**: HTTP 200 OK, returns a JSON array of session IDs
+>
+    [
+      "2024-01-15-10-30-00",
+      "2024-01-15-11-45-00"
+    ]
+<
+
+GET `/session`:
+- **Success**: HTTP 200 OK, returns HTML content
+- **Missing ID**: HTTP 400 Bad Request
+- **Session Not Found**: HTTP 404 Not Found
+
+------------------------------------------------------------------------------
+ 8.5 Message Queue System                           *chat-message-queue-system*
+
+Incoming messages are processed through a queue system:
+
+1. Messages are immediately queued upon receipt
+2. The queue is checked every 5 seconds
+3. Messages are delivered to the chat session when it's not in progress
+4. If a session is busy, messages remain in the queue until available
+
+------------------------------------------------------------------------------
+ 8.6 Usage Examples                                       *chat-usage-examples*
+
+Using curl:
+>
+    # Send a message to a session
+    curl -X POST http://127.0.0.1:7777/ \
+      -H "X-API-Key: your-secret-key" \
+      -H "Content-Type: application/json" \
+      -d '{"session": "my-session", "content": "Hello from curl!"}'
+
+    # Get all session IDs
+    curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+<
+
+Using Python:
+>
+    import requests
+
+    # Send a message to a session
+    url = "http://127.0.0.1:7777/"
+    headers = {
+        "X-API-Key": "your-secret-key",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "session": "python-script",
+        "content": "Message from Python script"
+    }
+    response = requests.post(url, json=data, headers=headers)
+    print(f"Status: {response.status_code}")
+<
+
+------------------------------------------------------------------------------
+ 8.7 Security Considerations                     |chat-security-considerations*
+
+1. **API Key Protection**: Keep your API key secure and never commit it to
+   version control
+2. **Network Security**: By default, the server binds to localhost (127.0.0.1).
+   Only allow external access if you have proper network security measures
+3. **Input Validation**: All incoming messages are validated for proper JSON
+   format and required fields
+
+==============================================================================
+ 9. Picker Integration                               *chat-picker-integration*
 
 chat.nvim provides built-in picker sources for seamless integration with
-[picker.nvim]. These sources allow you to quickly access and manage your
-chat sessions, providers, and models.
+picker.nvim. These sources allow you to quickly access and manage your chat
+sessions, providers, and models.
 
 Available Sources:
 
@@ -427,6 +1451,11 @@ Available Sources:
    - Uses the **first message** of each session as the search string
    - Quickly resume previous conversations
    - Supports filtering and session management
+
+   Keyboard Shortcuts in chat picker:
+   - `<CR>` (Enter): Open selected session
+   - `<C-d>`: Delete selected session
+   - `<C-o>`: Open HTML preview in browser
 
 2. `chat_provider` - Switch between different AI providers
    - Dynamically change between supported providers
@@ -437,21 +1466,215 @@ Available Sources:
    - Intelligent filtering based on provider capabilities
 
 ==============================================================================
- 8. Self-Promotion                                       *chat-self-promotion*
+ 10. IM Integration                                         *chat-im-integration*
+
+chat.nvim supports integration with multiple instant messaging platforms for
+remote AI interaction.
+
+Supported Platforms:
+
+| Platform | Icon | Bidirectional | Features                                |
+| -------- | ---- | ------------- | --------------------------------------- |
+| Discord  | 💬   | ✅ Yes        | Full-featured bot with session binding  |
+| Lark     | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling    |
+| DingTalk | 📱   | ✅ Yes*       | Webhook (one-way) or API (two-way)      |
+| WeCom    | 💼   | ✅ Yes*       | Enterprise WeChat webhook or API        |
+| Telegram | ✈️   | ✅ Yes        | Bot API with group/private chat support |
+| Slack    | 💼   | ✅ Yes        | Workspace bot with message polling      |
+
+------------------------------------------------------------------------------
+ 10.1 Discord                                                   *chat-discord*
+
+Discord integration allows you to interact with AI assistants via Discord
+messages.
+
+Features:
+- **Bidirectional Communication**: Send messages from Discord to chat.nvim
+  and receive responses
+- **Session Binding**: Bind specific Discord channels to chat.nvim sessions
+- **Automatic Polling**: Bot polls for new messages every 3 seconds
+
+Setup Guide:
+
+1. Create Discord Application at https://discord.com/developers/applications
+2. Create Bot User and copy the **Token**
+3. Enable "Message Content Intent" under "Privileged Gateway Intents"
+4. Get Channel ID (enable Developer Mode in Discord, right-click channel →
+   Copy ID)
+5. Invite Bot to Server with required permissions
+6. Configure chat.nvim:
+>
+    integrations = {
+      discord = {
+        token = 'YOUR_DISCORD_BOT_TOKEN',
+        channel_id = 'YOUR_CHANNEL_ID',
+      },
+    }
+<
+
+Commands:
+- `:Chat bridge discord` - Bind current chat.nvim session to Discord channel
+- `/session` (in Discord) - Bind current Discord channel to active session
+- `/clear` (in Discord) - Clear messages in the bound session
+
+------------------------------------------------------------------------------
+ 10.2 Lark (Feishu)                                         *chat-lark*
+
+Lark/Feishu integration for enterprise communication.
+
+Features:
+- **Bidirectional Communication**: Send and receive messages via Lark bot
+- **Session Binding**: Bind Lark chats to chat.nvim sessions
+- **Automatic Polling**: Polls for new messages every 3 seconds
+
+Setup Guide:
+
+1. Create Lark App at https://open.feishu.cn/app
+2. Copy **App ID** and **App Secret**
+3. Configure Bot Permissions:
+   - `im:message.group_msg` - Get all messages in groups
+   - `im:message` - Get and send messages in private chats and groups
+4. Get Chat ID
+5. Configure chat.nvim:
+>
+    integrations = {
+      lark = {
+        app_id = 'YOUR_APP_ID',
+        app_secret = 'YOUR_APP_SECRET',
+        chat_id = 'YOUR_CHAT_ID',
+      },
+    }
+<
+
+Commands:
+- `:Chat bridge lark` - Bind current session to Lark chat
+
+------------------------------------------------------------------------------
+ 10.3 DingTalk                                               *chat-dingtalk*
+
+DingTalk integration with webhook or API mode.
+
+Features:
+- **Two Modes**: Webhook (simple, one-way) or API (bidirectional)
+- **Message Queue**: Sequential message processing
+
+Setup Guide (Webhook Mode):
+1. Create a custom robot in DingTalk group
+2. Copy the webhook URL
+3. Configure:
+>
+    integrations = {
+      dingtalk = {
+        webhook = 'https://oapi.dingtalk.com/robot/send?access_token=XXX',
+      },
+    }
+<
+
+------------------------------------------------------------------------------
+ 10.4 WeCom                                                     *chat-wecom*
+
+WeCom (Enterprise WeChat) integration with webhook or API mode.
+
+Features:
+- **Two Modes**: Webhook (simple, one-way) or API (bidirectional)
+- **Corporate Integration**: Full enterprise WeChat support
+
+Setup Guide (Webhook Mode):
+1. Add a webhook robot in WeCom group
+2. Copy the webhook key
+3. Configure:
+>
+    integrations = {
+      wecom = {
+        webhook_key = 'YOUR_WEBHOOK_KEY',
+      },
+    }
+<
+
+------------------------------------------------------------------------------
+ 10.5 Telegram                                               *chat-telegram*
+
+Telegram bot integration with full feature support.
+
+Features:
+- **Full Bot API Support**: Works in groups and private chats
+- **Markdown Support**: Send formatted messages with Markdown
+- **Long Message Support**: Auto-chunking for messages > 4,096 characters
+
+Setup Guide:
+
+1. Create Telegram Bot: Open Telegram and search for `@BotFather`
+2. Send `/newbot` command and follow instructions
+3. Copy the **Bot Token**
+4. Get Chat ID by visiting:
+   `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+5. Configure chat.nvim:
+>
+    integrations = {
+      telegram = {
+        bot_token = 'YOUR_BOT_TOKEN',
+        chat_id = 'YOUR_CHAT_ID',
+      },
+    }
+<
+
+Commands:
+- `:Chat bridge telegram` - Bind current session to Telegram chat
+- `/session` (in Telegram) - Bind current Telegram chat to active session
+- `/clear` (in Telegram) - Clear messages in the bound session
+
+------------------------------------------------------------------------------
+ 10.6 Slack                                                     *chat-slack*
+
+Slack integration for workspace communication.
+
+Features:
+- **Bidirectional Communication**: Send and receive messages via Slack bot
+- **Session Binding**: Bind Slack channels to chat.nvim sessions
+- **Automatic Polling**: Polls for new messages every 3 seconds
+
+Setup Guide:
+
+1. Create Slack App at https://api.slack.com/apps
+2. Configure Bot Permissions (required scopes):
+   - `channels:history` - Read messages in channels
+   - `chat:write` - Send messages
+   - `groups:history` - Read messages in private channels
+   - `im:history` - Read messages in direct messages
+   - `mpim:history` - Read messages in multiparty direct messages
+3. Install to Workspace and copy **Bot User OAuth Token** (starts with
+   `xoxb-`)
+4. Get Channel ID from URL or right-click channel → "Copy Link"
+5. Invite Bot to Channel: `/invite @YourBotName`
+6. Configure chat.nvim:
+>
+    integrations = {
+      slack = {
+        bot_token = 'xoxb-YOUR-BOT-TOKEN',
+        channel_id = 'CXXXXXXXXXX',
+      },
+    }
+<
+
+Commands:
+- `:Chat bridge slack` - Bind current session to Slack channel
+
+==============================================================================
+ 11. Self-Promotion                                       *chat-self-promotion*
 
 Like this plugin? Star the repository on GitHub.
 
-Love this plugin? Follow me <https://wsdjeg.net/> on
-GitHub <https://github.com/wsdjeg>.
+Love this plugin? Follow me (https://wsdjeg.net/) on
+GitHub (https://github.com/wsdjeg).
 
 ==============================================================================
- 9. Feedback                                                   *chat-feedback*
+ 12. Feedback                                                   *chat-feedback*
 
 If you encounter any bugs or have suggestions, please file an issue in the
 issue tracker: https://github.com/wsdjeg/chat.nvim/issues
 
 ==============================================================================
- 10. License                                                    *chat-license*
+ 13. License                                                   *chat-license*
 
 This project is licensed under the GPL-3.0 License.
 
