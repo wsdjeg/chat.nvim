@@ -50,6 +50,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
     - [MCP Tools](#mcp-tools)
     - [Available Tools](#available-tools)
         - [`read_file`](#read_file)
+        - [`write_file`](#write_file)
         - [`find_files`](#find_files)
         - [`search_text`](#search_text)
         - [`extract_memory`](#extract_memory)
@@ -1234,6 +1235,97 @@ Reads the content of a file and makes it available to the AI assistant.
 - If `line_start` is not specified, defaults to line 1
 - If `line_to` is not specified, defaults to last line
 - The AI will receive the file content for context
+
+#### `write_file`
+
+Write, modify, or delete file content with automatic parent directory creation.
+
+**Usage:**
+
+```
+@write_file <parameters>
+```
+
+**Actions:**
+
+| Action       | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `create`     | Create new file (fails if exists)              |
+| `overwrite`  | Overwrite entire file content                  |
+| `append`     | Append content to end of file                  |
+| `insert`     | Insert content at specific line                |
+| `delete`     | Delete specific line range                     |
+| `replace`    | Replace specific line range with new content   |
+| `remove`     | Delete entire file                             |
+
+**Basic Examples:**
+
+- `@write_file filepath="./src/main.lua" action="create" content="print('hello')"` - Create new file
+- `@write_file filepath="./src/main.lua" action="overwrite" content="new content"` - Overwrite file
+- `@write_file filepath="./src/main.lua" action="append" content="\n-- added"` - Append to file
+- `@write_file filepath="./src/main.lua" action="insert" line_start=5 content="-- comment"` - Insert at line
+- `@write_file filepath="./src/main.lua" action="delete" line_start=5 line_to=10` - Delete lines
+- `@write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"` - Replace lines
+- `@write_file filepath="./src/main.lua" action="remove"` - Delete file
+
+**Advanced Usage with JSON Parameters:**
+
+For complex operations, you can provide a JSON object:
+
+```
+@write_file {"filepath": "./src/utils/helper.lua", "action": "create", "content": "local M = {}\n\nfunction M.test()\n  print('test')\nend\n\nreturn M"}
+```
+
+**Parameters:**
+
+| Parameter   | Type    | Description                                                                  |
+| ----------- | ------- | ---------------------------------------------------------------------------- |
+| `filepath`  | string  | **Required**. File path (relative to cwd or absolute)                        |
+| `action`    | string  | Action to perform (default: `create`)                                        |
+| `content`   | string  | Content to write (required for create/overwrite/append/insert/replace)       |
+| `line_start`| integer | Starting line number, 1-indexed (for insert/delete/replace)                  |
+| `line_to`   | integer | Ending line number, 1-indexed (for delete/replace)                           |
+
+**More Examples:**
+
+1. **Create file with automatic directory creation:**
+
+   ```
+   @write_file filepath="./src/utils/helper.lua" action="create" content="local M = {}"
+   ```
+
+   The `./src/utils/` directory will be created automatically if it doesn't exist.
+
+2. **Insert at end of file:**
+
+   ```
+   @read_file filepath="./src/main.lua"
+   -- Get line count, e.g., 50 lines
+   @write_file filepath="./src/main.lua" action="insert" line_start=51 content="-- new line"
+   ```
+
+3. **Replace multiple lines:**
+
+   ```
+   @write_file filepath="./config.lua" action="replace" line_start=10 line_to=15 content="new config\nvalues"
+   ```
+
+4. **Delete entire file:**
+
+   ```
+   @write_file filepath="./temp.lua" action="remove"
+   ```
+
+**Notes:**
+
+- Line numbers are 1-indexed (first line is line 1)
+- Requires `allowed_path` configuration in chat.nvim setup
+- For `insert`: `line_start` can be `#lines+1` to append at end
+- The `p` flag automatically creates parent directories if they don't exist
+- **Security**: Filepath must be within working directory (cwd) and allowed_path
+- File operations are validated for security before execution
+
+
 - This is particularly useful for code review, debugging, or analyzing configuration files
 
 #### `find_files`
