@@ -23,6 +23,7 @@ vim.api.nvim_create_user_command('Chat', function(opt)
       opt.fargs[2],
       require('chat.windows').current_session()
     )
+    require('chat.windows').redraw_title()
   elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
     require('chat').open({
       redraw = sessions.clear(),
