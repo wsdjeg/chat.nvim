@@ -53,10 +53,14 @@ end
 
 -- Helper: list sessions with optional filter
 local function handle_list_command(integration, message)
+  log.info('[Integration] handle_list_command called')
   local pattern = message.content:match('^/list%s+(.+)$')
   local sessions = require('chat.sessions')
   local all_sessions = sessions.get()
   local current = integration.current_session()
+  
+  log.debug(string.format('[Integration] pattern: %s, current: %s, sessions count: %d',
+    pattern or 'nil', current or 'nil', vim.tbl_count(all_sessions)))
   
   -- Sort sessions by id (newest first)
   local sorted = {}
@@ -64,7 +68,6 @@ local function handle_list_command(integration, message)
     table.insert(sorted, { id = id, session = session })
   end
   table.sort(sorted, function(a, b) return a.id > b.id end)
-  
   -- Filter by pattern if provided
   local filtered = {}
   for _, item in ipairs(sorted) do
@@ -103,7 +106,10 @@ local function handle_list_command(integration, message)
   if #filtered == 0 then
     table.insert(lines, pattern and '  No matches found' or '  No sessions available')
   else
-    for i, item in ipairs(filtered) do
+    -- Limit display to 10 sessions
+    local display_count = math.min(#filtered, 10)
+    for i = 1, display_count do
+      local item = filtered[i]
       local marker = (item.id == current) and ' ✓' or ''
       local provider = item.session.provider or 'default'
       local model = item.session.model or 'default'
@@ -115,7 +121,7 @@ local function handle_list_command(integration, message)
         title = vim.split(first_msg, '\n')[1]
         -- Truncate if too long
         if #title > 50 then
-          title = title:sub(1, 47) .. '...'
+          title = vim.fn.strcharpart(title, 0, 47) .. '...'
         end
       end
       
@@ -127,12 +133,18 @@ local function handle_list_command(integration, message)
         table.insert(lines, string.format('     %s', title))
       end
     end
+    
+    -- Show total count and hidden count
     table.insert(lines, string.format('Total: %d session(s)', #filtered))
+    if #filtered > 10 then
+      table.insert(lines, string.format('  (showing first 10, %d hidden)', #filtered - 10))
+    end
     table.insert(lines, '')
-    table.insert(lines, 'Tip: Use /session <number> to bind quickly')
   end
   
-  integration.send_message(table.concat(lines, '\n'))
+  local message_content = table.concat(lines, '\n')
+  log.info(string.format('[Integration] Sending list message (%d bytes)', #message_content))
+  integration.send_message(message_content)
 end
 
 -- 通用的消息处理函数

@@ -283,20 +283,20 @@ local function fetch_messages()
       if not highest_id or msg.id > highest_id then
         highest_id = msg.id
       end
-
       -- Skip bot messages
       if not msg.author or msg.author.bot then
-        goto continue
-      end
-
-      -- Check if mentioned
-      if not is_for_bot(msg) then
         goto continue
       end
 
       -- Clean content
       local content = msg.content or ''
       content = content:gsub('<@!?%d+>', ''):gsub('^%s+', ''):gsub('%s+$', '')
+
+      -- Check if mentioned or is a command
+      local is_command = content:match('^/')
+      if not is_for_bot(msg) and not is_command then
+        goto continue
+      end
 
       if content == '' then
         goto continue
@@ -413,14 +413,25 @@ function M.disconnect()
 end
 
 --------------------------------------------------
--- Send message
---
+-- Message queue for rate-limited sending
 --------------------------------------------------
 local message_queue = {}
-
 local send_message_jobid = -1
 
-local function send_message(content)
+local function process_queue()
+  if #message_queue == 0 then
+    log.debug('[Discord] process_queue: queue is empty')
+    return
+  end
+
+  if send_message_jobid > 0 then
+    log.debug('[Discord] process_queue: another job in progress')
+    return
+  end
+
+  local content = message_queue[1]
+  log.info(string.format('[Discord] process_queue: sending message (%d bytes)', #content))
+
   local channel = config.config.integrations
     and config.config.integrations.discord
     and config.config.integrations.discord.channel_id
@@ -430,10 +441,7 @@ local function send_message(content)
 
   if not channel or not token then
     log.error('[Discord] Missing channel_id or token')
-    return nil
-  end
-
-  if send_message_jobid > 0 then
+    table.remove(message_queue, 1)
     return
   end
 
@@ -461,27 +469,36 @@ local function send_message(content)
       end
     end,
     on_exit = function(_, code, single)
-      log.debug(
-        'discord send_message job exit ' .. code .. ' single ' .. single
-      )
+      log.debug('discord send_message job exit ' .. code .. ' single ' .. single)
       send_message_jobid = -1
-      if #message_queue > 0 then
-        send_message(table.remove(message_queue, 1))
-      end
+      table.remove(message_queue, 1)
+      -- Process next message in queue
+      process_queue()
     end,
   })
+
   job.send(send_message_jobid, json.encode({ content = content }))
   job.send(send_message_jobid, nil)
 end
 
+--------------------------------------------------
+-- Send message
+--------------------------------------------------
 function M.send_message(content)
+  if not content or content == '' then
+    log.warn('[Discord] send_message called with empty content')
+    return
+  end
+
+  log.info(string.format('[Discord] send_message called (%d bytes)', #content))
+
   local max_length = 2000
 
+  -- Split long messages
   if #content <= max_length then
     table.insert(message_queue, content)
   else
     local remaining = content
-
     while #remaining > 0 do
       local chunk
       if #remaining <= max_length then
@@ -502,9 +519,8 @@ function M.send_message(content)
     end
   end
 
-  if #message_queue > 0 then
-    send_message()
-  end
+  -- Start processing queue
+  process_queue()
 end
 
 --------------------------------------------------
@@ -590,6 +606,10 @@ M.receive_messages = M.connect
 function M.cleanup()
   M.disconnect()
 end
+
+--------------------------------------------------
+-- Session management
+--------------------------------------------------
 function M.current_session()
   return state.session
 end
@@ -630,3 +650,4 @@ function M.send_typing(is_typing)
 end
 
 return M
+
