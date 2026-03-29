@@ -119,7 +119,7 @@ function M.request(endpoint, data, callback, opts)
   if data then
     -- Add base_info to all business requests
     data.base_info = data.base_info or build_base_info()
-    
+
     table.insert(cmd, '-d')
     table.insert(cmd, '@-')
   end
@@ -225,7 +225,7 @@ end
 local function get_client_id()
   return string.format(
     'openclaw-weixin:%d-%s',
-    os.time() * 1000,  -- 毫秒时间戳
+    os.time() * 1000, -- 毫秒时间戳
     vim.base64.encode(tostring(math.random(1, 99999999)))
   )
 end

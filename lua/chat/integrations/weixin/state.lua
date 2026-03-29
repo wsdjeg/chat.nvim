@@ -9,7 +9,7 @@ local uv = vim.uv
 
 local STATE_FILE = vim.fn.stdpath('data') .. '/chat-weixin-state.json'
 
-local TYPING_TICKET_TTL_MS = 24 * 60 * 60 * 1000  -- 24小时
+local TYPING_TICKET_TTL_MS = 24 * 60 * 60 * 1000 -- 24小时
 
 -- Internal state
 local state = {
@@ -24,7 +24,7 @@ local state = {
   context_tokens = {},
 
   -- Typing tickets per user (for typing indicator)
-  typing_tickets = {},  -- {[user_id] = {ticket = "xxx", fetched_at = timestamp}}
+  typing_tickets = {}, -- {[user_id] = {ticket = "xxx", fetched_at = timestamp}}
 
   -- Current session binding
   session = nil,

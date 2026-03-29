@@ -31,7 +31,10 @@ function TestWriteFile:testWriteFileCreate()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'Successfully created')
   lu.assertEquals(vim.fn.filereadable(test_file), 1)
 
@@ -65,7 +68,10 @@ function TestWriteFile:testWriteFileOverwrite()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'overwritten')
 
   local lines = vim.fn.readfile(test_file)
@@ -102,7 +108,10 @@ function TestWriteFile:testWriteFileInsert()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'inserted')
 
   local lines = vim.fn.readfile(test_file)
@@ -114,7 +123,10 @@ end
 
 function TestWriteFile:testWriteFileDeleteLines()
   local test_file = self.test_dir .. '/test_delete_lines.lua'
-  vim.fn.writefile({ 'line 1', 'line 2', 'line 3', 'line 4', 'line 5' }, test_file)
+  vim.fn.writefile(
+    { 'line 1', 'line 2', 'line 3', 'line 4', 'line 5' },
+    test_file
+  )
 
   local result = tools.call('write_file', {
     filepath = test_file,
@@ -124,7 +136,10 @@ function TestWriteFile:testWriteFileDeleteLines()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'deleted lines 2-3')
 
   local lines = vim.fn.readfile(test_file)
@@ -147,7 +162,10 @@ function TestWriteFile:testWriteFileReplace()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'replaced')
 
   local lines = vim.fn.readfile(test_file)
@@ -170,7 +188,10 @@ function TestWriteFile:testWriteFileRemove()
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content, 'removed')
   lu.assertEquals(vim.fn.filereadable(test_file), 0)
 end
@@ -217,4 +238,3 @@ function TestWriteFile:testWriteFileSecurityNotAllowedPath()
 
   vim.fn.delete(temp_dir, 'rf')
 end
-

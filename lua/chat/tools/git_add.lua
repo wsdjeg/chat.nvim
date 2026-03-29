@@ -37,8 +37,10 @@ function M.git_add(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path =
-      vim.startswith(normalized_cwd, vim.fs.normalize(config.config.allowed_path))
+    is_allowed_path = vim.startswith(
+      normalized_cwd,
+      vim.fs.normalize(config.config.allowed_path)
+    )
   end
 
   if not is_allowed_path then
@@ -94,7 +96,10 @@ function M.git_add(action, ctx)
             )
           then
             return {
-              error = string.format('Cannot access path outside working directory: %s', p),
+              error = string.format(
+                'Cannot access path outside working directory: %s',
+                p
+              ),
             }
           end
 
@@ -225,7 +230,10 @@ function M.info(action, ctx)
       table.insert(parts, 'all=true')
     elseif args.path then
       if type(args.path) == 'table' then
-        table.insert(parts, string.format('path=["%s"]', table.concat(args.path, '", "')))
+        table.insert(
+          parts,
+          string.format('path=["%s"]', table.concat(args.path, '", "'))
+        )
       else
         table.insert(parts, string.format('path="%s"', args.path))
       end
@@ -236,4 +244,3 @@ function M.info(action, ctx)
 end
 
 return M
-

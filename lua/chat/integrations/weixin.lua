@@ -83,7 +83,7 @@ local function process_queue()
           State.clear_credentials()
         end
       else
-         log.debug(string.format('[Weixin] Message sent to %s', to_user_id))
+        log.debug(string.format('[Weixin] Message sent to %s', to_user_id))
       end
 
       -- Process next message in queue
@@ -410,7 +410,7 @@ function M.login(callback)
           log.info('')
           log.info('✅ ' .. login_result.message)
           log.info('Bot Token: ' .. (login_result.bot_token or 'N/A'))
-          log.info('Account ID: ' .. (login_result.account_id))
+          log.info('Account ID: ' .. login_result.account_id)
 
           -- 保存登录凭证到 state
           State.set_credentials({

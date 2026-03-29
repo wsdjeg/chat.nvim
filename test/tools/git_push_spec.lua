@@ -33,10 +33,18 @@ end
 local function create_temp_git_repo(name)
   name = name or 'git_push'
   local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
-  local temp_dir = cache_dir .. '/test_' .. name .. '_' .. os.time() .. '_' .. math.random(10000, 99999)
+  local temp_dir = cache_dir
+    .. '/test_'
+    .. name
+    .. '_'
+    .. os.time()
+    .. '_'
+    .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
   vim.fn.system('git -C "' .. temp_dir .. '" init')
-  vim.fn.system('git -C "' .. temp_dir .. '" config user.email "test@test.com"')
+  vim.fn.system(
+    'git -C "' .. temp_dir .. '" config user.email "test@test.com"'
+  )
   vim.fn.system('git -C "' .. temp_dir .. '" config user.name "Test User"')
   return vim.fs.normalize(temp_dir)
 end
@@ -70,7 +78,7 @@ end
 function TestGitPush:testGitPushSecurityOutsideAllowedPath()
   -- Create a temp git repo
   local temp_dir = create_temp_git_repo('security')
-  
+
   -- allowed_path is set to project dir in setUp, so temp_dir should be outside
   local result = tools.call('git_push', {}, { cwd = temp_dir })
 
@@ -89,16 +97,24 @@ function TestGitPush:testGitPushNoGitRepo()
 
   -- Create temp directory in cache (no git repo)
   local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
-  local temp_dir = cache_dir .. '/test_no_git_push_' .. os.time() .. '_' .. math.random(10000, 99999)
+  local temp_dir = cache_dir
+    .. '/test_no_git_push_'
+    .. os.time()
+    .. '_'
+    .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
-  
+
   -- Update allowed_path to include temp directory
   set_allowed_path(temp_dir)
 
   local result = call_async_tool('git_push', {}, { cwd = temp_dir }, 3000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.error, 'Should fail in non-git directory, got: ' .. (result.content or 'no content'))
+  lu.assertNotNil(
+    result.error,
+    'Should fail in non-git directory, got: '
+      .. (result.content or 'no content')
+  )
   lu.assertStrContains(result.error:lower(), 'git')
 
   vim.fn.delete(temp_dir, 'rf')
@@ -111,7 +127,7 @@ function TestGitPush:testGitPushNoRemote()
   end
 
   local git_repo = create_temp_git_repo('no_remote')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -125,7 +141,10 @@ function TestGitPush:testGitPushNoRemote()
   local result = call_async_tool('git_push', {}, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.error, 'Should fail without remote, got: ' .. (result.content or 'no content'))
+  lu.assertNotNil(
+    result.error,
+    'Should fail without remote, got: ' .. (result.content or 'no content')
+  )
   lu.assertStrContains(result.error:lower(), 'remote')
 
   vim.fn.delete(git_repo, 'rf')
@@ -138,7 +157,7 @@ function TestGitPush:testGitPushWithBranch()
   end
 
   local git_repo = create_temp_git_repo('branch')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -149,7 +168,11 @@ function TestGitPush:testGitPushWithBranch()
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "initial commit"')
 
   -- Add a fake remote (will fail to push but tests command construction)
-  vim.fn.system('git -C "' .. git_repo .. '" remote add origin https://example.com/test.git')
+  vim.fn.system(
+    'git -C "'
+      .. git_repo
+      .. '" remote add origin https://example.com/test.git'
+  )
 
   local result = call_async_tool('git_push', {
     branch = 'main',
@@ -179,4 +202,3 @@ function TestGitPush:testGitPushInfo()
   lu.assertStrContains(info, 'remote="origin"')
   lu.assertStrContains(info, 'force=true')
 end
-

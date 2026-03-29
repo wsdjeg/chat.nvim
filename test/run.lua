@@ -75,4 +75,3 @@ for _, file in ipairs(temp_files) do
 end
 
 os.exit(exit_code)
-

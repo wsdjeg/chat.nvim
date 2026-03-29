@@ -19,4 +19,3 @@ function TestToolsMemory:testCallExtractMemory()
   lu.assertNotNil(result)
   lu.assertNotNil(result.content)
 end
-

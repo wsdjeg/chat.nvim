@@ -46,4 +46,3 @@ function TestToolsGeneral:testToolCallWithInvalidArguments()
   lu.assertNotNil(result)
   lu.assertNotNil(result.error)
 end
-

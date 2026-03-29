@@ -64,4 +64,3 @@ function TestReadFile:testCallReadFileWithLines()
   lu.assertStrContains(result.content, 'Line 3')
   lu.assertStrContains(result.content, 'Line 5')
 end
-

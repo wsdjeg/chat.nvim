@@ -40,8 +40,10 @@ function M.git_push(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path =
-      vim.startswith(normalized_cwd, vim.fs.normalize(config.config.allowed_path))
+    is_allowed_path = vim.startswith(
+      normalized_cwd,
+      vim.fs.normalize(config.config.allowed_path)
+    )
   end
 
   if not is_allowed_path then
@@ -108,7 +110,7 @@ function M.git_push(action, ctx)
 
       if code == 0 then
         local summary = 'Git push successful.\n\n'
-        
+
         -- Build command summary
         local parts = { 'git push' }
         if action.force then
@@ -127,9 +129,9 @@ function M.git_push(action, ctx)
         if action.branch and not action.all then
           table.insert(parts, action.branch)
         end
-        
+
         summary = summary .. 'Command: ' .. table.concat(parts, ' ') .. '\n\n'
-        
+
         if #output > 0 and output ~= '\n' then
           summary = summary .. output
         end
@@ -254,4 +256,3 @@ function M.info(action, ctx)
 end
 
 return M
-

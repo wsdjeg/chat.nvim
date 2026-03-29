@@ -28,7 +28,9 @@ local function is_allowed_path(filepath)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    if vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path)) then
+    if
+      vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
+    then
       return true
     end
   end
@@ -70,10 +72,11 @@ end
 local function validate_python_syntax(content)
   local temp_file = vim.fn.tempname() .. '.py'
   vim.fn.writefile(vim.split(content, '\n'), temp_file)
-  
-  local result = vim.fn.system(string.format('python -m py_compile %s 2>&1', temp_file))
+
+  local result =
+    vim.fn.system(string.format('python -m py_compile %s 2>&1', temp_file))
   vim.fn.delete(temp_file)
-  
+
   if vim.v.shell_error ~= 0 then
     return false, result
   end
@@ -86,13 +89,13 @@ end
 ---@return boolean, string? error_message
 local function validate_syntax(filepath, content)
   local ext = get_file_extension(filepath)
-  
+
   if ext == 'lua' then
     return validate_lua_syntax(content)
   elseif ext == 'py' then
     return validate_python_syntax(content)
   end
-  
+
   -- Unknown file type, skip validation
   return true, nil
 end
@@ -118,12 +121,12 @@ local function get_line_context(lines, start_line, end_line, context_lines)
   local result = {}
   local context_start = math.max(1, start_line - context_lines)
   local context_end = math.min(#lines, end_line + context_lines)
-  
+
   for i = context_start, context_end do
     local marker = (i >= start_line and i <= end_line) and '>' or ' '
     table.insert(result, string.format('%s%4d: %s', marker, i, lines[i]))
   end
-  
+
   return table.concat(result, '\n')
 end
 
@@ -131,7 +134,11 @@ end
 ---@param ctx ChatToolContext
 function M.write_file(action, ctx)
   -- Validate filepath
-  if not action.filepath or type(action.filepath) ~= 'string' or action.filepath == '' then
+  if
+    not action.filepath
+    or type(action.filepath) ~= 'string'
+    or action.filepath == ''
+  then
     return { error = 'filepath is required and must be a non-empty string.' }
   end
 
@@ -174,7 +181,15 @@ function M.write_file(action, ctx)
   end
 
   -- Validate action type
-  local valid_actions = { 'create', 'overwrite', 'append', 'insert', 'delete', 'replace', 'remove' }
+  local valid_actions = {
+    'create',
+    'overwrite',
+    'append',
+    'insert',
+    'delete',
+    'replace',
+    'remove',
+  }
   local action_type = action.action or 'create'
   if not vim.tbl_contains(valid_actions, action_type) then
     return {
@@ -208,8 +223,10 @@ function M.write_file(action, ctx)
   end
 
   if
-    vim.tbl_contains({ 'overwrite', 'append', 'insert', 'delete', 'replace' }, action_type)
-    and not file_exists
+    vim.tbl_contains(
+      { 'overwrite', 'append', 'insert', 'delete', 'replace' },
+      action_type
+    ) and not file_exists
   then
     return { error = string.format('File does not exist: %s', filepath) }
   end
@@ -226,7 +243,7 @@ function M.write_file(action, ctx)
       return { error = 'content is required for create/overwrite action' }
     end
     local new_lines = vim.split(action.content, '\n', { plain = true })
-    
+
     -- Validate syntax if requested
     if action.validate then
       local ok, err = validate_syntax(filepath, action.content)
@@ -236,7 +253,7 @@ function M.write_file(action, ctx)
         }
       end
     end
-    
+
     vim.fn.writefile(new_lines, filepath, 'p')
     return {
       content = string.format(
@@ -246,14 +263,13 @@ function M.write_file(action, ctx)
         #new_lines
       ),
     }
-
   elseif action_type == 'append' then
     if not action.content then
       return { error = 'content is required for append action' }
     end
     local append_lines = vim.split(action.content, '\n', { plain = true })
     vim.list_extend(lines, append_lines)
-    
+
     -- Validate syntax if requested
     if action.validate then
       local ok, err = validate_syntax(filepath, table.concat(lines, '\n'))
@@ -263,7 +279,7 @@ function M.write_file(action, ctx)
         }
       end
     end
-    
+
     vim.fn.writefile(lines, filepath, 'p')
     return {
       content = string.format(
@@ -272,7 +288,6 @@ function M.write_file(action, ctx)
         filepath
       ),
     }
-
   elseif action_type == 'insert' then
     if not action.content then
       return { error = 'content is required for insert action' }
@@ -291,7 +306,7 @@ function M.write_file(action, ctx)
     for i, line in ipairs(insert_lines) do
       table.insert(lines, line_num + i - 1, line)
     end
-    
+
     -- Validate syntax if requested
     if action.validate then
       local ok, err = validate_syntax(filepath, table.concat(lines, '\n'))
@@ -301,7 +316,7 @@ function M.write_file(action, ctx)
         }
       end
     end
-    
+
     vim.fn.writefile(lines, filepath, 'p')
     return {
       content = string.format(
@@ -311,7 +326,6 @@ function M.write_file(action, ctx)
         filepath
       ),
     }
-
   elseif action_type == 'delete' then
     if not action.line_start then
       return { error = 'line_start is required for delete action' }
@@ -347,7 +361,7 @@ function M.write_file(action, ctx)
     for _ = 1, deleted_count do
       table.remove(lines, start_line)
     end
-    
+
     -- Validate syntax if requested
     if action.validate then
       local ok, err = validate_syntax(filepath, table.concat(lines, '\n'))
@@ -365,28 +379,31 @@ function M.write_file(action, ctx)
         }
       end
     end
-    
+
     vim.fn.writefile(lines, filepath, 'p')
-    
+
     -- Clean up backup on success
     if backup_path and vim.fn.filereadable(backup_path) == 1 then
       vim.fn.delete(backup_path)
     end
-    
+
     local result = string.format(
       'Successfully deleted lines %d-%d from: %s',
       start_line,
       end_line,
       filepath
     )
-    
+
     -- Show context if deleted content might be important
     if deleted_count <= 10 then
-      result = result .. string.format('\n\nDeleted content:\n%s', table.concat(deleted_lines, '\n'))
+      result = result
+        .. string.format(
+          '\n\nDeleted content:\n%s',
+          table.concat(deleted_lines, '\n')
+        )
     end
-    
-    return { content = result }
 
+    return { content = result }
   elseif action_type == 'replace' then
     if not action.content then
       return { error = 'content is required for replace action' }
@@ -422,7 +439,7 @@ function M.write_file(action, ctx)
     end
 
     local replace_lines = vim.split(action.content, '\n', { plain = true })
-    
+
     -- Delete old lines first
     local deleted_count = end_line - start_line + 1
     for _ = 1, deleted_count do
@@ -432,7 +449,7 @@ function M.write_file(action, ctx)
     for i, line in ipairs(replace_lines) do
       table.insert(lines, start_line + i - 1, line)
     end
-    
+
     -- Validate syntax if requested
     if action.validate then
       local ok, err = validate_syntax(filepath, table.concat(lines, '\n'))
@@ -442,10 +459,15 @@ function M.write_file(action, ctx)
           vim.fn.rename(backup_path, filepath)
           lines = vim.fn.readfile(filepath)
         end
-        
+
         -- Build detailed error message with context
-        local context_before = get_line_context(lines, math.max(1, start_line - 3), math.min(#lines, start_line + #replace_lines + 2), 2)
-        
+        local context_before = get_line_context(
+          lines,
+          math.max(1, start_line - 3),
+          math.min(#lines, start_line + #replace_lines + 2),
+          2
+        )
+
         return {
           error = string.format(
             'Syntax validation failed after replacement. Changes reverted.\n\nOriginal lines (%d-%d):\n%s\n\nNew content:\n%s\n\nValidation error:\n%s',
@@ -458,14 +480,14 @@ function M.write_file(action, ctx)
         }
       end
     end
-    
+
     vim.fn.writefile(lines, filepath, 'p')
-    
+
     -- Clean up backup on success
     if backup_path and vim.fn.filereadable(backup_path) == 1 then
       vim.fn.delete(backup_path)
     end
-    
+
     local result = string.format(
       'Successfully replaced lines %d-%d with %d lines in: %s',
       start_line,
@@ -473,18 +495,19 @@ function M.write_file(action, ctx)
       #replace_lines,
       filepath
     )
-    
+
     -- Show context for small replacements
     if deleted_count <= 5 and #replace_lines <= 5 then
-      result = result .. string.format(
-        '\n\nOriginal (%d lines):\n%s\n\nNew (%d lines):\n%s',
-        deleted_count,
-        table.concat(original_lines, '\n'),
-        #replace_lines,
-        table.concat(replace_lines, '\n')
-      )
+      result = result
+        .. string.format(
+          '\n\nOriginal (%d lines):\n%s\n\nNew (%d lines):\n%s',
+          deleted_count,
+          table.concat(original_lines, '\n'),
+          #replace_lines,
+          table.concat(replace_lines, '\n')
+        )
     end
-    
+
     return { content = result }
   end
 
@@ -547,7 +570,15 @@ NOTES:
           },
           action = {
             type = 'string',
-            enum = { 'create', 'overwrite', 'append', 'insert', 'delete', 'replace', 'remove' },
+            enum = {
+              'create',
+              'overwrite',
+              'append',
+              'insert',
+              'delete',
+              'replace',
+              'remove',
+            },
             description = 'Action to perform (default: create)',
           },
           content = {
@@ -607,4 +638,3 @@ function M.info(action, ctx)
 end
 
 return M
-

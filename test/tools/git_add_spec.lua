@@ -33,10 +33,18 @@ end
 local function create_temp_git_repo(name)
   name = name or 'git_add'
   local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
-  local temp_dir = cache_dir .. '/test_' .. name .. '_' .. os.time() .. '_' .. math.random(10000, 99999)
+  local temp_dir = cache_dir
+    .. '/test_'
+    .. name
+    .. '_'
+    .. os.time()
+    .. '_'
+    .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
   vim.fn.system('git -C "' .. temp_dir .. '" init')
-  vim.fn.system('git -C "' .. temp_dir .. '" config user.email "test@test.com"')
+  vim.fn.system(
+    'git -C "' .. temp_dir .. '" config user.email "test@test.com"'
+  )
   vim.fn.system('git -C "' .. temp_dir .. '" config user.name "Test User"')
   return vim.fs.normalize(temp_dir)
 end
@@ -70,7 +78,7 @@ end
 function TestGitAdd:testGitAddSecurityOutsideAllowedPath()
   -- Create a temp git repo
   local temp_dir = create_temp_git_repo('security')
-  
+
   -- allowed_path is set to project dir in setUp, so temp_dir should be outside
   local result = tools.call('git_add', {
     path = temp_dir .. '/test.lua',
@@ -91,9 +99,13 @@ function TestGitAdd:testGitAddNoGitRepo()
 
   -- Create temp directory in cache (no git repo)
   local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
-  local temp_dir = cache_dir .. '/test_no_git_' .. os.time() .. '_' .. math.random(10000, 99999)
+  local temp_dir = cache_dir
+    .. '/test_no_git_'
+    .. os.time()
+    .. '_'
+    .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
-  
+
   -- Update allowed_path to include temp directory
   set_allowed_path(temp_dir)
 
@@ -105,7 +117,11 @@ function TestGitAdd:testGitAddNoGitRepo()
   }, { cwd = temp_dir }, 3000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.error, 'Should fail in non-git directory, got: ' .. (result.content or 'no content'))
+  lu.assertNotNil(
+    result.error,
+    'Should fail in non-git directory, got: '
+      .. (result.content or 'no content')
+  )
   lu.assertStrContains(result.error:lower(), 'git')
 
   vim.fn.delete(temp_dir, 'rf')
@@ -118,7 +134,7 @@ function TestGitAdd:testGitAddInGitRepo()
   end
 
   local git_repo = create_temp_git_repo('repo')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -130,7 +146,10 @@ function TestGitAdd:testGitAddInGitRepo()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
 
   vim.fn.delete(git_repo, 'rf')
@@ -143,7 +162,7 @@ function TestGitAdd:testGitAddMultipleFiles()
   end
 
   local git_repo = create_temp_git_repo('multi')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -157,7 +176,10 @@ function TestGitAdd:testGitAddMultipleFiles()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
 
   vim.fn.delete(git_repo, 'rf')
@@ -170,7 +192,7 @@ function TestGitAdd:testGitAddAll()
   end
 
   local git_repo = create_temp_git_repo('all')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -182,9 +204,11 @@ function TestGitAdd:testGitAddAll()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
 
   vim.fn.delete(git_repo, 'rf')
 end
-

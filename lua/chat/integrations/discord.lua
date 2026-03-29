@@ -430,7 +430,12 @@ local function process_queue()
   end
 
   local content = message_queue[1]
-  log.info(string.format('[Discord] process_queue: sending message (%d bytes)', #content))
+  log.info(
+    string.format(
+      '[Discord] process_queue: sending message (%d bytes)',
+      #content
+    )
+  )
 
   local channel = config.config.integrations
     and config.config.integrations.discord
@@ -469,7 +474,9 @@ local function process_queue()
       end
     end,
     on_exit = function(_, code, single)
-      log.debug('discord send_message job exit ' .. code .. ' single ' .. single)
+      log.debug(
+        'discord send_message job exit ' .. code .. ' single ' .. single
+      )
       send_message_jobid = -1
       table.remove(message_queue, 1)
       -- Process next message in queue
@@ -490,7 +497,9 @@ function M.send_message(content)
     return
   end
 
-  log.info(string.format('[Discord] send_message called (%d bytes)', #content))
+  log.info(
+    string.format('[Discord] send_message called (%d bytes)', #content)
+  )
 
   local max_length = 2000
 
@@ -650,4 +659,3 @@ function M.send_typing(is_typing)
 end
 
 return M
-

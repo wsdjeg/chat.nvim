@@ -33,10 +33,18 @@ end
 local function create_temp_git_repo(name)
   name = name or 'git_commit'
   local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
-  local temp_dir = cache_dir .. '/test_' .. name .. '_' .. os.time() .. '_' .. math.random(10000, 99999)
+  local temp_dir = cache_dir
+    .. '/test_'
+    .. name
+    .. '_'
+    .. os.time()
+    .. '_'
+    .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
   vim.fn.system('git -C "' .. temp_dir .. '" init')
-  vim.fn.system('git -C "' .. temp_dir .. '" config user.email "test@test.com"')
+  vim.fn.system(
+    'git -C "' .. temp_dir .. '" config user.email "test@test.com"'
+  )
   vim.fn.system('git -C "' .. temp_dir .. '" config user.name "Test User"')
   return vim.fs.normalize(temp_dir)
 end
@@ -64,11 +72,18 @@ function TestGitCommit:testGitCommitAvailable()
   for _, tool in ipairs(available) do
     tool_names[tool['function'].name] = true
   end
-  lu.assertTrue(tool_names['git_commit'], 'git_commit tool should be available')
+  lu.assertTrue(
+    tool_names['git_commit'],
+    'git_commit tool should be available'
+  )
 end
 
 function TestGitCommit:testGitCommitNoMessage()
-  local result = tools.call('git_commit', {}, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+  local result = tools.call(
+    'git_commit',
+    {},
+    { cwd = vim.fs.normalize(vim.fn.getcwd()) }
+  )
 
   lu.assertNotNil(result)
   lu.assertNotNil(result.error, 'Should require commit message')
@@ -88,7 +103,7 @@ end
 function TestGitCommit:testGitCommitSecurityOutsideAllowedPath()
   -- Create a temp git repo
   local temp_dir = create_temp_git_repo('security')
-  
+
   -- allowed_path is set to project dir in setUp, so temp_dir should be outside
   local result = tools.call('git_commit', {
     message = 'test commit',
@@ -108,7 +123,7 @@ function TestGitCommit:testGitCommitNothingToCommit()
   end
 
   local git_repo = create_temp_git_repo('nothing')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -117,7 +132,11 @@ function TestGitCommit:testGitCommitNothingToCommit()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.error, 'Should fail when nothing to commit, got: ' .. (result.content or 'no content'))
+  lu.assertNotNil(
+    result.error,
+    'Should fail when nothing to commit, got: '
+      .. (result.content or 'no content')
+  )
   lu.assertStrContains(result.error:lower(), 'nothing')
 
   vim.fn.delete(git_repo, 'rf')
@@ -130,7 +149,7 @@ function TestGitCommit:testGitCommitWithStagedChanges()
   end
 
   local git_repo = create_temp_git_repo('staged')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -143,7 +162,10 @@ function TestGitCommit:testGitCommitWithStagedChanges()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
   lu.assertStrContains(result.content, 'Initial commit')
 
@@ -157,7 +179,7 @@ function TestGitCommit:testGitCommitAllowEmpty()
   end
 
   local git_repo = create_temp_git_repo('empty')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -167,7 +189,10 @@ function TestGitCommit:testGitCommitAllowEmpty()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
 
   vim.fn.delete(git_repo, 'rf')
@@ -180,7 +205,7 @@ function TestGitCommit:testGitCommitAmend()
   end
 
   local git_repo = create_temp_git_repo('amend')
-  
+
   -- Update allowed_path to include the temp git repo
   set_allowed_path(git_repo)
 
@@ -195,9 +220,11 @@ function TestGitCommit:testGitCommitAmend()
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
-  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
   lu.assertStrContains(result.content:lower(), 'success')
 
   vim.fn.delete(git_repo, 'rf')
 end
-

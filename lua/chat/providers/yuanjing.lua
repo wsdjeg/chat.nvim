@@ -5,7 +5,13 @@ local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
-  return { 'glm-5', 'minimax-m2.5', 'kimi-k2.5', 'qwen3.5-plus', 'deepseek-v3_2' }
+  return {
+    'glm-5',
+    'minimax-m2.5',
+    'kimi-k2.5',
+    'qwen3.5-plus',
+    'deepseek-v3_2',
+  }
 end
 
 function M.request(opt)

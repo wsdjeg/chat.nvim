@@ -65,4 +65,3 @@ function TestFindFiles:testCallFindFiles()
   )
   lu.assertStrContains(result.content, 'test_find.lua')
 end
-

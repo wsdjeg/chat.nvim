@@ -37,8 +37,10 @@ function M.git_commit(action, ctx)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    is_allowed_path =
-      vim.startswith(normalized_cwd, vim.fs.normalize(config.config.allowed_path))
+    is_allowed_path = vim.startswith(
+      normalized_cwd,
+      vim.fs.normalize(config.config.allowed_path)
+    )
   end
 
   if not is_allowed_path then
@@ -54,7 +56,11 @@ function M.git_commit(action, ctx)
   end
 
   -- Validate commit message
-  if not action.message or type(action.message) ~= 'string' or #action.message == 0 then
+  if
+    not action.message
+    or type(action.message) ~= 'string'
+    or #action.message == 0
+  then
     return {
       error = 'Commit message is required.',
     }
@@ -126,7 +132,7 @@ function M.git_commit(action, ctx)
       else
         -- Try to provide helpful error messages
         local error_msg = output:lower()
-        
+
         if error_msg:match('nothing to commit') then
           ctx.callback({
             error = 'Nothing to commit. Use git_add first to stage changes, or use allow_empty=true.',
@@ -233,4 +239,3 @@ function M.info(action, ctx)
 end
 
 return M
-
