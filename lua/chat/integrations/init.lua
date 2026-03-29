@@ -39,6 +39,25 @@ local function handle_message(integration, name, callback)
         integration.send_message('session messages cleared!')
       end
       return
+    elseif message.content == '/status' then
+      local sessions = require('chat.sessions')
+      local session = integration.current_session()
+      if session then
+        local provider = sessions.get_session_provider(session) or 'default'
+        local model = sessions.get_session_model(session) or 'default'
+        local cwd = sessions.getcwd(session) or vim.fn.getcwd()
+        local in_progress = sessions.is_in_progress(session)
+        local status = string.format(
+          'Session: %s\nProvider: %s\nModel: %s\nCWD: %s\nStatus: %s',
+          session,
+          provider,
+          model,
+          cwd,
+          in_progress and 'Processing' or 'Idle'
+        )
+        integration.send_message(status)
+      end
+      return
     end
 
     -- 正常消息
@@ -99,3 +118,4 @@ function M.get_integrations(session)
 end
 
 return M
+

@@ -58,6 +58,8 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`set_prompt`](#set_prompt)
         - [`fetch_web`](#fetch_web)
         - [`web_search`](#web_search)
+        - [`git_add`](#git_add)
+        - [`git_commit`](#git_commit)
         - [`git_diff`](#git_diff)
         - [`git_log`](#git_log)
         - [`git_status`](#git_status)
