@@ -83,7 +83,6 @@ function M.save()
 
   file:write(encoded)
   file:close()
-  log.debug('[Weixin] State saved')
   return true
 end
 
@@ -276,3 +275,4 @@ function M.get_info()
 end
 
 return M
+
