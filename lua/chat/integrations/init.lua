@@ -103,6 +103,7 @@ function M.on_session_deleted(session)
   for _, integration in pairs(integrations) do
     if session == integration.current_session() then
       integration.disconnect()
+      integration.set_session(nil)
     end
   end
 end
