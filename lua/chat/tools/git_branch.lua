@@ -69,7 +69,7 @@ function M.git_branch(action, ctx)
       table.insert(cmd, '-a')
     end
     if action.force then
-      table.insert(cmd, '--format=%(refname:short) %(upstream:short)'")
+      table.insert(cmd, '--format=%(refname:short) %(upstream:short)')
     end
   else
     -- Modify operation
