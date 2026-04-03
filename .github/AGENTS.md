@@ -82,3 +82,56 @@ This prevents conflicts when code blocks contain three backticks.
 ---
 
 What can I help you build today? :)
+---
+
+## Testing
+
+### Test Framework
+
+Tests use **luaunit** framework with test files in `test/*_spec.lua`.
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Tests use this command internally:
+nvim --headless --noplugin -u test/minimal_init.lua \
+  -c "set runtimepath+=. | lua dofile('test/run.lua')"
+```
+
+### Test Structure
+
+- **Test directory**: `test/`
+- **Test files**: `*_spec.lua` pattern
+- **Runner**: `test/run.lua` (automatically discovers and runs all tests)
+- **Minimal init**: `test/minimal_init.lua` (test environment setup)
+
+### Writing Tests
+
+Test files should:
+- Use `Test` prefix for test class names (e.g., `TestConfig`)
+- Use test method names starting with `test` (e.g., `test_load_config`)
+- Follow luaunit conventions
+
+Example:
+```lua
+local lu = require('luaunit')
+
+TestExample = {}
+
+function TestExample:test_something()
+  lu.assertEquals(1 + 1, 2)
+end
+
+return TestExample
+```
+
+### CI Integration
+
+Tests run automatically on:
+- Push to `main` branch
+- Pull requests
+- Multiple Neovim versions (nightly, stable)
+- Multiple platforms (ubuntu, windows, macos)

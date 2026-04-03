@@ -177,7 +177,7 @@ function TestGitStash:testGitStashApply()
   local result = call_async_tool('git_stash', {
     action = 'apply',
     index = 0,
-  }, { cwd: git_repo }, 5000)
+  }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
   lu.assertNotNil(
