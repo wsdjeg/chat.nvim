@@ -270,10 +270,12 @@ function M.open(opt)
       callback = M.close,
       silent = true,
     })
-    vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-o>', '<Nop>', {})
+    vim.api.nvim_buf_set_keymap(result_buf, 'n', '<C-o>', '<Nop>', {})
     vim.api.nvim_buf_set_keymap(result_buf, 'n', '<Tab>', '', {
       callback = function()
-        vim.api.nvim_set_current_win(prompt_win)
+        if vim.api.nvim_win_is_valid(prompt_win) then
+          vim.api.nvim_set_current_win(prompt_win)
+        end
       end,
     })
     local messages = sessions.get_messages(current_session)
@@ -414,7 +416,9 @@ function M.open(opt)
     })
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<Tab>', '', {
       callback = function()
-        vim.api.nvim_set_current_win(result_win)
+        if vim.api.nvim_win_is_valid(result_win) then
+          vim.api.nvim_set_current_win(result_win)
+        end
       end,
     })
     vim.api.nvim_buf_set_keymap(prompt_buf, 'n', '<C-c>', '', {
