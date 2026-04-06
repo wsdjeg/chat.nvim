@@ -86,12 +86,72 @@ What can I help you build today? :)
 
 ## Testing
 
+
+## File Modification Rules
+
+### Before Any Modification
+
+1. **Verify file state**
+   - Always re-read the file if it was previously read in the conversation
+   - Never rely on cached line numbers from earlier context
+   - File content may have changed or memory may be inaccurate
+
+2. **Choose the right action**
+
+| Action | When to Use | Risk Level |
+|--------|-------------|------------|
+| `overwrite` | Small files (<100 lines), complete rewrites | Low |
+| `append` | Adding new content at end of file | Low |
+| `replace` | Known exact boundaries, verified line numbers | Medium |
+| `insert` | Adding at specific line without removing | Medium |
+| `delete` | Removing specific lines | High |
+
+3. **Boundary verification**
+   - Identify exact start and end lines of target code
+   - Verify no overlap with adjacent functions/blocks
+   - Check for nested structures (functions inside functions)
+
+### Safety Guidelines
+
+**Prefer overwrite when:**
+- File is small and complete content is known
+- Multiple changes needed in different locations
+- Unsure about exact line boundaries
+
+**Prefer append when:**
+- Adding new functions or sections
+- Order of functions does not matter
+- End of file is the safest insertion point
+
+**Use replace/delete only when:**
+- File has just been read and line numbers are confirmed
+- Boundaries are 100% certain
+- No risk of cutting through adjacent code
+
+### Verification Steps
+
+Before executing `replace` or `delete`:
+1. Confirm current file content with `read_file`
+2. Identify target code boundaries precisely
+3. Verify adjacent code is not affected
+4. Consider using `overwrite` if any doubt exists
+
+### When in Doubt
+
+- Re-read the file
+- Use `overwrite` for small files
+- Ask user for confirmation on critical changes
+- Prefer safe operations over precise ones
+
+---
+
+## Testing
+
 ### Test Framework
 
 Tests use **luaunit** framework with test files in `test/*_spec.lua`.
 
 ### Running Tests
-
 ```bash
 # Run all tests
 make test
