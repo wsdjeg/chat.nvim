@@ -68,7 +68,10 @@ function TestGitConfig:testGitConfigAvailable()
   for _, tool in ipairs(available) do
     tool_names[tool['function'].name] = true
   end
-  lu.assertTrue(tool_names['git_config'], 'git_config tool should be available')
+  lu.assertTrue(
+    tool_names['git_config'],
+    'git_config tool should be available'
+  )
 end
 
 function TestGitConfig:testGitConfigSecurityOutsideAllowedPath()
@@ -97,7 +100,9 @@ function TestGitConfig:testGitConfigGet()
   local git_repo = create_temp_git_repo('get')
   set_allowed_path(git_repo)
 
-  vim.fn.system('git -C "' .. git_repo .. '" config user.email "test@example.com"')
+  vim.fn.system(
+    'git -C "' .. git_repo .. '" config user.email "test@example.com"'
+  )
   vim.fn.system('git -C "' .. git_repo .. '" config user.name "Test User"')
 
   local result = call_async_tool('git_config', {
@@ -152,7 +157,9 @@ function TestGitConfig:testGitConfigList()
   local git_repo = create_temp_git_repo('list')
   set_allowed_path(git_repo)
 
-  vim.fn.system('git -C "' .. git_repo .. '" config user.email "list@test.com"')
+  vim.fn.system(
+    'git -C "' .. git_repo .. '" config user.email "list@test.com"'
+  )
   vim.fn.system('git -C "' .. git_repo .. '" config user.name "List User"')
 
   local result = call_async_tool('git_config', {
@@ -174,6 +181,10 @@ function TestGitConfig:testGitConfigListGlobal()
   if vim.fn.executable('git') ~= 1 then
     print('Skipping testGitConfigListGlobal: git not available')
     return
+  end
+  local gitconfig = vim.fn.expand('~/.gitconfig')
+  if vim.fn.filereadable(gitconfig) == 0 then
+    vim.fn.writefile({}, gitconfig)
   end
 
   local git_repo = create_temp_git_repo('list_global')
