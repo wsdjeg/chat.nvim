@@ -22,7 +22,13 @@ function M.get()
   for _, id in ipairs(ids) do
     local messages = sessions.get_messages(id)
     if #messages > 1 then
-      local str = vim.split(messages[1].content, '\n')[1]
+      local str
+      for _, v in ipairs(vim.split(messages[1].content, '\n')) do
+        if v ~= '' then
+          str = v
+          break
+        end
+      end
       table.insert(items, {
         str = str,
         value = id,
