@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local tools = require('chat.tools')
 local sessions = require('chat.sessions')
+local util = require('chat.util')
 
 function M.generate_message(message, session)
   if message.role == 'assistant' and message.tool_calls then
@@ -113,10 +114,10 @@ function M.generate_message(message, session)
     if message.usage then
       complete_str = complete_str
         .. string.format(
-          ' • Tokens: %d (%d↑/%d↓)',
-          message.usage.total_tokens,
-          message.usage.prompt_tokens,
-          message.usage.completion_tokens
+          ' • Tokens: %s (%s↑/%s↓)',
+          util.format_number(message.usage.total_tokens),
+          util.format_number(message.usage.prompt_tokens),
+          util.format_number(message.usage.completion_tokens)
         )
 
       if

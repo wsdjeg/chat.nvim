@@ -54,4 +54,14 @@ function M.resolve(path, cwd)
   return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
 
+function M.format_number(num)
+  if num >= 1000000 then
+    return string.format('%.1fM', num / 1000000)
+  elseif num >= 1000 then
+    return string.format('%.1fK', num / 1000)
+  else
+    return tostring(num)
+  end
+end
+
 return M

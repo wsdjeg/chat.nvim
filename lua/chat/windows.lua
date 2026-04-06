@@ -19,10 +19,12 @@ local result_buf = -1
 
 function M.set_result_win_title(text)
   if vim.api.nvim_win_is_valid(result_win) then
+    local total = require('chat.util').format_number(sessions.get_total_tokens(current_session))
+
     vim.api.nvim_win_set_config(result_win, {
       title = {
         { '', config.config.highlights.title_badge },
-        { text, config.config.highlights.title },
+        { text .. ' | Tokens: ' .. total, config.config.highlights.title },
         { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',

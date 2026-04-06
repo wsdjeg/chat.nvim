@@ -5,10 +5,16 @@ local tools = require('chat.tools')
 local job = require('job')
 local context = require('chat.context')
 
+---@class ChatMessageUsage
+---@field total_tokens? integer
+---@field prompt_tokens? integer
+---@field completion_tokens? integer
+
 ---@class ChatMessage
 ---@field role string
 ---@field content string
 ---@field created integer
+---@field usage? ChatMessageUsage
 
 ---@class ChatSession
 ---@field id string
@@ -16,6 +22,8 @@ local context = require('chat.context')
 ---@field provider? string
 ---@field model? string
 ---@field cwd string session working directory
+---@field prompt? string
+---@field usage? ChatMessageUsage
 
 local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
 local progress_reasoning_contents = {} ---@type table<string, string>
@@ -348,6 +356,35 @@ function M.get_progress_usage(id)
   return progress_usage[id]
 end
 
+function M.get_total_tokens(session_id)
+  local session = sessions[session_id]
+  if not session then
+    return 0, 0, 0
+  end
+
+  if not session.usage then
+    local total = 0
+    local prompt = 0
+    local completion = 0
+    for _, msg in ipairs(session.messages) do
+      if msg.usage then
+        total = total + (msg.usage.total_tokens or 0)
+        prompt = prompt + (msg.usage.prompt_tokens or 0)
+        completion = completion + (msg.usage.completion_tokens or 0)
+      end
+    end
+    session.usage = {
+      total_tokens = total,
+      prompt_tokens = prompt,
+      completion_tokens = completion,
+    }
+  end
+
+  return session.usage.total_tokens,
+    session.usage.prompt_tokens,
+    session.usage.completion_tokens
+end
+
 function M.set_session_jobid(session, jobid)
   if jobid > 0 then
     jobid_session[jobid] = session
@@ -578,6 +615,35 @@ function M.append_message(session, message)
     require('chat.integrations').on_response(session, message.content)
   end
   table.insert(sessions[session].messages, message)
+  if message.usage then
+    local s = sessions[session]
+    if not s.usage then
+      local total = 0
+      local prompt = 0
+      local completion = 0
+      for _, msg in ipairs(s.messages) do
+        if msg.usage then
+          total = total + (msg.usage.total_tokens or 0)
+          prompt = prompt + (msg.usage.prompt_tokens or 0)
+          completion = completion + (msg.usage.completion_tokens or 0)
+        end
+      end
+      s.usage = {
+        total_tokens = total,
+        prompt_tokens = prompt,
+        completion_tokens = completion,
+      }
+    else
+      s.usage = {
+        total_tokens = s.usage.total_tokens
+          + (message.usage.total_tokens or 0),
+        prompt_tokens = s.usage.prompt_tokens
+          + (message.usage.prompt_tokens or 0),
+        completion_tokens = s.usage.completion_tokens
+          + (message.usage.completion_tokens or 0),
+      }
+    end
+  end
 end
 
 function M.exists(session)
