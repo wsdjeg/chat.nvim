@@ -8,6 +8,7 @@ local spinners = require('chat.spinners')
 local protocol = require('chat.protocol')
 local queue = require('chat.queue')
 local integrations = require('chat.integrations')
+local util = require('chat.util')
 
 local current_session
 
@@ -19,12 +20,25 @@ local result_buf = -1
 
 function M.set_result_win_title(text)
   if vim.api.nvim_win_is_valid(result_win) then
-    local total = require('chat.util').format_number(sessions.get_total_tokens(current_session))
+    local total, prompt, complete = sessions.get_total_tokens(current_session)
+
+    local title = text
+
+    if total > 0 then
+      title = title
+        .. ' | '
+        .. string.format(
+          'Tokens: %s (%s↑/%s↓)',
+          util.format_number(total),
+          util.format_number(prompt),
+          util.format_number(complete)
+        )
+    end
 
     vim.api.nvim_win_set_config(result_win, {
       title = {
         { '', config.config.highlights.title_badge },
-        { text .. ' | Tokens: ' .. total, config.config.highlights.title },
+        { title, config.config.highlights.title },
         { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',

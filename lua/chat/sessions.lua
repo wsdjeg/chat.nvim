@@ -716,9 +716,15 @@ function M.clear(session)
       return false
     else
       sessions[session].messages = {}
+      sessions[session].usage = {
+        total_tokens = 0,
+        prompt_tokens = 0,
+        completion_tokens = 0,
+      }
       M.write_cache(session)
       if session == windows.current_session() then
         windows.render_result_buf()
+        windows.set_result_win_title(' chat.nvim ')
       end
       return true
     end
