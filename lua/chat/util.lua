@@ -55,7 +55,9 @@ function M.resolve(path, cwd)
 end
 
 function M.format_number(num)
-  if num >= 1000000 then
+  if num >= 1000000000 then
+    return string.format('%.2fG', num / 1000000000)
+  elseif num >= 1000000 then
     return string.format('%.1fM', num / 1000000)
   elseif num >= 1000 then
     return string.format('%.1fK', num / 1000)
@@ -65,3 +67,4 @@ function M.format_number(num)
 end
 
 return M
+
