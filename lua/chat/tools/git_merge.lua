@@ -63,6 +63,8 @@ function M.git_merge(action, ctx)
   if action.abort then
     table.insert(cmd, '--abort')
   elseif action.continue then
+    table.insert(cmd, 2, 'core.editor=true')
+    table.insert(cmd, 2, '-c')
     table.insert(cmd, '--continue')
   else
     if action.no_ff then

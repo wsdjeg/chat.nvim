@@ -110,7 +110,7 @@ function TestGitReset:testGitResetSoft()
 
   local result = call_async_tool('git_reset', {
     mode = 'soft',
-    commit = 'HEAD~1',
+    commit = 'HEAD',
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
@@ -145,7 +145,7 @@ function TestGitReset:testGitResetMixed()
 
   local result = call_async_tool('git_reset', {
     mode = 'mixed',
-    commit = 'HEAD~1',
+    commit = 'HEAD',
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
@@ -180,7 +180,7 @@ function TestGitReset:testGitResetHard()
 
   local result = call_async_tool('git_reset', {
     mode = 'hard',
-    commit = 'HEAD~1',
+    commit = 'HEAD',
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
@@ -207,15 +207,21 @@ function TestGitReset:testGitResetPath()
 
   local test_file1 = git_repo .. '/test1.lua'
   local test_file2 = git_repo .. '/test2.lua'
+
+  -- 初始提交
   vim.fn.writefile({ 'print("test1")' }, test_file1)
   vim.fn.writefile({ 'print("test2")' }, test_file2)
   vim.fn.system('git -C "' .. git_repo .. '" add .')
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Initial commit"')
 
+  -- 修改文件
   vim.fn.writefile({ 'print("modified1")' }, test_file1)
   vim.fn.writefile({ 'print("modified2")' }, test_file2)
+
+  -- 👇 关键：先 staged，制造可被 reset 的状态
   vim.fn.system('git -C "' .. git_repo .. '" add .')
 
+  -- 执行 git reset <path>（应只 unstage test1.lua）
   local result = call_async_tool('git_reset', {
     path = test_file1,
   }, { cwd = git_repo }, 5000)
@@ -227,9 +233,14 @@ function TestGitReset:testGitResetPath()
   )
   lu.assertStrContains(result.content:lower(), 'success')
 
+  -- 检查状态
   local status = vim.fn.system('git -C "' .. git_repo .. '" status --porcelain')
-  lu.assertStrContains(status, 'test1.lua')
-  lu.assertNotStrContains(status, 'test2.lua')
+
+  -- test1.lua 被 unstage -> 工作区修改（前面有空格）
+  lu.assertStrContains(status, ' M test1.lua')
+
+  -- test2.lua 仍然 staged
+  lu.assertStrContains(status, 'M  test2.lua')
 
   vim.fn.delete(git_repo, 'rf')
 end

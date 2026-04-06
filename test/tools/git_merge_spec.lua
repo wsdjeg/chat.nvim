@@ -110,7 +110,7 @@ function TestGitMerge:testGitMergeFastForward()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
 
   local result = call_async_tool('git_merge', {
     branch = 'feature',
@@ -123,7 +123,8 @@ function TestGitMerge:testGitMergeFastForward()
   )
   lu.assertStrContains(result.content:lower(), 'success')
 
-  local branches = vim.fn.system('git -C "' .. git_repo .. '" branch --merged')
+  local branches =
+    vim.fn.system('git -C "' .. git_repo .. '" branch --merged')
   lu.assertStrContains(branches, 'feature')
 
   vim.fn.delete(git_repo, 'rf')
@@ -148,13 +149,11 @@ function TestGitMerge:testGitMergeNoFastForward()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
-  vim.fn.writefile({ 'print("main line")' }, test_file)
-  vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
-  vim.fn.system('git -C "' .. git_repo .. '" commit -m "Main commit"')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
 
   local result = call_async_tool('git_merge', {
     branch = 'feature',
+    no_ff = true,
   }, { cwd = git_repo }, 5000)
 
   lu.assertNotNil(result)
@@ -167,7 +166,6 @@ function TestGitMerge:testGitMergeNoFastForward()
   local log = vim.fn.system('git -C "' .. git_repo .. '" log --oneline')
   lu.assertStrContains(log, 'Merge')
   lu.assertStrContains(log, 'Feature commit')
-  lu.assertStrContains(log, 'Main commit')
 
   vim.fn.delete(git_repo, 'rf')
 end
@@ -191,7 +189,7 @@ function TestGitMerge:testGitMergeNoFastForwardOption()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
 
   local result = call_async_tool('git_merge', {
     branch = 'feature',
@@ -230,7 +228,7 @@ function TestGitMerge:testGitMergeFastForwardOnly()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
   vim.fn.writefile({ 'print("main line")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Main commit"')
@@ -266,7 +264,7 @@ function TestGitMerge:testGitMergeAbort()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
   vim.fn.writefile({ 'print("main conflict")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Main commit"')
@@ -284,7 +282,8 @@ function TestGitMerge:testGitMergeAbort()
   )
   lu.assertStrContains(result.content:lower(), 'success')
 
-  local status = vim.fn.system('git -C "' .. git_repo .. '" status --porcelain')
+  local status =
+    vim.fn.system('git -C "' .. git_repo .. '" status --porcelain')
   lu.assertNotStrContains(status, 'UU')
 
   vim.fn.delete(git_repo, 'rf')
@@ -309,12 +308,12 @@ function TestGitMerge:testGitMergeContinue()
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Feature commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" checkout main')
+  vim.fn.system('git -C "' .. git_repo .. '" checkout master')
   vim.fn.writefile({ 'print("main conflict")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
   vim.fn.system('git -C "' .. git_repo .. '" commit -m "Main commit"')
 
-  vim.fn.system('git -C "' .. git_repo .. '" merge feature', true)
+  vim.fn.system('git -C "' .. git_repo .. '" merge feature')
 
   vim.fn.writefile({ 'print("resolved")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)

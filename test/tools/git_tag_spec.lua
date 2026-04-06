@@ -100,7 +100,8 @@ function TestGitTag:testGitTagCreateAnnotated()
 
   local git_repo = create_temp_git_repo('annotate')
   set_allowed_path(git_repo)
-
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'commit.gpgSign', 'false' })
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'tag.gpgSign', 'false' })
   local test_file = git_repo .. '/test.lua'
   vim.fn.writefile({ 'print("test")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
@@ -136,6 +137,8 @@ function TestGitTag:testGitTagCreateLightweight()
 
   local git_repo = create_temp_git_repo('lightweight')
   set_allowed_path(git_repo)
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'commit.gpgSign', 'false' })
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'tag.gpgSign', 'false' })
 
   local test_file = git_repo .. '/test.lua'
   vim.fn.writefile({ 'print("test")' }, test_file)
@@ -169,6 +172,9 @@ function TestGitTag:testGitTagList()
   local git_repo = create_temp_git_repo('list')
   set_allowed_path(git_repo)
 
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'commit.gpgSign', 'false' })
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'tag.gpgSign', 'false' })
+
   local test_file = git_repo .. '/test.lua'
   vim.fn.writefile({ 'print("test")' }, test_file)
   vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
@@ -200,6 +206,9 @@ function TestGitTag:testGitTagDelete()
 
   local git_repo = create_temp_git_repo('delete')
   set_allowed_path(git_repo)
+
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'commit.gpgSign', 'false' })
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'tag.gpgSign', 'false' })
 
   local test_file = git_repo .. '/test.lua'
   vim.fn.writefile({ 'print("test")' }, test_file)
@@ -234,6 +243,9 @@ function TestGitTag:testGitTagForce()
 
   local git_repo = create_temp_git_repo('force')
   set_allowed_path(git_repo)
+
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'commit.gpgSign', 'false' })
+  vim.fn.system({ 'git', '-C', git_repo, 'config', 'tag.gpgSign', 'false' })
 
   local test_file = git_repo .. '/test.lua'
   vim.fn.writefile({ 'print("test")' }, test_file)

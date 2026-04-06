@@ -55,27 +55,35 @@ function M.git_reset(action, ctx)
     }
   end
 
-  local cmd = { 'git', '-C', ctx.cwd, 'reset' }
-  local mode = action.mode or 'hard'
-
-  if mode == 'soft' then
-    table.insert(cmd, '--soft')
-  elseif mode == 'mixed' then
-    table.insert(cmd, '--mixed')
-  elseif mode == 'hard' then
-    table.insert(cmd, '--hard')
-  else
+  if action.path and action.mode == 'hard' then
     return {
-      error = 'Invalid mode: ' .. mode .. ' (must be soft, mixed, or hard)',
+      error = 'git reset --hard does not support paths.',
     }
   end
 
+  local cmd = { 'git', '-C', ctx.cwd, 'reset' }
+
   local commit = action.commit or 'HEAD'
-  table.insert(cmd, commit)
+  local mode = action.mode or 'mixed'
 
   if action.path then
+    table.insert(cmd, commit)
     table.insert(cmd, '--')
     table.insert(cmd, action.path)
+  else
+    if mode == 'soft' then
+      table.insert(cmd, '--soft')
+    elseif mode == 'mixed' then
+      table.insert(cmd, '--mixed')
+    elseif mode == 'hard' then
+      table.insert(cmd, '--hard')
+    else
+      return {
+        error = 'Invalid mode: ' .. mode .. ' (must be soft, mixed, or hard)',
+      }
+    end
+
+    table.insert(cmd, commit)
   end
 
   local stdout = {}
@@ -206,4 +214,3 @@ function M.info(action, ctx)
 end
 
 return M
-
