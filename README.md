@@ -4,13 +4,15 @@
   </a>
 </h1>
 
-[Quick Start](https://nvim.chat/quick-start/) ||
-[Documentation](https://nvim.chat/documentation/) ||
-[Tools](https://nvim.chat/tools/) ||
+[Quick Start](https://nvim.chat/quick-start/) \|
+[Documentation](https://nvim.chat/documentation/) \|
+[Tools](https://nvim.chat/tools/) \|
 [Providers](https://nvim.chat/providers/)
 
 [![Run Tests](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml)
 [![GitHub License](https://img.shields.io/github/license/wsdjeg/chat.nvim)](LICENSE)
+[![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/issues)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/commits/master/)
 [![GitHub Release](https://img.shields.io/github/v/release/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/releases)
 [![luarocks](https://img.shields.io/luarocks/v/wsdjeg/chat.nvim)](https://luarocks.org/modules/wsdjeg/chat.nvim)
 
