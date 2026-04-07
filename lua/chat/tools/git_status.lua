@@ -22,31 +22,11 @@ end
 ---@param ctx ChatToolContext
 function M.git_status(action, ctx)
   -- Security check for ctx.cwd
-  local is_allowed_path = false
-
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
-          is_allowed_path = true
-          break
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
-  end
-
-  if not is_allowed_path then
+  if not util.is_allowed_path(ctx.cwd) then
     return {
       error = 'Cannot run git_status in non-allowed path.',
     }
   end
-
   if not is_git_available() then
     return {
       error = 'git is not installed or not in PATH.',

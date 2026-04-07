@@ -54,6 +54,30 @@ function M.resolve(path, cwd)
   return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
 
+--- Check if a path is within allowed_path configuration
+---@param path string The path to check (should be normalized absolute path)
+---@return boolean
+function M.is_allowed_path(path)
+  local config = require('chat.config')
+  local normalized_path = vim.fs.normalize(path)
+
+  if type(config.config.allowed_path) == 'table' then
+    for _, v in ipairs(config.config.allowed_path) do
+      if type(v) == 'string' and #v > 0 then
+        if vim.startswith(normalized_path, vim.fs.normalize(v)) then
+          return true
+        end
+      end
+    end
+  elseif
+    type(config.config.allowed_path) == 'string'
+    and #config.config.allowed_path > 0
+  then
+    return vim.startswith(normalized_path, vim.fs.normalize(config.config.allowed_path))
+  end
+  return false
+end
+
 function M.format_number(num)
   if num >= 1000000000 then
     return string.format('%.2fG', num / 1000000000)

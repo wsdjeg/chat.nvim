@@ -12,30 +12,7 @@ local util = require('chat.util')
 ---@field backup boolean? -- Create backup before modifying
 ---@field validate boolean? -- Validate syntax after modification (for code files)
 
---- Check if path is within allowed paths
----@param filepath string normalized absolute path
----@return boolean
-local function is_allowed_path(filepath)
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(filepath, vim.fs.normalize(v)) then
-          return true
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    if
-      vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
-    then
-      return true
-    end
-  end
-  return false
-end
+
 
 --- Check if path is within cwd
 ---@param filepath string normalized absolute path
@@ -171,7 +148,7 @@ function M.write_file(action, ctx)
   end
 
   -- Security check: filepath must be within allowed_path
-  if not is_allowed_path(filepath) then
+  if not util.is_allowed_path(filepath) then
     return {
       error = string.format(
         'Security: filepath is not in allowed_path.\n  filepath: %s',

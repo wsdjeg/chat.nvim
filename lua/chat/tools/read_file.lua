@@ -70,35 +70,12 @@ function M.read_file(action, ctx)
     }
   end
 
-  local is_allowed_path = false
-
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(filepath, vim.fs.normalize(v)) then
-          is_allowed_path = true
-          break
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    is_allowed_path =
-      vim.startswith(filepath, vim.fs.normalize(config.config.allowed_path))
-  end
-
-  if is_allowed_path then
+  if util.is_allowed_path(filepath) then
     local ok, content = pcall(vim.fn.readfile, filepath)
     if ok then
       -- Handle line range if specified
       local start_line = action.line_start or 1
       local end_line = action.line_to or #content
-
-      -- Validate line range against actual file content
-      start_line = math.max(1, math.min(start_line, #content))
-      end_line = math.max(start_line, math.min(end_line, #content))
 
       -- Extract the range
       local range_content = {}

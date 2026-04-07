@@ -1,8 +1,8 @@
 local M = {}
 
 local config = require('chat.config')
+local util = require('chat.util')
 local job = require('job')
-
 -- Compatibility: provide startsWith function for older Neovim versions
 local function starts_with(str, prefix)
   if vim.startswith then
@@ -48,7 +48,6 @@ function M.search_text(action, ctx)
 
   -- Security check
   local search_directory = vim.fs.normalize(action.directory or ctx.cwd)
-  local is_allowed_path = false
 
   -- Verify search directory exists
   if vim.fn.isdirectory(search_directory) == 0 then
@@ -57,27 +56,8 @@ function M.search_text(action, ctx)
     }
   end
 
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if
-        type(v) == 'string'
-        and #v > 0
-        and starts_with(search_directory, vim.fs.normalize(v))
-      then
-        is_allowed_path = true
-        break
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    local allowed_path = config.config.allowed_path --[[@as string]]
-    is_allowed_path =
-      starts_with(search_directory, vim.fs.normalize(allowed_path))
-  end
-
-  if not is_allowed_path then
+  -- Security check: verify path is allowed
+  if not util.is_allowed_path(search_directory) then
     return {
       error = string.format(
         'Cannot search in non-allowed path: %s',
