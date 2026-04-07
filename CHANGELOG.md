@@ -1,5 +1,138 @@
 # Changelog
 
+## [1.5.0](https://github.com/wsdjeg/chat.nvim/compare/v1.4.0...v1.5.0) (2026-04-07)
+
+
+### Features
+
+* add `/list` command ([370216b](https://github.com/wsdjeg/chat.nvim/commit/370216b8f8f0f56713c41f6b1b663fdd7f5f9238))
+* add `git_log` tool ([2e7bdef](https://github.com/wsdjeg/chat.nvim/commit/2e7bdef9b94b2a537b1cad8f8cc825fa4ee7818f))
+* add `git_remote` tool ([41da42c](https://github.com/wsdjeg/chat.nvim/commit/41da42c140fa71baf8d3318d325a8beeda1ba67a))
+* add `git_show` tool ([99e4b75](https://github.com/wsdjeg/chat.nvim/commit/99e4b75d3c3d0c03605ebedef2468cf2c5a288a8))
+* add `git_status` tool ([124471c](https://github.com/wsdjeg/chat.nvim/commit/124471cb46b1c9f27858d04596661a5614ad594a))
+* add aliyuncs provider ([323dd1c](https://github.com/wsdjeg/chat.nvim/commit/323dd1c80ce2f8edffc37db7f92997cb0b5787e2))
+* add async tool execution support ([202764e](https://github.com/wsdjeg/chat.nvim/commit/202764eff6f86b986045f8e64e2c122581230432))
+* add baidu provider ([3d6f33a](https://github.com/wsdjeg/chat.nvim/commit/3d6f33a6e1b900ce3e1e08d6e7ad504b9f46a8ac))
+* add context window truncation ([3db3a25](https://github.com/wsdjeg/chat.nvim/commit/3db3a25a086e3ac6d34ec129ab323638b6ccd06d))
+* add git_add and git_commit tools ([5419dc0](https://github.com/wsdjeg/chat.nvim/commit/5419dc0013273ddf1341e127cfcedb2df11443ff))
+* add git_branch tool for branch management ([a872628](https://github.com/wsdjeg/chat.nvim/commit/a8726285b07693b5a5693a4a61ced5592352b74d))
+* add git_checkout tool for branch switching and file restore ([ae01af7](https://github.com/wsdjeg/chat.nvim/commit/ae01af7a915ab5606bb77ea2ca8c4fd77ddf3e08))
+* add git_config tool ([45c0bbc](https://github.com/wsdjeg/chat.nvim/commit/45c0bbc61b0568dd77da1ca8a4a6f79e497b61e5))
+* add git_fetch tool ([4518d60](https://github.com/wsdjeg/chat.nvim/commit/4518d6033011582191de97546523c4665e78b2bb))
+* add git_merge tool ([8e09c30](https://github.com/wsdjeg/chat.nvim/commit/8e09c305864dd50b78ae92360ec21fef6ec04831))
+* add git_pull tool for pulling remote changes ([f66ce0a](https://github.com/wsdjeg/chat.nvim/commit/f66ce0a87aced9330c9a873f702808b100e20bac))
+* add git_push tool ([e78ae39](https://github.com/wsdjeg/chat.nvim/commit/e78ae391ff69fe27b51649a4c4997ce73cef9fb7))
+* add git_reset tool ([5ffabff](https://github.com/wsdjeg/chat.nvim/commit/5ffabffc827077a62edb85968156322313a1ebfb))
+* add git_stash tool ([858a1cb](https://github.com/wsdjeg/chat.nvim/commit/858a1cb25e920b668f20b4c4994107212fe1eaf5))
+* add git_tag tool ([cedd504](https://github.com/wsdjeg/chat.nvim/commit/cedd504303e0db126b49f0cf5c38455635447e9b))
+* add highlights config ([305e709](https://github.com/wsdjeg/chat.nvim/commit/305e7097381651152f7a8c2697209bf7caabc413))
+* add lazy iterator for session cache ([d32109b](https://github.com/wsdjeg/chat.nvim/commit/d32109bba52adb8cfa7d5aeac8e35f0e394c8938))
+* add make tool ([597a796](https://github.com/wsdjeg/chat.nvim/commit/597a7968ef9340009e714acfa08cf1ce248c748e))
+* add max_results to find_files tool ([e13cddb](https://github.com/wsdjeg/chat.nvim/commit/e13cddb36247d91622dc3ce9835921539abbd170))
+* add MCP (Model Context Protocol) support ([27e4abb](https://github.com/wsdjeg/chat.nvim/commit/27e4abb80708c0f4dc765b4a4301d5daacb327b9))
+* add slack support ([ba3bb71](https://github.com/wsdjeg/chat.nvim/commit/ba3bb719aea2fb02bbd546bf947061843a45aac3))
+* add tests and docs for git_add and git_commit tools ([4da0e46](https://github.com/wsdjeg/chat.nvim/commit/4da0e46a702d4a3b5e38f29ae10336b8caa05d82))
+* add title icons ([bc25636](https://github.com/wsdjeg/chat.nvim/commit/bc25636a288fe792af228867a532d37ccbf99af5))
+* add transport support and mcp commands ([0608d2e](https://github.com/wsdjeg/chat.nvim/commit/0608d2ed01d546bfb1a67ea3892f8448046b6a2a))
+* add weixin support ([5336f42](https://github.com/wsdjeg/chat.nvim/commit/5336f42e61c21f9f3eb9bdfb11457a25b424dbba))
+* add write_file tool ([6e5d11c](https://github.com/wsdjeg/chat.nvim/commit/6e5d11cd1e84c36561ac8a6c61dc83f4add294b4))
+* display total tokens on title ([434e4e7](https://github.com/wsdjeg/chat.nvim/commit/434e4e7afc1d307d8aca1b4914f07ee74ef491cb))
+* **fetch_web:** migrate to async job.nvim ([b7b8cb3](https://github.com/wsdjeg/chat.nvim/commit/b7b8cb3f49b50ef4bf6caff200585669bd5c7836))
+* improve token statistics display ([d4a3326](https://github.com/wsdjeg/chat.nvim/commit/d4a3326c5f514dff344481f8f22fa1357b020d45))
+* **integrations:** add /status command for session info ([ced0fac](https://github.com/wsdjeg/chat.nvim/commit/ced0fac2a70d42be303682cc414f6fe8c0d4cf33))
+* **integrations:** enhance session management commands ([f5e9f50](https://github.com/wsdjeg/chat.nvim/commit/f5e9f50289dcda16045cfa6a0f04473a8485f010))
+* make search_text async with JSON output ([50f12b4](https://github.com/wsdjeg/chat.nvim/commit/50f12b4096f5eae4a52fb08d6edeb4a760ba9795))
+* show cached tokens in usage stats ([727995a](https://github.com/wsdjeg/chat.nvim/commit/727995a05ae113d5aa48111685a0996af4a21992))
+* support async mcp request and tool ([50f651b](https://github.com/wsdjeg/chat.nvim/commit/50f651b2968c845280072854f4e87c5cf8cf7074))
+* support integrations send_typing ([ab7081f](https://github.com/wsdjeg/chat.nvim/commit/ab7081ffe78da9535eb300fed370351bb49a4ed5))
+* switch to job module and handle job.env ([119d6bd](https://github.com/wsdjeg/chat.nvim/commit/119d6bd5a63a87419d2a8cb3712e18fbf42d7819))
+* use ripgrep for `find_files` tool ([7401962](https://github.com/wsdjeg/chat.nvim/commit/74019629027c02e9769b33cfdb8d71a51626389a))
+* **write_file:** add validation and backup features ([e696d4e](https://github.com/wsdjeg/chat.nvim/commit/e696d4e7414586a9b24ef2a28875c6b1ca4b465d))
+
+
+### Bug Fixes
+
+* add ChatPlan class ([990f919](https://github.com/wsdjeg/chat.nvim/commit/990f919befc4be668942f13f7dc9c103e1379dee))
+* add ChatToolsGetHistoryAction class ([bb959d5](https://github.com/wsdjeg/chat.nvim/commit/bb959d5fc8e9b91bcb2bbcfacaeb6c674e32a96f))
+* add models to yuanjing provider ([8dcfa29](https://github.com/wsdjeg/chat.nvim/commit/8dcfa2933bffcdbe8f4db419c781875a372d5300))
+* add window validity checks before switching ([7634696](https://github.com/wsdjeg/chat.nvim/commit/7634696042e29114897c2bfd1a8e3e896d014758))
+* check allowed_path in git status/diff ([402e754](https://github.com/wsdjeg/chat.nvim/commit/402e754fb3ece6dfb34523bb9f18d09fcf794514))
+* check allowed_path in git_show ([c3e5170](https://github.com/wsdjeg/chat.nvim/commit/c3e517044e51751636a3da57e857769d208a0835))
+* check new line in tools.info ([d0d1e4a](https://github.com/wsdjeg/chat.nvim/commit/d0d1e4af4f46c636d6ec5eb6751d14fd9baab425))
+* check server before register tools ([8f8c7a0](https://github.com/wsdjeg/chat.nvim/commit/8f8c7a0728bd9f808a4f04b564d2d0c751ae3227))
+* clear child processes ([5b3e3bb](https://github.com/wsdjeg/chat.nvim/commit/5b3e3bb67a22c648e5e32a4dbf55b18d7703e67a))
+* correct help file formatting for 78-char width alignment ([3c9760a](https://github.com/wsdjeg/chat.nvim/commit/3c9760a89fed254259702767384d7acb22406c96))
+* correct the format_number function with G unit ([bfdb3cf](https://github.com/wsdjeg/chat.nvim/commit/bfdb3cfdcf83daf3ec5ed94bbca7b696ece87c11))
+* display plan action ([6717516](https://github.com/wsdjeg/chat.nvim/commit/6717516757046cacf594613c8fb21f6eafd14a69))
+* fix ChatToolContext field ([c4fd94f](https://github.com/wsdjeg/chat.nvim/commit/c4fd94f44f999163eb7dab8c3e815b44d9ab98dd))
+* fix lsp warnings ([af29f97](https://github.com/wsdjeg/chat.nvim/commit/af29f970f915f0273cc54fc44f0e735f23e3ccf4))
+* fix message handle ([245f44e](https://github.com/wsdjeg/chat.nvim/commit/245f44eaae251384e5cd6132748d2ac59a174f1b))
+* fix several MCP transport and parsing bugs ([7bdbfa2](https://github.com/wsdjeg/chat.nvim/commit/7bdbfa2c6d27930099159f7a38adbe3ccbb8c33b))
+* fix syntax error in git_branch ([8fb3fb2](https://github.com/wsdjeg/chat.nvim/commit/8fb3fb2d8f383411b05783f13cee0180c257843e))
+* fix tool info ([b74d132](https://github.com/wsdjeg/chat.nvim/commit/b74d132a4c71ebf8172ac457c4fca6cab4d4bf0e))
+* handle `/session` without argument ([b783785](https://github.com/wsdjeg/chat.nvim/commit/b7837856f5303466eef71f94d0c7452943950d8d))
+* handle API errors & improve jobid validation ([be434f0](https://github.com/wsdjeg/chat.nvim/commit/be434f06d66850b30067a0ad5bce2c6847c75064))
+* handle git global config error ([b85a5f6](https://github.com/wsdjeg/chat.nvim/commit/b85a5f6d20bda38794176095a8388b49e6461c1a))
+* handle rg exit code = 1 ([734dc8b](https://github.com/wsdjeg/chat.nvim/commit/734dc8b0d0d9ed84b4e90754d4e3baf54a4395d3))
+* handle tool_call_error ([b17aa9f](https://github.com/wsdjeg/chat.nvim/commit/b17aa9fc9a69a890c424f18db1fccf1b4a116f32))
+* handle yuanjing chunk.code and chunk.msg ([764b464](https://github.com/wsdjeg/chat.nvim/commit/764b4646bf35d63ade37f125929444afd6346dc4))
+* improve find_files directory ([853d63a](https://github.com/wsdjeg/chat.nvim/commit/853d63a1e1117337e67f98c2ec2bf1b3a56833a0))
+* improve git tools for CI ([68d49c8](https://github.com/wsdjeg/chat.nvim/commit/68d49c819aa86b00984151ff78629ebacff2784d))
+* install dependencies in github action ([7f141a5](https://github.com/wsdjeg/chat.nvim/commit/7f141a5731ff1dde12f92516d522857d2171bd3e))
+* **integrations:** clear session value when session is deleted ([4ed7e9d](https://github.com/wsdjeg/chat.nvim/commit/4ed7e9d80e4f3b5cb6b9eac8ec4590ffe1ac1d71))
+* Lua syntax error in git_stash_spec and update test documentation ([3c1e120](https://github.com/wsdjeg/chat.nvim/commit/3c1e120319dabe4ca3388eda07c773a6527cbc03))
+* **picker:** skip empty lines when getting chat title ([3f96f8a](https://github.com/wsdjeg/chat.nvim/commit/3f96f8aa73a8c8f6f276d57680a8e7089b0aec5a))
+* redraw_title after setup bridge ([c4ad197](https://github.com/wsdjeg/chat.nvim/commit/c4ad197fe934c0427a8c59527590fbff38e9de8e))
+* remove unused requestObj ([879479d](https://github.com/wsdjeg/chat.nvim/commit/879479dd98d8846b9f88e75ccbf50d30820d8750))
+* remove weixin state log ([a720370](https://github.com/wsdjeg/chat.nvim/commit/a720370a7f1bef4f4fcd263b076e20d7715a1a28))
+* **sessions:** use --data-binary for paste.rs ([7ca0dd5](https://github.com/wsdjeg/chat.nvim/commit/7ca0dd589a4e11a833abf0afca573f421cbe9cb7))
+* setup_highlights after changing colorscheme ([35e2ff5](https://github.com/wsdjeg/chat.nvim/commit/35e2ff51903225b3908fe3c8d92da3371992b55c))
+* skip already running log ([31dd370](https://github.com/wsdjeg/chat.nvim/commit/31dd370a822e022269dbf8e67288213ff9b9feed))
+* skip empty tool_call name ([7e1ffb4](https://github.com/wsdjeg/chat.nvim/commit/7e1ffb4bb0a7e846e9eac9ce3ba1253e5ab7ddeb))
+* **tools:** add validation for tool module loading ([ed0f79a](https://github.com/wsdjeg/chat.nvim/commit/ed0f79a9fbde0c1407a4faa051b828fa174ede7f))
+* trigger callback(nil) on exit ([d5aa561](https://github.com/wsdjeg/chat.nvim/commit/d5aa56116079e4f9ca9c38ff43bb13b123fb279e))
+* use enable_thinking option for aliyuncs ([c0dbdf0](https://github.com/wsdjeg/chat.nvim/commit/c0dbdf0fae536a1de23dee252eeba1e5928a06dd))
+* use executable() for tool availability checks ([11aef4f](https://github.com/wsdjeg/chat.nvim/commit/11aef4f19a5806b42aaaed3ba268e24e0814f496))
+* use global var in test ([683991d](https://github.com/wsdjeg/chat.nvim/commit/683991da708009d39a1a65ec764a9f3b3371036d))
+* use job for baidu provider ([848bd8b](https://github.com/wsdjeg/chat.nvim/commit/848bd8b458c4d4e8f608c66dc7c7edf8e15af258))
+
+
+### Code Refactoring
+
+* **AGENTS:** improve file modification rules ([a192ba2](https://github.com/wsdjeg/chat.nvim/commit/a192ba2a13c2724987e60f55809b68d000392cde))
+* improve integrations module ([fc56bc4](https://github.com/wsdjeg/chat.nvim/commit/fc56bc41ac990ffba2fd5f518960809e18944407))
+* improve tool parameter validation and error handling ([0980e5e](https://github.com/wsdjeg/chat.nvim/commit/0980e5ec0eed2f7e7f6e113539efe3f9b837525c))
+* rename FILE parameter to PATTERN in test runner ([4a0dfb1](https://github.com/wsdjeg/chat.nvim/commit/4a0dfb16089b14ed703c55bae1809268cee38296))
+* **test:** split tools_spec.lua into separate test files ([da16c2b](https://github.com/wsdjeg/chat.nvim/commit/da16c2b50f70ab0e08e9dd9d74c5e90fecf547ef))
+* **tools:** remove unused config require from 5 tool files ([1411d5b](https://github.com/wsdjeg/chat.nvim/commit/1411d5bfdba2b59200c9f19e60cfcf98983fc57a))
+
+
+### Documentation
+
+* add commit style guide to AGENTS.md ([177104e](https://github.com/wsdjeg/chat.nvim/commit/177104e405c4f2e303cd5a823be57369c6ded5ea))
+* add git_show and git_branch to README, add documentation update guide to AGENTS.md ([61599c3](https://github.com/wsdjeg/chat.nvim/commit/61599c3763972889373953fba675a66f301df779))
+* complete website documentation structure ([667ba6c](https://github.com/wsdjeg/chat.nvim/commit/667ba6cfb4dd6e33ae15180771e16dae3c1c47f6))
+* init website ([5188435](https://github.com/wsdjeg/chat.nvim/commit/5188435ddaaa799cb4dd8cfb85f18a6b733039ee))
+* remove contribution img ([98ea18e](https://github.com/wsdjeg/chat.nvim/commit/98ea18ebe01baa42aa1d878416ebce6222211180))
+* remove extra title ([769c285](https://github.com/wsdjeg/chat.nvim/commit/769c285fa9166702f9669b2fb403775fdae25af5))
+* simplify README and link to website ([e2fa562](https://github.com/wsdjeg/chat.nvim/commit/e2fa562f0aa218714c796e7fdbab42e0d2b6a863))
+* simplify README style ([4c68c02](https://github.com/wsdjeg/chat.nvim/commit/4c68c02191c1c75a02303b9b283c624be5e45751))
+* update chat.txt based on README.md ([c854e23](https://github.com/wsdjeg/chat.nvim/commit/c854e235b4e8f2117ccf23693da780c8073500fc))
+* update docs for git show/status ([52a2a24](https://github.com/wsdjeg/chat.nvim/commit/52a2a2474ef3e698e6939734e0b38172882c3613))
+* update readme ([0d6c098](https://github.com/wsdjeg/chat.nvim/commit/0d6c098a886b7fc6420d82dc04daef802c797a84))
+* update readme links ([cdb5aea](https://github.com/wsdjeg/chat.nvim/commit/cdb5aeab544edea71cef233d4de546f453fb59f6))
+
+
+### Tests
+
+* add test files for 6 git tools ([4db6494](https://github.com/wsdjeg/chat.nvim/commit/4db64943463f0c68f6af83914bff69746724519a))
+* **plan:** fix TestPlan declaration ([b48c223](https://github.com/wsdjeg/chat.nvim/commit/b48c223ea0e755a8d87fda1b51f878fd105dff7f))
+
+
+### Security Fixes
+
+* add path validation for read_file and write_file ([b1d7fca](https://github.com/wsdjeg/chat.nvim/commit/b1d7fca70306480200b8360e417e4ede7bfcb224))
+
 ## [1.4.0](https://github.com/wsdjeg/chat.nvim/compare/v1.3.0...v1.4.0) (2026-03-13)
 
 
