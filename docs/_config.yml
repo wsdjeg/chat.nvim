@@ -1,0 +1,105 @@
+# Site settings
+title: chat.nvim
+description: A lightweight, extensible chat plugin for Neovim with AI integration
+baseurl: "" # Leave empty for user/organization sites, or use "/repo-name" for project sites
+url: "https://nvim.chat" # Your domain
+
+# Theme
+remote_theme: just-the-docs/just-the-docs
+
+# Repository
+repository: wsdjeg/chat.nvim
+
+# Permalink
+permalink: pretty
+
+# Search
+search_enabled: true
+search:
+  heading_level: 2
+  previews: 2
+  previews_before: 3
+  previews_after: 3
+
+# Navigation
+nav_enabled: true
+nav_sort: case_insensitive
+
+# Aux links (upper right)
+aux_links:
+  "GitHub Repository":
+    - "https://github.com/wsdjeg/chat.nvim"
+aux_links_new_tab: true
+
+# Back to top
+back_to_top: true
+back_to_top_text: "Back to top"
+
+# Footer
+footer_content: 'Copyright &copy; 2024 wsdjeg. Distributed by the <a href="https://github.com/wsdjeg/chat.nvim/blob/master/LICENSE">GPL-3.0 license</a>.'
+
+# Last edit timestamp
+last_edit_timestamp: true
+last_edit_time_format: "%b %e %Y at %I:%M %p"
+
+# Edit link
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/wsdjeg/chat.nvim"
+gh_edit_branch: "master"
+gh_edit_view_mode: "tree"
+
+# Color scheme
+color_scheme: nil
+
+# Callouts
+callouts:
+  highlight:
+    color: yellow
+  important:
+    title: Important
+    color: blue
+  new:
+    title: New
+    color: green
+  note:
+    title: Note
+    color: purple
+  warning:
+    title: Warning
+    color: red
+
+# Mermaid diagrams
+mermaid:
+  version: "9.1.6"
+
+# Plugins (GitHub Pages compatible)
+plugins:
+  - jekyll-seo-tag
+  - jekyll-github-metadata
+  - jekyll-include-cache
+  - jekyll-sitemap
+
+# Markdown
+kramdown:
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+
+# Exclude
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/

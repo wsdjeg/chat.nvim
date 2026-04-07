@@ -1,0 +1,10 @@
+source "https://rubygems.org"
+
+# GitHub Pages gem
+gem "github-pages", group: :jekyll_plugins
+
+# Required for GitHub Pages
+gem "jekyll-include-cache", group: :jekyll_plugins
+
+# Optional but recommended
+gem "webrick", "~> 1.8"

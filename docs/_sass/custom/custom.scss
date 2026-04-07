@@ -1,0 +1,82 @@
+// Custom styles for chat.nvim
+
+// Color variables
+$primary-color: #7c3aed;
+$secondary-color: #2563eb;
+$accent-color: #06b6d4;
+
+// Override theme colors
+$body-heading-color: $primary-color;
+$link-color: $secondary-color;
+$nav-child-link-color: $accent-color;
+
+// Custom styles
+.site-title {
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.nav-list .nav-list-item {
+  font-size: 0.95em;
+}
+
+// Feature grid
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background: rgba(128, 128, 128, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.25rem;
+  }
+  
+  p {
+    margin-bottom: 0;
+    opacity: 0.9;
+  }
+}
+
+// Code blocks
+pre, code {
+  border-radius: 4px;
+}
+
+// Tables
+table {
+  border-collapse: collapse;
+  width: 100%;
+  
+  th, td {
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    padding: 0.75rem;
+  }
+  
+  th {
+    background: rgba(128, 128, 128, 0.1);
+    font-weight: 600;
+  }
+}
+
+// Responsive adjustments
+@media screen and (max-width: 768px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
