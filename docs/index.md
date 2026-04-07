@@ -12,6 +12,7 @@ nav_order: 1
 
 <p>
   <a href="https://github.com/wsdjeg/chat.nvim" class="btn fs-5 mb-4 mb-md-0">View on GitHub</a>
+  <a href="https://github.com/wsdjeg/chat.nvim/releases" class="btn fs-5 mb-4 mb-md-0">Releases</a>
 </p>
 
 ---
@@ -31,22 +32,42 @@ nav_order: 1
   
   <div class="feature-card">
     <h3>🤖 16+ AI Providers</h3>
-    <p>Built-in support for DeepSeek, OpenAI, Anthropic, GitHub AI, and many more AI services.</p>
+    <p>Built-in support for DeepSeek, OpenAI, Anthropic, GitHub AI, Gemini, Ollama, and many more AI services.</p>
   </div>
   
   <div class="feature-card">
-    <h3>🛠️ 20+ Tools</h3>
-    <p>File operations, Git integration, web search, memory management, and extensible custom tools.</p>
+    <h3>🛠️ 20+ Built-in Tools</h3>
+    <p>File operations, Git integration, web search, memory management, planning, and extensible custom tools.</p>
   </div>
   
   <div class="feature-card">
     <h3>🔌 MCP Protocol</h3>
-    <p>Native Model Context Protocol support for extended tool capabilities.</p>
+    <p>Native Model Context Protocol support for extended tool capabilities via stdio and HTTP transports.</p>
   </div>
   
   <div class="feature-card">
     <h3>💬 IM Integration</h3>
-    <p>Connect Discord, Telegram, Lark, DingTalk, WeCom, and WeChat for remote AI interaction.</p>
+    <p>Connect Discord, Telegram, Slack, Lark, DingTalk, WeCom, and WeChat for remote AI interaction.</p>
+  </div>
+  
+  <div class="feature-card">
+    <h3>🌐 HTTP API</h3>
+    <p>Built-in HTTP server for receiving external messages with API key authentication.</p>
+  </div>
+  
+  <div class="feature-card">
+    <h3>📝 Zettelkasten</h3>
+    <p>Note-taking support via zettelkasten.nvim integration for knowledge management.</p>
+  </div>
+  
+  <div class="feature-card">
+    <h3>🔍 Picker Integration</h3>
+    <p>Seamless integration with picker.nvim for browsing history and switching providers/models.</p>
+  </div>
+  
+  <div class="feature-card">
+    <h3>⚡ Streaming Responses</h3>
+    <p>Real-time AI responses with cancellation support and token usage tracking.</p>
   </div>
 </div>
 
@@ -56,21 +77,59 @@ nav_order: 1
 
 ### Installation
 
-Using [nvim-plug](https://github.com/junegunn/vim-plug)
+Using [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  'wsdjeg/chat.nvim',
+  dependencies = {
+    'wsdjeg/job.nvim', -- Required
+    'wsdjeg/picker.nvim', -- Optional but recommended
+  },
+}
+```
+
+Using [nvim-plug](https://github.com/junegunn/vim-plug):
 
 ```lua
 require('plug').add({
   {
     'wsdjeg/chat.nvim',
     depends = {
-      {
-        'wsdjeg/job.nvim', -- Required
-        'wsdjeg/picker.nvim', -- Optional but recommended
-      },
+      'wsdjeg/job.nvim', -- Required
+      'wsdjeg/picker.nvim', -- Optional but recommended
     },
   },
 })
 ```
+
+### Basic Usage
+
+```vim
+:Chat          " Open chat window
+:Chat new      " Start a new session
+:Chat prev     " Switch to previous session
+:Chat next     " Switch to next session
+```
+
+{: .info }
+> See the [Installation Guide](/docs/getting-started/installation/) for detailed setup instructions.
+
+---
+
+## 📚 Documentation
+
+- [Installation](/docs/getting-started/installation/) - Setup and prerequisites
+- [Usage](/docs/usage/) - Commands, keybindings, and workflows
+- [Configuration](/docs/configuration/) - Customize chat.nvim settings
+- [Providers](/docs/providers/) - Configure AI providers
+- [Tools](/docs/tools/) - Explore available tools
+- [Memory System](/docs/memory/) - Three-tier memory architecture
+- [MCP](/docs/mcp/) - Model Context Protocol integration
+- [HTTP API](/docs/api/) - External integration via HTTP
+- [IM Integration](/docs/integrations/im/) - Messaging platform integrations
+
+---
 
 ## 💬 Community
 
