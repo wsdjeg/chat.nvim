@@ -43,12 +43,6 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 }
 ```
 
-## Contribute
-
-This project wouldn't exist without all the people who contributed.
-
-<a href="https://github.com/wsdjeg/chat.nvim/graphs/contributors"><img src="https://opencollective.com/chat-nvim/contributors.svg?width=890&button=false" /></a>
-
 ## License
 
 chat.nvim is released under the GPL-3.0 License.
