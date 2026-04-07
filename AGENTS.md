@@ -255,3 +255,201 @@ Tests run automatically on:
 - Pull requests
 - Multiple Neovim versions (nightly, stable)
 - Multiple platforms (ubuntu, windows, macos)
+
+---
+
+## Commit Style Guide
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Commit Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+- **type**: Commit type (required)
+- **scope**: Affected module (optional, lowercase)
+- **subject**: Brief description (required, imperative mood, no period)
+- **body**: Detailed explanation (optional, wrap at 72 chars)
+- **footer**: Breaking changes, issue references (optional)
+
+### Commit Types
+
+| Type | Description | Triggers Release | Example |
+|------|-------------|------------------|---------|
+| `feat` | New feature | Minor (1.1.0) | `feat: add git_push tool` |
+| `fix` | Bug fix | Patch (1.0.1) | `fix: handle tool_call_error` |
+| `refactor` | Code refactoring (no behavior change) | None* | `refactor(tools): simplify config loading` |
+| `docs` | Documentation only | None | `docs: update README examples` |
+| `test` | Adding or updating tests | None | `test: add git_merge test cases` |
+| `ci` | CI/CD configuration | None | `ci: add plan test` |
+| `chore` | Maintenance tasks | None | `chore: update dependencies` |
+| `perf` | Performance improvement | Patch (1.0.1) | `perf: optimize memory retrieval` |
+| `style` | Code style (formatting, semicolons) | None | `style: format lua code` |
+| `build` | Build system changes | None | `build: update Makefile` |
+| `security` | Security fixes | Patch (1.0.1) | `security: add path validation` |
+
+\* `refactor` triggers release only with `BREAKING CHANGE` or `Release-As` footer
+
+### Scope Guidelines
+
+Use lowercase, match directory/module names:
+
+```
+feat(tools): add write_file tool
+fix(integrations): handle discord messages
+refactor(test): split tools_spec.lua
+docs(api): add HTTP endpoint examples
+```
+
+**Common scopes:**
+- `tools` - Tool implementations
+- `integrations` - IM integrations (Discord, Lark, etc.)
+- `providers` - AI providers (OpenAI, Anthropic, etc.)
+- `test` - Test files
+- `config` - Configuration system
+- `ui` - User interface
+- `api` - HTTP API
+- `mcp` - MCP protocol
+
+### Subject Line Rules
+
+✅ **DO:**
+- Use imperative mood: "add", "fix", "update" (not "added", "fixes")
+- Start with lowercase letter
+- No period at the end
+- Keep under 72 characters
+- Be specific and concise
+
+❌ **DON'T:**
+- ~~"Added new feature"~~ → "add new feature"
+- ~~"Fixes bug in tools"~~ → "fix: handle tool errors"
+- ~~"Update README.md."~~ → "update README examples"
+- ~~"fix: fix fix fix"~~ → "fix: correct tool validation"
+
+### Body Guidelines
+
+- Wrap at 72 characters
+- Explain **what** and **why**, not **how**
+- Use bullet points for multiple changes
+- Reference issues/PRs when applicable
+
+### Footer Examples
+
+**Breaking change:**
+```
+refactor!: change tool API signature
+
+BREAKING CHANGE: tool.execute() now requires context parameter
+```
+
+**Force specific version:**
+```
+refactor: simplify memory system
+
+Release-As: 1.2.0
+```
+
+**Reference issue:**
+```
+fix: handle edge case in git_diff
+
+Closes #123
+```
+
+### Good Examples
+
+```bash
+# Simple feature
+git commit -m "feat: add git_push tool"
+
+# Feature with scope and body
+git commit -m "feat(tools): add write_file tool
+
+Add comprehensive file writing capabilities:
+- Support create/overwrite/append/insert actions
+- Add line-based delete and replace operations
+- Include syntax validation for Lua and Python"
+
+# Bug fix with scope
+git commit -m "fix(integrations): clear session when deleted"
+
+# Refactor with breaking change
+git commit -m "refactor!: simplify tool interface
+
+BREAKING CHANGE: removed deprecated tool.execute() method"
+
+# Documentation
+git commit -m "docs: add commit style guide to AGENTS.md"
+```
+
+### Bad Examples
+
+```bash
+# ❌ No type prefix
+git commit -m "add new feature"
+
+# ❌ Wrong mood
+git commit -m "feat: added new tool"
+
+# ❌ Too vague
+git commit -m "fix: fix bug"
+
+# ❌ Period at end
+git commit -m "docs: update readme."
+
+# ❌ Mixed languages
+git commit -m "feat: 添加新功能"
+
+# ❌ Redundant
+git commit -m "fix: fix fix in fix module"
+```
+
+### Release-Please Integration
+
+This project uses [release-please](https://github.com/googleapis/release-please) for automated releases:
+
+- **v1.0.0** → Initial release
+- **v1.0.1** → `fix:`, `perf:`, `security:` (patch)
+- **v1.1.0** → `feat:` (minor)
+- **v2.0.0** → `feat:` + `BREAKING CHANGE:` (major)
+
+**Configured sections** (see `release-please-config.json`):
+- Features (`feat`)
+- Bug Fixes (`fix`)
+- Code Refactoring (`refactor`)
+- Performance Improvements (`perf`)
+- Documentation (`docs`)
+- Tests (`test`)
+- ~~Chores, Styles, Build, CI~~ (hidden from changelog)
+
+### Quick Reference
+
+```bash
+# Feature
+git commit -m "feat(<scope>): <description>"
+
+# Bug fix
+git commit -m "fix(<scope>): <description>"
+
+# Refactor
+git commit -m "refactor(<scope>): <description>"
+
+# With body
+git commit -m "type(scope): description
+
+Detailed explanation here"
+
+# Breaking change
+git commit -m "refactor!: change API
+
+BREAKING CHANGE: description"
+```
+
+---
+
