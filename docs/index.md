@@ -4,8 +4,6 @@ title: Home
 nav_order: 1
 ---
 
-# chat.nvim
-
 <p class="fs-9">A lightweight, extensible chat plugin for Neovim with AI integration.</p>
 
 <p class="fs-6 fw-300">Chat with AI assistants directly in your editor using a clean, floating window interface.</p>
