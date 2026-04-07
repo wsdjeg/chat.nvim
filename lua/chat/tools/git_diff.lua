@@ -1,6 +1,5 @@
 local M = {}
 
-local config = require('chat.config')
 local util = require('chat.util')
 local job = require('job')
 

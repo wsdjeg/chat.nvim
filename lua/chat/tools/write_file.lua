@@ -1,8 +1,6 @@
 local M = {}
 
-local config = require('chat.config')
 local util = require('chat.util')
-
 ---@class ChatToolsWriteFileAction
 ---@field filepath string
 ---@field action "create"|"overwrite"|"append"|"insert"|"delete"|"replace"|"remove"

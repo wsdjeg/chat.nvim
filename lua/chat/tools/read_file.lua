@@ -1,8 +1,6 @@
 local M = {}
 
-local config = require('chat.config')
 local util = require('chat.util')
-
 ---@class ChatToolsReadfileAction
 ---@field filepath string
 ---@field line_start integer
