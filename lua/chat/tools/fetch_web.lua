@@ -2,6 +2,8 @@
 local M = {}
 
 local job = require('job')
+local util = require('chat.util')
+local config = require('chat.config')
 
 -- Cache curl availability check
 local curl_available = nil
@@ -55,8 +57,13 @@ function M.fetch_web(action, ctx)
   table.insert(cmd, '-L') -- Follow redirects
   table.insert(cmd, '--compressed') -- Request compressed response
 
-  -- Timeout
+  -- Timeout (validate range: 1-300)
   local timeout = action.timeout or 30
+  if type(timeout) ~= 'number' or timeout < 1 or timeout > 300 then
+    return {
+      error = 'Timeout must be between 1 and 300 seconds.',
+    }
+  end
   table.insert(cmd, '--max-time')
   table.insert(cmd, tostring(timeout))
 
@@ -66,8 +73,13 @@ function M.fetch_web(action, ctx)
   table.insert(cmd, '--user-agent')
   table.insert(cmd, user_agent)
 
-  -- Max redirects
+  -- Max redirects (validate range: 0-20)
   local max_redirects = action.max_redirects or 5
+  if type(max_redirects) ~= 'number' or max_redirects < 0 or max_redirects > 20 then
+    return {
+      error = 'Max redirects must be between 0 and 20.',
+    }
+  end
   table.insert(cmd, '--max-redirs')
   table.insert(cmd, tostring(max_redirects))
 
@@ -86,11 +98,17 @@ function M.fetch_web(action, ctx)
     end
   end
 
-  -- HTTP method
-  local method = action.method or 'GET'
-  if method:upper() ~= 'GET' then
+  -- HTTP method (validate allowed methods)
+  local allowed_methods = { GET = true, POST = true, PUT = true, DELETE = true, PATCH = true, HEAD = true }
+  local method = (action.method or 'GET'):upper()
+  if not allowed_methods[method] then
+    return {
+      error = string.format('Invalid HTTP method: %s. Allowed methods: GET, POST, PUT, DELETE, PATCH, HEAD', method),
+    }
+  end
+  if method ~= 'GET' then
     table.insert(cmd, '-X')
-    table.insert(cmd, method:upper())
+    table.insert(cmd, method)
   end
 
   -- POST data
@@ -101,6 +119,40 @@ function M.fetch_web(action, ctx)
 
   -- Add URL at the end
   table.insert(cmd, action.url)
+
+  -- Output file path validation
+  local output_path = nil
+  if action.output then
+    output_path = util.resolve(action.output, ctx.cwd)
+
+    local is_allowed_path = false
+
+    if type(config.config.allowed_path) == 'table' then
+      for _, v in ipairs(config.config.allowed_path) do
+        if type(v) == 'string' and #v > 0 then
+          if vim.startswith(output_path, vim.fs.normalize(v)) then
+            is_allowed_path = true
+            break
+          end
+        end
+      end
+    elseif
+      type(config.config.allowed_path) == 'string'
+      and #config.config.allowed_path > 0
+    then
+      is_allowed_path =
+        vim.startswith(output_path, vim.fs.normalize(config.config.allowed_path))
+    end
+
+    if not is_allowed_path then
+      return {
+        error = 'output file path is not allowed path',
+      }
+    else
+      table.insert(cmd, '-o')
+      table.insert(cmd, output_path)
+    end
+  end
 
   local stdout = {}
   local stderr = {}
@@ -135,48 +187,81 @@ function M.fetch_web(action, ctx)
         })
         return
       end
+
       if code == 0 then
-        local result = table.concat(stdout, '\n')
-        -- Try to detect content type
-        local content_type = 'text/plain'
-        if result:match('<!DOCTYPE') or result:match('<html') then
-          content_type = 'text/html'
-        elseif result:match('^{') or result:match('^%[') then
-          content_type = 'application/json'
-        end
+        if output_path then
+          -- Output mode: check if file was saved successfully
+          local stat = vim.uv.fs_stat(output_path)
+          if stat then
+            ctx.callback({
+              content = string.format(
+                'Successfully fetched content from: %s\n'
+                  .. 'Method: %s\n'
+                  .. 'Timeout: %d seconds\n'
+                  .. 'Output file: %s\n'
+                  .. 'File size: %d bytes\n',
+                action.url,
+                method,
+                timeout,
+                output_path,
+                stat.size
+              ),
+              jobid = id,
+            })
+          else
+            ctx.callback({
+              error = string.format(
+                'curl exited successfully but output file was not created: %s',
+                output_path
+              ),
+              jobid = id,
+            })
+          end
+        else
+          -- Display mode: show content
+          local result = table.concat(stdout, '\n')
+          -- Try to detect content type
+          local content_type = 'text/plain'
+          if result:match('<!DOCTYPE') or result:match('<html') then
+            content_type = 'text/html'
+          elseif result:match('^{') or result:match('^%[') then
+            content_type = 'application/json'
+          end
 
-        local summary = string.format(
-          'Successfully fetched content from: %s\n'
-            .. 'Method: %s\n'
-            .. 'Timeout: %d seconds\n'
-            .. 'Content-Type: %s\n'
-            .. 'Content-Length: %d characters\n\n',
-          action.url,
-          method:upper(),
-          timeout,
-          content_type,
-          #result
-        )
-
-        -- Truncate very large responses
-        local max_content_length = 10000
-        local display_result = result
-        local truncation_note = ''
-
-        if #result > max_content_length then
-          display_result = result:sub(1, max_content_length)
-          truncation_note = string.format(
-            '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
-            #result,
-            max_content_length
+          local summary = string.format(
+            'Successfully fetched content from: %s\n'
+              .. 'Method: %s\n'
+              .. 'Timeout: %d seconds\n'
+              .. 'Content-Type: %s\n'
+              .. 'Content-Length: %d characters\n\n',
+            action.url,
+            method,
+            timeout,
+            content_type,
+            #result
           )
-        end
 
-        ctx.callback({
-          content = summary .. display_result .. truncation_note,
-          jobid = id,
-        })
+          -- Truncate very large responses
+          local max_content_length = 10000
+          local display_result = result
+          local truncation_note = ''
+
+          if #result > max_content_length then
+            display_result = result:sub(1, max_content_length)
+            truncation_note = string.format(
+              '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
+              #result,
+              max_content_length
+            )
+          end
+
+          ctx.callback({
+            content = summary .. display_result .. truncation_note,
+            jobid = id,
+          })
+        end
       else
+        -- Error handling
         local result = table.concat(stdout, '\n')
         if result ~= '' then
           result = result .. '\n\n' .. table.concat(stderr, '\n')
@@ -341,6 +426,10 @@ function M.info(action, ctx)
 
     if arguments.timeout then
       table.insert(info_parts, string.format('timeout=%d', arguments.timeout))
+    end
+
+    if arguments.output then
+      table.insert(info_parts, string.format('output=%s', arguments.output))
     end
 
     return table.concat(info_parts, ' ')

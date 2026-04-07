@@ -540,14 +540,37 @@ function M.on_progress_tool_call_done(id)
     session = session,
   })
 
-  for _, tool_call in ipairs(job_tool_calls[id]) do
-    local ok, arguments =
-      pcall(vim.json.decode, tool_call['function'].arguments)
-    if ok then
-      local result = tools.call(tool_call['function'].name, arguments, {
-        cwd = sessions[session].cwd,
-        session = session,
-        callback = function(result)
+  if job_tool_calls[id] then
+    for _, tool_call in ipairs(job_tool_calls[id]) do
+      local ok, arguments =
+        pcall(vim.json.decode, tool_call['function'].arguments)
+      if ok then
+        local result = tools.call(tool_call['function'].name, arguments, {
+          cwd = sessions[session].cwd,
+          session = session,
+          callback = function(result)
+            local tool_done_message = {
+              role = 'tool',
+              content = result.content
+                or ('tool_call run failed, error is: \n' .. result.error),
+              tool_call_id = tool_call.id,
+              created = os.time(),
+              tool_call_state = {
+                name = tool_call['function'].name,
+                error = result.error,
+              },
+            }
+            M.append_message(session, tool_done_message)
+            windows.on_tool_call_done(session, { tool_done_message })
+            M.finish_async_tool(
+              session,
+              result.jobid or result.mcp_tool_call_id
+            )
+          end,
+        })
+        if result.jobid or result.mcp_tool_call_id then
+          M.start_async_tool(session, result.jobid or result.mcp_tool_call_id)
+        else
           local tool_done_message = {
             role = 'tool',
             content = result.content
@@ -561,49 +584,28 @@ function M.on_progress_tool_call_done(id)
           }
           M.append_message(session, tool_done_message)
           windows.on_tool_call_done(session, { tool_done_message })
-          M.finish_async_tool(
-            session,
-            result.jobid or result.mcp_tool_call_id
-          )
-        end,
-      })
-      if result.jobid or result.mcp_tool_call_id then
-        M.start_async_tool(session, result.jobid or result.mcp_tool_call_id)
+        end
       else
         local tool_done_message = {
           role = 'tool',
-          content = result.content
-            or ('tool_call run failed, error is: \n' .. result.error),
+          content = 'can not run this tool, failed to decode arguments.',
           tool_call_id = tool_call.id,
           created = os.time(),
           tool_call_state = {
             name = tool_call['function'].name,
-            error = result.error,
+            error = 'failed to decode arguments.',
           },
         }
         M.append_message(session, tool_done_message)
+        log.info('failed to decode arguments, error is:' .. arguments)
+        log.info('arguments is:' .. tool_call['function'].arguments)
         windows.on_tool_call_done(session, { tool_done_message })
       end
-    else
-      local tool_done_message = {
-        role = 'tool',
-        content = 'can not run this tool, failed to decode arguments.',
-        tool_call_id = tool_call.id,
-        created = os.time(),
-        tool_call_state = {
-          name = tool_call['function'].name,
-          error = 'failed to decode arguments.',
-        },
-      }
-      M.append_message(session, tool_done_message)
-      log.info('failed to decode arguments, error is:' .. arguments)
-      log.info('arguments is:' .. tool_call['function'].arguments)
-      windows.on_tool_call_done(session, { tool_done_message })
     end
-  end
 
-  -- clear job_tool_calls by id
-  job_tool_calls[id] = nil
+    -- clear job_tool_calls by id
+    job_tool_calls[id] = nil
+  end
 end
 
 function M.append_message(session, message)
