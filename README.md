@@ -64,6 +64,18 @@ Chat with AI assistants directly in your editor using a clean, floating window i
         - [`git_log`](#git_log)
         - [`git_status`](#git_status)
         - [`git_show`](#git_show)
+        - [`git_branch`](#git_branch)
+        - [`git_checkout`](#git_checkout)
+        - [`git_config`](#git_config)
+        - [`git_fetch`](#git_fetch)
+        - [`git_merge`](#git_merge)
+        - [`git_pull`](#git_pull)
+        - [`git_push`](#git_push)
+        - [`git_remote`](#git_remote)
+        - [`git_reset`](#git_reset)
+        - [`git_stash`](#git_stash)
+        - [`git_tag`](#git_tag)
+        - [`make`](#make)
         - [`get_history`](#get_history)
         - [`plan`](#plan)
     - [Third-party Tools](#third-party-tools)
@@ -2239,6 +2251,470 @@ Show detailed changes of a specific commit.
 - Use `stat=true` to see only the file list with change counts
 - Use `path` to filter changes to a specific file
 - Particularly useful for reviewing specific commits without switching branches
+
+#### `git_branch`
+
+Manage git branches.
+
+**Usage:**
+
+```
+@git_branch [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_branch` - List local branches
+- `@git_branch all=true` - List all branches including remote
+- `@git_branch branch="feature-x" create=true` - Create new branch
+- `@git_branch branch="old-feature" delete=true` - Delete branch
+- `@git_branch branch="temp" delete=true force=true` - Force delete
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `list`    | boolean | List branches (default: true if no branch specified)     |
+| `all`     | boolean | List all branches including remote ones (-a)             |
+| `branch`  | string  | Branch name to create or delete                          |
+| `create`  | boolean | Create a new branch                                      |
+| `delete`  | boolean | Delete a branch                                          |
+| `force`   | boolean | Force delete or reset                                    |
+| `track`   | boolean | Set up tracking relationship                             |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Default action is list if no branch specified
+- Use `create=true` to create a new branch from current HEAD
+- Use `delete=true` to delete a branch (uses -d, safe delete)
+- Use `force=true` with delete for -D (force delete)
+- Use `all=true` to show remote branches in list mode
+
+#### `git_checkout`
+
+Switch branches or restore working tree files.
+
+**Usage:**
+
+```
+@git_checkout [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_checkout branch="main"` - Switch to existing branch
+- `@git_checkout new_branch="feature-x"` - Create and checkout new branch
+- `@git_checkout branch="origin/feature" track=true` - Track remote branch
+- `@git_checkout file="src/main.lua"` - Restore file from HEAD
+- `@git_checkout branch="v1.0.0" detach=true` - Checkout commit/tag (detached HEAD)
+- `@git_checkout branch="feature" force=true` - Force switch (discard changes)
+
+**Parameters:**
+
+| Parameter   | Type    | Description                                              |
+| ----------- | ------- | -------------------------------------------------------- |
+| `branch`    | string  | Branch name to checkout                                  |
+| `new_branch`| string  | Create and checkout a new branch (-b)                    |
+| `file`      | string  | File path to restore from HEAD                           |
+| `force`     | boolean | Force checkout                                           |
+| `track`     | boolean | Set up tracking for remote branch                        |
+| `detach`    | boolean | Detached HEAD (checkout commit or tag)                   |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Use `branch` for switching to existing branches or commits
+- Use `new_branch` to create and checkout a new branch (-b)
+- Use `file` to restore specific files from HEAD
+- Use `track=true` to set up upstream tracking for remote branches
+- Use `detach=true` when checking out commits or tags for detached HEAD
+- Use `force=true` to discard local changes when switching branches
+
+#### `git_config`
+
+Get, set, or list git configuration.
+
+**Usage:**
+
+```
+@git_config action="<action>" [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_config action="get" key="user.name"` - Get user name
+- `@git_config action="set" key="user.email" value="test@example.com"` - Set user email
+- `@git_config action="list"` - List all config
+- `@git_config action="list" global=true` - List global config
+- `@git_config action="unset" key="user.name"` - Unset config key
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `action`  | string  | Action type: get, set, list, or unset (default: get)     |
+| `key`     | string  | Config key (e.g., "user.name" or "user.email")           |
+| `value`   | string  | Config value (for set action)                            |
+| `global`  | boolean | Use global config file                                   |
+| `local_`  | boolean | Use local config file (default)                          |
+| `system`  | boolean | Use system config file                                   |
+| `file`    | string  | Use specified config file path                           |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Default scope is local (repository config)
+- Use `global` for user-wide settings
+- Use `system` for system-wide settings
+- Use `file` to specify a custom config file path
+
+#### `git_fetch`
+
+Fetch changes from remote repository without merging.
+
+**Usage:**
+
+```
+@git_fetch [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_fetch` - Fetch from origin (default)
+- `@git_fetch remote="upstream"` - Fetch from specific remote
+- `@git_fetch branch="main"` - Fetch specific branch
+- `@git_fetch all=true` - Fetch all remotes
+- `@git_fetch prune=true` - Remove deleted remote branches
+- `@git_fetch tags=true` - Fetch all tags
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `remote`  | string  | Remote name (default: "origin")                          |
+| `branch`  | string  | Branch name to fetch                                     |
+| `all`     | boolean | Fetch all remotes (--all)                                |
+| `prune`   | boolean | Remove local branches that no longer exist on remote     |
+| `tags`    | boolean | Fetch all tags (--tags)                                  |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Default remote is "origin" if not specified
+- Unlike `git_pull`, this does not merge changes into your current branch
+- Use `prune=true` to clean up local branches that were deleted on remote
+
+#### `git_merge`
+
+Merge branches.
+
+**Usage:**
+
+```
+@git_merge branch="<branch>" [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_merge branch="feature-x"` - Merge feature branch
+- `@git_merge branch="main" message="Merge main branch"` - Merge with custom message
+- `@git_merge branch="feature" no_ff=true` - Force merge commit
+- `@git_merge branch="main" ff_only=true` - Fast-forward only
+- `@git_merge abort=true` - Abort current merge
+- `@git_merge continue=true` - Continue after conflict resolution
+
+**Parameters:**
+
+| Parameter   | Type    | Description                                              |
+| ----------- | ------- | -------------------------------------------------------- |
+| `branch`    | string  | Branch to merge                                          |
+| `message`   | string  | Merge commit message                                     |
+| `no_ff`     | boolean | Create a merge commit even if fast-forward is possible   |
+| `ff_only`   | boolean | Abort if fast-forward is not possible                    |
+| `abort`     | boolean | Abort the current merge (--abort)                        |
+| `continue`  | boolean | Continue the current merge after resolving conflicts     |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Use `no_ff` to create a merge commit even if fast-forward is possible
+- Use `ff_only` to abort if fast-forward is not possible
+- Use `abort` to cancel an ongoing merge after conflicts
+- Use `continue` after resolving merge conflicts
+
+#### `git_pull`
+
+Pull changes from remote repository and merge.
+
+**Usage:**
+
+```
+@git_pull [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_pull` - Pull from origin (current branch)
+- `@git_pull branch="main"` - Pull specific branch from origin
+- `@git_pull remote="upstream"` - Pull from different remote
+- `@git_pull rebase=true` - Use rebase instead of merge
+- `@git_pull force=true` - Force pull
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `remote`  | string  | Remote name (optional)                                   |
+| `branch`  | string  | Branch name to pull (optional)                           |
+| `rebase`  | boolean | Use rebase instead of merge (--rebase)                   |
+| `force`   | boolean | Force pull (--force)                                     |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Default remote is "origin" if not specified
+- Use `rebase=true` to avoid merge commits
+- Use `force=true` with caution (overwrites local changes)
+
+#### `git_push`
+
+Push commits to remote repository.
+
+**Usage:**
+
+```
+@git_push [parameters]
+```
+
+**Basic Examples:**
+
+- `@git_push` - Push to origin (current branch)
+- `@git_push branch="main"` - Push specific branch
+- `@git_push remote="upstream"` - Push to different remote
+- `@git_push set_upstream=true branch="new-branch"` - Set upstream (-u)
+- `@git_push force=true branch="main"` - Force push
+- `@git_push all=true` - Push all branches
+- `@git_push tags=true` - Push tags
+
+**Parameters:**
+
+| Parameter      | Type    | Description                                              |
+| -------------- | ------- | -------------------------------------------------------- |
+| `remote`       | string  | Remote name (default: "origin")                          |
+| `branch`       | string  | Branch name to push                                      |
+| `set_upstream` | boolean | Set upstream for the branch (-u)                         |
+| `force`        | boolean | Force push (--force)                                     |
+| `all`          | boolean | Push all branches (--all)                                |
+| `tags`         | boolean | Push tags (--tags)                                       |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Default remote is "origin"
+- Use `set_upstream=true` to track remote branch
+- Use `force=true` with caution (rewrites history)
+- Use `all=true` to push all branches at once
+- Use `tags=true` to push all tags
+
+#### `git_remote`
+
+Manage set of tracked repositories (read-only).
+
+**Usage:**
+
+```
+@git_remote [parameters]
+```
+
+**Actions:**
+
+- `list`: List remote repositories (default)
+- `get-url`: Get URL of a remote
+
+**Basic Examples:**
+
+- `@git_remote` - List all remotes
+- `@git_remote action="list"` - List all remotes (verbose)
+- `@git_remote action="get-url" name="origin"` - Get origin URL
+- `@git_remote action="get-url" name="origin" push=true` - Get push URL
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `action`  | string  | Action to perform (default: list)                        |
+| `name`    | string  | Remote name (required for get-url)                       |
+| `verbose` | boolean | Show verbose output for list (default: true)             |
+| `push`    | boolean | Get push URL instead of fetch URL (for get-url)          |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Only read-only operations are supported
+
+#### `git_reset`
+
+Reset current HEAD to the specified state.
+
+**Usage:**
+
+```
+@git_reset [parameters]
+```
+
+**Modes:**
+
+- `soft`: Moves HEAD only, keeps changes staged
+- `mixed`: Moves HEAD, unstages changes (default)
+- `hard`: Moves HEAD, discards all changes (use with caution!)
+
+**Basic Examples:**
+
+- `@git_reset commit="abc123" mode="soft"` - Reset to commit, keep all changes staged
+- `@git_reset mode="mixed"` - Reset HEAD to HEAD, unstage changes
+- `@git_reset mode="hard"` - Discard all changes in working directory
+- `@git_reset path="./src/main.lua"` - Reset specific file to HEAD
+- `@git_reset mode="soft" commit="HEAD~1"` - Undo last commit, keep changes staged
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `mode`    | string  | Reset mode: soft, mixed, or hard (default: hard)         |
+| `commit`  | string  | Commit hash, tag, or reference (default: HEAD)           |
+| `path`    | string  | Specific file path or directory to reset                 |
+
+**Warning:**
+
+- Use `--hard` with caution as it permanently discards changes!
+- Consider stashing changes first if you might need them later.
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- `git reset --hard` does not support paths
+
+#### `git_stash`
+
+Stash changes in git repository.
+
+**Usage:**
+
+```
+@git_stash action="<action>" [parameters]
+```
+
+**Actions:**
+
+- `save`: Save current changes (default)
+- `list`: List all stashes
+- `pop`: Apply and remove stash
+- `drop`: Delete a stash
+- `apply`: Apply without removing
+- `clear`: Remove all stashes
+
+**Basic Examples:**
+
+- `@git_stash action="save" message="WIP"` - Save current changes
+- `@git_stash action="list"` - List all stashes
+- `@git_stash action="pop"` - Pop latest stash
+- `@git_stash action="drop" index=2` - Drop stash at index 2
+- `@git_stash action="apply" index=1` - Apply stash at index 1
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `action`  | string  | Action type (default: save)                              |
+| `message` | string  | Message for save action                                  |
+| `index`   | number  | Stash index (default: 0 for most recent)                 |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Index 0 is the most recent stash
+- Use `apply` to keep stash for later use, `pop` to remove after applying
+
+#### `git_tag`
+
+Manage git tags for marking specific commits.
+
+**Usage:**
+
+```
+@git_tag action="<action>" [parameters]
+```
+
+**Actions:**
+
+- `create`: Create a new tag
+- `list`: List all tags (default)
+- `delete`: Delete a local tag
+- `push`: Push tag(s) to remote
+
+**Basic Examples:**
+
+- `@git_tag action="create" name="v1.0.0" message="Release version 1.0"` - Create annotated tag
+- `@git_tag action="create" name="v1.0.0"` - Create lightweight tag
+- `@git_tag action="list"` - List all tags
+- `@git_tag action="delete" name="v1.0.0"` - Delete local tag
+- `@git_tag action="push" name="v1.0.0"` - Push specific tag
+- `@git_tag action="push"` - Push all tags
+- `@git_tag action="create" name="v1.0.0" force=true` - Overwrite existing tag
+
+**Parameters:**
+
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `action`  | string  | Action type (default: list)                              |
+| `name`    | string  | Tag name                                                 |
+| `message` | string  | Tag message (for annotated tags)                         |
+| `force`   | boolean | Force tag creation/deletion                              |
+| `remote`  | string  | Remote name for push action (default: origin)            |
+
+**Notes:**
+
+- Requires git to be installed and available in PATH
+- Annotated tags include a message and store metadata
+- Lightweight tags are just pointers to commits
+- Use `force=true` with caution when overwriting tags
+
+#### `make`
+
+Run make targets and return results.
+
+**Usage:**
+
+```
+@make [parameters]
+```
+
+**Basic Examples:**
+
+- `@make` - Run default target
+- `@make target="test"` - Run make test
+- `@make target="build"` - Run make build
+- `@make target="test" args=["-j4"]` - Run with options
+- `@make directory="./subproject"` - Run in subdirectory
+
+**Parameters:**
+
+| Parameter   | Type   | Description                                              |
+| ----------- | ------ | -------------------------------------------------------- |
+| `target`    | string | Make target to run (e.g., "test", "build", "clean")      |
+| `args`      | array  | Additional arguments for make (e.g., ["-j4", "VERBOSE=1"])|
+| `directory` | string | Directory to run make in (default: current working directory) |
+
+**Output:**
+
+Returns make command output with exit code and status.
+
+**Notes:**
+
+- Requires `make` to be installed and available in PATH
+- Exit code 0 indicates success
+- Useful for running build, test, and other make targets
 
 #### `get_history`
 

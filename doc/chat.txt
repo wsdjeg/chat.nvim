@@ -50,16 +50,17 @@ CONTENTS                                                                *chat*
       Usage Examples                                     |chat-usage-examples|
       Security Considerations                   |chat-security-considerations|
   9. Picker Integration                              |chat-picker-integration|
-  10. IM Integration                                         |chat-im-integration|
+10. IM Integration                                         |chat-im-integration|
       Discord                                                 |chat-discord|
       Lark (Feishu)                                         |chat-lark|
       DingTalk                                               |chat-dingtalk|
       WeCom                                                     |chat-wecom|
+      Weixin (Personal WeChat)                               |chat-weixin|
       Telegram                                               |chat-telegram|
       Slack                                                     |chat-slack|
   11. Self-Promotion                                      |chat-self-promotion|
   12. Feedback                                                  |chat-feedback|
-  13. License                                                   |chat-license|
+  13. License                                                   *chat-license*
 
 ==============================================================================
  1. INTRODUCTION                                           *chat-introduction*
@@ -1093,6 +1094,239 @@ Usage:
 <
 
 **git_add**                                                  *chat-tool-git_add*
+**git_branch**                                            *chat-tool-git_branch*
+
+Manage git branches.
+
+Usage:
+>
+    @git_branch                    -- List local branches
+    @git_branch all=true           -- List all branches including remote
+    @git_branch branch="feature-x" create=true  -- Create new branch
+    @git_branch branch="old-feature" delete=true -- Delete branch
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Default action is list if no branch specified
+- Use `create=true` to create a new branch from current HEAD
+- Use `delete=true` to delete a branch (uses -d, safe delete)
+- Use `force=true` with delete for -D (force delete)
+
+**git_checkout**                                        *chat-tool-git_checkout*
+
+Switch branches or restore working tree files.
+
+Usage:
+>
+    @git_checkout branch="main"                -- Switch to existing branch
+    @git_checkout new_branch="feature-x"      -- Create and checkout new branch
+    @git_checkout branch="origin/feature" track=true -- Track remote branch
+    @git_checkout file="src/main.lua"         -- Restore file from HEAD
+    @git_checkout branch="v1.0.0" detach=true -- Checkout commit/tag
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Use `branch` for switching to existing branches or commits
+- Use `new_branch` to create and checkout a new branch (-b)
+- Use `file` to restore specific files from HEAD
+- Use `track=true` to set up upstream tracking for remote branches
+
+**git_config**                                            *chat-tool-git_config*
+
+Get, set, or list git configuration.
+
+Usage:
+>
+    @git_config action="get" key="user.name"           -- Get user name
+    @git_config action="set" key="user.email" value="test@example.com"
+    @git_config action="list"                          -- List all config
+    @git_config action="list" global=true              -- List global config
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Default scope is local (repository config)
+- Use `global` for user-wide settings
+- Use `system` for system-wide settings
+
+**git_fetch**                                              *chat-tool-git_fetch*
+
+Fetch changes from remote repository without merging.
+
+Usage:
+>
+    @git_fetch                           -- Fetch from origin (default)
+    @git_fetch remote="upstream"         -- Fetch from specific remote
+    @git_fetch branch="main"             -- Fetch specific branch
+    @git_fetch all=true                  -- Fetch all remotes
+    @git_fetch prune=true                -- Remove deleted remote branches
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Default remote is "origin" if not specified
+- Unlike git_pull, this does not merge changes into your current branch
+
+**git_merge**                                              *chat-tool-git_merge*
+
+Merge branches.
+
+Usage:
+>
+    @git_merge branch="feature-x"                     -- Merge feature branch
+    @git_merge branch="main" message="Merge main"    -- Merge with custom message
+    @git_merge branch="feature" no_ff=true           -- Force merge commit
+    @git_merge abort=true                            -- Abort current merge
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Use `no_ff` to create a merge commit even if fast-forward is possible
+- Use `abort` to cancel an ongoing merge after conflicts
+- Use `continue` after resolving merge conflicts
+
+**git_pull**                                                *chat-tool-git_pull*
+
+Pull changes from remote repository and merge.
+
+Usage:
+>
+    @git_pull                           -- Pull from origin (current branch)
+    @git_pull branch="main"             -- Pull specific branch from origin
+    @git_pull remote="upstream"         -- Pull from different remote
+    @git_pull rebase=true               -- Use rebase instead of merge
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Default remote is "origin" if not specified
+- Use `rebase=true` to avoid merge commits
+
+**git_push**                                                *chat-tool-git_push*
+
+Push commits to remote repository.
+
+Usage:
+>
+    @git_push                           -- Push to origin (current branch)
+    @git_push branch="main"             -- Push specific branch
+    @git_push set_upstream=true         -- Set upstream (-u)
+    @git_push force=true                -- Force push
+    @git_push all=true                  -- Push all branches
+    @git_push tags=true                 -- Push tags
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Default remote is "origin"
+- Use `set_upstream=true` to track remote branch
+- Use `force=true` with caution (rewrites history)
+
+**git_remote**                                            *chat-tool-git_remote*
+
+Manage set of tracked repositories (read-only).
+
+Actions:
+- `list`: List remote repositories (default)
+- `get-url`: Get URL of a remote
+
+Usage:
+>
+    @git_remote                                    -- List all remotes
+    @git_remote action="list"                      -- List all remotes (verbose)
+    @git_remote action="get-url" name="origin"     -- Get origin URL
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Only read-only operations are supported
+
+**git_reset**                                              *chat-tool-git_reset*
+
+Reset current HEAD to the specified state.
+
+Modes:
+- `soft`: Moves HEAD only, keeps changes staged
+- `mixed`: Moves HEAD, unstages changes (default)
+- `hard`: Moves HEAD, discards all changes (use with caution!)
+
+Usage:
+>
+    @git_reset commit="abc123" mode="soft"  -- Reset to commit, keep staged
+    @git_reset mode="mixed"                 -- Unstage changes
+    @git_reset mode="hard"                  -- Discard all changes
+    @git_reset path="README.md"             -- Unstage changes to README.md
+<
+
+Warning:
+- Use `--hard` with caution as it permanently discards changes!
+
+**git_stash**                                              *chat-tool-git_stash*
+
+Stash changes in git repository.
+
+Actions:
+- `save`: Save current changes (default)
+- `list`: List all stashes
+- `pop`: Apply and remove stash
+- `drop`: Delete a stash
+- `apply`: Apply without removing
+- `clear`: Remove all stashes
+
+Usage:
+>
+    @git_stash action="save" message="WIP"
+    @git_stash action="list"
+    @git_stash action="pop"
+    @git_stash action="drop" index=2
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Index 0 is the most recent stash
+- Use `apply` to keep stash, `pop` to remove after applying
+
+**git_tag**                                                  *chat-tool-git_tag*
+
+Manage git tags for marking specific commits.
+
+Actions:
+- `create`: Create a new tag
+- `list`: List all tags (default)
+- `delete`: Delete a local tag
+- `push`: Push tag(s) to remote
+
+Usage:
+>
+    @git_tag action="create" name="v1.0.0" message="Release 1.0"
+    @git_tag action="list"
+    @git_tag action="delete" name="v1.0.0"
+    @git_tag action="push" name="v1.0.0"
+<
+
+Notes:
+- Requires git to be installed and in PATH
+- Annotated tags include a message and store metadata
+- Lightweight tags are just pointers to commits
+
+**make**                                                        *chat-tool-make*
+
+Run make targets and return results.
+
+Usage:
+>
+    @make                           -- Run default target
+    @make target="test"             -- Run make test
+    @make target="build"            -- Run make build
+    @make target="test" args=["-j4"] -- Run with options
+    @make directory="./subproject"  -- Run in subdirectory
+<
+
+Notes:
+- Requires `make` to be installed and in PATH
+- Returns make command output with exit code and status
 
 Stage file changes for commit.
 
@@ -1479,6 +1713,7 @@ Supported Platforms:
 | Lark     | 🐦   | ✅ Yes        | Feishu/Lark bot with message polling    |
 | DingTalk | 📱   | ✅ Yes*       | Webhook (one-way) or API (two-way)      |
 | WeCom    | 💼   | ✅ Yes*       | Enterprise WeChat webhook or API        |
+| Weixin   | 💬   | ✅ Yes*       | Personal WeChat via external API        |
 | Telegram | ✈️   | ✅ Yes        | Bot API with group/private chat support |
 | Slack    | 💼   | ✅ Yes        | Workspace bot with message polling      |
 
@@ -1587,12 +1822,58 @@ Setup Guide (Webhook Mode):
     integrations = {
       wecom = {
         webhook_key = 'YOUR_WEBHOOK_KEY',
+------------------------------------------------------------------------------
+ 10.5 Weixin (Personal WeChat)                               *chat-weixin*
+
+Weixin integration for personal WeChat accounts via QR code login.
+
+Features:
+- **QR Code Login**: Scan with WeChat to login
+- **Auto Credential Caching**: Login credentials saved locally
+- **Auto Reconnect**: Automatically reconnects on restart
+- **Long Message Support**: Auto-chunking for messages > 2,048 characters
+
+Setup Guide:
+
+1. **First-Time Login**
+
+   Run the following Lua command in Neovim:
+>
+    :lua require('chat.integrations.weixin').login()
+<
+   A QR code will be displayed in a floating window.
+
+2. **Scan QR Code**
+
+   - Open WeChat on your phone
+   - Scan the QR code
+   - Confirm login on your phone
+
+3. **Done!**
+
+   Login credentials are automatically saved to:
+>
+    stdpath('data')/chat-weixin-state.json
+<
+   Subsequent restarts will auto-connect using saved credentials.
+
+Commands:
+- `:lua require('chat.integrations.weixin').login()` - Start QR code login
+- `:lua require('chat.integrations.weixin').logout()` - Logout and clear credentials
+- `:lua require('chat.integrations.weixin').get_state()` - Check connection status
+
+Technical Details:
+- **API**: OpenClaw WeChat Gateway
+- **Authentication**: QR Code Login (auto-refresh)
+- **Message Limit**: 2,048 characters (auto-chunking)
+- **State Persistence**: `stdpath('data')/chat-weixin-state.json`
+- **Polling**: Long-poll every 3 seconds
       },
     }
 <
 
 ------------------------------------------------------------------------------
- 10.5 Telegram                                               *chat-telegram*
+10.6 Telegram                                               *chat-telegram*
 
 Telegram bot integration with full feature support.
 
@@ -1624,7 +1905,7 @@ Commands:
 - `/clear` (in Telegram) - Clear messages in the bound session
 
 ------------------------------------------------------------------------------
- 10.6 Slack                                                     *chat-slack*
+10.7 Slack                                                     *chat-slack*
 
 Slack integration for workspace communication.
 

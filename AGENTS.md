@@ -82,10 +82,8 @@ This prevents conflicts when code blocks contain three backticks.
 ---
 
 What can I help you build today? :)
+
 ---
-
-## Testing
-
 
 ## File Modification Rules
 
@@ -142,6 +140,68 @@ Before executing `replace` or `delete`:
 - Use `overwrite` for small files
 - Ask user for confirmation on critical changes
 - Prefer safe operations over precise ones
+
+---
+
+## Documentation Updates
+
+### Insert Operation Caution
+
+When using `insert` action to add content between sections:
+
+**Problem:**
+Inserting at line N causes the original content at line N onwards to shift down. If the insertion point is calculated incorrectly, it can:
+
+1. **Break mid-sentence** - Content gets split incorrectly
+2. **Move Notes sections** - Trailing notes from previous section get displaced
+3. **Corrupt structure** - Headers and content become misaligned
+
+**Example of Bad Insert:**
+```
+Original file:
+Line 10: #### `git_show`
+Line 11: Show commit details.
+...
+Line 20: **Notes:**
+Line 21: - Note 1
+Line 22: - Note 2
+Line 23: 
+Line 24: #### `get_history`  <-- Target: insert before this
+
+Bad: insert at line 23
+Result: Notes (lines 21-22) stay in place, new content inserted after them,
+        but they should belong to git_show, not appear after new tools.
+```
+
+**Best Practices:**
+
+1. **Insert before the next section header** - Find the exact line where the next section starts
+2. **Preserve trailing content** - Notes, examples, and trailing text belong to the section above
+3. **Use empty lines as anchors** - Insert at the blank line before the next header, not after the last content
+
+**Correct Insert Point:**
+```
+Line 10: #### `git_show`
+...
+Line 22: - Note 2
+Line 23:                    <-- Correct: Insert HERE (empty line before next header)
+Line 24: #### `get_history`
+```
+
+**Alternative: Use Replace Instead**
+
+When inserting multiple sections, consider:
+- `replace` the entire section block (more predictable)
+- `overwrite` for small documentation files
+- Re-read file immediately before modification
+
+### Verification After Documentation Update
+
+After updating README.md or doc/chat.txt:
+1. Check that tool sections are properly separated
+2. Verify Notes sections are with their correct tool
+3. Ensure no duplicate or missing headers
+4. Confirm table of contents matches actual sections
 
 ---
 
