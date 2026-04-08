@@ -15,8 +15,7 @@ local sessions = require('chat.sessions')
 
 local sse_buffers = {}
 local body_buffers = {}
-local message_buffers = {} -- Store message start events
-local tool_use_buffers = {} -- Store tool_use data during streaming
+local tool_use_buffers = {} -- Store tool_use data during streaming (accumulate JSON fragments)
 
 function M.on_stdout(id, data)
   if not sse_buffers[id] then
@@ -24,9 +23,6 @@ function M.on_stdout(id, data)
   end
   if not body_buffers[id] then
     body_buffers[id] = {}
-  end
-  if not message_buffers[id] then
-    message_buffers[id] = {}
   end
   if not tool_use_buffers[id] then
     tool_use_buffers[id] = {}
@@ -57,8 +53,7 @@ function M.on_stdout(id, data)
           elseif chunk then
             -- Handle different event types
             if chunk.type == 'message_start' then
-              -- Store message info
-              message_buffers[id] = chunk.message
+              -- Handle usage info from message_start
               if chunk.message.usage then
                 -- Normalize usage field names to match OpenAI format
                 local normalized_usage = {
@@ -281,7 +276,6 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil
-    message_buffers[id] = nil
     tool_use_buffers[id] = nil
   end)
 end
