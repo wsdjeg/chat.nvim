@@ -15,7 +15,6 @@ local sessions = require('chat.sessions')
 
 local sse_buffers = {}
 local body_buffers = {}
-local tool_use_buffers = {} -- Store tool_use data during streaming (accumulate JSON fragments)
 
 function M.on_stdout(id, data)
   if not sse_buffers[id] then
@@ -24,10 +23,6 @@ function M.on_stdout(id, data)
   if not body_buffers[id] then
     body_buffers[id] = {}
   end
-  if not tool_use_buffers[id] then
-    tool_use_buffers[id] = {}
-  end
-
   vim.schedule(function()
     for _, line in ipairs(data) do
       log.debug(line)
@@ -69,8 +64,8 @@ function M.on_stdout(id, data)
               -- Check if this is a tool_use block
               if chunk.content_block and chunk.content_block.type == 'tool_use' then
                 log.info('tool_use start: ' .. chunk.content_block.id)
-                -- Initialize tool_use buffer for this index
-                tool_use_buffers[id][chunk.index + 1] = {
+                -- Initialize tool_use and pass to sessions
+                local tool_use = {
                   id = chunk.content_block.id,
                   index = chunk.content_block.index or chunk.index,
                   type = 'function',
@@ -79,6 +74,7 @@ function M.on_stdout(id, data)
                     arguments = '',
                   },
                 }
+                sessions.on_progress_tool_call(id, tool_use)
               end
             elseif chunk.type == 'content_block_delta' then
               -- Streaming content
@@ -102,36 +98,14 @@ function M.on_stdout(id, data)
                 -- Tool use streaming - accumulate JSON input
                 log.info('handle tool_input delta')
                 if chunk.delta.partial_json then
-                  local index = chunk.index + 1
-                  if tool_use_buffers[id][index] then
-                    tool_use_buffers[id][index]['function'].arguments =
-                      tool_use_buffers[id][index]['function'].arguments
-                      .. chunk.delta.partial_json
-                    log.info(
-                      'accumulated tool args: '
-                      .. tool_use_buffers[id][index]['function'].arguments
-                    )
-                  end
+                  sessions.on_progress_tool_call_args(id, chunk.index, chunk.delta.partial_json)
                 end
               end
             elseif chunk.type == 'content_block_stop' then
               -- Content block finished
               log.info('content_block_stop: ' .. chunk.index)
               -- Check if this was a tool_use block
-              local index = chunk.index + 1
-              if tool_use_buffers[id][index] then
-                local tool_use = tool_use_buffers[id][index]
-                log.info(
-                  'tool_use complete: '
-                  .. tool_use.id
-                  .. ' '
-                  .. tool_use['function'].name
-                )
-                -- Convert to OpenAI format and call on_progress_tool_call
-                sessions.on_progress_tool_call(id, tool_use)
-                -- Clear the buffer for this index
-                tool_use_buffers[id][index] = nil
-              end
+              sessions.on_progress_tool_call_done(id, chunk.index)
             elseif chunk.type == 'message_delta' then
               -- Message update
               if chunk.delta and chunk.delta.stop_reason then
@@ -276,7 +250,6 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil
-    tool_use_buffers[id] = nil
   end)
 end
 

@@ -516,6 +516,16 @@ function M.on_progress_tool_call(id, tool_call)
   end
 end
 
+function M.on_progress_tool_call_args(id, index, args)
+  job_tool_calls[id] = job_tool_calls[id] or {}
+  local idx = index + 1
+
+  if job_tool_calls[id][idx] then
+    job_tool_calls[id][idx]['function'].arguments =
+      job_tool_calls[id][idx]['function'].arguments .. args
+  end
+end
+
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)
   local windows = require('chat.windows')
@@ -539,7 +549,6 @@ function M.on_progress_tool_call_done(id)
     created = message.created,
     session = session,
   })
-
   if job_tool_calls[id] then
     for _, tool_call in ipairs(job_tool_calls[id]) do
       -- Skip incomplete tool calls
@@ -555,7 +564,6 @@ function M.on_progress_tool_call_done(id)
         log.warn('Skipping tool_call without function.name: ' .. vim.inspect(tool_call))
         goto continue
       end
-
       local ok, arguments =
         pcall(vim.json.decode, tool_call['function'].arguments or '')
       if ok then
