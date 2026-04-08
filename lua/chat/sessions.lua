@@ -516,15 +516,6 @@ function M.on_progress_tool_call(id, tool_call)
   end
 end
 
-function M.on_progress_tool_call_args(id, index, args)
-  job_tool_calls[id] = job_tool_calls[id] or {}
-  local idx = index + 1
-
-  if job_tool_calls[id][idx] then
-    job_tool_calls[id][idx]['function'].arguments =
-      job_tool_calls[id][idx]['function'].arguments .. args
-  end
-end
 
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)

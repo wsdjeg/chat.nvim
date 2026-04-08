@@ -95,17 +95,21 @@ function M.on_stdout(id, data)
                 -- No special handling needed, just acknowledge it
                 log.debug('received signature_delta for thinking block')
               elseif chunk.delta and chunk.delta.type == 'input_json_delta' then
-                -- Tool use streaming - accumulate JSON input
+                -- Tool use streaming - accumulate JSON input (matching OpenAI protocol)
                 log.info('handle tool_input delta')
                 if chunk.delta.partial_json then
-                  sessions.on_progress_tool_call_args(id, chunk.index, chunk.delta.partial_json)
+                  sessions.on_progress_tool_call(id, {
+                    index = chunk.index,
+                    ['function'] = {
+                      arguments = chunk.delta.partial_json,
+                    },
+                  })
                 end
               end
             elseif chunk.type == 'content_block_stop' then
               -- Content block finished
               log.info('content_block_stop: ' .. chunk.index)
-              -- Check if this was a tool_use block
-              sessions.on_progress_tool_call_done(id, chunk.index)
+              -- Tool use completion is handled in on_exit when reason == 'tool_use'
             elseif chunk.type == 'message_delta' then
               -- Message update
               if chunk.delta and chunk.delta.stop_reason then
