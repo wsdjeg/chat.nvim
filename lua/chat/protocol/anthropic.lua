@@ -52,7 +52,8 @@ function M.on_stdout(id, data)
               if chunk.message.usage then
                 -- Normalize usage field names to match OpenAI format
                 local normalized_usage = {
-                  total_tokens = chunk.message.usage.input_tokens + chunk.message.usage.output_tokens,
+                  total_tokens = chunk.message.usage.input_tokens
+                    + chunk.message.usage.output_tokens,
                   prompt_tokens = chunk.message.usage.input_tokens,
                   completion_tokens = chunk.message.usage.output_tokens,
                 }
@@ -62,7 +63,10 @@ function M.on_stdout(id, data)
               -- Content block starting
               log.info('content_block_start: ' .. chunk.index)
               -- Check if this is a tool_use block
-              if chunk.content_block and chunk.content_block.type == 'tool_use' then
+              if
+                chunk.content_block
+                and chunk.content_block.type == 'tool_use'
+              then
                 log.info('tool_use start: ' .. chunk.content_block.id)
                 -- Initialize tool_use and pass to sessions
                 local tool_use = {
@@ -87,14 +91,21 @@ function M.on_stdout(id, data)
                 -- Thinking content streaming (similar to reasoning_content in OpenAI)
                 if chunk.delta.thinking and #chunk.delta.thinking > 0 then
                   log.info('handle thinking delta')
-                  sessions.on_progress_reasoning_content(id, chunk.delta.thinking)
+                  sessions.on_progress_reasoning_content(
+                    id,
+                    chunk.delta.thinking
+                  )
                 end
-              elseif chunk.delta and chunk.delta.type == 'signature_delta' then
+              elseif
+                chunk.delta and chunk.delta.type == 'signature_delta'
+              then
                 -- Signature delta for thinking block (Moonshot/Kimi specific)
                 -- This event appears at the end of a thinking block before content_block_stop
                 -- No special handling needed, just acknowledge it
                 log.debug('received signature_delta for thinking block')
-              elseif chunk.delta and chunk.delta.type == 'input_json_delta' then
+              elseif
+                chunk.delta and chunk.delta.type == 'input_json_delta'
+              then
                 -- Tool use streaming - accumulate JSON input (matching OpenAI protocol)
                 log.info('handle tool_input delta')
                 if chunk.delta.partial_json then
@@ -260,7 +271,7 @@ function M.convert_message(messages)
   for _, msg in ipairs(messages) do
     if msg.role == 'system' then
       system_prompt = msg.content
-    elseif msg.role == 'user' or msg.role == 'assistant' then
+    elseif msg.role == 'user' then
       table.insert(anthropic_messages, {
         role = msg.role,
         content = {
@@ -269,6 +280,29 @@ function M.convert_message(messages)
             text = msg.content,
           },
         },
+      })
+    elseif msg.role == 'assistant' then
+      local content = {}
+      if msg.reasoning_content and msg.reasoning_content ~= '' then
+        table.insert(content, {
+          type = 'thinking',
+          thinking = msg.reasoning_content,
+          -- signature = '',
+        })
+      end
+      if msg.tool_calls then
+        for _, tool_call in ipairs(msg.tool_calls) do
+          table.insert(content, {
+            type = 'tool_use',
+            id = tool_call.id,
+            name = tool_call.name,
+            input = tool_call.arguments,
+          })
+        end
+      end
+      table.insert(anthropic_messages, {
+        role = msg.role,
+        content = content,
       })
     elseif msg.role == 'tool' then
       -- Convert tool results
@@ -289,4 +323,3 @@ function M.convert_message(messages)
 end
 
 return M
-
