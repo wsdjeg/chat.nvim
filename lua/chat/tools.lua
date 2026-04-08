@@ -74,25 +74,38 @@ function M.call(func, arguments, ctx)
 end
 
 function M.info(tool_call, ctx)
+  -- Guard against nil tool_call
+  if not tool_call then
+    return 'unknown tool'
+  end
+
+  -- Check if function info exists
+  if not tool_call['function'] then
+    return 'unknown tool'
+  end
+
+  -- Check if function name exists
+  local name = tool_call['function'].name
+  if not name then
+    return 'unnamed tool'
+  end
+
   -- 检查是否是 MCP tool
-  if tool_call['function'].name:match('^mcp_.+_.+$') then
+  if name:match('^mcp_.+_.+$') then
     local ok, mcp_module = pcall(get_mcp)
     if ok and mcp_module then
-      return mcp_module.tool_info(
-        tool_call['function'].name,
-        tool_call['function'].arguments
-      )
+      return mcp_module.tool_info(name, tool_call['function'].arguments)
     end
   end
 
   -- 原有的 chat.nvim tool 信息逻辑
-  local tool_module = 'chat.tools.' .. tool_call['function'].name
+  local tool_module = 'chat.tools.' .. name
 
   local ok, tool = pcall(require, tool_module)
   if ok and tool.info then
     return tool.info(tool_call['function'].arguments, ctx)
   else
-    return tool_call['function'].name
+    return name
   end
 end
 

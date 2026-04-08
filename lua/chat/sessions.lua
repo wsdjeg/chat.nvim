@@ -542,8 +542,22 @@ function M.on_progress_tool_call_done(id)
 
   if job_tool_calls[id] then
     for _, tool_call in ipairs(job_tool_calls[id]) do
+      -- Skip incomplete tool calls
+      if not tool_call then
+        log.warn('Skipping nil tool_call')
+        goto continue
+      end
+      if not tool_call['function'] then
+        log.warn('Skipping tool_call without function field: ' .. vim.inspect(tool_call))
+        goto continue
+      end
+      if not tool_call['function'].name then
+        log.warn('Skipping tool_call without function.name: ' .. vim.inspect(tool_call))
+        goto continue
+      end
+
       local ok, arguments =
-        pcall(vim.json.decode, tool_call['function'].arguments)
+        pcall(vim.json.decode, tool_call['function'].arguments or '')
       if ok then
         local result = tools.call(tool_call['function'].name, arguments, {
           cwd = sessions[session].cwd,
@@ -598,9 +612,10 @@ function M.on_progress_tool_call_done(id)
         }
         M.append_message(session, tool_done_message)
         log.info('failed to decode arguments, error is:' .. arguments)
-        log.info('arguments is:' .. tool_call['function'].arguments)
+        log.info('arguments is:' .. (tool_call['function'].arguments or 'nil'))
         windows.on_tool_call_done(session, { tool_done_message })
       end
+      ::continue::
     end
 
     -- clear job_tool_calls by id

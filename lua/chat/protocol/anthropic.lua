@@ -16,6 +16,7 @@ local sessions = require('chat.sessions')
 local sse_buffers = {}
 local body_buffers = {}
 local message_buffers = {} -- Store message start events
+local tool_use_buffers = {} -- Store tool_use data during streaming
 
 function M.on_stdout(id, data)
   if not sse_buffers[id] then
@@ -26,6 +27,9 @@ function M.on_stdout(id, data)
   end
   if not message_buffers[id] then
     message_buffers[id] = {}
+  end
+  if not tool_use_buffers[id] then
+    tool_use_buffers[id] = {}
   end
 
   vim.schedule(function()
@@ -67,6 +71,20 @@ function M.on_stdout(id, data)
             elseif chunk.type == 'content_block_start' then
               -- Content block starting
               log.info('content_block_start: ' .. chunk.index)
+              -- Check if this is a tool_use block
+              if chunk.content_block and chunk.content_block.type == 'tool_use' then
+                log.info('tool_use start: ' .. chunk.content_block.id)
+                -- Initialize tool_use buffer for this index
+                tool_use_buffers[id][chunk.index + 1] = {
+                  id = chunk.content_block.id,
+                  index = chunk.content_block.index or chunk.index,
+                  type = 'function',
+                  ['function'] = {
+                    name = chunk.content_block.name,
+                    arguments = '',
+                  },
+                }
+              end
             elseif chunk.type == 'content_block_delta' then
               -- Streaming content
               if chunk.delta and chunk.delta.type == 'text_delta' then
@@ -74,24 +92,51 @@ function M.on_stdout(id, data)
                   log.info('handle text delta')
                   sessions.on_progress(id, chunk.delta.text)
                 end
-              elseif
-                chunk.delta and chunk.delta.type == 'thinking_delta'
-              then
+              elseif chunk.delta and chunk.delta.type == 'thinking_delta' then
                 -- Thinking content streaming (similar to reasoning_content in OpenAI)
                 if chunk.delta.thinking and #chunk.delta.thinking > 0 then
                   log.info('handle thinking delta')
                   sessions.on_progress_reasoning_content(id, chunk.delta.thinking)
                 end
-              elseif
-                chunk.delta and chunk.delta.type == 'input_json_delta'
-              then
-                -- Tool use streaming
+              elseif chunk.delta and chunk.delta.type == 'signature_delta' then
+                -- Signature delta for thinking block (Moonshot/Kimi specific)
+                -- This event appears at the end of a thinking block before content_block_stop
+                -- No special handling needed, just acknowledge it
+                log.debug('received signature_delta for thinking block')
+              elseif chunk.delta and chunk.delta.type == 'input_json_delta' then
+                -- Tool use streaming - accumulate JSON input
                 log.info('handle tool_input delta')
-                -- Handle partial tool input if needed
+                if chunk.delta.partial_json then
+                  local index = chunk.index + 1
+                  if tool_use_buffers[id][index] then
+                    tool_use_buffers[id][index]['function'].arguments =
+                      tool_use_buffers[id][index]['function'].arguments
+                      .. chunk.delta.partial_json
+                    log.info(
+                      'accumulated tool args: '
+                      .. tool_use_buffers[id][index]['function'].arguments
+                    )
+                  end
+                end
               end
             elseif chunk.type == 'content_block_stop' then
               -- Content block finished
               log.info('content_block_stop: ' .. chunk.index)
+              -- Check if this was a tool_use block
+              local index = chunk.index + 1
+              if tool_use_buffers[id][index] then
+                local tool_use = tool_use_buffers[id][index]
+                log.info(
+                  'tool_use complete: '
+                  .. tool_use.id
+                  .. ' '
+                  .. tool_use['function'].name
+                )
+                -- Convert to OpenAI format and call on_progress_tool_call
+                sessions.on_progress_tool_call(id, tool_use)
+                -- Clear the buffer for this index
+                tool_use_buffers[id][index] = nil
+              end
             elseif chunk.type == 'message_delta' then
               -- Message update
               if chunk.delta and chunk.delta.stop_reason then
@@ -103,7 +148,8 @@ function M.on_stdout(id, data)
               if chunk.usage then
                 -- Normalize usage field names to match OpenAI format
                 local normalized_usage = {
-                  total_tokens = chunk.usage.total_tokens or (chunk.usage.input_tokens + chunk.usage.output_tokens),
+                  total_tokens = chunk.usage.total_tokens
+                    or (chunk.usage.input_tokens + chunk.usage.output_tokens),
                   prompt_tokens = chunk.usage.input_tokens,
                   completion_tokens = chunk.usage.output_tokens,
                 }
@@ -112,7 +158,10 @@ function M.on_stdout(id, data)
             elseif chunk.type == 'message_stop' then
               -- Message complete
               log.info('message_stop')
-              sessions.set_progress_finish_reason(id, 'stop')
+              -- Only set finish_reason to 'stop' if not already set (e.g., by message_delta with 'tool_use')
+              if not sessions.get_progress_finish_reason(id) then
+                sessions.set_progress_finish_reason(id, 'stop')
+              end
             elseif chunk.type == 'ping' then
               -- Keep-alive ping, ignore
               log.debug('received ping')
@@ -175,15 +224,23 @@ function M.on_exit(id, code, signal)
     log.info(string.format('job exit code %d signal %d', code, signal))
 
     local reason = sessions.get_progress_finish_reason(id)
-    if reason == 'end_turn' or reason == 'stop' or reason == 'tool_use' then
+    log.info('finish_reason: ' .. tostring(reason))
+    if reason == 'end_turn' or reason == 'stop' then
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
+    elseif reason == 'tool_use' then
+      -- Tool use detected, finalize tool calls
+      log.info('tool_use detected, calling on_progress_tool_call_done')
+      -- Match OpenAI protocol: call on_complete first, then tool_call_done
+      sessions.on_complete(session, id)
+      sessions.on_progress_tool_call_done(id)
     end
 
-    sessions.on_progress_exit(id, code, signal)
-
     if session == require('chat.windows').current_session() then
-      require('chat.spinners').stop()
+      -- Match OpenAI protocol: only stop spinner if no pending async tools
+      if not sessions.has_pending_async_tools(session) then
+        require('chat.spinners').stop()
+      end
     end
 
     if signal == 2 then
@@ -206,10 +263,26 @@ function M.on_exit(id, code, signal)
       require('chat.windows').on_message(session, message)
     end
 
+    -- Send tool results back to server (same as OpenAI protocol)
+    if code == 0 and signal == 0 then
+      local session_messages = sessions.get_messages(session)
+      if session_messages[#session_messages].error then
+        log.info('API error detected, skip sending tool results')
+      else
+        local messages = sessions.get_request_messages(session)
+        if messages[#messages].role == 'tool' then
+          if not sessions.has_pending_async_tools(session) then
+            sessions.send_tool_results(session)
+          end
+        end
+      end
+    end
+
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil
     message_buffers[id] = nil
+    tool_use_buffers[id] = nil
   end)
 end
 

@@ -31,23 +31,27 @@ function M.generate_message(message, session)
       table.insert(msg, '')
     end
     for i = 1, #message.tool_calls do
+      local tool_call = message.tool_calls[i]
+      if not tool_call then
+        goto continue
+      end
       local base = string.format(
         '[%s] 🤖 Bot: 🔧 Executing tool: ',
         os.date(config.config.strftime, message.created)
       )
       local tool_info = vim.split(
-        tools.info(message.tool_calls[i], { cwd = sessions.getcwd(session) }),
+        tools.info(tool_call, { cwd = sessions.getcwd(session) }),
         '\n'
       )
       table.insert(msg, base .. tool_info[1])
       if #tool_info > 1 then
-        for i = 2, #tool_info do
-          table.insert(msg, string.rep(' ', #base) .. tool_info[i])
+        for j = 2, #tool_info do
+          table.insert(msg, string.rep(' ', #base) .. tool_info[j])
         end
       end
       table.insert(msg, '')
+      ::continue::
     end
-
     return msg
   elseif message.role == 'assistant' then
     local msg = {
