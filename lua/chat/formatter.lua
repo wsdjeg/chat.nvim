@@ -87,7 +87,6 @@ function M.generate_message(message, session)
         table.insert(msg, content[i])
       end
     end
-    table.insert(msg, '')
     return msg
   elseif message.role == 'tool' then
     if message.tool_call_state and message.tool_call_state.error then
