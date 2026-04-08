@@ -75,6 +75,14 @@ function M.on_stdout(id, data)
                   sessions.on_progress(id, chunk.delta.text)
                 end
               elseif
+                chunk.delta and chunk.delta.type == 'thinking_delta'
+              then
+                -- Thinking content streaming (similar to reasoning_content in OpenAI)
+                if chunk.delta.thinking and #chunk.delta.thinking > 0 then
+                  log.info('handle thinking delta')
+                  sessions.on_progress_reasoning_content(id, chunk.delta.thinking)
+                end
+              elseif
                 chunk.delta and chunk.delta.type == 'input_json_delta'
               then
                 -- Tool use streaming
@@ -206,3 +214,4 @@ function M.on_exit(id, code, signal)
 end
 
 return M
+
