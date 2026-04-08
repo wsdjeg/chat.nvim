@@ -109,13 +109,6 @@ function M.generate_message(message, session)
         ),
         '',
       }
-      -- Add tool output content if present
-      if message.content and message.content ~= '' then
-        for _, line in ipairs(vim.split(message.content, '\n')) do
-          table.insert(lines, line)
-        end
-        table.insert(lines, '')
-      end
       return lines
     end
   elseif message.content and message.role ~= 'tool' then
