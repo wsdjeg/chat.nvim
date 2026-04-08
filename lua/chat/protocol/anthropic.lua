@@ -254,5 +254,39 @@ function M.on_exit(id, code, signal)
   end)
 end
 
+function M.convert_message(messages)
+  local system_prompt = nil
+  local anthropic_messages = {}
+  for _, msg in ipairs(messages) do
+    if msg.role == 'system' then
+      system_prompt = msg.content
+    elseif msg.role == 'user' or msg.role == 'assistant' then
+      table.insert(anthropic_messages, {
+        role = msg.role,
+        content = {
+          {
+            type = 'text',
+            text = msg.content,
+          },
+        },
+      })
+    elseif msg.role == 'tool' then
+      -- Convert tool results
+      table.insert(anthropic_messages, {
+        role = 'user',
+        content = {
+          {
+            type = 'tool_result',
+            tool_use_id = msg.tool_call_id,
+            content = { type = 'text', text = msg.content },
+          },
+        },
+      })
+    end
+  end
+
+  return system_prompt, anthropic_messages
+end
+
 return M
 
