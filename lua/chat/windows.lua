@@ -402,10 +402,12 @@ function M.open(opt)
             session = current_session,
             messages = sessions.get_request_messages(current_session),
           })
-          if jobid > 0 then
+          if jobid and jobid > 0 then
             spinners.start()
+            log.info('curl request jobid is ' .. jobid)
+          else
+            log.error('Failed to start request: jobid is nil or invalid')
           end
-          log.info('curl request jobid is ' .. jobid)
         end
       end,
       silent = true,

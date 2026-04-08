@@ -79,6 +79,9 @@ function M.is_allowed_path(path)
 end
 
 function M.format_number(num)
+  if num == nil then
+    return '0'
+  end
   if num >= 1000000000 then
     return string.format('%.2fG', num / 1000000000)
   elseif num >= 1000000 then

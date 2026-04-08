@@ -79,14 +79,12 @@ function M.request(opt)
     '-d',
     '@-',
   }
-
   local jobid = job.start(cmd, {
     on_stdout = opt.on_stdout,
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
   job.send(jobid, vim.json.encode(body))
-  job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
 
   return jobid

@@ -56,7 +56,13 @@ function M.on_stdout(id, data)
               -- Store message info
               message_buffers[id] = chunk.message
               if chunk.message.usage then
-                sessions.set_progress_usage(id, chunk.message.usage)
+                -- Normalize usage field names to match OpenAI format
+                local normalized_usage = {
+                  total_tokens = chunk.message.usage.input_tokens + chunk.message.usage.output_tokens,
+                  prompt_tokens = chunk.message.usage.input_tokens,
+                  completion_tokens = chunk.message.usage.output_tokens,
+                }
+                sessions.set_progress_usage(id, normalized_usage)
               end
             elseif chunk.type == 'content_block_start' then
               -- Content block starting
@@ -87,7 +93,13 @@ function M.on_stdout(id, data)
                 )
               end
               if chunk.usage then
-                sessions.set_progress_usage(id, chunk.usage)
+                -- Normalize usage field names to match OpenAI format
+                local normalized_usage = {
+                  total_tokens = chunk.usage.total_tokens or (chunk.usage.input_tokens + chunk.usage.output_tokens),
+                  prompt_tokens = chunk.usage.input_tokens,
+                  completion_tokens = chunk.usage.output_tokens,
+                }
+                sessions.set_progress_usage(id, normalized_usage)
               end
             elseif chunk.type == 'message_stop' then
               -- Message complete
