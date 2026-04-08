@@ -543,7 +543,7 @@ function M.on_progress_tool_call_done(id)
   })
   log.debug(vim.inspect(job_tool_calls))
   if job_tool_calls[id] then
-    for _, tool_call in pairs(job_tool_calls[id]) do
+    for _, tool_call in ipairs(job_tool_calls[id]) do
       -- Skip incomplete tool calls
       if not tool_call then
         log.warn('Skipping nil tool_call')

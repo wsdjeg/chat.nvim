@@ -29,7 +29,12 @@ function M.request(opt)
     elseif msg.role == 'user' or msg.role == 'assistant' then
       table.insert(anthropic_messages, {
         role = msg.role,
-        content = msg.content,
+        content = {
+          {
+            type = 'text',
+            text = msg.content,
+          },
+        },
       })
     elseif msg.role == 'tool' then
       -- Convert tool results
@@ -39,7 +44,7 @@ function M.request(opt)
           {
             type = 'tool_result',
             tool_use_id = msg.tool_call_id,
-            content = msg.content,
+            content = { type = 'text', text = msg.content },
           },
         },
       })

@@ -67,7 +67,7 @@ function M.on_stdout(id, data)
                 -- Initialize tool_use and pass to sessions
                 local tool_use = {
                   id = chunk.content_block.id,
-                  index = chunk.content_block.index or chunk.index,
+                  index = (chunk.content_block.index or chunk.index) - 1,
                   type = 'function',
                   ['function'] = {
                     name = chunk.content_block.name,
@@ -99,7 +99,7 @@ function M.on_stdout(id, data)
                 log.info('handle tool_input delta')
                 if chunk.delta.partial_json then
                   sessions.on_progress_tool_call(id, {
-                    index = chunk.index,
+                    index = chunk.index - 1,
                     ['function'] = {
                       arguments = chunk.delta.partial_json,
                     },
@@ -202,9 +202,6 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
     elseif reason == 'tool_use' then
-      -- Tool use detected, finalize tool calls
-      log.info('tool_use detected, calling on_progress_tool_call_done')
-      -- Match OpenAI protocol: call on_complete first, then tool_call_done
       sessions.on_complete(session, id)
       sessions.on_progress_tool_call_done(id)
     end
