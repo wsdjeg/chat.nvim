@@ -295,10 +295,17 @@ function M.convert_message(messages)
           table.insert(content, {
             type = 'tool_use',
             id = tool_call.id,
-            name = tool_call.name,
-            input = tool_call.arguments,
+            name = tool_call['function'].name,
+            input = tool_call['function'].arguments,
           })
         end
+      end
+      -- Add regular text content if present
+      if msg.content and msg.content ~= '' then
+        table.insert(content, {
+          type = 'text',
+          text = msg.content,
+        })
       end
       table.insert(anthropic_messages, {
         role = msg.role,
@@ -306,13 +313,19 @@ function M.convert_message(messages)
       })
     elseif msg.role == 'tool' then
       -- Convert tool results
+      -- Anthropic API expects tool_result content to be string or content blocks array
       table.insert(anthropic_messages, {
         role = 'user',
         content = {
           {
             type = 'tool_result',
             tool_use_id = msg.tool_call_id,
-            content = { type = 'text', text = msg.content },
+            content = {
+              {
+                type = 'text',
+                text = msg.content,
+              },
+            },
           },
         },
       })
