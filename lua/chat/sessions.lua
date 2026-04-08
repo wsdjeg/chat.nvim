@@ -475,6 +475,7 @@ function M.on_progress_tool_call(id, tool_call)
   job_tool_calls[id] = job_tool_calls[id] or {}
 
   -- Some streaming implementations may emit early deltas without index
+  -- what the fuck anthropic tool_calls started with 1, and openai started with 0.
   if tool_call.index == nil then
     return
   end
@@ -540,8 +541,9 @@ function M.on_progress_tool_call_done(id)
     created = message.created,
     session = session,
   })
+  log.debug(vim.inspect(job_tool_calls))
   if job_tool_calls[id] then
-    for _, tool_call in ipairs(job_tool_calls[id]) do
+    for _, tool_call in pairs(job_tool_calls[id]) do
       -- Skip incomplete tool calls
       if not tool_call then
         log.warn('Skipping nil tool_call')
