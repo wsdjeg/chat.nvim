@@ -102,7 +102,7 @@ function M.generate_message(message, session)
       table.insert(msg, '')
       return msg
     else
-      return {
+      local lines = {
         string.format(
           '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
           os.date(config.config.strftime, message.created),
@@ -110,6 +110,14 @@ function M.generate_message(message, session)
         ),
         '',
       }
+      -- Add tool output content if present
+      if message.content and message.content ~= '' then
+        for _, line in ipairs(vim.split(message.content, '\n')) do
+          table.insert(lines, line)
+        end
+        table.insert(lines, '')
+      end
+      return lines
     end
   elseif message.content and message.role ~= 'tool' then
     return vim.split(message.content, '\n')
