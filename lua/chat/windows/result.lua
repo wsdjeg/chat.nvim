@@ -291,6 +291,9 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
   vim.api.nvim_set_option_value('number', true, { win = result_win })
   vim.api.nvim_set_option_value('list', false, { win = result_win })
 
+  -- Scroll to bottom on initial open
+  M.scroll_to_bottom()
+
   return result_win
 end
 
@@ -327,6 +330,9 @@ function M.render(session)
       vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
     end
   end
+
+  -- Scroll to bottom after rendering new session content
+  M.scroll_to_bottom()
 end
 
 return M
