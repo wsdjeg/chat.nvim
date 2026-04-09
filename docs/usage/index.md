@@ -215,8 +215,6 @@ Opens an HTML preview of the current session in your default browser. The previe
 ## Key Bindings
 
 {: .warning }
-> The plugin is currently in active development phase. Key bindings may change and may reflect the author's personal preferences. Configuration options for customizing key bindings are planned for future releases.
-
 ### Input Window Key Bindings
 
 The following key bindings are available in the **Input** window:
@@ -228,6 +226,7 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `<Tab>`      | Switch between input and result windows |
 | `Normal` | `Ctrl-C`     | Cancel current request                  |
 | `Normal` | `Ctrl-N`     | Open new session                        |
+| `Normal` | `Ctrl-D`     | Delete current session                  |
 | `Normal` | `r`          | Retry last cancelled request            |
 | `Normal` | `alt-h`      | Previous chat session                   |
 | `Normal` | `alt-l`      | Next chat session                       |

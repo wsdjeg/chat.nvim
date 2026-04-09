@@ -62,6 +62,15 @@ function M.setup_prompt_keymaps(buf, opts)
     { silent = true }
   )
 
+  -- Delete session
+  vim.api.nvim_buf_set_keymap(
+    buf,
+    'n',
+    '<C-d>',
+    '<cmd>Chat delete<Cr>',
+    { silent = true }
+  )
+
   -- Send message (Enter)
   vim.api.nvim_buf_set_keymap(buf, 'n', '<Enter>', '', {
     callback = send_message_fn,
