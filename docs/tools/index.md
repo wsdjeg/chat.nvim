@@ -31,17 +31,7 @@ MCP (Model Context Protocol) tools are automatically discovered and integrated w
 - `mcp_open_webSearch_search` - Web search via MCP server
 - `mcp_open_webSearch_fetchGithubReadme` - Fetch GitHub README via MCP
 - `mcp_open_webSearch_fetchCsdnArticle` - Fetch CSDN article via MCP
-
 MCP tools are automatically available when their servers are configured in the `mcp` section of your setup configuration. See [MCP Configuration](/docs/mcp/) for details.
-
-### Using MCP Tools
-
-```
-@mcp_open_webSearch_search query="neovim plugins" engines=["bing"] limit=10
-@mcp_open_webSearch_fetchGithubReadme url="https://github.com/wsdjeg/chat.nvim"
-```
-
-MCP tools support all parameter types defined by their servers and execute asynchronously without blocking Neovim's UI.
 
 ---
 
@@ -49,29 +39,43 @@ MCP tools support all parameter types defined by their servers and execute async
 
 here is a list of available tools:
 
-| tool name                       | description                                                        |
-| ------------------------------- | ------------------------------------------------------------------ |
-| [read_file](./read_file.md)     | Reads the content of a file                                        |
-| [find_files](./find_files.md)   | Finds files in the current working directory                       |
-| [search_text](./search_text.md) | Advanced text search using ripgrep                                 |
-| [extract_memory](./extract_memory.md) | Extract memories from conversation text                      |
-| [recall_memory](./recall_memory.md) | Retrieve relevant information from memory system               |
-| [set_prompt](./set_prompt.md)   | Set system prompt from file                                        |
-| [fetch_web](./fetch_web.md)     | Fetch content from web URLs                                        |
-| [web_search](./web_search.md)   | Search the web using multiple engines                              |
-| [git_diff](./git_diff.md)       | Run git diff to compare changes                                    |
-| [git_log](./git_log.md)         | Show commit logs with filters                                      |
-| [git_status](./git_status.md)   | Show the working tree status                                       |
-| [git_show](./git_show.md)       | Show detailed changes of a specific commit                         |
-| [get_history](./get_history.md) | Get conversation history messages                                  |
-| [plan](./plan.md)               | Plan mode for task management                                      |
+| tool name                                    | description                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| [read_file](./read_file.md)                  | Reads the content of a file                                        |
+| [write_file](./write_file.md)                | Write, modify, or delete file content                              |
+| [find_files](./find_files.md)                | Finds files in the current working directory                       |
+| [search_text](./search_text.md)              | Advanced text search using ripgrep                                 |
+| [extract_memory](./extract_memory.md)        | Extract memories from conversation text                            |
+| [recall_memory](./recall_memory.md)          | Retrieve relevant information from memory system                   |
+| [set_prompt](./set_prompt.md)                | Set system prompt from file                                        |
+| [fetch_web](./fetch_web.md)                  | Fetch content from web URLs                                        |
+| [web_search](./web_search.md)                | Search the web using multiple engines                              |
+| [make](./make.md)                            | Run make targets                                                   |
+| [git_add](./git_add.md)                      | Stage file changes for commit                                      |
+| [git_branch](./git_branch.md)                | Manage git branches                                                |
+| [git_checkout](./git_checkout.md)            | Switch branches or restore files                                   |
+| [git_commit](./git_commit.md)                | Create a git commit                                                |
+| [git_config](./git_config.md)                | Get, set, or list git configuration                                |
+| [git_diff](./git_diff.md)                    | Run git diff to compare changes                                    |
+| [git_fetch](./git_fetch.md)                  | Fetch changes from remote repository                               |
+| [git_log](./git_log.md)                      | Show commit logs with filters                                      |
+| [git_merge](./git_merge.md)                  | Merge branches                                                     |
+| [git_pull](./git_pull.md)                    | Pull changes from remote and merge                                 |
+| [git_push](./git_push.md)                    | Push commits to remote repository                                  |
+| [git_remote](./git_remote.md)                | Manage remote repositories                                         |
+| [git_reset](./git_reset.md)                  | Reset current HEAD to specified state                              |
+| [git_show](./git_show.md)                    | Show detailed changes of a specific commit                         |
+| [git_stash](./git_stash.md)                  | Stash changes in git repository                                    |
+| [git_status](./git_status.md)                | Show the working tree status                                       |
+| [git_tag](./git_tag.md)                      | Manage git tags                                                    |
+| [get_history](./get_history.md)              | Get conversation history messages                                  |
+| [plan](./plan.md)                            | Plan mode for task management                                      |
 
 ---
 
 ## Third-party Tools
 
 ### zettelkasten_create
-
 Create new zettelkasten notes, provided by [zettelkasten.nvim](https://github.com/wsdjeg/zettelkasten.nvim).
 
 #### Usage
