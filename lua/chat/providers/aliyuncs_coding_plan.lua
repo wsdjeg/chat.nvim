@@ -24,8 +24,6 @@ function M.request(opt)
 
   local system_prompt, anthropic_messages = require('chat.protocol.anthropic').convert_message(opt.messages)
 
-  require('chat.log').debug(vim.inspect(anthropic_messages))
-
   -- Build request body
   local body = {
     model = sessions.get_session_model(opt.session),
