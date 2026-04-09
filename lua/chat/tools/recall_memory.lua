@@ -405,7 +405,7 @@ function M.info(action, ctx)
   local parts = { 'Recall' }
 
   if arguments.query then
-    table.insert(parts, string.format('"%s"', arguments.query:sub(1, 20)))
+    table.insert(parts, string.format('"%s"', vim.fn.strcharpart(arguments.query, 0, 20)))
   end
 
   if arguments.memory_type then
