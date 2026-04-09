@@ -12,6 +12,17 @@ function M.setup_result_keymaps(buf, opts)
 
   vim.api.nvim_buf_set_keymap(buf, 'n', '<C-o>', '<Nop>', {})
 
+  -- Picker keymaps (if available)
+  if vim.fn.exists(':Picker') == 2 then
+    vim.api.nvim_buf_set_keymap(
+      buf,
+      'n',
+      '<leader>fr',
+      '<cmd>Picker chat<Cr>',
+      { noremap = true, silent = true }
+    )
+  end
+
   vim.api.nvim_buf_set_keymap(buf, 'n', '<Tab>', '', {
     callback = focus_prompt_fn,
   })
@@ -116,3 +127,4 @@ function M.setup_prompt_keymaps(buf, opts)
 end
 
 return M
+
