@@ -3,7 +3,6 @@ layout: default
 title: Memory System
 nav_order: 6
 has_children: false
-parent: Using chat.nvim
 ---
 
 # Memory System

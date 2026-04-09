@@ -3,7 +3,6 @@ layout: default
 title: MCP (Model Context Protocol)
 nav_order: 7
 has_children: false
-parent: Using chat.nvim
 ---
 
 # MCP (Model Context Protocol)
