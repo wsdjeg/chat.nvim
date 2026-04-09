@@ -287,7 +287,7 @@ function M.convert_message(messages)
         table.insert(content, {
           type = 'thinking',
           thinking = msg.reasoning_content,
-          -- signature = '',
+          signature = msg.signature or '',
         })
       end
       if msg.tool_calls then
@@ -296,7 +296,7 @@ function M.convert_message(messages)
             type = 'tool_use',
             id = tool_call.id,
             name = tool_call['function'].name,
-            input = tool_call['function'].arguments,
+            input = vim.json.decode(tool_call['function'].arguments),
           })
         end
       end
