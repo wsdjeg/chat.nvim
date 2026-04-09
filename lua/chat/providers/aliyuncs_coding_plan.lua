@@ -6,6 +6,7 @@ local config = require('chat.config')
 
 function M.available_models()
   return {
+    'qwen3.6-plus',
     'qwen3.5-plus',
     'kimi-k2.5',
     'glm-5',
