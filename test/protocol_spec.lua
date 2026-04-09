@@ -50,7 +50,7 @@ function TestProtocol:test_anthropic_convert_tool_result()
   lu.assertEquals(anthropic_messages[2].content[1].type, 'tool_use')
   lu.assertEquals(anthropic_messages[2].content[1].id, 'toolu_search_text:0')
   lu.assertEquals(anthropic_messages[2].content[1].name, 'search_text')
-  lu.assertEquals(anthropic_messages[2].content[1].input, '{"pattern": "CURL_ERRORS"}')
+  lu.assertEquals(anthropic_messages[2].content[1].input, vim.json.decode('{"pattern": "CURL_ERRORS"}'))
 
   -- Verify third message (tool result)
   lu.assertEquals(anthropic_messages[3].role, 'user')
@@ -62,6 +62,7 @@ function TestProtocol:test_anthropic_convert_tool_result()
   lu.assertEquals(#anthropic_messages[3].content[1].content, 1)
   lu.assertEquals(anthropic_messages[3].content[1].content[1].type, 'text')
   lu.assertEquals(anthropic_messages[3].content[1].content[1].text, 'Found 9 matches in 3 files')
+end
 
 function TestProtocol:test_anthropic_convert_message_with_thinking()
   local anthropic = require('chat.protocol.anthropic')
