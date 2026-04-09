@@ -2,8 +2,9 @@
 layout: default
 title: Configuration
 nav_order: 2
+has_children: false
+parent: Getting Started
 ---
-
 # Configuration
 
 {: .no_toc }

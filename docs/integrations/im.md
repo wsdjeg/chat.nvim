@@ -1,9 +1,11 @@
 ---
 layout: default
-title: Overview
-nav_order: 0
-parent: Integrations
+title: IM Integration
+nav_order: 8
+has_children: true
 ---
+
+# IM Integration
 
 {: .no_toc }
 

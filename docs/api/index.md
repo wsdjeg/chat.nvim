@@ -1,9 +1,11 @@
 ---
 layout: default
-title: Overview
-nav_order: 0
-parent: API
+title: API
+nav_order: 7
+has_children: true
 ---
+
+# API
 
 {: .no_toc }
 

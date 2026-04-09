@@ -1,9 +1,10 @@
 ---
 layout: default
-title: Lark
+title: Lark Integration
+parent: IM Integration
 nav_order: 4
-parent: Integrations
 ---
+
 # Lark (Feishu) Integration
 
 {: .no_toc }

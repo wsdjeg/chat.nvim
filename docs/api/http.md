@@ -1,9 +1,10 @@
 ---
 layout: default
 title: HTTP API
-nav_order: 1
 parent: API
+nav_order: 1
 ---
+
 # HTTP API
 
 {: .no_toc }

@@ -1,9 +1,10 @@
 ---
 layout: default
-title: Slack
+title: Slack Integration
+parent: IM Integration
 nav_order: 3
-parent: Integrations
 ---
+
 # Slack Integration
 
 {: .no_toc }

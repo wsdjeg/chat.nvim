@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Home
-nav_order: 0
+nav_order: 1
 ---
 
 <p class="fs-9">A lightweight, extensible chat plugin for Neovim with AI integration.</p>
@@ -101,64 +101,33 @@ require('plug').add({
 })
 ```
 
+### Basic Usage
+
+```vim
+:Chat          " Open chat window
+:Chat new      " Start a new session
+:Chat prev     " Switch to previous session
+:Chat next     " Switch to next session
+```
+
+{: .info }
+> See the [Installation Guide](/docs/getting-started/installation/) for detailed setup instructions.
+
 ---
 
 ## 📚 Documentation
 
-### Getting Started
-
-- [Quick Start](/docs/quick-start/) - Get up and running in 5 minutes
-- [Installation](/docs/installation/) - Detailed setup and prerequisites
+- [Installation](/docs/getting-started/installation/) - Setup and prerequisites
+- [Usage](/docs/usage/) - Commands, keybindings, and workflows
 - [Configuration](/docs/configuration/) - Customize chat.nvim settings
-
-### Usage Guide
-
-- [Overview](/docs/usage/) - Commands, keybindings, and workflows
-- [AI Providers](/docs/usage/providers/) - Configure AI providers (DeepSeek, OpenAI, Anthropic, etc.)
-- [Tools](/docs/usage/tools/) - Built-in tools (file operations, Git, web search, etc.)
-- [Memory System](/docs/usage/memory/) - Three-tier memory architecture
-- [MCP](/docs/usage/mcp/) - Model Context Protocol integration
-
-### Integrations
-
-- [Overview](/docs/integrations/im/) - Messaging platform integrations
-- [Discord](/docs/integrations/discord/) - Discord bot integration
-- [Telegram](/docs/integrations/telegram/) - Telegram bot integration
-- [Slack](/docs/integrations/slack/) - Slack bot integration
-- [Lark](/docs/integrations/lark/) - Lark (Feishu) bot integration
-- [DingTalk](/docs/integrations/dingtalk/) - DingTalk bot integration
-- [WeCom](/docs/integrations/wecom/) - WeCom (Enterprise WeChat) integration
-- [Weixin](/docs/integrations/weixin/) - WeChat integration
-
-### API
-
-- [Overview](/docs/api/) - External integration options
-- [HTTP API](/docs/api/http/) - Receive messages via HTTP endpoints
+- [Providers](/docs/providers/) - Configure AI providers
+- [Tools](/docs/tools/) - Explore available tools
 - [Memory System](/docs/memory/) - Three-tier memory architecture
 - [MCP](/docs/mcp/) - Model Context Protocol integration
+- [HTTP API](/docs/api/) - External integration via HTTP
+- [IM Integration](/docs/integrations/im/) - Messaging platform integrations
 
-### Using chat.nvim
-
-- [Providers](/docs/providers/) - Configure AI providers (DeepSeek, OpenAI, Anthropic, etc.)
-- [Tools](/docs/tools/) - Explore built-in tools (file operations, Git, web search, etc.)
-- [Memory System](/docs/memory/) - Three-tier memory architecture
-- [MCP](/docs/mcp/) - Model Context Protocol integration
-
-### Integrations
-
-- [Overview](/docs/integrations/im/) - Messaging platform integrations
-- [Discord](/docs/integrations/discord/) - Discord bot integration
-- [Telegram](/docs/integrations/telegram/) - Telegram bot integration
-- [Slack](/docs/integrations/slack/) - Slack bot integration
-- [Lark](/docs/integrations/lark/) - Lark (Feishu) bot integration
-- [DingTalk](/docs/integrations/dingtalk/) - DingTalk bot integration
-- [WeCom](/docs/integrations/wecom/) - WeCom (Enterprise WeChat) integration
-- [Weixin](/docs/integrations/weixin/) - WeChat integration
-
-### API
-
-- [Overview](/docs/api/) - External integration options
-- [HTTP API](/docs/api/http/) - Receive messages via HTTP endpoints
+---
 
 ## 💬 Community
 
