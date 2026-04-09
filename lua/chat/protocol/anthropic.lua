@@ -216,6 +216,7 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_tool_call_done(id)
     end
 
+    sessions.on_progress_exit(id, code, signal)
     if session == require('chat.windows').current_session() then
       -- Match OpenAI protocol: only stop spinner if no pending async tools
       if not sessions.has_pending_async_tools(session) then
