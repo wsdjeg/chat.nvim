@@ -10,9 +10,11 @@ has_children: true
 {: .no_toc }
 
 ## Table of contents
+
 {: .no_toc .text-delta }
+
 1. TOC
-{:toc}
+   {:toc}
 
 ---
 
@@ -45,82 +47,12 @@ MCP tools support all parameter types defined by their servers and execute async
 
 ## Available Tools
 
-### read_file
+here is a list of available tools:
 
-Reads the content of a file and makes it available to the AI assistant.
-
-#### Usage
-
-```
-@read_file <filepath>
-```
-
-#### Examples
-
-- `@read_file ./src/main.lua` - Read a Lua file in the current directory
-- `@read_file /etc/hosts` - Read a system file using absolute path
-- `@read_file ../config.json` - Read a file from a parent directory
-
-#### Advanced Usage with Line Ranges
-
-```
-@read_file ./src/main.lua line_start=10 line_to=20
-```
-
-#### Parameters
-
-| Parameter     | Type    | Description                                                      |
-| ------------- | ------- | ---------------------------------------------------------------- |
-| `filepath`    | string  | **Required**. File path to read                                  |
-| `line_start`  | integer | Starting line number (1-indexed, default: 1)                     |
-| `line_to`     | integer | Ending line number (1-indexed, default: last line)               |
-
-#### Notes
-
-{: .info }
-> - File paths can be relative to the current working directory or absolute
-> - Supports line range selection with `line_start` and `line_to` parameters
-> - Line numbers are 1-indexed (first line is line 1)
-> - The AI will receive the file content for context
-> - This is particularly useful for code review, debugging, or analyzing configuration files
-
----
-
-### find_files
-
-Finds files in the current working directory that match a given pattern.
-
-#### Usage
-
-```
-@find_files <pattern>
-```
-
-#### Examples
-
-- `@find_files *.lua` - Find all Lua files in the current directory
-- `@find_files **/*.md` - Recursively find all Markdown files
-- `@find_files src/**/*.js` - Find JavaScript files in the `src` directory and its subdirectories
-- `@find_files README*` - Find files starting with "README"
-
-#### Parameters
-
-| Parameter   | Type    | Description                                                  |
-| ----------- | ------- | ------------------------------------------------------------ |
-| `pattern`   | string  | **Required**. Glob pattern to match files                    |
-| `directory` | string  | Directory to search in (default: current working directory)  |
-| `hidden`    | boolean | Include hidden files (default: false)                        |
-| `no_ignore` | boolean | Do not respect .gitignore (default: false)                   |
-| `exclude`   | array   | Exclude patterns (e.g., `["*.test.lua", "node_modules/*"]`)  |
-| `max_results` | integer | Maximum number of results (default: 100, max: 1000)        |
-
-#### Notes
-
-{: .info }
-> - Uses ripgrep (rg) for fast file finding with glob pattern support
-> - Smart case: lowercase patterns are case-insensitive, uppercase are case-sensitive
-> - Searches are limited to the current working directory
-> - File searching is restricted by the `allowed_path` configuration setting
+| tool name                   | description                                  |
+| --------------------------- | -------------------------------------------- |
+| [read_file](./read_file/)   | Reads the content of a file                  |
+| [find_files](./find_files/) | Finds files in the current working directory |
 
 ---
 
@@ -165,6 +97,7 @@ For more complex searches, you can provide a JSON object with multiple parameter
 #### Notes
 
 {: .info }
+
 > - Uses ripgrep (rg) for fast, powerful text searching
 > - Supports full regex syntax for complex pattern matching
 > - Search is restricted by the `allowed_path` configuration setting
@@ -224,6 +157,7 @@ The system automatically detects memory type based on keywords:
 #### Notes
 
 {: .info }
+
 > - Extracts only persistent and reusable information
 > - Automatically detects categories and memory types based on keywords
 > - Working memory has highest priority and is cleared when session ends
@@ -269,6 +203,7 @@ Retrieve relevant information from the three-tier memory system with priority-ba
 #### Notes
 
 {: .info }
+
 > - Returns formatted memory list that AI can reference for responses
 > - Searches across all memory types with priority ranking
 > - Working memory has highest priority and session isolation
@@ -303,6 +238,7 @@ Read a prompt file and set it as the current session's system prompt.
 #### Notes
 
 {: .warning }
+
 > - Updates the current session's system prompt with file content
 > - File must be within the `allowed_path` configured in chat.nvim
 > - Useful for switching between different agent roles or task-specific prompts
@@ -327,21 +263,22 @@ Fetch content from web URLs using curl with comprehensive HTTP support.
 
 #### Parameters
 
-| Parameter       | Type    | Description                                                                                            |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `url`           | string  | **Required**. URL to fetch (must start with http:// or https://)                                       |
-| `method`        | string  | HTTP method (default: "GET", options: GET, POST, PUT, DELETE, PATCH, HEAD)                             |
-| `headers`       | array   | Additional HTTP headers as strings (e.g., ["Authorization: Bearer token"])                            |
-| `data`          | string  | Request body data for POST/PUT requests                                                                |
-| `timeout`       | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                                             |
-| `user_agent`    | string  | Custom User-Agent header string (default: "Mozilla/5.0 (compatible; chat.nvim)")                       |
-| `insecure`      | boolean | Disable SSL certificate verification (use with caution, for testing only)                              |
-| `max_redirects` | integer | Maximum number of redirects to follow (default: 5, set to 0 to disable)                                |
-| `output`        | string  | Save response to file instead of displaying (e.g., "./response.html")                                  |
+| Parameter       | Type    | Description                                                                      |
+| --------------- | ------- | -------------------------------------------------------------------------------- |
+| `url`           | string  | **Required**. URL to fetch (must start with http:// or https://)                 |
+| `method`        | string  | HTTP method (default: "GET", options: GET, POST, PUT, DELETE, PATCH, HEAD)       |
+| `headers`       | array   | Additional HTTP headers as strings (e.g., ["Authorization: Bearer token"])       |
+| `data`          | string  | Request body data for POST/PUT requests                                          |
+| `timeout`       | integer | Timeout in seconds (default: 30, minimum: 1, maximum: 300)                       |
+| `user_agent`    | string  | Custom User-Agent header string (default: "Mozilla/5.0 (compatible; chat.nvim)") |
+| `insecure`      | boolean | Disable SSL certificate verification (use with caution, for testing only)        |
+| `max_redirects` | integer | Maximum number of redirects to follow (default: 5, set to 0 to disable)          |
+| `output`        | string  | Save response to file instead of displaying (e.g., "./response.html")            |
 
 #### Notes
 
 {: .warning }
+
 > - Requires curl to be installed and available in PATH
 > - SSL verification is enabled by default (disable with `insecure=true` for testing)
 > - Responses are limited to 10,000 characters for display
@@ -396,13 +333,13 @@ require('chat').setup({
 
 #### Parameters
 
-| Parameter        | Type    | Description                                                                                        |
-| ---------------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `query`          | string  | **Required**. Search query string                                                                  |
-| `engine`         | string  | Search engine to use: `"firecrawl"`, `"google"`, or `"serpapi"` (default: `"firecrawl"`)           |
-| `limit`          | integer | Number of results to return (default: 5 for firecrawl, 10 for google/serpapi)                      |
-| `api_key`        | string  | API key (optional if configured in config)                                                         |
-| `serpapi_engine` | string  | SerpAPI search engine: `"google"`, `"bing"`, `"duckduckgo"`, etc. (optional)                       |
+| Parameter        | Type    | Description                                                                              |
+| ---------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `query`          | string  | **Required**. Search query string                                                        |
+| `engine`         | string  | Search engine to use: `"firecrawl"`, `"google"`, or `"serpapi"` (default: `"firecrawl"`) |
+| `limit`          | integer | Number of results to return (default: 5 for firecrawl, 10 for google/serpapi)            |
+| `api_key`        | string  | API key (optional if configured in config)                                               |
+| `serpapi_engine` | string  | SerpAPI search engine: `"google"`, `"bing"`, `"duckduckgo"`, etc. (optional)             |
 
 ---
 
@@ -434,6 +371,7 @@ Run git diff to compare changes between working directory, index, or different b
 #### Notes
 
 {: .info }
+
 > - Requires git to be installed and available in PATH
 > - Asynchronous execution - does not block Neovim's UI
 
@@ -549,6 +487,7 @@ Get conversation history messages from the current session.
 #### Notes
 
 {: .info }
+
 > - Use this tool when you need to reference earlier messages not in current context window
 > - Returns messages with their role, content, and timestamp
 > - Maximum 50 messages per request
@@ -830,6 +769,7 @@ return M
 ### Key Points for Asynchronous Tools
 
 {: .info }
+
 > 1. Accept a second `ctx` parameter containing `{ cwd, session, callback }`
 > 2. Return `{ jobid = <number> }` when starting async operation
 > 3. Call `ctx.callback({ content = "..." })` or `ctx.callback({ error = "..." })` when done
@@ -843,5 +783,3 @@ return M
 - [Memory System](/docs/memory/) - Learn about the memory system
 - [HTTP API](/docs/api/http/) - HTTP API integration
 - [IM Integration](/docs/integrations/im/) - Instant messaging integrations
-
-
