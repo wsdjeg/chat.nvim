@@ -1,10 +1,9 @@
 ---
 layout: default
-title: Weixin Integration
-parent: IM Integration
+title: Weixin
 nav_order: 7
+parent: Integrations
 ---
-
 # Weixin (Personal WeChat) Integration
 
 {: .no_toc }

@@ -1,10 +1,9 @@
 ---
 layout: default
-title: Discord Integration
-parent: IM Integration
+title: Discord
 nav_order: 1
+parent: Integrations
 ---
-
 # Discord Integration
 
 {: .no_toc }

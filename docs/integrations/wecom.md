@@ -1,10 +1,9 @@
 ---
 layout: default
-title: WeCom Integration
-parent: IM Integration
+title: WeCom
 nav_order: 6
+parent: Integrations
 ---
-
 # WeCom (Enterprise WeChat) Integration
 
 {: .no_toc }

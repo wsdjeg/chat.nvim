@@ -1,10 +1,9 @@
 ---
 layout: default
-title: DingTalk Integration
-parent: IM Integration
+title: DingTalk
 nav_order: 5
+parent: Integrations
 ---
-
 # DingTalk Integration
 
 {: .no_toc }

@@ -101,28 +101,39 @@ require('plug').add({
 })
 ```
 
-### Basic Usage
-
-```vim
-:Chat          " Open chat window
-:Chat new      " Start a new session
-{: .info }
-> See the [Installation Guide](/docs/installation/) for detailed setup instructions.
-
 ---
 
 ## 📚 Documentation
 
 ### Getting Started
 
-- [Installation](/docs/installation/) - Setup and prerequisites
+- [Quick Start](/docs/quick-start/) - Get up and running in 5 minutes
+- [Installation](/docs/installation/) - Detailed setup and prerequisites
 - [Configuration](/docs/configuration/) - Customize chat.nvim settings
-- [Usage](/docs/usage/) - Commands, keybindings, and workflows
 
-### Features
+### Usage Guide
 
-- [Providers](/docs/providers/) - Configure AI providers (DeepSeek, OpenAI, Anthropic, etc.)
-- [Tools](/docs/tools/) - Explore built-in tools (file operations, Git, web search, etc.)
+- [Overview](/docs/usage/) - Commands, keybindings, and workflows
+- [AI Providers](/docs/usage/providers/) - Configure AI providers (DeepSeek, OpenAI, Anthropic, etc.)
+- [Tools](/docs/usage/tools/) - Built-in tools (file operations, Git, web search, etc.)
+- [Memory System](/docs/usage/memory/) - Three-tier memory architecture
+- [MCP](/docs/usage/mcp/) - Model Context Protocol integration
+
+### Integrations
+
+- [Overview](/docs/integrations/im/) - Messaging platform integrations
+- [Discord](/docs/integrations/discord/) - Discord bot integration
+- [Telegram](/docs/integrations/telegram/) - Telegram bot integration
+- [Slack](/docs/integrations/slack/) - Slack bot integration
+- [Lark](/docs/integrations/lark/) - Lark (Feishu) bot integration
+- [DingTalk](/docs/integrations/dingtalk/) - DingTalk bot integration
+- [WeCom](/docs/integrations/wecom/) - WeCom (Enterprise WeChat) integration
+- [Weixin](/docs/integrations/weixin/) - WeChat integration
+
+### API
+
+- [Overview](/docs/api/) - External integration options
+- [HTTP API](/docs/api/http/) - Receive messages via HTTP endpoints
 - [Memory System](/docs/memory/) - Three-tier memory architecture
 - [MCP](/docs/mcp/) - Model Context Protocol integration
 

@@ -1,10 +1,9 @@
 ---
 layout: default
-title: Telegram Integration
-parent: IM Integration
+title: Telegram
 nav_order: 2
+parent: Integrations
 ---
-
 # Telegram Integration
 
 {: .no_toc }

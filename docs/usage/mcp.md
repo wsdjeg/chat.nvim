@@ -1,14 +1,16 @@
+
 ---
 layout: default
 title: MCP (Model Context Protocol)
-nav_order: 7
-has_children: false
-parent: Using chat.nvim
+parent: Usage Guide
+nav_order: 4
 ---
 
 # MCP (Model Context Protocol)
 
 {: .no_toc }
+
+Connect external MCP servers for extended tool capabilities.
 
 ## Table of contents
 {: .no_toc .text-delta }
@@ -291,8 +293,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 
 ### Server Not Starting
 
-**Symptom**: MCP server fails to start.
-
 **Solution**:
 1. Verify the `command` path is correct and executable
 2. Check if the server executable exists
@@ -300,8 +300,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 4. Check server logs with `:messages`
 
 ### Tools Not Appearing
-
-**Symptom**: MCP tools are not available in chat.
 
 **Solution**:
 1. Wait a few seconds for the initialization handshake
@@ -311,8 +309,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 
 ### Tool Call Failures
 
-**Symptom**: MCP tool calls fail or return errors.
-
 **Solution**:
 1. Check server logs for error messages (`:messages`)
 2. Verify the tool parameters are correct
@@ -321,8 +317,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 
 ### Connection Issues
 
-**Symptom**: Cannot connect to MCP server.
-
 **Solution**:
 1. Verify the MCP server is properly configured
 2. Check network connectivity for HTTP servers
@@ -330,8 +324,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 4. Ensure the server is running and accessible
 
 ### HTTP Transport Issues
-
-**Symptom**: HTTP transport fails to connect.
 
 **Solution**:
 1. Check that the URL is accessible
@@ -400,6 +392,7 @@ Start with simple MCP tools to verify integration:
 
 ## Next Steps
 
-- [Tools Documentation](/docs/tools/) - Learn about all available tools
-- [IM Integration](/docs/integrations/im/) - Instant messaging integrations
-- [HTTP API](/docs/api/http/) - HTTP API integration
+- [Tools](tools.md) - Learn about all available tools
+- [Providers](providers.md) - Configure AI providers
+- [Configuration](../configuration.md) - Configure MCP settings
+
