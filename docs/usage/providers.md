@@ -3,6 +3,7 @@
 layout: default
 title: AI Providers
 parent: Usage Guide
+grand_parent: Usage
 nav_order: 1
 ---
 
