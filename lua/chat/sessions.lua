@@ -517,7 +517,6 @@ function M.on_progress_tool_call(id, tool_call)
   end
 end
 
-
 function M.on_progress_tool_call_done(id)
   local session = M.get_progress_session(id)
   local windows = require('chat.windows')
@@ -541,7 +540,7 @@ function M.on_progress_tool_call_done(id)
     created = message.created,
     session = session,
   })
-  log.debug(vim.inspect(job_tool_calls))
+  M.on_complete(session, id)
   if job_tool_calls[id] then
     for _, tool_call in ipairs(job_tool_calls[id]) do
       -- Skip incomplete tool calls
@@ -550,11 +549,17 @@ function M.on_progress_tool_call_done(id)
         goto continue
       end
       if not tool_call['function'] then
-        log.warn('Skipping tool_call without function field: ' .. vim.inspect(tool_call))
+        log.warn(
+          'Skipping tool_call without function field: '
+            .. vim.inspect(tool_call)
+        )
         goto continue
       end
       if not tool_call['function'].name then
-        log.warn('Skipping tool_call without function.name: ' .. vim.inspect(tool_call))
+        log.warn(
+          'Skipping tool_call without function.name: '
+            .. vim.inspect(tool_call)
+        )
         goto continue
       end
       local ok, arguments =
@@ -613,7 +618,9 @@ function M.on_progress_tool_call_done(id)
         }
         M.append_message(session, tool_done_message)
         log.info('failed to decode arguments, error is:' .. arguments)
-        log.info('arguments is:' .. (tool_call['function'].arguments or 'nil'))
+        log.info(
+          'arguments is:' .. (tool_call['function'].arguments or 'nil')
+        )
         windows.on_tool_call_done(session, { tool_done_message })
       end
       ::continue::

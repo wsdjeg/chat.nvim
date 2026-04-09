@@ -213,7 +213,6 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
     elseif reason == 'tool_use' then
-      sessions.on_complete(session, id)
       sessions.on_progress_tool_call_done(id)
     end
 
