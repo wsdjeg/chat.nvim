@@ -144,12 +144,7 @@ function M.open(opt)
           log.error('Failed to start request: jobid is nil or invalid')
         end
       end,
-      prev_session_fn = function()
-        -- Handled by <M-h> mapping
-      end,
-      next_session_fn = function()
-        -- Handled by <M-l> mapping
-      end,
+
       retry_message_fn = function()
         if sessions.is_in_progress(current_session) then
           log.notify('Request is in progress.')

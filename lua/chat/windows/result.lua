@@ -9,9 +9,6 @@ local util = require('chat.util')
 local result_win = -1
 local result_buf = -1
 
--- Window highlight configuration
-local winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator'
-
 function M.get_win()
   return result_win
 end
@@ -279,7 +276,7 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
 
   vim.api.nvim_set_option_value(
     'winhighlight',
-    winhighlight,
+    config.config.winhighlight,
     { win = result_win }
   )
   vim.fn.matchadd(
@@ -333,4 +330,3 @@ function M.render(session)
 end
 
 return M
-

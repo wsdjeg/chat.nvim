@@ -23,8 +23,6 @@ function M.setup_prompt_keymaps(buf, opts)
   local focus_result_fn = opts.focus_result_fn
   local cancel_progress_fn = opts.cancel_progress_fn
   local send_message_fn = opts.send_message_fn
-  local prev_session_fn = opts.prev_session_fn
-  local next_session_fn = opts.next_session_fn
   local retry_message_fn = opts.retry_message_fn
 
   -- Disable <C-o> in prompt buffer
@@ -109,4 +107,3 @@ function M.setup_prompt_keymaps(buf, opts)
 end
 
 return M
-

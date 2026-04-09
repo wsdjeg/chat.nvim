@@ -8,9 +8,6 @@ local integrations = require('chat.integrations')
 local prompt_win = -1
 local prompt_buf = -1
 
--- Window highlight configuration
-local winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator'
-
 function M.get_win()
   return prompt_win
 end
@@ -114,7 +111,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
 
   vim.api.nvim_set_option_value(
     'winhighlight',
-    winhighlight,
+    config.config.winhighlight,
     { win = prompt_win }
   )
   vim.api.nvim_set_option_value('wrap', true, { win = prompt_win })
@@ -145,4 +142,3 @@ function M.clear()
 end
 
 return M
-

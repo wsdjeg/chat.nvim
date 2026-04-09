@@ -19,6 +19,7 @@ local M = {}
 ---@field memory? table
 ---@field integrations? table
 ---@field mcp? table
+---@field winhighlight? string
 
 local default = {
   width = 0.8, -- 80% of screen
@@ -72,6 +73,8 @@ local default = {
     },
     storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
   },
+  -- Window highlight configuration for floating windows
+  winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',
 }
 
 ---@type ChatConfig
