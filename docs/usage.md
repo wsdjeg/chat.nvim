@@ -2,7 +2,6 @@
 layout: default
 title: Usage
 nav_order: 3
-has_children: false
 parent: Getting Started
 ---
 
