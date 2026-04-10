@@ -12,8 +12,9 @@ has_children: false
 
 {: .no_toc .text-delta }
 
-1. TOC
-   {:toc}
+<!-- prettier-ignore -->
+- content
+{:toc}
 
 ---
 

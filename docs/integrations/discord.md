@@ -9,9 +9,8 @@ nav_order: 1
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -44,6 +43,7 @@ Discord integration allows you to interact with AI assistants via Discord messag
 - Copy the **Token** (this is your `integrations.discord.token`)
 
 {: .warning }
+
 > Keep your bot token secure! Never share it or commit it to version control.
 
 ### 3. Enable Message Content Intent
@@ -53,6 +53,7 @@ Discord integration allows you to interact with AI assistants via Discord messag
 - Save changes
 
 {: .info }
+
 > Message Content Intent is required for the bot to read message content in servers.
 
 ### 4. Get Channel ID
@@ -87,16 +88,16 @@ require('chat').setup({
 
 ### Neovim Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge discord`| Bind current session to Discord channel|
+| Command                | Description                             |
+| ---------------------- | --------------------------------------- |
+| `:Chat bridge discord` | Bind current session to Discord channel |
 
 ### Discord Commands
 
-| Command    | Description                               |
-| ---------- | ----------------------------------------- |
+| Command    | Description                                              |
+| ---------- | -------------------------------------------------------- |
 | `/session` | Bind current Discord channel to active chat.nvim session |
-| `/clear`   | Clear messages in the bound session       |
+| `/clear`   | Clear messages in the bound session                      |
 
 ---
 
@@ -110,6 +111,7 @@ require('chat').setup({
 6. AI response will be sent back to Discord automatically
 
 {: .highlight }
+
 > The bot only responds when mentioned or when replying to its messages in group channels.
 
 ---
@@ -160,6 +162,7 @@ Hello, how can you help me?
 **Symptom**: Bot does not respond to messages.
 
 **Solution**:
+
 1. Verify token and channel_id are correct
 2. Check bot has "Message Content Intent" enabled
 3. Ensure bot is invited with proper permissions
@@ -170,6 +173,7 @@ Hello, how can you help me?
 **Symptom**: Bot lacks permissions to read/send messages.
 
 **Solution**:
+
 1. Re-invite the bot with correct permissions
 2. Check server role permissions
 3. Verify channel permissions for the bot
@@ -179,6 +183,7 @@ Hello, how can you help me?
 **Symptom**: Session binding not working.
 
 **Solution**:
+
 - Clear state: `:lua require('chat.integrations.discord').clear_state()`
 
 ---

@@ -9,9 +9,8 @@ has_children: true
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -34,11 +33,11 @@ The HTTP API allows external applications to send messages to chat.nvim:
 
 ### Endpoints
 
-| Endpoint    | Method | Description                          |
-| ----------- | ------ | ------------------------------------ |
-| `/`         | POST   | Send message to a session            |
-| `/sessions` | GET    | Get list of active session IDs       |
-| `/session`  | GET    | Get HTML preview of a session        |
+| Endpoint    | Method | Description                    |
+| ----------- | ------ | ------------------------------ |
+| `/`         | POST   | Send message to a session      |
+| `/sessions` | GET    | Get list of active session IDs |
+| `/session`  | GET    | Get HTML preview of a session  |
 
 ### Example
 

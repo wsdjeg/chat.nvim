@@ -9,9 +9,8 @@ nav_order: 1
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -174,16 +173,18 @@ After installation, you can immediately start using chat.nvim:
 ### Common Issues
 
 **Plugin not loading:**
+
 - Ensure `job.nvim` is installed and loaded before `chat.nvim`
 - Check your Neovim version (requires Neovim 0.9+)
 
 **API key errors:**
+
 - Verify your API keys are correct
 - Ensure the provider name matches the key in configuration
 
 **Tool access errors:**
+
 - Verify `allowed_path` is set correctly
 - Ensure the path exists and is accessible
 
 For more issues, visit the [GitHub Issues](https://github.com/wsdjeg/chat.nvim/issues) page.
-

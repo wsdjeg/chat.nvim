@@ -9,9 +9,8 @@ has_children: false
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -39,6 +38,7 @@ model = 'deepseek-chat'  -- or 'deepseek-coder'
 ```
 
 **Available Models:**
+
 - `deepseek-chat` - General purpose chat model
 - `deepseek-coder` - Code-specialized model
 
@@ -52,6 +52,7 @@ model = 'gpt-4o'  -- or other GitHub models
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   github = 'github_pat_xxxxxxxx',  -- GitHub Personal Access Token
@@ -68,6 +69,7 @@ model = 'moonshot-v1-8k'
 ```
 
 **Available Models:**
+
 - `moonshot-v1-8k` - 8K context window
 - `moonshot-v1-32k` - 32K context window
 - `moonshot-v1-128k` - 128K context window
@@ -82,6 +84,7 @@ model = 'openai/gpt-4-turbo'  -- Access multiple models through OpenRouter
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   openrouter = 'sk-or-xxxxxxxx',
@@ -98,6 +101,7 @@ model = 'qwen-turbo'
 ```
 
 **Available Models:**
+
 - `qwen-turbo` - Fast model
 - `qwen-plus` - Balanced model
 - `qwen-max` - Most capable model
@@ -112,6 +116,7 @@ model = 'Qwen/Qwen2.5-7B-Instruct'
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   siliconflow = 'xxxxxxxx-xxxx-xxxx',
@@ -128,6 +133,7 @@ model = 'hunyuan-lite'
 ```
 
 **Available Models:**
+
 - `hunyuan-lite` - Lite version
 - `hunyuan-standard` - Standard version
 - `hunyuan-pro` - Pro version
@@ -142,6 +148,7 @@ model = 'glm-4'
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   bigmodel = 'xxxxxxxx-xxxx-xxxx',
@@ -158,6 +165,7 @@ model = 'doubao-pro-4k'
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   volcengine = 'xxxxxxxx-xxxx-xxxx',
@@ -174,6 +182,7 @@ model = 'gpt-4o'  -- or 'gpt-4-turbo', 'gpt-3.5-turbo'
 ```
 
 **Available Models:**
+
 - `gpt-4o` - Latest GPT-4 Omni
 - `gpt-4-turbo` - GPT-4 Turbo
 - `gpt-3.5-turbo` - GPT-3.5 Turbo
@@ -188,11 +197,13 @@ model = 'claude-3-5-sonnet-20241022'
 ```
 
 **Available Models:**
+
 - `claude-3-5-sonnet-20241022` - Latest Claude 3.5 Sonnet
 - `claude-3-opus-20240229` - Claude 3 Opus
 - `claude-3-haiku-20240307` - Claude 3 Haiku
 
 {: .warning }
+
 > Anthropic uses a different protocol (`anthropic`) instead of the default OpenAI protocol.
 
 ### 12. Google Gemini
@@ -205,10 +216,12 @@ model = 'gemini-1.5-flash'
 ```
 
 **Available Models:**
+
 - `gemini-1.5-flash` - Fast model
 - `gemini-1.5-pro` - Most capable model
 
 {: .warning }
+
 > Gemini uses a different protocol (`gemini`) instead of the default OpenAI protocol.
 
 ### 13. Ollama
@@ -221,6 +234,7 @@ model = 'llama2'  -- or any locally installed model
 ```
 
 **Setup:**
+
 1. Install Ollama: https://ollama.ai/
 2. Pull a model: `ollama pull llama2`
 3. Ollama runs locally, no API key required
@@ -235,6 +249,7 @@ model = 'longcat-chat'
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   longcat = 'lc-xxxxxxxxxxxx',
@@ -251,6 +266,7 @@ model = 'cherryin-chat'
 ```
 
 **Configuration:**
+
 ```lua
 api_key = {
   cherryin = 'sk-xxxxxxxxxxxx',
@@ -315,6 +331,7 @@ Protocols handle parsing of API responses. chat.nvim supports multiple protocols
 Most AI services use OpenAI-compatible API format. This is the default protocol for all built-in providers.
 
 **Response Format:**
+
 ```json
 {
   "choices": [
@@ -333,6 +350,7 @@ Most AI services use OpenAI-compatible API format. This is the default protocol 
 Used by Anthropic Claude. The `anthropic` provider automatically uses this protocol.
 
 **Response Format:**
+
 ```json
 {
   "content": [
@@ -349,6 +367,7 @@ Used by Anthropic Claude. The `anthropic` provider automatically uses this proto
 Used by Google Gemini. The `gemini` provider automatically uses this protocol.
 
 **Response Format:**
+
 ```json
 {
   "candidates": [
@@ -612,9 +631,11 @@ This will show all available models for the current provider.
 ### API Key Issues
 
 {: .warning }
+
 > Make sure your API key is correct and has the necessary permissions.
 
 **Test your API key:**
+
 ```bash
 # DeepSeek
 curl https://api.deepseek.com/v1/models \
@@ -648,4 +669,3 @@ If you get protocol-related errors:
 - [Tools](/docs/tools/) - Explore available tools
 - [Usage](/docs/usage/) - Learn how to use chat.nvim
 - [Memory System](/docs/memory/) - Learn about the memory system
-

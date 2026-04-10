@@ -9,9 +9,8 @@ nav_order: 4
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -37,6 +36,7 @@ Lark/Feishu integration for enterprise communication.
 - Copy **App ID** and **App Secret**
 
 {: .warning }
+
 > Keep your app credentials secure! Never share them or commit to version control.
 
 ### 2. Configure Bot Permissions
@@ -47,6 +47,7 @@ Required permissions:
 - `im:message` - Get and send messages in private chats and groups
 
 {: .info }
+
 > Sensitive permissions may require approval from your organization.
 
 **Configuration steps**:
@@ -61,6 +62,7 @@ Required permissions:
 - For group chats, use the group ID
 
 {: .info }
+
 > Chat IDs can be obtained from the Lark developer tools or API responses.
 
 ### 4. Configure chat.nvim
@@ -81,9 +83,9 @@ require('chat').setup({
 
 ## Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge lark`   | Bind current session to Lark chat    |
+| Command             | Description                       |
+| ------------------- | --------------------------------- |
+| `:Chat bridge lark` | Bind current session to Lark chat |
 
 ---
 
@@ -104,6 +106,7 @@ require('chat').setup({
 **Symptom**: App lacks required permissions.
 
 **Solution**:
+
 1. Check if app needs approval for production use
 2. Apply for required permissions in the app dashboard
 3. Wait for organization approval
@@ -113,6 +116,7 @@ require('chat').setup({
 **Symptom**: Cannot authenticate with Lark API.
 
 **Solution**:
+
 1. Verify app_id and app_secret are correct
 2. Check if the app is properly configured
 3. Verify tenant access token is being refreshed
@@ -122,6 +126,7 @@ require('chat').setup({
 **Symptom**: Messages not being delivered.
 
 **Solution**:
+
 1. Verify chat_id is correct
 2. Check if the bot has proper permissions
 3. Ensure the bot is added to the chat/group

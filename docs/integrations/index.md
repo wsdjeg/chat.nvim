@@ -9,9 +9,8 @@ has_children: true
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -39,6 +38,7 @@ chat.nvim supports integration with multiple instant messaging platforms for rem
 All IM integrations share these common features:
 
 ### Commands
+
 ### Commands
 
 - `:Chat bridge <platform>` - Bind current session to platform
@@ -47,6 +47,7 @@ All IM integrations share these common features:
 - `/clear` - Clear current session messages
 
 ### Technical Details
+
 - **Message Queue**: Sequential processing to prevent race conditions
 - **State Persistence**: JSON files in `stdpath('data')`
 - **Auto-reconnect**: Automatic recovery from network issues
@@ -100,6 +101,7 @@ require('chat').setup({
 ```
 
 {: .info }
+
 > Only configure the platforms you plan to use. Others can be omitted.
 
 ---
@@ -170,6 +172,7 @@ The general workflow for IM integration:
 5. AI response will be sent back automatically
 
 {: .highlight }
+
 > **Session Binding**: The `:Chat bridge` command connects your current chat.nvim session to the messaging platform, allowing messages from the platform to be processed by that specific session.
 
 ---
@@ -260,6 +263,7 @@ local integrations = {
 ### 4. Add Documentation
 
 Add documentation to:
+
 - README.md IM Integration section
 - docs/integrations/<platform>.md
 

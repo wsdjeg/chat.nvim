@@ -9,9 +9,8 @@ nav_order: 3
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -49,6 +48,7 @@ Required Bot Token Scopes:
 - `mpim:history` - Read messages in multiparty direct messages
 
 {: .info }
+
 > These scopes are required for the bot to read and send messages.
 
 **Configuration steps**:
@@ -60,6 +60,7 @@ Required Bot Token Scopes:
 5. Copy the **Bot User OAuth Token** (starts with `xoxb-`)
 
 {: .warning }
+
 > Keep your bot token secure! Never share it or commit it to version control.
 
 ### 3. Get Channel ID
@@ -70,6 +71,7 @@ Required Bot Token Scopes:
 - Or right-click channel → "Copy Link" → extract the last part
 
 {: .info }
+
 > Channel IDs typically start with `C` (e.g., `C1234567890`).
 
 ### 4. Invite Bot to Channel
@@ -79,6 +81,7 @@ Required Bot Token Scopes:
 - Or use: `/invite @YourBotName`
 
 {: .warning }
+
 > The bot must be invited to the channel to read and send messages.
 
 ### 5. Configure chat.nvim
@@ -100,16 +103,16 @@ require('chat').setup({
 
 ### Neovim Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge slack`  | Bind current session to Slack channel|
+| Command              | Description                           |
+| -------------------- | ------------------------------------- |
+| `:Chat bridge slack` | Bind current session to Slack channel |
 
 ### Slack Commands
 
-| Command    | Description                               |
-| ---------- | ----------------------------------------- |
+| Command    | Description                                            |
+| ---------- | ------------------------------------------------------ |
 | `/session` | Bind current Slack channel to active chat.nvim session |
-| `/clear`   | Clear messages in the bound session       |
+| `/clear`   | Clear messages in the bound session                    |
 
 ---
 
@@ -134,6 +137,7 @@ In channels, mention the bot to get a response:
 ```
 
 {: .info }
+
 > The bot only responds when mentioned to avoid noise in busy channels.
 
 ### Thread Replies
@@ -146,6 +150,7 @@ Can you provide more details?
 ```
 
 {: .highlight }
+
 > Thread replies are detected and processed automatically.
 
 ### Direct Messages
@@ -176,6 +181,7 @@ Hello, how can you help me?
 **Symptom**: Bot does not respond to messages.
 
 **Solution**:
+
 1. Verify bot_token and channel_id are correct
 2. Check bot has required permissions
 3. Ensure bot is invited to the channel
@@ -187,6 +193,7 @@ Hello, how can you help me?
 **Symptom**: Bot lacks permissions to read/send messages.
 
 **Solution**:
+
 1. Verify all required scopes are added
 2. Reinstall the app to workspace after adding scopes
 3. Check if the workspace admin needs to approve the app
@@ -196,6 +203,7 @@ Hello, how can you help me?
 **Symptom**: Bot cannot read messages in channel.
 
 **Solution**:
+
 1. Ensure bot is invited to the channel (`/invite @BotName`)
 2. Check if the channel is private (bot needs `groups:history` scope)
 3. Verify the bot is not restricted by workspace policies
@@ -205,6 +213,7 @@ Hello, how can you help me?
 **Symptom**: Session binding not working.
 
 **Solution**:
+
 - Clear state: `:lua require('chat.integrations.slack').clear_state()`
 
 ---
@@ -212,6 +221,7 @@ Hello, how can you help me?
 ## Notes
 
 {: .info }
+
 > - Slack API has rate limits (tier 3: ~50+ requests per minute)
 > - The bot only responds when mentioned or in thread replies
 > - Private channels require the bot to be invited

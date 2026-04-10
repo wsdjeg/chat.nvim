@@ -9,9 +9,8 @@ nav_order: 1
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -34,6 +33,7 @@ require('chat').setup({
 ```
 
 {: .warning }
+
 > The HTTP server will not start if `http.api_key` is empty or not set.
 
 ---
@@ -104,12 +104,12 @@ curl -X POST http://127.0.0.1:7777/ \
 
 ### POST `/`
 
-| Status Code | Description                                                      |
-| ----------- | ---------------------------------------------------------------- |
-| 204         | Success - Message queued successfully                            |
-| 401         | Unauthorized - Invalid or missing API key                        |
-| 400         | Bad Request - Invalid JSON or missing required fields            |
-| 404         | Not Found - Wrong method or path                                 |
+| Status Code | Description                                           |
+| ----------- | ----------------------------------------------------- |
+| 204         | Success - Message queued successfully                 |
+| 401         | Unauthorized - Invalid or missing API key             |
+| 400         | Bad Request - Invalid JSON or missing required fields |
+| 404         | Not Found - Wrong method or path                      |
 
 ### GET `/sessions`
 
@@ -118,14 +118,11 @@ Returns a JSON array of active session IDs.
 **Success Response** (200 OK):
 
 ```json
-[
-  "2024-01-15-10-30-00",
-  "2024-01-15-11-45-00",
-  "2024-01-16-09-20-00"
-]
+["2024-01-15-10-30-00", "2024-01-15-11-45-00", "2024-01-16-09-20-00"]
 ```
 
 {: .info }
+
 > Session IDs follow the format `YYYY-MM-DD-HH-MM-SS` (e.g., `2024-01-15-10-30-00`) and are automatically generated when new sessions are created.
 
 ### GET `/session`
@@ -147,12 +144,12 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 200         | Success - Returns HTML content                 |
-| 400         | Bad Request - Missing session ID               |
-| 404         | Not Found - Session not found                  |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 200         | Success - Returns HTML content            |
+| 400         | Bad Request - Missing session ID          |
+| 404         | Not Found - Session not found             |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **HTML Preview Features**:
 
@@ -172,6 +169,7 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
 Incoming messages are processed through a queue system to ensure reliability:
 
 {: .highlight }
+
 1. Messages are immediately queued upon receipt
 2. The queue is checked every 5 seconds
 3. Messages are delivered to the chat session when it's not in progress
@@ -263,44 +261,48 @@ if response.status_code == 200:
 **Send a message**:
 
 ```javascript
-const axios = require('axios');
+const axios = require("axios");
 
 // Send a message to a session
 async function sendMessage(sessionId, content) {
   try {
-    const response = await axios.post('http://127.0.0.1:7777/', {
-      session: sessionId,
-      content: content
-    }, {
-      headers: {
-        'X-API-Key': 'your-secret-key',
-        'Content-Type': 'application/json'
-      }
-    });
-    console.log('Message sent successfully');
+    const response = await axios.post(
+      "http://127.0.0.1:7777/",
+      {
+        session: sessionId,
+        content: content,
+      },
+      {
+        headers: {
+          "X-API-Key": "your-secret-key",
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    console.log("Message sent successfully");
   } catch (error) {
-    console.error('Error:', error.response?.status);
+    console.error("Error:", error.response?.status);
   }
 }
 
-sendMessage('2024-01-15-10-30-00', 'Hello from Node.js!');
+sendMessage("2024-01-15-10-30-00", "Hello from Node.js!");
 ```
 
 **Get session list**:
 
 ```javascript
-const axios = require('axios');
+const axios = require("axios");
 
 // Get all active sessions
 async function getSessions() {
   try {
-    const response = await axios.get('http://127.0.0.1:7777/sessions', {
-      headers: { 'X-API-Key': 'your-secret-key' }
+    const response = await axios.get("http://127.0.0.1:7777/sessions", {
+      headers: { "X-API-Key": "your-secret-key" },
     });
-    console.log('Active sessions:', response.data);
+    console.log("Active sessions:", response.data);
     return response.data;
   } catch (error) {
-    console.error('Error:', error.response?.status);
+    console.error("Error:", error.response?.status);
   }
 }
 
@@ -352,7 +354,7 @@ Forward alerts from monitoring tools:
 import requests
 
 def send_alert(session_id, alert_message):
-    requests.post('http://127.0.0.1:7777/', 
+    requests.post('http://127.0.0.1:7777/',
         json={'session': session_id, 'content': alert_message},
         headers={'X-API-Key': 'your-secret-key'})
 ```
@@ -377,16 +379,20 @@ Integrate with other desktop or web applications:
 
 ```javascript
 // Electron app integration
-const { ipcMain } = require('electron');
-const axios = require('axios');
+const { ipcMain } = require("electron");
+const axios = require("axios");
 
-ipcMain.handle('send-to-chat', async (event, message) => {
-  const response = await axios.post('http://127.0.0.1:7777/', {
-    session: 'electron-app',
-    content: message
-  }, {
-    headers: { 'X-API-Key': 'your-secret-key' }
-  });
+ipcMain.handle("send-to-chat", async (event, message) => {
+  const response = await axios.post(
+    "http://127.0.0.1:7777/",
+    {
+      session: "electron-app",
+      content: message,
+    },
+    {
+      headers: { "X-API-Key": "your-secret-key" },
+    },
+  );
   return response.status === 204;
 });
 ```
@@ -403,7 +409,7 @@ def backup_sessions():
     headers = {'X-API-Key': 'your-secret-key'}
     response = requests.get('http://127.0.0.1:7777/sessions', headers=headers)
     sessions = response.json()
-    
+
     for session_id in sessions:
         # Backup each session
         preview = requests.get(
@@ -422,15 +428,16 @@ Display status and statistics of all active sessions:
 ```javascript
 // Web dashboard
 async function updateDashboard() {
-  const response = await fetch('http://127.0.0.1:7777/sessions', {
-    headers: { 'X-API-Key': 'your-secret-key' }
+  const response = await fetch("http://127.0.0.1:7777/sessions", {
+    headers: { "X-API-Key": "your-secret-key" },
   });
   const sessions = await response.json();
-  
+
   // Update dashboard UI
-  document.getElementById('session-count').textContent = sessions.length;
-  document.getElementById('session-list').innerHTML = 
-    sessions.map(id => `<li>${id}</li>`).join('');
+  document.getElementById("session-count").textContent = sessions.length;
+  document.getElementById("session-list").innerHTML = sessions
+    .map((id) => `<li>${id}</li>`)
+    .join("");
 }
 
 // Update every 5 seconds

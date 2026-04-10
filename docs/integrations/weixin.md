@@ -9,9 +9,8 @@ nav_order: 7
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -40,6 +39,7 @@ Run the following Lua command in Neovim:
 A QR code will be displayed in a floating window.
 
 {: .info }
+
 > The QR code is generated via the OpenClaw WeChat Gateway.
 
 ### 2. Scan QR Code
@@ -49,6 +49,7 @@ A QR code will be displayed in a floating window.
 - Confirm login on your phone
 
 {: .warning }
+
 > Do not share the QR code with others to prevent unauthorized access.
 
 ### 3. Done!
@@ -62,6 +63,7 @@ stdpath('data')/chat-weixin-state.json
 Subsequent restarts will auto-connect using saved credentials.
 
 {: .highlight }
+
 > You don't need to login again unless credentials expire or are cleared.
 
 ---
@@ -93,6 +95,7 @@ Subsequent restarts will auto-connect using saved credentials.
 **Symptom**: QR code window not appearing.
 
 **Solution**:
+
 1. Check if the floating window is created
 2. Verify the gateway is accessible
 3. Check Neovim logs for errors
@@ -102,6 +105,7 @@ Subsequent restarts will auto-connect using saved credentials.
 **Symptom**: QR code scan does not complete login.
 
 **Solution**:
+
 1. Ensure you confirm login on your phone
 2. Check network connectivity
 3. Try scanning again with a fresh QR code
@@ -111,6 +115,7 @@ Subsequent restarts will auto-connect using saved credentials.
 **Symptom**: Messages not being received after restart.
 
 **Solution**:
+
 1. Check if credentials are saved
 2. Run `:lua require('chat.integrations.weixin').get_state()` to check status
 3. Re-login if credentials expired
@@ -120,6 +125,7 @@ Subsequent restarts will auto-connect using saved credentials.
 ## Security Notes
 
 {: .warning }
+
 > - Never share your QR code with others
 > - Credentials are stored locally in `stdpath('data')`
 > - Logout to clear credentials when switching devices

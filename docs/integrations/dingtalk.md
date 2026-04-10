@@ -9,9 +9,8 @@ nav_order: 5
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -57,6 +56,7 @@ require('chat').setup({
 ```
 
 {: .info }
+
 > Webhook mode is the simplest setup but only supports one-way communication.
 
 ### API Mode
@@ -79,15 +79,16 @@ require('chat').setup({
 ```
 
 {: .warning }
+
 > API mode requires enterprise app registration and approval.
 
 ---
 
 ## Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge dingtalk` | Bind current session to DingTalk   |
+| Command                 | Description                      |
+| ----------------------- | -------------------------------- |
+| `:Chat bridge dingtalk` | Bind current session to DingTalk |
 
 ---
 
@@ -107,6 +108,7 @@ require('chat').setup({
 **Symptom**: Webhook messages not being sent.
 
 **Solution**:
+
 1. Verify webhook URL is correct
 2. Check if the webhook is enabled
 3. Test the webhook with a manual request
@@ -116,6 +118,7 @@ require('chat').setup({
 **Symptom**: Cannot authenticate with DingTalk API.
 
 **Solution**:
+
 1. Verify app_key and app_secret are correct
 2. Check if the app is approved
 3. Verify access token is being refreshed

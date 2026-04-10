@@ -9,9 +9,8 @@ has_children: false
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -42,12 +41,14 @@ Working memory is session-scoped and has the highest priority. It's designed for
 - Temporary information needed during the session
 
 **Characteristics:**
+
 - Automatically cleared when the session ends
 - Highest priority in retrieval
 - Limited capacity (default: 20 memories per session)
 - Priority weight multiplier: 2.0
 
 **Use Cases:**
+
 - Tracking current task progress
 - Remembering temporary decisions
 - Maintaining active context
@@ -63,12 +64,14 @@ Daily memory is temporary and auto-expires after a configured period. It's desig
 - Daily planning
 
 **Characteristics:**
+
 - Auto-deletes after retention period (default: 7 days)
 - Medium priority in retrieval
 - Medium capacity (default: 100 memories)
 - Similarity-based search
 
 **Use Cases:**
+
 - Daily to-do lists
 - Temporary reminders
 - Short-term goals
@@ -84,6 +87,7 @@ Long-term memory is permanent storage for knowledge and facts. It's designed for
 - Important facts
 
 **Characteristics:**
+
 - Never expires (permanent storage)
 - Normal priority in retrieval
 - Large capacity (default: 500 memories)
@@ -91,6 +95,7 @@ Long-term memory is permanent storage for knowledge and facts. It's designed for
 - Access frequency tracking
 
 **Use Cases:**
+
 - Programming knowledge
 - Personal preferences
 - Technical skills
@@ -116,7 +121,7 @@ require('chat').setup({
 require('chat').setup({
   memory = {
     enable = true,
-    
+
     -- Long-term memory: Permanent knowledge (never expires)
     long_term = {
       enable = true,
@@ -124,7 +129,7 @@ require('chat').setup({
       retrieval_limit = 3,          -- Maximum memories to retrieve per query
       similarity_threshold = 0.3,   -- Text similarity threshold (0-1)
     },
-    
+
     -- Daily memory: Temporary tasks and goals (auto-expires)
     daily = {
       enable = true,
@@ -132,14 +137,14 @@ require('chat').setup({
       max_memories = 100,           -- Maximum daily memories
       similarity_threshold = 0.3,
     },
-    
+
     -- Working memory: Current session focus (highest priority)
     working = {
       enable = true,
       max_memories = 20,            -- Maximum working memories per session
       priority_weight = 2.0,        -- Priority multiplier (higher = more important)
     },
-    
+
     -- Storage location
     storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
   },
@@ -148,21 +153,21 @@ require('chat').setup({
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enable` | boolean | `true` | Global memory system switch |
-| `long_term.enable` | boolean | `true` | Enable long-term memory |
-| `long_term.max_memories` | number | `500` | Maximum long-term memories |
-| `long_term.retrieval_limit` | number | `3` | Maximum memories to retrieve per query |
-| `long_term.similarity_threshold` | number | `0.3` | Similarity threshold (0-1) |
-| `daily.enable` | boolean | `true` | Enable daily memory |
-| `daily.retention_days` | number | `7` | Days before auto-deletion |
-| `daily.max_memories` | number | `100` | Maximum daily memories |
-| `daily.similarity_threshold` | number | `0.3` | Similarity threshold (0-1) |
-| `working.enable` | boolean | `true` | Enable working memory |
-| `working.max_memories` | number | `20` | Maximum working memories per session |
-| `working.priority_weight` | number | `2.0` | Priority multiplier |
-| `storage_dir` | string | `stdpath('cache')/chat.nvim/memory/` | Storage directory |
+| Option                           | Type    | Default                              | Description                            |
+| -------------------------------- | ------- | ------------------------------------ | -------------------------------------- |
+| `enable`                         | boolean | `true`                               | Global memory system switch            |
+| `long_term.enable`               | boolean | `true`                               | Enable long-term memory                |
+| `long_term.max_memories`         | number  | `500`                                | Maximum long-term memories             |
+| `long_term.retrieval_limit`      | number  | `3`                                  | Maximum memories to retrieve per query |
+| `long_term.similarity_threshold` | number  | `0.3`                                | Similarity threshold (0-1)             |
+| `daily.enable`                   | boolean | `true`                               | Enable daily memory                    |
+| `daily.retention_days`           | number  | `7`                                  | Days before auto-deletion              |
+| `daily.max_memories`             | number  | `100`                                | Maximum daily memories                 |
+| `daily.similarity_threshold`     | number  | `0.3`                                | Similarity threshold (0-1)             |
+| `working.enable`                 | boolean | `true`                               | Enable working memory                  |
+| `working.max_memories`           | number  | `20`                                 | Maximum working memories per session   |
+| `working.priority_weight`        | number  | `2.0`                                | Priority multiplier                    |
+| `storage_dir`                    | string  | `stdpath('cache')/chat.nvim/memory/` | Storage directory                      |
 
 ---
 
@@ -171,33 +176,41 @@ require('chat').setup({
 Each memory can be categorized into one of four types:
 
 ### fact
+
 Verifiable objective facts, data, definitions, and rules.
 
 **Examples:**
+
 - "Python's GIL is the Global Interpreter Lock"
 - "Lua uses 1-based indexing"
 - "Vim's normal mode is for navigation"
 
 ### preference
+
 Personal habits, routine behaviors, and regular practices.
 
 **Examples:**
+
 - "I prefer dark themes in my editor"
 - "I use 2 spaces for indentation"
 - "I like to write documentation first"
 
 ### skill
+
 Technical abilities and knowledge.
 
 **Examples:**
+
 - "Proficient in Lua and Vimscript"
 - "Experienced with Neovim plugin development"
 - "Familiar with async programming patterns"
 
 ### event
+
 Specific events and occurrences.
 
 **Examples:**
+
 - "Meeting scheduled for 3 PM today"
 - "Deployed version 1.0 yesterday"
 - "Completed code review last week"
@@ -217,6 +230,7 @@ Extract memories from conversation text into the memory system.
 ```
 
 The system will automatically detect:
+
 - Memory type (working, daily, long_term)
 - Category (fact, preference, skill, event)
 
@@ -300,6 +314,7 @@ The `@extract_memory` tool automatically detects memory type based on keywords:
 - "问题/issue"
 
 **Examples:**
+
 - "当前任务：实现用户认证" → working memory
 - "正在修复登录bug" → working memory
 - "Current task: implement feature" → working memory
@@ -311,6 +326,7 @@ The `@extract_memory` tool automatically detects memory type based on keywords:
 - "临时/temporary"
 
 **Examples:**
+
 - "今天下午3点有会议" → daily memory
 - "明天需要提交报告" → daily memory
 - "Today's task: code review" → daily memory
@@ -320,6 +336,7 @@ The `@extract_memory` tool automatically detects memory type based on keywords:
 Any information that doesn't match working or daily memory keywords is stored as long-term memory.
 
 **Examples:**
+
 - "Python支持函数式编程" → long-term memory
 - "Vim的哲学是模态编辑" → long-term memory
 - "Neovim使用Lua作为配置语言" → long-term memory
@@ -331,11 +348,13 @@ Any information that doesn't match working or daily memory keywords is stored as
 When retrieving memories, the system uses priority-based ranking:
 
 1. **Working Memory** (Priority: 2.0x)
+
    - Highest priority
    - Session-specific
    - Most relevant to current context
 
 2. **Daily Memory** (Priority: 1.5x)
+
    - Medium priority
    - Recent and temporary
    - Relevant to current timeframe
@@ -519,6 +538,7 @@ AI: @recall_memory query="编辑器偏好" memory_type="long_term"
 **Symptom:** Memories are not being stored or recalled.
 
 **Solution:**
+
 1. Check if memory system is enabled: `memory.enable = true`
 2. Verify storage directory permissions
 3. Check Neovim logs for errors
@@ -540,6 +560,7 @@ AI: @recall_memory query="编辑器偏好" memory_type="long_term"
 **Symptom:** Long-term memory storage becomes too large.
 
 **Solution:**
+
 1. Reduce `max_memories` in configuration
 2. Increase `similarity_threshold` to be more selective
 3. Manually clean up the storage directory
@@ -551,4 +572,3 @@ AI: @recall_memory query="编辑器偏好" memory_type="long_term"
 - [Tools Documentation](/docs/tools/) - Learn about memory tools in detail
 - [Configuration](/docs/configuration/) - Configure memory settings
 - [Usage Guide](/docs/usage/) - Use memory tools in conversations
-

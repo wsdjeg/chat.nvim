@@ -9,9 +9,8 @@ nav_order: 2
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -39,6 +38,7 @@ Telegram bot integration with full feature support.
 - Copy the **Bot Token** (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
 {: .warning }
+
 > Keep your bot token secure! Never share it or commit it to version control.
 
 ### 2. Get Chat ID
@@ -57,6 +57,7 @@ Telegram bot integration with full feature support.
 - Visit the same URL to get the group chat ID
 
 {: .info }
+
 > Group chat IDs are typically negative numbers (e.g., `-123456789`).
 
 ### 3. Configure chat.nvim
@@ -78,16 +79,16 @@ require('chat').setup({
 
 ### Neovim Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge telegram`| Bind current session to Telegram chat|
+| Command                 | Description                           |
+| ----------------------- | ------------------------------------- |
+| `:Chat bridge telegram` | Bind current session to Telegram chat |
 
 ### Telegram Commands
 
-| Command    | Description                               |
-| ---------- | ----------------------------------------- |
+| Command    | Description                                            |
+| ---------- | ------------------------------------------------------ |
 | `/session` | Bind current Telegram chat to active chat.nvim session |
-| `/clear`   | Clear messages in the bound session       |
+| `/clear`   | Clear messages in the bound session                    |
 
 ---
 
@@ -120,6 +121,7 @@ Mention the bot to get a response:
 ```
 
 {: .info }
+
 > In groups, the bot only responds when mentioned to avoid noise.
 
 ---
@@ -142,10 +144,11 @@ Telegram supports Markdown formatting in messages:
 - **Bold**: `*text*`
 - **Italic**: `_text_`
 - **Code**: `` `code` ``
-- **Pre**: ``` ```code block``` ```
+- **Pre**: ` `code block` `
 - **Links**: `[text](URL)`
 
 {: .info }
+
 > The AI assistant can use Markdown formatting in its responses.
 
 ---
@@ -157,6 +160,7 @@ Telegram supports Markdown formatting in messages:
 **Symptom**: Bot does not respond to messages.
 
 **Solution**:
+
 1. Verify bot token is correct
 2. Check if chat_id is correct (private chat or group)
 3. For groups, make sure bot has read permissions
@@ -167,6 +171,7 @@ Telegram supports Markdown formatting in messages:
 **Symptom**: Bot cannot read messages in group.
 
 **Solution**:
+
 1. Ensure bot is added to the group
 2. Check if bot has necessary permissions
 3. Disable group privacy mode in BotFather:
@@ -179,6 +184,7 @@ Telegram supports Markdown formatting in messages:
 **Symptom**: Session binding not working.
 
 **Solution**:
+
 - Clear state: `:lua require('chat.integrations.telegram').clear_state()`
 
 ---

@@ -9,9 +9,8 @@ nav_order: 6
 
 {: .no_toc }
 
-## Table of contents
-{: .no_toc .text-delta }
-1. TOC
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -57,6 +56,7 @@ require('chat').setup({
 ```
 
 {: .info }
+
 > Webhook mode is the simplest setup but only supports one-way communication.
 
 ### API Mode
@@ -79,15 +79,16 @@ require('chat').setup({
 ```
 
 {: .warning }
+
 > API mode requires corporate approval and proper application setup.
 
 ---
 
 ## Commands
 
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `:Chat bridge wecom`  | Bind current session to WeCom        |
+| Command              | Description                   |
+| -------------------- | ----------------------------- |
+| `:Chat bridge wecom` | Bind current session to WeCom |
 
 ---
 
@@ -107,6 +108,7 @@ require('chat').setup({
 **Symptom**: Webhook messages not being sent.
 
 **Solution**:
+
 1. Verify webhook key is correct
 2. Check if the webhook robot is enabled
 3. Test with a manual webhook request
@@ -116,6 +118,7 @@ require('chat').setup({
 **Symptom**: Cannot authenticate with WeCom API.
 
 **Solution**:
+
 1. Verify corp_id and corp_secret are correct
 2. Check if the application is approved
 3. Verify agent_id is correct

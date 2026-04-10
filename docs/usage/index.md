@@ -10,8 +10,11 @@ has_children: false
 {: .no_toc }
 
 ## Table of contents
+
 {: .no_toc .text-delta }
-1. TOC
+
+<!-- prettier-ignore -->
+- content
 {:toc}
 
 ---
@@ -20,21 +23,21 @@ chat.nvim provides several commands to manage your AI conversations. The main co
 
 ## Basic Commands
 
-| Command             | Description                                         |
-| ------------------- | --------------------------------------------------- |
-| `:Chat`             | Open the chat window with the current session       |
-| `:Chat new`         | Start a new chat session                            |
-| `:Chat prev`        | Switch to the previous chat session                 |
-| `:Chat next`        | Switch to the next chat session                     |
-| `:Chat delete`      | Delete current session and create new empty session |
-| `:Chat clear`       | Clear all messages in current session               |
-| `:Chat cd <dir>`    | Change current session cwd, open chat window        |
-| `:Chat save <path>` | Save current session to specified file path         |
-| `:Chat load <path>` | Load session from file path or URL                  |
-| `:Chat share`       | Share current session via pastebin                  |
-| `:Chat preview`     | Open HTML preview of current session in browser     |
-| `:Chat bridge`      | Bind current session to external platform (Discord) |
-| `:Chat unbridge [im]` | Unbind integration (all or specific platform)     |
+| Command               | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `:Chat`               | Open the chat window with the current session       |
+| `:Chat new`           | Start a new chat session                            |
+| `:Chat prev`          | Switch to the previous chat session                 |
+| `:Chat next`          | Switch to the next chat session                     |
+| `:Chat delete`        | Delete current session and create new empty session |
+| `:Chat clear`         | Clear all messages in current session               |
+| `:Chat cd <dir>`      | Change current session cwd, open chat window        |
+| `:Chat save <path>`   | Save current session to specified file path         |
+| `:Chat load <path>`   | Load session from file path or URL                  |
+| `:Chat share`         | Share current session via pastebin                  |
+| `:Chat preview`       | Open HTML preview of current session in browser     |
+| `:Chat bridge`        | Bind current session to external platform (Discord) |
+| `:Chat unbridge [im]` | Unbind integration (all or specific platform)       |
 
 ---
 
@@ -67,6 +70,7 @@ Starts all configured MCP servers. Note: Servers are automatically started when 
 Restarts all MCP servers (stops and starts with a delay for cleanup).
 
 {: .info }
+
 > - MCP servers are automatically started when you open the chat window (`:Chat`)
 > - MCP servers are automatically stopped when you exit Neovim
 > - Use these commands for manual control if needed (e.g., after changing configuration)
@@ -208,6 +212,7 @@ Uploads the current session to paste.rs and copies the URL to clipboard. This al
 Opens an HTML preview of the current session in your default browser. The preview includes session metadata, messages, tool calls, and token usage statistics. You can also use `<C-o>` in the picker's chat source to open previews.
 
 {: .info }
+
 > All sessions are automatically saved and can be resumed later. For more advanced session management, see the [Picker Integration](#picker-integration) section below.
 
 ---
@@ -215,6 +220,7 @@ Opens an HTML preview of the current session in your default browser. The previe
 ## Key Bindings
 
 {: .warning }
+
 ### Input Window Key Bindings
 
 The following key bindings are available in the **Input** window:
@@ -250,6 +256,7 @@ The following key bindings are available in the **Result** window:
 chat.nvim provides built-in picker sources for seamless integration with [picker.nvim](https://github.com/wsdjeg/picker.nvim). These sources allow you to quickly access and manage your chat sessions, providers, and models.
 
 {: .info }
+
 > The `chat` picker source displays all your active sessions, allowing quick switching between parallel conversations with different models.
 
 ### Available Sources
@@ -323,14 +330,14 @@ Each session is stored as a JSON file with the following structure:
 
 ### Session Commands
 
-| Command             | Description                           |
-| ------------------- | ------------------------------------- |
-| `:Chat save <path>` | Save session to custom location       |
-| `:Chat load <path>` | Load session from file or URL         |
-| `:Chat share`       | Upload session to paste.rs            |
-| `:Chat preview`     | Open HTML preview in browser          |
-| `:Chat delete`      | Delete current session                |
-| `:Chat clear`       | Clear messages in current session     |
+| Command             | Description                       |
+| ------------------- | --------------------------------- |
+| `:Chat save <path>` | Save session to custom location   |
+| `:Chat load <path>` | Load session from file or URL     |
+| `:Chat share`       | Upload session to paste.rs        |
+| `:Chat preview`     | Open HTML preview in browser      |
+| `:Chat delete`      | Delete current session            |
+| `:Chat clear`       | Clear messages in current session |
 
 ---
 
@@ -389,6 +396,7 @@ Input: 150 tokens | Output: 75 tokens | Total: 225 tokens
 ```
 
 {: .info }
+
 > Token counts are displayed in the result window after each response, helping you monitor API usage.
 
 ---
@@ -494,4 +502,3 @@ Learn more: [MCP](/docs/mcp/)
 - [Tools](/docs/tools/) - Explore available tools
 - [Memory System](/docs/memory/) - Learn about the memory system
 - [API Documentation](/docs/api/http/) - HTTP API integration
-
