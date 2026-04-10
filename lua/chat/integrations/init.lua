@@ -276,6 +276,37 @@ function M.set_session(bridge, session)
   end
 end
 
+function M.unbridge(name)
+  local windows = require('chat.windows')
+  local current_session = windows.current_session()
+  if not current_session then
+    return false
+  end
+
+  if name then
+    local integration = integrations[name]
+    if not integration then
+      return false  -- integration doesn't exist
+    end
+    if integration.current_session() ~= current_session then
+      return nil    -- exists but not bound to current session
+    end
+    -- Bound to current session, unbridge it
+    integration.disconnect()
+    integration.set_session(nil)
+    return true
+  else
+    -- Unbind all integrations bound to current session
+    for _, integration in pairs(integrations) do
+      if integration.current_session() == current_session then
+        integration.disconnect()
+        integration.set_session(nil)
+      end
+    end
+    return true
+  end
+end
+
 function M.on_session_deleted(session)
   for _, integration in pairs(integrations) do
     if session == integration.current_session() then

@@ -577,6 +577,7 @@ Configure instant messaging platform integrations:
 | `:Chat share`       | Share current session via pastebin                  |
 | `:Chat preview`     | Open HTML preview of current session in browser     |
 | `:Chat bridge`      | Bind current session to external platform (Discord) |
+| `:Chat unbridge [im]` | Unbind integration (all or specific platform)     |
 | `:Chat mcp stop`    | Stop all MCP servers                                |
 | `:Chat mcp start`   | Start all MCP servers                               |
 | `:Chat mcp restart` | Restart all MCP servers                             |

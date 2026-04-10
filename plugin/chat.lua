@@ -24,6 +24,45 @@ vim.api.nvim_create_user_command('Chat', function(opt)
       require('chat.windows').current_session()
     )
     require('chat.windows').redraw_title()
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'unbridge' then
+    local ims = require('chat.integrations')
+    local windows = require('chat.windows')
+    if not windows.current_session() then
+      require('chat.log').notify('No active window session to unbridge', 'WarningMsg')
+      return
+    end
+
+    local targets = vim.list_slice(opt.fargs, 2)
+    if #targets > 0 then
+      local unbound = {}
+      local not_found = {}
+      local not_bound = {}
+
+      for _, target in ipairs(targets) do
+        local result = ims.unbridge(target)
+        if result == true then
+          table.insert(unbound, target)
+        elseif result == false then
+          table.insert(not_found, target)
+        elseif result == nil then
+          table.insert(not_bound, target)
+        end
+      end
+
+      if #unbound > 0 then
+        require('chat.log').notify('Unbridged: ' .. table.concat(unbound, ', '))
+      end
+      if #not_found > 0 then
+        require('chat.log').notify('Unknown: ' .. table.concat(not_found, ', '), 'WarningMsg')
+      end
+      if #not_bound > 0 then
+        require('chat.log').notify('Not bound to current session: ' .. table.concat(not_bound, ', '), 'WarningMsg')
+      end
+    else
+      ims.unbridge()
+      require('chat.log').notify('Unbridged all integrations from current session')
+    end
+    require('chat.windows').redraw_title()
   elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
     require('chat').open({
       redraw = sessions.clear(),
@@ -159,6 +198,20 @@ end, {
       )
     end
 
+    if pre_cursor:match('^Chat unbridge ') then
+      return vim.tbl_filter(
+        function(t)
+          return t ~= 'init' and vim.startswith(t, arglead)
+        end,
+        vim.tbl_map(
+          function(t)
+            return vim.fn.fnamemodify(t, ':t:r')
+          end,
+          vim.api.nvim_get_runtime_file('lua/chat/integrations/*.lua', true)
+        )
+      )
+    end
+
     if pre_cursor:match('^Chat cd ') then
       local path_arg = pre_cursor:match('^Chat cd%s+(.*)$')
       return vim.fn.getcompletion(path_arg or '', 'dir')
@@ -190,6 +243,7 @@ end, {
       'mcp',
       'preview',
       'bridge',
+      'unbridge',
     })
   end,
 })

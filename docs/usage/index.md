@@ -34,6 +34,7 @@ chat.nvim provides several commands to manage your AI conversations. The main co
 | `:Chat share`       | Share current session via pastebin                  |
 | `:Chat preview`     | Open HTML preview of current session in browser     |
 | `:Chat bridge`      | Bind current session to external platform (Discord) |
+| `:Chat unbridge [im]` | Unbind integration (all or specific platform)     |
 
 ---
 
