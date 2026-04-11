@@ -50,6 +50,14 @@ function M.actions()
         require('chat.sessions').delete(entry.value)
       end
     end,
+    ['<C-t>'] = function(entry)
+      local path = require('chat.sessions').get_cache_path(entry.value)
+      if path then
+        vim.cmd.tabedit(path)
+      else
+        require('chat.log').notify('cache file for selected session does not exist')
+      end
+    end,
     ['<C-o>'] = function(entry)
       local config = require('chat.config')
       local url = string.format(

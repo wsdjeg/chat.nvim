@@ -67,6 +67,16 @@ function M.write_cache(session)
 
   return true
 end
+--- @return string|nil
+function M.get_cache_path(session)
+  if sessions[session] then
+    local f_name = cache_dir .. session .. '.json'
+    local stat = vim.uv.fs_stat(f_name)
+    if stat then
+      return f_name
+    end
+  end
+end
 
 function M.delete(session)
   local current_session = require('chat.windows').current_session()
