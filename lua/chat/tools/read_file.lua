@@ -75,6 +75,26 @@ function M.read_file(action, ctx)
       local start_line = action.line_start or 1
       local end_line = action.line_to or #content
 
+      -- Validate line boundaries against file length
+      if action.line_to ~= nil and end_line > #content then
+        return {
+          error = string.format(
+            'line_to (%d) exceeds file length (%d lines)',
+            end_line,
+            #content
+          ),
+        }
+      end
+      if start_line > #content then
+        return {
+          error = string.format(
+            'line_start (%d) exceeds file length (%d lines)',
+            start_line,
+            #content
+          ),
+        }
+      end
+
       -- Extract the range
       local range_content = {}
       for i = start_line, end_line do
@@ -130,7 +150,7 @@ function M.scheme()
       - If line_start is not specified, defaults to line 1
       - If line_to is not specified, defaults to last line
       - If both line_start and line_to are specified, line_start must be <= line_to
-      - If both line_start and line_to are specified, line_start must be <= line_to
+      - Returns error if line_start or line_to exceeds file length
       
       before using this function, you need to setup allowed_path in chat.nvim config. for example:
       ```lua
@@ -185,3 +205,4 @@ function M.info(action, ctx)
 end
 
 return M
+
