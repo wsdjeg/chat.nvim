@@ -2,14 +2,6 @@ local M = {}
 
 local util = require('chat.util')
 local job = require('job')
--- Compatibility: provide startsWith function for older Neovim versions
-local function starts_with(str, prefix)
-  if vim.startswith then
-    return vim.startswith(str, prefix)
-  else
-    return str:sub(1, #prefix) == prefix
-  end
-end
 
 -- Cache rg availability check result
 local rg_available = nil
