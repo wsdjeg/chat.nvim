@@ -1,6 +1,5 @@
 local M = {}
 
-local config = require('chat.config')
 local job = require('job')
 local util = require('chat.util')
 
@@ -16,25 +15,6 @@ end
 -- Smart case: if pattern has uppercase, use case-sensitive; otherwise case-insensitive
 local function should_ignore_case(pattern)
   return not pattern:match('%u')
-end
-
--- Check if path is within allowed_path
-local function is_path_allowed(path)
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(path, vim.fs.normalize(v)) then
-          return true
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    return vim.startswith(path, vim.fs.normalize(config.config.allowed_path))
-  end
-  return false
 end
 
 ---@class ChatToolsFindFilesAction
@@ -59,7 +39,7 @@ function M.find_files(action, ctx)
   end
 
   -- Security check for ctx.cwd
-  if not is_path_allowed(ctx.cwd) then
+  if not util.is_allowed_path(ctx.cwd) then
     return {
       error = 'Cannot find files in non-allowed path.',
     }
@@ -76,7 +56,7 @@ function M.find_files(action, ctx)
     search_dir = util.resolve(action.directory, ctx.cwd)
 
     -- Security check: ensure search_dir is within allowed path
-    if not is_path_allowed(search_dir) then
+    if not util.is_allowed_path(search_dir) then
       return {
         error = 'Cannot search outside allowed path.',
       }
