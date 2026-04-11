@@ -4,6 +4,7 @@ local log = require('chat.log')
 local tools = require('chat.tools')
 local job = require('job')
 local context = require('chat.context')
+local util = require('chat.util')
 
 ---@class ChatMessageUsage
 ---@field total_tokens? integer
@@ -480,7 +481,7 @@ function M.on_progress_tool_call(id, tool_call)
     return
   end
 
-  local idx = tool_call.index + 1
+  local idx = tool_call.index
 
   if not job_tool_calls[id][idx] then
     job_tool_calls[id][idx] = {
@@ -522,11 +523,12 @@ function M.on_progress_tool_call_done(id)
   local windows = require('chat.windows')
   local reasoning_content = progress_reasoning_contents[session]
   local content = progress_messages[session]
+  local tool_calls = util.transform(job_tool_calls[id])
   local message = {
     role = 'assistant',
     reasoning_content = reasoning_content,
     content = content,
-    tool_calls = job_tool_calls[id],
+    tool_calls = tool_calls,
     created = os.time(),
     session = session,
   }
@@ -541,56 +543,32 @@ function M.on_progress_tool_call_done(id)
     session = session,
   })
   M.on_complete(session, id)
-  if job_tool_calls[id] then
-    for _, tool_call in ipairs(job_tool_calls[id]) do
-      -- Skip incomplete tool calls
-      if not tool_call then
-        log.warn('Skipping nil tool_call')
-        goto continue
-      end
-      if not tool_call['function'] then
-        log.warn(
-          'Skipping tool_call without function field: '
-            .. vim.inspect(tool_call)
-        )
-        goto continue
-      end
-      if not tool_call['function'].name then
-        log.warn(
-          'Skipping tool_call without function.name: '
-            .. vim.inspect(tool_call)
-        )
-        goto continue
-      end
-      local ok, arguments =
-        pcall(vim.json.decode, tool_call['function'].arguments or '')
-      if ok then
-        local result = tools.call(tool_call['function'].name, arguments, {
-          cwd = sessions[session].cwd,
-          session = session,
-          callback = function(result)
-            local tool_done_message = {
-              role = 'tool',
-              content = result.content
-                or ('tool_call run failed, error is: \n' .. result.error),
-              tool_call_id = tool_call.id,
-              created = os.time(),
-              tool_call_state = {
-                name = tool_call['function'].name,
-                error = result.error,
-              },
-            }
-            M.append_message(session, tool_done_message)
-            windows.on_tool_call_done(session, { tool_done_message })
-            M.finish_async_tool(
-              session,
-              result.jobid or result.mcp_tool_call_id
-            )
-          end,
-        })
-        if result.jobid or result.mcp_tool_call_id then
-          M.start_async_tool(session, result.jobid or result.mcp_tool_call_id)
-        else
+  for _, tool_call in ipairs(tool_calls) do
+    -- Skip incomplete tool calls
+    if not tool_call then
+      log.warn('Skipping nil tool_call')
+      goto continue
+    end
+    if not tool_call['function'] then
+      log.warn(
+        'Skipping tool_call without function field: '
+          .. vim.inspect(tool_call)
+      )
+      goto continue
+    end
+    if not tool_call['function'].name then
+      log.warn(
+        'Skipping tool_call without function.name: ' .. vim.inspect(tool_call)
+      )
+      goto continue
+    end
+    local ok, arguments =
+      pcall(vim.json.decode, tool_call['function'].arguments or '')
+    if ok then
+      local result = tools.call(tool_call['function'].name, arguments, {
+        cwd = sessions[session].cwd,
+        session = session,
+        callback = function(result)
           local tool_done_message = {
             role = 'tool',
             content = result.content
@@ -604,31 +582,50 @@ function M.on_progress_tool_call_done(id)
           }
           M.append_message(session, tool_done_message)
           windows.on_tool_call_done(session, { tool_done_message })
-        end
+          M.finish_async_tool(
+            session,
+            result.jobid or result.mcp_tool_call_id
+          )
+        end,
+      })
+      if result.jobid or result.mcp_tool_call_id then
+        M.start_async_tool(session, result.jobid or result.mcp_tool_call_id)
       else
         local tool_done_message = {
           role = 'tool',
-          content = 'can not run this tool, failed to decode arguments.',
+          content = result.content
+            or ('tool_call run failed, error is: \n' .. result.error),
           tool_call_id = tool_call.id,
           created = os.time(),
           tool_call_state = {
             name = tool_call['function'].name,
-            error = 'failed to decode arguments.',
+            error = result.error,
           },
         }
         M.append_message(session, tool_done_message)
-        log.info('failed to decode arguments, error is:' .. arguments)
-        log.info(
-          'arguments is:' .. (tool_call['function'].arguments or 'nil')
-        )
         windows.on_tool_call_done(session, { tool_done_message })
       end
-      ::continue::
+    else
+      local tool_done_message = {
+        role = 'tool',
+        content = 'can not run this tool, failed to decode arguments.',
+        tool_call_id = tool_call.id,
+        created = os.time(),
+        tool_call_state = {
+          name = tool_call['function'].name,
+          error = 'failed to decode arguments.',
+        },
+      }
+      M.append_message(session, tool_done_message)
+      log.info('failed to decode arguments, error is:' .. arguments)
+      log.info('arguments is:' .. (tool_call['function'].arguments or 'nil'))
+      windows.on_tool_call_done(session, { tool_done_message })
     end
-
-    -- clear job_tool_calls by id
-    job_tool_calls[id] = nil
+    ::continue::
   end
+
+  -- clear job_tool_calls by id
+  job_tool_calls[id] = nil
 end
 
 function M.append_message(session, message)

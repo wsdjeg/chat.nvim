@@ -71,7 +71,7 @@ function M.on_stdout(id, data)
                 -- Initialize tool_use and pass to sessions
                 local tool_use = {
                   id = chunk.content_block.id,
-                  index = (chunk.content_block.index or chunk.index) - 1,
+                  index = chunk.content_block.index or chunk.index,
                   type = 'function',
                   ['function'] = {
                     name = chunk.content_block.name,
@@ -110,7 +110,7 @@ function M.on_stdout(id, data)
                 log.info('handle tool_input delta')
                 if chunk.delta.partial_json then
                   sessions.on_progress_tool_call(id, {
-                    index = chunk.index - 1,
+                    index = chunk.index,
                     ['function'] = {
                       arguments = chunk.delta.partial_json,
                     },

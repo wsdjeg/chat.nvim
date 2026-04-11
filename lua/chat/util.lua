@@ -39,6 +39,19 @@ local function is_absolute(path)
   end
 end
 
+function M.transform(tbl)
+  local keys = {}
+  for key, _ in pairs(tbl) do
+    table.insert(keys, key)
+  end
+  table.sort(keys)
+  local result = {}
+  for _, v in ipairs(keys) do
+    table.insert(result, tbl[v])
+  end
+  return result
+end
+
 function M.resolve(path, cwd)
   if type(path) ~= 'string' or path == '' then
     return nil
