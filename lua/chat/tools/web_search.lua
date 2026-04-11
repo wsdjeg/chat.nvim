@@ -1,5 +1,20 @@
 local M = {}
 
+
+-- URL encode helper function
+local function url_encode(str)
+  if type(str) ~= "number" then
+    str = string.gsub(str, "\n", "\r\n")
+  end
+  -- Percent-encode non-alphanumeric and unreserved characters
+  str = string.gsub(str, "([^%w %-%_%.%~])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end)
+  -- Replace spaces with %20
+  str = string.gsub(str, " ", "%%20")
+  return str
+end
+
 local config = require('chat.config')
 
 -- Cache curl availability check
@@ -141,7 +156,7 @@ function M.web_search(action, _)
     end
 
     -- URL encode query
-    local encoded_query = vim.fn.escape(action.query, 'url')
+    local encoded_query = url_encode(action.query)
 
     local url = string.format(
       'https://www.googleapis.com/customsearch/v1?key=%s&cx=%s&q=%s&num=%d',
@@ -159,7 +174,7 @@ function M.web_search(action, _)
     local limit = action.limit or 10
 
     -- URL encode query
-    local encoded_query = vim.fn.escape(action.query, 'url')
+    local encoded_query = url_encode(action.query)
 
     local url = string.format(
       'https://serpapi.com/search?q=%s&api_key=%s&num=%d&source=chatnvim',
