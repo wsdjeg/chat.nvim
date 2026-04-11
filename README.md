@@ -4,8 +4,8 @@
   </a>
 </h1>
 
-[Quick Start](https://nvim.chat/quick-start/) \|
-[Documentation](https://nvim.chat/documentation/) \|
+[Quick Start](https://nvim.chat/getting-started/) \|
+[Usage](https://nvim.chat/usage/) \|
 [Tools](https://nvim.chat/tools/) \|
 [Providers](https://nvim.chat/providers/)
 
