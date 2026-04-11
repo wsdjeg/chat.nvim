@@ -13,6 +13,9 @@ local integrations = {
   slack = require('chat.integrations.slack'),
 }
 
+-- Typing timers per integration name
+local typing_timers = {} -- { [name] = uv_timer }
+
 ---@class ChatIntegrationMessage
 ---@field content string message content
 ---@field session string session ID
@@ -185,15 +188,59 @@ local function handle_list_command(integration, message)
   integration.send_message(message_content)
 end
 
+-- Stop existing typing timer for an integration
+local function stop_typing_timer(name)
+  local timer = typing_timers[name]
+  if timer then
+    timer:stop()
+    timer:close()
+    typing_timers[name] = nil
+    log.debug(string.format('[%s] Typing timer stopped', name))
+  end
+end
+
+-- Start a typing timer that sends typing every 8 seconds while session is in progress
+local function start_typing_timer(integration, name, session)
+  -- Stop any existing timer for this integration
+  stop_typing_timer(name)
+
+  local sessions = require('chat.sessions')
+
+  -- Discord 特殊处理：发送 typing 指示器
+  if integration.send_typing then
+    integration.send_typing(true)
+  end
+
+  -- Only start timer if integration supports send_typing
+  if not integration.send_typing then
+    return
+  end
+
+  local timer = assert(vim.uv.new_timer())
+  typing_timers[name] = timer
+
+  timer:start(8000, 8000, function()
+    -- Check if session is still in progress
+    if sessions.is_in_progress(session) then
+      vim.schedule(function()
+        integration.send_typing(true)
+        log.debug(string.format('[%s] Typing indicator sent', name))
+      end)
+    else
+      -- Session finished, stop timer
+      vim.schedule(function()
+        stop_typing_timer(name)
+      end)
+    end
+  end)
+
+  log.debug(string.format('[%s] Typing timer started for session %s', name, session))
+end
+
 -- 通用的消息处理函数
 local function handle_message(integration, name, callback)
   return function(message)
     log.debug(string.format('[%s] %s', name, message.content))
-
-    -- Discord 特殊处理：发送 typing 指示器
-    if name == 'discord' then
-      integration.send_typing(true)
-    end
 
     -- 处理命令
     if message.content:match('^/session%s*') then
@@ -240,6 +287,9 @@ local function handle_message(integration, name, callback)
     -- 正常消息
     local session = integration.current_session()
     if session then
+      -- Start typing timer (sends initial typing + repeats every 8s)
+      start_typing_timer(integration, name, session)
+
       callback({
         session = session,
         content = message.content,
@@ -292,13 +342,15 @@ function M.unbridge(name)
       return nil    -- exists but not bound to current session
     end
     -- Bound to current session, unbridge it
+    stop_typing_timer(name)
     integration.disconnect()
     integration.set_session(nil)
     return true
   else
     -- Unbind all integrations bound to current session
-    for _, integration in pairs(integrations) do
+    for integration_name, integration in pairs(integrations) do
       if integration.current_session() == current_session then
+        stop_typing_timer(integration_name)
         integration.disconnect()
         integration.set_session(nil)
       end
@@ -308,8 +360,9 @@ function M.unbridge(name)
 end
 
 function M.on_session_deleted(session)
-  for _, integration in pairs(integrations) do
+  for name, integration in pairs(integrations) do
     if session == integration.current_session() then
+      stop_typing_timer(name)
       integration.disconnect()
       integration.set_session(nil)
     end
@@ -327,3 +380,4 @@ function M.get_integrations(session)
 end
 
 return M
+
