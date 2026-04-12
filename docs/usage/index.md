@@ -464,18 +464,6 @@ chat.nvim provides powerful features beyond basic chatting:
 ---
 
 ## Features
-
-### Memory System
-
-chat.nvim implements a sophisticated three-tier memory system:
-
-- **Working Memory** ⚡ - Session-scoped, highest priority
-- **Daily Memory** 📅 - Temporary, auto-expires after 7-30 days
-- **Long-term Memory** 💾 - Permanent knowledge storage
-
-Learn more: [Memory System](/docs/memory/)
-
-### MCP (Model Context Protocol)
 ### Memory System
 
 chat.nvim implements a sophisticated three-tier memory system:
