@@ -290,13 +290,21 @@ function M.scheme()
           },
           file_types = {
             type = 'array',
-            description = 'File type filter, e.g., ["*.py", "*.md", "*.txt"]',
-            items = { type = 'string' },
+            minItems = 1,
+            description = 'List of file patterns. MUST be an array of strings, not a single string. Example: ["*.py", "*.md"]',
+            items = {
+              type = 'string',
+              description = 'File glob pattern, e.g. "*.py"',
+            },
           },
           exclude_patterns = {
             type = 'array',
-            description = 'Exclude file patterns, e.g., ["*.log", "tmp/*"]',
-            items = { type = 'string' },
+            minItems = 1,
+            description = 'List of glob patterns to exclude. MUST be an array of strings, not a single string. Each item is a pattern like "*.log" or "tmp/*". Example: ["*.log", "tmp/*"]',
+            items = {
+              type = 'string',
+              description = 'A single glob pattern to exclude, e.g. "*.log"',
+            },
           },
           ignore_case = {
             type = 'boolean',
@@ -346,6 +354,9 @@ function M.info(action, ctx)
     if arguments.regex == false then
       table.insert(options, 'no_regex')
     end
+    if arguments.file_types then
+      table.insert(options, 'file_types=[' .. table.concat(arguments.file_types, ', ') .. ']')
+    end
     if arguments.max_results then
       table.insert(options, 'max=' .. arguments.max_results)
     end
@@ -354,13 +365,12 @@ function M.info(action, ctx)
     end
 
     if #options > 0 then
-      table.insert(info_parts, '[' .. table.concat(options, ', ') .. ']')
+      table.insert(info_parts, table.concat(options, '\n'))
     end
 
-    return table.concat(info_parts, ' ')
+    return table.concat(info_parts, '\n')
   else
     return 'search_text'
   end
 end
-
 return M
