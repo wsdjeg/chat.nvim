@@ -291,8 +291,7 @@ return M
 ---
 
 ## Next Steps
+
 - [Memory System](../memory/) - Learn about the memory system
 - [HTTP API](../api/http/) - HTTP API integration
 - [IM Integration](../integrations/im/) - Instant messaging integrations
-- [IM Integration](/docs/integrations/im/) - Instant messaging integrations
-

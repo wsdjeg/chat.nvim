@@ -572,6 +572,6 @@ AI: @recall_memory query="编辑器偏好" memory_type="long_term"
 
 ## Next Steps
 
-- [Tools Documentation](/docs/tools/) - Learn about memory tools in detail
-- [Configuration](/docs/configuration/) - Configure memory settings
-- [Usage Guide](/docs/usage/) - Use memory tools in conversations
+- [Tools Documentation](./tools/) - Learn about memory tools in detail
+- [Configuration](./configuration/) - Configure memory settings
+- [Usage Guide](./usage/) - Use memory tools in conversations

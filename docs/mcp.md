@@ -399,8 +399,10 @@ Start with simple MCP tools to verify integration:
 
 ---
 
+---
+
 ## Next Steps
 
-- [Tools Documentation](/docs/tools/) - Learn about all available tools
-- [IM Integration](/docs/integrations/im/) - Instant messaging integrations
-- [HTTP API](/docs/api/http/) - HTTP API integration
+- [Tools Documentation](./tools/) - Learn about all available tools
+- [IM Integration](./integrations/im/) - Instant messaging integrations
+- [HTTP API](./api/http/) - HTTP API integration
