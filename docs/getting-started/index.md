@@ -30,12 +30,11 @@ chat.nvim is a lightweight, extensible chat plugin for Neovim with AI integratio
 - Integrate with instant messaging platforms for remote access
 
 ---
-
 ## Quick Links
 
-- [Installation](/docs/getting-started/installation/) - Install and configure chat.nvim
-- [Configuration](/docs/configuration/) - Customize settings and options
-- [Usage](/docs/usage/) - Commands, keybindings, and workflows
+- [Installation](./installation/) - Install and configure chat.nvim
+- [Configuration](../configuration/) - Customize settings and options
+- [Usage](../usage/) - Commands, keybindings, and workflows
 
 ---
 
@@ -54,7 +53,7 @@ Before installing chat.nvim, ensure you have:
 
 ### 1. Install the Plugin
 
-Follow the [Installation Guide](/docs/getting-started/installation/) for your package manager.
+Follow the [Installation Guide](./installation/) for your package manager.
 
 ### 2. Configure API Keys
 
@@ -83,7 +82,7 @@ Open the chat window and start your first conversation:
 
 After getting started, explore:
 
-- [Providers](/docs/providers/) - Configure different AI providers
-- [Tools](/docs/tools/) - Learn about available tools
-- [Memory System](/docs/memory/) - Understand the memory architecture
-- [IM Integration](/docs/integrations/im/) - Connect messaging platforms
+- [Providers](../providers/) - Configure different AI providers
+- [Tools](../tools/) - Learn about available tools
+- [Memory System](../memory/) - Understand the memory architecture
+- [IM Integration](../integrations/im/) - Connect messaging platforms

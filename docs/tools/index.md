@@ -31,7 +31,8 @@ MCP (Model Context Protocol) tools are automatically discovered and integrated w
 - `mcp_open_webSearch_search` - Web search via MCP server
 - `mcp_open_webSearch_fetchGithubReadme` - Fetch GitHub README via MCP
 - `mcp_open_webSearch_fetchCsdnArticle` - Fetch CSDN article via MCP
-MCP tools are automatically available when their servers are configured in the `mcp` section of your setup configuration. See [MCP Configuration](/docs/mcp/) for details.
+
+MCP tools are automatically available when their servers are configured in the `mcp` section of your setup configuration. See [MCP Configuration](../mcp/) for details.
 
 ---
 
@@ -290,8 +291,8 @@ return M
 ---
 
 ## Next Steps
-
-- [Memory System](/docs/memory/) - Learn about the memory system
-- [HTTP API](/docs/api/http/) - HTTP API integration
+- [Memory System](../memory/) - Learn about the memory system
+- [HTTP API](../api/http/) - HTTP API integration
+- [IM Integration](../integrations/im/) - Instant messaging integrations
 - [IM Integration](/docs/integrations/im/) - Instant messaging integrations
 

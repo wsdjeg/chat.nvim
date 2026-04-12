@@ -451,7 +451,11 @@ setInterval(updateDashboard, 5000);
 
 ## Next Steps
 
-- [Providers](/docs/providers/) - Learn about AI providers
-- [Tools](/docs/tools/) - Explore available tools
-- [Memory System](/docs/memory/) - Memory system configuration
-- [IM Integration](/docs/integrations/im/) - Instant messaging integrations
+---
+
+## Next Steps
+
+- [Providers](../providers/) - Learn about AI providers
+- [Tools](../tools/) - Explore available tools
+- [Memory System](../memory/) - Memory system configuration
+- [IM Integration](../integrations/im/) - Instant messaging integrations

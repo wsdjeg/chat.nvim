@@ -476,6 +476,17 @@ chat.nvim implements a sophisticated three-tier memory system:
 Learn more: [Memory System](/docs/memory/)
 
 ### MCP (Model Context Protocol)
+### Memory System
+
+chat.nvim implements a sophisticated three-tier memory system:
+
+- **Working Memory** ⚡ - Session-scoped, highest priority
+- **Daily Memory** 📅 - Temporary, auto-expires after 7-30 days
+- **Long-term Memory** 💾 - Permanent knowledge storage
+
+Learn more: [Memory System](../memory/)
+
+### MCP (Model Context Protocol)
 
 Native MCP support for extended tool capabilities:
 
@@ -483,7 +494,7 @@ Native MCP support for extended tool capabilities:
 - Automatically discover MCP tools
 - Seamlessly integrate with built-in tools
 
-Learn more: [MCP](/docs/mcp/)
+Learn more: [MCP](../mcp/)
 
 ### Built-in Tools
 
@@ -497,7 +508,7 @@ Learn more: [MCP](/docs/mcp/)
 
 ## Next Steps
 
-- [Providers](/docs/providers/) - Configure AI providers
-- [Tools](/docs/tools/) - Explore available tools
-- [Memory System](/docs/memory/) - Learn about the memory system
-- [API Documentation](/docs/api/http/) - HTTP API integration
+- [Providers](../providers/) - Configure AI providers
+- [Tools](../tools/) - Explore available tools
+- [Memory System](../memory/) - Learn about the memory system
+- [API Documentation](../api/http/) - HTTP API integration

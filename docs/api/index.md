@@ -50,18 +50,17 @@ curl -X POST http://127.0.0.1:7777/ \
   -H "Content-Type: application/json" \
   -d '{"session": "my-session", "content": "Hello from curl!"}'
 ```
-
-Learn more: [HTTP API](/docs/api/http/)
+Learn more: [HTTP API](./http/)
 
 ---
 
 ## Quick Links
 
-- [HTTP API](/docs/api/http/) - Complete HTTP API documentation
+- [HTTP API](./http/) - Complete HTTP API documentation
 
 ---
 
 ## Next Steps
 
-- [HTTP API](/docs/api/http/) - HTTP API integration
-- [IM Integration](/docs/integrations/im/) - Messaging platforms
+- [HTTP API](./http/) - HTTP API integration
+- [IM Integration](../integrations/im/) - Messaging platforms

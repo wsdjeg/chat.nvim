@@ -277,8 +277,11 @@ See `lua/chat/integrations/discord.lua` for a complete reference implementation.
 ---
 
 ## Next Steps
+---
 
-- [Discord Integration](/docs/integrations/discord/) - Setup Discord bot
-- [Telegram Integration](/docs/integrations/telegram/) - Setup Telegram bot
-- [Slack Integration](/docs/integrations/slack/) - Setup Slack bot
-- [HTTP API](/docs/api/http/) - HTTP API integration
+## Next Steps
+
+- [Discord Integration](./discord/) - Setup Discord bot
+- [Telegram Integration](./telegram/) - Setup Telegram bot
+- [Slack Integration](./slack/) - Setup Slack bot
+- [HTTP API](../api/http/) - HTTP API integration

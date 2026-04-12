@@ -362,8 +362,10 @@ require('chat').setup({
 
 ---
 
+---
+
 ## Next Steps
 
-- [Usage Guide](/docs/usage/) - Learn how to use chat.nvim
-- [Providers](/docs/providers/) - Configure AI providers
-- [Tools](/docs/tools/) - Explore available tools
+- [Usage Guide](./usage/) - Learn how to use chat.nvim
+- [Providers](./providers/) - Configure AI providers
+- [Tools](./tools/) - Explore available tools

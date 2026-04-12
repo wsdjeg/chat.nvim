@@ -227,8 +227,10 @@ Keep track of your AI provider's token usage.
 
 ---
 
+---
+
 ## Next Steps
 
-- [Discord Integration](/docs/integrations/discord/) - Setup Discord bot
-- [Slack Integration](/docs/integrations/slack/) - Setup Slack bot
-- [IM Integration Overview](/docs/integrations/im/) - All IM integrations
+- [Discord Integration](./discord/) - Setup Discord bot
+- [Slack Integration](./slack/) - Setup Slack bot
+- [IM Integration Overview](./im/) - All IM integrations

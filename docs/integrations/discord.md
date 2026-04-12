@@ -221,6 +221,6 @@ Periodically clear old sessions to maintain performance:
 
 ## Next Steps
 
-- [Telegram Integration](/docs/integrations/telegram/) - Setup Telegram bot
-- [Slack Integration](/docs/integrations/slack/) - Setup Slack bot
-- [IM Integration Overview](/docs/integrations/im/) - All IM integrations
+- [Telegram Integration](./telegram/) - Setup Telegram bot
+- [Slack Integration](./slack/) - Setup Slack bot
+- [IM Integration Overview](./im/) - All IM integrations

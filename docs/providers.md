@@ -669,6 +669,6 @@ If you get protocol-related errors:
 
 ## Next Steps
 
-- [Tools](/docs/tools/) - Explore available tools
-- [Usage](/docs/usage/) - Learn how to use chat.nvim
-- [Memory System](/docs/memory/) - Learn about the memory system
+- [Tools](./tools/) - Explore available tools
+- [Usage](./usage/) - Learn how to use chat.nvim
+- [Memory System](./memory/) - Learn about the memory system

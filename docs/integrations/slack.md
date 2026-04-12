@@ -262,8 +262,10 @@ Be aware of Slack API rate limits when using the integration heavily.
 
 ---
 
+---
+
 ## Next Steps
 
-- [Discord Integration](/docs/integrations/discord/) - Setup Discord bot
-- [Telegram Integration](/docs/integrations/telegram/) - Setup Telegram bot
-- [IM Integration Overview](/docs/integrations/im/) - All IM integrations
+- [Discord Integration](./discord/) - Setup Discord bot
+- [Telegram Integration](./telegram/) - Setup Telegram bot
+- [IM Integration Overview](./im/) - All IM integrations
