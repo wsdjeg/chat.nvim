@@ -7,8 +7,6 @@ nav_order: 16
 
 # git_add
 
-{: .no_toc }
-
 Stage file changes for commit.
 
 ## Usage

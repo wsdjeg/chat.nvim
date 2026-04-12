@@ -7,8 +7,6 @@ nav_order: 26
 
 # git_reset
 
-{: .no_toc }
-
 Reset current HEAD to the specified state.
 
 ## Usage

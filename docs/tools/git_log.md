@@ -7,8 +7,6 @@ nav_order: 9
 
 # git_log
 
-{: .no_toc }
-
 Show commit logs with various filters and options.
 
 ## Usage

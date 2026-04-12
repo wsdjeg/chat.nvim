@@ -7,8 +7,6 @@ nav_order: 8
 
 # git_diff
 
-{: .no_toc }
-
 Run git diff to compare changes between working directory, index, or different branches.
 
 ## Usage

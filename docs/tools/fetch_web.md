@@ -7,8 +7,6 @@ nav_order: 6
 
 # fetch_web
 
-{: .no_toc }
-
 Fetch content from web URLs using curl with comprehensive HTTP support.
 
 ## Usage

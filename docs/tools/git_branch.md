@@ -7,8 +7,6 @@ nav_order: 17
 
 # git_branch
 
-{: .no_toc }
-
 Manage git branches.
 
 ## Usage

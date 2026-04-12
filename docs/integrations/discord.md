@@ -5,9 +5,12 @@ parent: IM Integration
 nav_order: 1
 ---
 
+<!-- prettier-ignore-start -->
 # Discord Integration
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

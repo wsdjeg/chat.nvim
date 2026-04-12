@@ -4,13 +4,13 @@ title: Configuration
 nav_order: 3
 has_children: false
 ---
+
+<!-- prettier-ignore-start -->
 # Configuration
-
 {: .no_toc }
-
 ## Table of contents
-
-{: .no_toc .text-delta }
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

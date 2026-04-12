@@ -5,9 +5,12 @@ nav_order: 8
 has_children: true
 ---
 
+<!-- prettier-ignore-start -->
 # IM Integration
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

@@ -7,8 +7,6 @@ nav_order: 11
 
 # git_show
 
-{: .no_toc }
-
 Show detailed changes of a specific commit.
 
 ## Usage

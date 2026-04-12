@@ -7,8 +7,6 @@ nav_order: 3
 
 # extract_memory
 
-{: .no_toc }
-
 Extract memories from conversation text into a three-tier memory system (working, daily, long-term). Automatically detects memory type and category based on content analysis.
 
 ## Usage

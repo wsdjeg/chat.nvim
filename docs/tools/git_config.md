@@ -7,8 +7,6 @@ nav_order: 20
 
 # git_config
 
-{: .no_toc }
-
 Get, set, or list git configuration.
 
 ## Usage

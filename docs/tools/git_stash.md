@@ -7,8 +7,6 @@ nav_order: 27
 
 # git_stash
 
-{: .no_toc }
-
 Stash changes in git repository.
 
 ## Usage

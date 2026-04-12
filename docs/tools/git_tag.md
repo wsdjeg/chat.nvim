@@ -7,8 +7,6 @@ nav_order: 28
 
 # git_tag
 
-{: .no_toc }
-
 Manage git tags.
 
 ## Usage

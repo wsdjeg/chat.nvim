@@ -7,8 +7,6 @@ nav_order: 7
 
 # web_search
 
-{: .no_toc }
-
 Search the web using Firecrawl, Google Custom Search API, or SerpAPI.
 
 ## Usage

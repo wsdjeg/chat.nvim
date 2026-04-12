@@ -7,8 +7,6 @@ nav_order: 21
 
 # git_fetch
 
-{: .no_toc }
-
 Fetch changes from remote repository.
 
 ## Usage

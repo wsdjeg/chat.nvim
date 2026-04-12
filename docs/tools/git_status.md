@@ -7,8 +7,6 @@ nav_order: 10
 
 # git_status
 
-{: .no_toc }
-
 Show the working tree status.
 
 ## Usage

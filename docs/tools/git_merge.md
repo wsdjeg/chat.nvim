@@ -7,8 +7,6 @@ nav_order: 22
 
 # git_merge
 
-{: .no_toc }
-
 Merge branches.
 
 ## Usage

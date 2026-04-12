@@ -7,8 +7,6 @@ nav_order: 1
 
 # find_files
 
-{: .no_toc }
-
 Finds files in the current working directory that match a given pattern.
 
 ## Usage

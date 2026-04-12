@@ -7,8 +7,6 @@ nav_order: 2
 
 # search_text
 
-{: .no_toc }
-
 Advanced text search tool using ripgrep (rg) to search text content in directories with regex support, file type filtering, exclusion patterns, and other advanced features.
 
 ## Usage

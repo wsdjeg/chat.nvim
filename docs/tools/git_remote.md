@@ -7,8 +7,6 @@ nav_order: 25
 
 # git_remote
 
-{: .no_toc }
-
 Manage set of tracked repositories (read-only).
 
 ## Usage

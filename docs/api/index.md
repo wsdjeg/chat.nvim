@@ -5,9 +5,12 @@ nav_order: 7
 has_children: true
 ---
 
+<!-- prettier-ignore-start -->
 # API
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

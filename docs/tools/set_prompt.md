@@ -7,8 +7,6 @@ nav_order: 5
 
 # set_prompt
 
-{: .no_toc }
-
 Read a prompt file and set it as the current session's system prompt.
 
 ## Usage

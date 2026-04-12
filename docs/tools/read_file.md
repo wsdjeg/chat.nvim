@@ -7,8 +7,6 @@ nav_order: 1
 
 # read_file
 
-{: .no_toc }
-
 Reads the content of a file and makes it available to the AI assistant.
 
 ## Usage

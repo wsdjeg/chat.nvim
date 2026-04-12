@@ -5,13 +5,12 @@ nav_order: 4
 has_children: false
 ---
 
+<!-- prettier-ignore-start -->
 # Usage
-
 {: .no_toc }
-
 ## Table of contents
-
-{: .no_toc .text-delta }
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

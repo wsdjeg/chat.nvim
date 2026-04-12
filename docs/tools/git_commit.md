@@ -7,8 +7,6 @@ nav_order: 19
 
 # git_commit
 
-{: .no_toc }
-
 Create a git commit with the specified message.
 
 ## Usage

@@ -7,8 +7,6 @@ nav_order: 3
 
 # make
 
-{: .no_toc }
-
 Run make targets and return results.
 
 ## Usage

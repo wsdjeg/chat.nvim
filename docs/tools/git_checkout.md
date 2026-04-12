@@ -7,8 +7,6 @@ nav_order: 18
 
 # git_checkout
 
-{: .no_toc }
-
 Switch branches or restore working tree files.
 
 ## Usage

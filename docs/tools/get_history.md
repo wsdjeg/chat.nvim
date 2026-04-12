@@ -7,8 +7,6 @@ nav_order: 12
 
 # get_history
 
-{: .no_toc }
-
 Get conversation history messages from the current session.
 
 ## Usage

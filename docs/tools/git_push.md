@@ -7,8 +7,6 @@ nav_order: 24
 
 # git_push
 
-{: .no_toc }
-
 Push commits to remote repository.
 
 ## Usage

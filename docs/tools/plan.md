@@ -7,8 +7,6 @@ nav_order: 13
 
 # plan
 
-{: .no_toc }
-
 Plan mode for creating, managing, and reviewing task plans with step-by-step tracking.
 
 ## Usage

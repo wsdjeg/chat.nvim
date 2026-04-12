@@ -5,9 +5,12 @@ parent: IM Integration
 nav_order: 6
 ---
 
+<!-- prettier-ignore-start -->
 # WeCom (Enterprise WeChat) Integration
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

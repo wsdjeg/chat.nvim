@@ -5,9 +5,12 @@ parent: Getting Started
 nav_order: 1
 ---
 
+<!-- prettier-ignore-start -->
 # Installation
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

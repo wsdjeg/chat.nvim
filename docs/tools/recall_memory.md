@@ -7,8 +7,6 @@ nav_order: 4
 
 # recall_memory
 
-{: .no_toc }
-
 Retrieve relevant information from the three-tier memory system with priority-based ranking. Automatically extracts keywords if no query is provided.
 
 ## Usage

@@ -5,9 +5,12 @@ nav_order: 4
 has_children: false
 ---
 
+<!-- prettier-ignore-start -->
 # Providers
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

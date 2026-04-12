@@ -5,9 +5,12 @@ parent: IM Integration
 nav_order: 7
 ---
 
+<!-- prettier-ignore-start -->
 # Weixin (Personal WeChat) Integration
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

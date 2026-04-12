@@ -5,9 +5,12 @@ nav_order: 7
 has_children: false
 ---
 
-# MCP (Model Context Protocol)
-
+<!-- prettier-ignore-start -->
+# Model Context Protocol
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

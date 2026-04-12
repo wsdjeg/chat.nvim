@@ -5,9 +5,12 @@ nav_order: 6
 has_children: false
 ---
 
+<!-- prettier-ignore-start -->
 # Memory System
-
 {: .no_toc }
+## Table of contents
+{: .no_toc }
+<!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
 - content

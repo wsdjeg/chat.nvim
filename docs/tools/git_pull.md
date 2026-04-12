@@ -7,8 +7,6 @@ nav_order: 23
 
 # git_pull
 
-{: .no_toc }
-
 Pull changes from remote repository and merge.
 
 ## Usage
