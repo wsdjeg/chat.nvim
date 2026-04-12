@@ -46,7 +46,7 @@ function M.generate_message(message, session)
       table.insert(msg, base .. tool_info[1])
       if #tool_info > 1 then
         for j = 2, #tool_info do
-          table.insert(msg, string.rep(' ', #base) .. tool_info[j])
+          table.insert(msg, string.rep(' ', vim.api.nvim_strwidth(base)) .. tool_info[j])
         end
       end
       table.insert(msg, '')

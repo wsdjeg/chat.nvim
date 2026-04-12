@@ -339,7 +339,7 @@ function M.info(action, ctx)
     local info_parts = {
       string.format('search_text "%s"', arguments.pattern),
       string.format(
-        'in %s',
+        'directory: %s',
         vim.fs.normalize(arguments.directory or ctx.cwd)
       ),
     }
@@ -355,13 +355,13 @@ function M.info(action, ctx)
       table.insert(options, 'no_regex')
     end
     if arguments.file_types then
-      table.insert(options, 'file_types=[' .. table.concat(arguments.file_types, ', ') .. ']')
+      table.insert(options, 'file_types: ["' .. table.concat(arguments.file_types, '", "') .. '"]')
     end
     if arguments.max_results then
-      table.insert(options, 'max=' .. arguments.max_results)
+      table.insert(options, 'max: ' .. arguments.max_results)
     end
     if arguments.context_lines then
-      table.insert(options, 'context=' .. arguments.context_lines)
+      table.insert(options, 'context: ' .. arguments.context_lines)
     end
 
     if #options > 0 then
