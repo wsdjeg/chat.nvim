@@ -61,13 +61,13 @@ function M.on_stdout(id, data)
               end
             elseif chunk.type == 'content_block_start' then
               -- Content block starting
-              log.info('content_block_start: ' .. chunk.index)
+              log.debug('content_block_start: ' .. chunk.index)
               -- Check if this is a tool_use block
               if
                 chunk.content_block
                 and chunk.content_block.type == 'tool_use'
               then
-                log.info('tool_use start: ' .. chunk.content_block.id)
+                log.debug('tool_use start: ' .. chunk.content_block.id)
                 -- Initialize tool_use and pass to sessions
                 local tool_use = {
                   id = chunk.content_block.id,
@@ -84,13 +84,13 @@ function M.on_stdout(id, data)
               -- Streaming content
               if chunk.delta and chunk.delta.type == 'text_delta' then
                 if chunk.delta.text and #chunk.delta.text > 0 then
-                  log.info('handle text delta')
+                  log.debug('handle text delta')
                   sessions.on_progress(id, chunk.delta.text)
                 end
               elseif chunk.delta and chunk.delta.type == 'thinking_delta' then
                 -- Thinking content streaming (similar to reasoning_content in OpenAI)
                 if chunk.delta.thinking and #chunk.delta.thinking > 0 then
-                  log.info('handle thinking delta')
+                  log.debug('handle thinking delta')
                   sessions.on_progress_reasoning_content(
                     id,
                     chunk.delta.thinking
@@ -107,7 +107,7 @@ function M.on_stdout(id, data)
                 chunk.delta and chunk.delta.type == 'input_json_delta'
               then
                 -- Tool use streaming - accumulate JSON input (matching OpenAI protocol)
-                log.info('handle tool_input delta')
+                log.debug('handle tool_input delta')
                 if chunk.delta.partial_json then
                   sessions.on_progress_tool_call(id, {
                     index = chunk.index,
@@ -119,7 +119,7 @@ function M.on_stdout(id, data)
               end
             elseif chunk.type == 'content_block_stop' then
               -- Content block finished
-              log.info('content_block_stop: ' .. chunk.index)
+              log.debug('content_block_stop: ' .. chunk.index)
               -- Tool use completion is handled in on_exit when reason == 'tool_use'
             elseif chunk.type == 'message_delta' then
               -- Message update
@@ -141,7 +141,7 @@ function M.on_stdout(id, data)
               end
             elseif chunk.type == 'message_stop' then
               -- Message complete
-              log.info('message_stop')
+              log.debug('message_stop')
               -- Only set finish_reason to 'stop' if not already set (e.g., by message_delta with 'tool_use')
               if not sessions.get_progress_finish_reason(id) then
                 sessions.set_progress_finish_reason(id, 'stop')
@@ -205,10 +205,10 @@ function M.on_exit(id, code, signal)
       end
     end
 
-    log.info(string.format('job exit code %d signal %d', code, signal))
+    log.debug(string.format('job exit code %d signal %d', code, signal))
 
     local reason = sessions.get_progress_finish_reason(id)
-    log.info('finish_reason: ' .. tostring(reason))
+    log.debug('finish_reason: ' .. tostring(reason))
     if reason == 'end_turn' or reason == 'stop' then
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
@@ -248,7 +248,7 @@ function M.on_exit(id, code, signal)
     if code == 0 and signal == 0 then
       local session_messages = sessions.get_messages(session)
       if session_messages[#session_messages].error then
-        log.info('API error detected, skip sending tool results')
+        log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
         if messages[#messages].role == 'tool' then
