@@ -1349,6 +1349,33 @@ Usage:
     @git_commit message="update" amend=true
 <
 
+**lsp_diagnostics**                                    *chat-tool-lsp_diagnostics*
+
+Get LSP diagnostics (errors, warnings, hints) for the current file.
+
+This tool uses Neovim's built-in LSP diagnostic system to retrieve
+diagnostic messages from attached language servers.
+
+Usage:
+>
+    @lsp_diagnostics                                    - Get all diagnostics
+    @lsp_diagnostics severity=Error                     - Get only errors
+    @lsp_diagnostics severity=Warn                      - Get only warnings
+    @lsp_diagnostics line_start=10 line_to=20           - Get diagnostics for lines 10-20
+    @lsp_diagnostics severity=Error line_start=1 line_to=50
+<
+
+Parameters:
+- `severity` - Filter by severity level: Error, Warn, Info, Hint, or All (default: All)
+- `line_start` - Starting line number (1-indexed, inclusive)
+- `line_to` - Ending line number (1-indexed, inclusive)
+
+Notes:
+- Requires an LSP client to be attached to the buffer
+- Line numbers are 1-indexed
+- Severities: Error, Warn, Info, Hint, All (default: All)
+
+
 **get_history**                                          *chat-tool-get_history*
 
 Get conversation history messages from the current session.
