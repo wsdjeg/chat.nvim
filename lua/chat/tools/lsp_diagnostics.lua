@@ -3,6 +3,7 @@ local M = {}
 local util = require('chat.util')
 
 ---@class ChatToolsLspDiagnosticsAction
+---@field filepath string
 ---@field severity? 'Error' | 'Warn' | 'Info' | 'Hint' | 'All'
 ---@field line_start? integer
 ---@field line_to? integer
@@ -10,11 +11,59 @@ local util = require('chat.util')
 ---@param action ChatToolsLspDiagnosticsAction
 ---@param ctx ChatToolContext
 function M.lsp_diagnostics(action, ctx)
-  -- Get the current buffer or file
-  local bufnr = vim.fn.bufnr(vim.fn.fnameescape(ctx.filepath))
+  -- Security check for ctx.cwd
+  if not util.is_allowed_path(ctx.cwd) then
+    return {
+      error = string.format(
+        'Access denied: cwd (%s) is outside allowed paths',
+        ctx.cwd
+      ),
+    }
+  end
+
+  -- filepath is required
+  if not action.filepath then
+    return {
+      error = 'filepath parameter is required',
+    }
+  end
+
+  -- Resolve and validate filepath
+  local resolved_path = util.resolve(action.filepath, ctx.cwd)
+  if not resolved_path then
+    return {
+      error = string.format('failed to resolve filepath: %s', action.filepath),
+    }
+  end
+
+  -- Security: ensure resolved_path is within ctx.cwd
+  local normalized_resolved = vim.fs.normalize(resolved_path)
+  local normalized_cwd = vim.fs.normalize(ctx.cwd)
+  if not vim.startswith(normalized_resolved, normalized_cwd) then
+    return {
+      error = string.format(
+        'Security error: filepath (%s) is outside cwd (%s)',
+        resolved_path,
+        ctx.cwd
+      ),
+    }
+  end
+
+  -- Security: check if path is allowed
+  if not util.is_allowed_path(resolved_path) then
+    return {
+      error = string.format(
+        'Access denied: filepath (%s) is outside allowed paths',
+        resolved_path
+      ),
+    }
+  end
+
+  -- Get the target buffer
+  local bufnr = vim.fn.bufnr(vim.fn.fnameescape(resolved_path))
   if bufnr == -1 then
     return {
-      error = string.format('Buffer not found for file: %s', ctx.filepath),
+      error = string.format('Buffer not found for file: %s', resolved_path),
     }
   end
 
@@ -24,7 +73,7 @@ function M.lsp_diagnostics(action, ctx)
     return {
       error = string.format(
         'No LSP client attached to %s. Ensure a language server is running.',
-        ctx.filepath
+        resolved_path
       ),
     }
   end
@@ -85,7 +134,7 @@ function M.lsp_diagnostics(action, ctx)
 
   -- Format diagnostics
   local lines = {
-    string.format('Found %d diagnostic(s):', #diagnostics),
+    string.format('Found %d diagnostic(s) in %s:', #diagnostics, resolved_path),
     '',
   }
 
@@ -131,26 +180,30 @@ function M.scheme()
     ['function'] = {
       name = 'lsp_diagnostics',
       description = [[
-      Get LSP diagnostics (errors, warnings, hints) for the current file.
-      
+      Get LSP diagnostics (errors, warnings, hints) for a file.
+
       This tool uses Neovim's built-in LSP diagnostic system to retrieve
       diagnostic messages from attached language servers.
-      
+
       Examples:
-      - @lsp_diagnostics                                    - Get all diagnostics
-      - @lsp_diagnostics severity=Error                     - Get only errors
-      - @lsp_diagnostics severity=Warn                      - Get only warnings
-      - @lsp_diagnostics line_start=10 line_to=20           - Get diagnostics for lines 10-20
-      - @lsp_diagnostics severity=Error line_start=1 line_to=50
-      
+      - @lsp_diagnostics filepath="./src/main.lua"                  - Get all diagnostics
+      - @lsp_diagnostics filepath="./src/main.lua" severity=Error   - Get only errors
+      - @lsp_diagnostics filepath="./src/main.lua" severity=Warn    - Get only warnings
+      - @lsp_diagnostics filepath="./src/main.lua" line_start=10 line_to=20  - Get diagnostics for lines 10-20
+
       Notes:
-      - Requires an LSP client to be attached to the buffer
+      - Requires an LSP client to be attached to the file
       - Line numbers are 1-indexed
       - Severities: Error, Warn, Info, Hint, All (default: All)
+      - filepath must be within the current working directory (required)
       ]],
       parameters = {
         type = 'object',
         properties = {
+          filepath = {
+            type = 'string',
+            description = 'File path to get diagnostics for (must be within cwd)',
+          },
           severity = {
             type = 'string',
             description = 'Filter by severity level: Error, Warn, Info, Hint, or All (default: All)',
@@ -167,6 +220,7 @@ function M.scheme()
             minimum = 1,
           },
         },
+        required = { 'filepath' },
       },
     },
   }
@@ -176,6 +230,9 @@ function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
     local parts = { 'lsp_diagnostics' }
+    if arguments.filepath then
+      table.insert(parts, string.format('filepath=%s', arguments.filepath))
+    end
     if arguments.severity then
       table.insert(parts, string.format('severity=%s', arguments.severity))
     end

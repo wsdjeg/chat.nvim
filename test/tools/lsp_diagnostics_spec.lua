@@ -32,17 +32,27 @@ function TestLspDiagnostics:testToolExists()
   lu.assertTrue(vim.tbl_contains(tool_names, 'lsp_diagnostics'))
 end
 
-function TestLspDiagnostics:testNoLspAttached()
-  -- Get the buffer's file path
-  local filepath = vim.api.nvim_buf_get_name(self.test_buf)
-  if filepath == '' then
-    filepath = '/tmp/test_file.lua'
-    vim.api.nvim_buf_set_name(self.test_buf, filepath)
-  end
-
+function TestLspDiagnostics:testMissingFilepath()
+  -- filepath is now required
   local result = tools.call(
     'lsp_diagnostics',
     {},
+    { cwd = vim.fs.normalize(vim.fn.getcwd()), filepath = 'test.lua' }
+  )
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(result.error)
+  lu.assertTrue(result.error:match('filepath parameter is required') ~= nil)
+end
+
+function TestLspDiagnostics:testNoLspAttached()
+  -- Use a filepath within cwd
+  local filepath = vim.fs.normalize(vim.fn.getcwd()) .. '/test_lsp_file.lua'
+  vim.api.nvim_buf_set_name(self.test_buf, filepath)
+
+  local result = tools.call(
+    'lsp_diagnostics',
+    { filepath = filepath },
     { cwd = vim.fs.normalize(vim.fn.getcwd()), filepath = filepath }
   )
 
@@ -52,15 +62,12 @@ function TestLspDiagnostics:testNoLspAttached()
 end
 
 function TestLspDiagnostics:testWithSeverityFilter()
-  local filepath = vim.api.nvim_buf_get_name(self.test_buf)
-  if filepath == '' then
-    filepath = '/tmp/test_file.lua'
-    vim.api.nvim_buf_set_name(self.test_buf, filepath)
-  end
+  local filepath = vim.fs.normalize(vim.fn.getcwd()) .. '/test_lsp_file2.lua'
+  vim.api.nvim_buf_set_name(self.test_buf, filepath)
 
   local result = tools.call(
     'lsp_diagnostics',
-    { severity = 'Error' },
+    { filepath = filepath, severity = 'Error' },
     { cwd = vim.fs.normalize(vim.fn.getcwd()), filepath = filepath }
   )
 
@@ -69,15 +76,12 @@ function TestLspDiagnostics:testWithSeverityFilter()
 end
 
 function TestLspDiagnostics:testWithLineRange()
-  local filepath = vim.api.nvim_buf_get_name(self.test_buf)
-  if filepath == '' then
-    filepath = '/tmp/test_file.lua'
-    vim.api.nvim_buf_set_name(self.test_buf, filepath)
-  end
+  local filepath = vim.fs.normalize(vim.fn.getcwd()) .. '/test_lsp_file3.lua'
+  vim.api.nvim_buf_set_name(self.test_buf, filepath)
 
   local result = tools.call(
     'lsp_diagnostics',
-    { line_start = 1, line_to = 2 },
+    { filepath = filepath, line_start = 1, line_to = 2 },
     { cwd = vim.fs.normalize(vim.fn.getcwd()), filepath = filepath }
   )
 
