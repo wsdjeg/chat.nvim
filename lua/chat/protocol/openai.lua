@@ -38,7 +38,7 @@ function M.on_stdout(id, data)
           local text = table.concat(sse_buffers[id], '\n')
           sse_buffers[id] = {}
           if vim.trim(text) == '[DONE]' then
-            log.info('handle data DONE')
+            log.debug('handle data DONE')
           else
             local ok, chunk = pcall(vim.json.decode, text)
             if not ok then
@@ -50,7 +50,7 @@ function M.on_stdout(id, data)
                   choice.delta.tool_calls
                   and choice.delta.tool_calls ~= vim.NIL
                 then
-                  log.info('handle tool_calls chunk')
+                  log.debug('handle tool_calls chunk')
                   for _, tool_call in ipairs(choice.delta.tool_calls) do
                     sessions.on_progress_tool_call(id, tool_call)
                   end
@@ -59,7 +59,7 @@ function M.on_stdout(id, data)
                   and choice.delta.reasoning_content ~= vim.NIL
                   and #choice.delta.reasoning_content > 0
                 then
-                  log.info('handle reasoning_content')
+                  log.debug('handle reasoning_content')
                   sessions.on_progress_reasoning_content(
                     id,
                     choice.delta.reasoning_content
@@ -69,7 +69,7 @@ function M.on_stdout(id, data)
                   and choice.delta.content ~= vim.NIL
                   and #choice.delta.content > 0
                 then
-                  log.info('handle content')
+                  log.debug('handle content')
                   sessions.on_progress(id, choice.delta.content)
                 end
               end
@@ -95,7 +95,7 @@ function M.on_stdout(id, data)
             end
 
             if chunk and chunk.usage and chunk.usage ~= vim.NIL then
-              log.info('handle usage')
+              log.debug('handle usage')
               sessions.set_progress_usage(id, chunk.usage)
             end
           end
@@ -121,7 +121,9 @@ function M.on_exit(id, code, signal)
       local text = table.concat(body_buffers[id], '\n')
       body_buffers[id] = {}
       local ok, chunk = pcall(vim.json.decode, text)
-      if ok and chunk.error then
+      if not ok then
+        log.error('Failed to decode JSON: ' .. text)
+      elseif ok and chunk.error then
         local error_msg = chunk.error.message or 'Unknown error'
         local error_code = chunk.error.code or chunk.type or 'unknown'
         local message = {
@@ -142,7 +144,7 @@ function M.on_exit(id, code, signal)
       end
     end
 
-    log.info(string.format('job exit code %d signal %d', code, signal))
+    log.debug(string.format('job exit code %d signal %d', code, signal))
     local reason = sessions.get_progress_finish_reason(id)
     if reason == 'stop' then
       sessions.on_progress_done(id)
@@ -178,7 +180,7 @@ function M.on_exit(id, code, signal)
     if code == 0 and signal == 0 then
       local session_messages = sessions.get_messages(session)
       if session_messages[#session_messages].error then
-        log.info('API error detected, skip sending tool results')
+        log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
         if messages[#messages].role == 'tool' then
