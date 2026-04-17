@@ -38,6 +38,7 @@ function M.request(opt)
     messages = opt.messages,
     enable_thinking = true,
     stream = true,
+    tool_stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
   })
