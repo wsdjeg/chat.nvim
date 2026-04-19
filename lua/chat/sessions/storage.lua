@@ -1,3 +1,23 @@
+---@class ChatMessageUsage
+---@field total_tokens? integer
+---@field prompt_tokens? integer
+---@field completion_tokens? integer
+
+---@class ChatMessage
+---@field role string
+---@field content string
+---@field created integer
+---@field usage? ChatMessageUsage
+
+---@class ChatSession
+---@field id string
+---@field messages ChatMessage[]
+---@field provider? string
+---@field model? string
+---@field cwd string session working directory
+---@field prompt? string
+---@field usage? ChatMessageUsage
+
 -- Session storage: cache read/write and iteration
 local M = {}
 
