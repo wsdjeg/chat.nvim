@@ -82,8 +82,10 @@ function M.is_allowed_path(path)
   local config = require('chat.config')
   local normalized_path = vim.fs.normalize(path)
 
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
+  local allowed_path = config.config.allowed_path
+
+  if type(allowed_path) == 'table' then
+    for _, v in ipairs(allowed_path) do
       if type(v) == 'string' and #v > 0 then
         if vim.startswith(normalized_path, vim.fs.normalize(v)) then
           return true
@@ -91,12 +93,12 @@ function M.is_allowed_path(path)
       end
     end
   elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
+    type(allowed_path) == 'string'
+    and #allowed_path > 0
   then
     return vim.startswith(
       normalized_path,
-      vim.fs.normalize(config.config.allowed_path)
+      vim.fs.normalize(allowed_path)
     )
   end
   return false

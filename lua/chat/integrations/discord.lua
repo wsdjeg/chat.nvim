@@ -655,6 +655,19 @@ function M.send_typing(is_typing)
     'https://discord.com/api/v10/channels/' .. channel .. '/typing',
     '-H',
     'Authorization: Bot ' .. token,
+  }, {
+    on_exit = function(id, code, signal)
+      if code ~= 0 or signal ~= 0 then
+        log.debug(
+          string.format(
+            'failed to send typing to discord channel, jobid: %d, exit code: %d, signal: %d',
+            id,
+            code,
+            signal
+          )
+        )
+      end
+    end,
   })
 end
 
