@@ -277,9 +277,6 @@ See `lua/chat/integrations/discord.lua` for a complete reference implementation.
 ---
 
 ## Next Steps
----
-
-## Next Steps
 
 - [Discord Integration](./discord/) - Setup Discord bot
 - [Telegram Integration](./telegram/) - Setup Telegram bot
