@@ -120,10 +120,10 @@ function M.push_text(chunk)
   end
 
   if M.auto_scroll() then
-    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+    util.buf_set_lines(result_buf, -2, -1, lines)
     M.scroll_to_bottom()
   else
-    vim.api.nvim_buf_set_lines(result_buf, -2, -1, false, lines)
+    util.buf_set_lines(result_buf, -2, -1, lines)
   end
 end
 
@@ -147,14 +147,13 @@ function M.on_message(session, current_session, message)
   end
 
   if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
-    vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
+    util.buf_set_lines(result_buf, -1, -1, { '' })
   end
 
-  vim.api.nvim_buf_set_lines(
+  util.buf_set_lines(
     result_buf,
     start,
     -1,
-    false,
     formatter.generate_message(message, session)
   )
 
@@ -174,11 +173,10 @@ function M.on_tool_call_done(session, current_session, messages)
   end
 
   for _, message in ipairs(messages) do
-    vim.api.nvim_buf_set_lines(
+    util.buf_set_lines(
       result_buf,
       -1,
       -1,
-      false,
       formatter.generate_message(message, session)
     )
   end
@@ -201,10 +199,10 @@ function M.on_tool_call_start(session, current_session, message)
   local lines = formatter.generate_message(message, session)
 
   if vim.api.nvim_buf_get_lines(result_buf, -2, -1, false)[1] ~= '' then
-    vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { '' })
+    util.buf_set_lines(result_buf, -1, -1, { '' })
   end
 
-  vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+  util.buf_set_lines(result_buf, -1, -1, lines)
 
   if need_scroll then
     M.scroll_to_bottom()
@@ -224,15 +222,15 @@ end
 function M.create_buffer(session)
   result_buf = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = result_buf })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = result_buf })
   vim.treesitter.start(result_buf, 'markdown')
 
   local messages = sessions.get_messages(session)
   if #messages > 0 then
-    vim.api.nvim_buf_set_lines(
+    util.buf_set_lines(
       result_buf,
       0,
       -1,
-      false,
       formatter.generate_buffer(messages, session)
     )
   end
@@ -251,7 +249,7 @@ function M.create_buffer(session)
       do
         table.insert(lines, l)
       end
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+      util.buf_set_lines(result_buf, -1, -1, lines)
     end
   end
 
@@ -302,15 +300,11 @@ function M.render(session)
     return
   end
 
-  vim.api.nvim_buf_set_lines(
+  util.buf_set_lines(
     result_buf,
     0,
     -1,
-    false,
-    formatter.generate_buffer(
-      sessions.get_messages(session),
-      session
-    )
+    formatter.generate_buffer(sessions.get_messages(session), session)
   )
 
   if sessions.is_in_progress(session) then
@@ -327,7 +321,7 @@ function M.render(session)
       do
         table.insert(lines, l)
       end
-      vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, lines)
+      util.buf_set_lines(result_buf, -1, -1, lines)
     end
   end
 

@@ -3,6 +3,14 @@ local bit = require('bit')
 
 local DISCORD_EPOCH = 1420070400000
 
+function M.buf_set_lines(buf, from, to, lines)
+  local modifiable =
+    vim.api.nvim_get_option_value('modifiable', { buf = buf })
+  vim.api.nvim_set_option_value('modifiable', true, { buf = buf })
+  vim.api.nvim_buf_set_lines(buf, from, to, false, lines)
+  vim.api.nvim_set_option_value('modifiable', modifiable, { buf = buf })
+end
+
 function M.iso_to_snowflake(iso)
   local year, month, day, hour, minute, second, millisecond =
     iso:match('(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)%.(%d+)')
@@ -86,7 +94,10 @@ function M.is_allowed_path(path)
     type(config.config.allowed_path) == 'string'
     and #config.config.allowed_path > 0
   then
-    return vim.startswith(normalized_path, vim.fs.normalize(config.config.allowed_path))
+    return vim.startswith(
+      normalized_path,
+      vim.fs.normalize(config.config.allowed_path)
+    )
   end
   return false
 end
@@ -107,4 +118,3 @@ function M.format_number(num)
 end
 
 return M
-
