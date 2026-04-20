@@ -31,10 +31,11 @@ local function get_config_system_prompt()
   return prompt or ''
 end
 
---- Save session to a specified file path
----@param session_id string
----@param filepath string
----@return boolean
+--- Saves a session to a JSON file at the specified path
+--- Creates parent directories if they don't exist
+--- @param session_id string The session identifier to save
+--- @param filepath string The file path to save the session to
+--- @return boolean True if saved successfully, false otherwise
 function M.save_to_file(session_id, filepath)
   if not storage.sessions[session_id] then
     log.error('Session does not exist: ' .. session_id)
@@ -73,9 +74,10 @@ function M.save_to_file(session_id, filepath)
   return true
 end
 
---- Load session from a specified file path
----@param filepath string
----@return string|nil
+--- Loads a session from a JSON file at the specified path
+--- Generates a new session ID if the original ID already exists
+--- @param filepath string The file path to load the session from
+--- @return string|nil The loaded session ID if successful, nil otherwise
 function M.load_from_file(filepath)
   filepath = vim.fs.normalize(vim.fn.fnamemodify(filepath, ':p'))
 
@@ -124,8 +126,10 @@ function M.load_from_file(filepath)
   return session_id
 end
 
---- Share session to pastebin and return URL
----@param session_id string
+--- Shares a session to pastebin (paste.rs) and returns the URL
+--- The URL is copied to clipboard for easy sharing
+--- @param session_id string The session identifier to share
+--- @return nil Returns nil, URL is displayed and copied to clipboard
 function M.share(session_id)
   if not storage.sessions[session_id] then
     log.error('Session does not exist: ' .. session_id)
@@ -202,9 +206,10 @@ function M.share(session_id)
   job.send(jobid, nil)
 end
 
---- Load session from URL
----@param url string
----@return string|nil
+--- Loads a session from a URL containing session JSON data
+--- Fetches the content via HTTP and creates a new session
+--- @param url string The URL to fetch the session from (must start with http:// or https://)
+--- @return string|nil The loaded session ID if successful, nil otherwise
 function M.load_from_url(url)
   if not url:match('^https?://') then
     log.error('Invalid URL, must start with http:// or https://')
@@ -275,4 +280,3 @@ function M.load_from_url(url)
 end
 
 return M
-

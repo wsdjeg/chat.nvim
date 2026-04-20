@@ -4,6 +4,9 @@ local M = {}
 local log = require('chat.log')
 local storage = require('chat.sessions.storage')
 
+--- Gets the system prompt from configuration
+--- Handles both string and function types for system_prompt config
+--- @return string The system prompt string
 local function get_config_system_prompt()
   local config = require('chat.config')
   local prompt = config.config.system_prompt
@@ -30,6 +33,8 @@ local function get_config_system_prompt()
   return prompt or ''
 end
 
+--- Gets all sessions from storage, loading from cache if necessary
+--- @return table Dictionary of session_id -> session data
 function M.get()
   if not vim.tbl_isempty(storage.sessions) then
     return storage.sessions
@@ -39,6 +44,9 @@ function M.get()
   return storage.sessions
 end
 
+--- Creates a new session with default configuration
+--- Session ID is generated from current timestamp
+--- @return string The newly created session ID
 function M.new()
   local NOTE_ID_STRFTIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
   local id = os.date(NOTE_ID_STRFTIME_FORMAT, os.time())
@@ -54,6 +62,10 @@ function M.new()
   return id
 end
 
+--- Deletes a session and its associated data
+--- Cancels any active progress, removes cache file, clears memories
+--- @param session_id string|nil The session ID to delete (defaults to current session)
+--- @return string|nil The next session ID to switch to, or nil if none
 function M.delete(session_id)
   local current_session = require('chat.windows').current_session()
   if not session_id then
@@ -100,6 +112,8 @@ function M.delete(session_id)
   end
 end
 
+--- Switches to the previous session in sorted order (circular navigation)
+--- @return string The previous session ID, or creates new session if none exist
 function M.previous()
   local s = {}
   for session, _ in pairs(storage.sessions) do
@@ -122,6 +136,8 @@ function M.previous()
   end
 end
 
+--- Switches to the next session in sorted order (circular navigation)
+--- @return string The next session ID, or creates new session if none exist
 function M.next()
   local s = {}
   for session, _ in pairs(storage.sessions) do
@@ -144,10 +160,17 @@ function M.next()
   end
 end
 
+--- Checks if a session exists in storage
+--- @param session_id string The session identifier
+--- @return boolean True if session exists, false otherwise
 function M.exists(session_id)
   return storage.sessions[session_id] ~= nil
 end
 
+--- Clears all messages and usage stats from a session
+--- Does not delete the session itself, only resets its content
+--- @param session_id string|nil The session ID to clear (defaults to current session)
+--- @return boolean True if cleared successfully, false if session is in progress
 function M.clear(session_id)
   local windows = require('chat.windows')
   session_id = session_id or windows.current_session()
@@ -177,6 +200,10 @@ function M.clear(session_id)
   end
 end
 
+--- Sets the system prompt for a session
+--- @param session_id string The session identifier
+--- @param prompt string The new system prompt content
+--- @return boolean True if set successfully, false if validation fails
 function M.set_session_prompt(session_id, prompt)
   if type(prompt) ~= 'string' then
     return false
@@ -191,10 +218,18 @@ function M.set_session_prompt(session_id, prompt)
   return true
 end
 
+--- Gets the provider name for a session
+--- @param session_id string The session identifier
+--- @return string|nil The provider name if session exists
 function M.get_session_provider(session_id)
   return storage.sessions[session_id].provider
 end
 
+--- Sets the provider for a session
+--- Cannot change provider while session has active streaming
+--- @param session_id string The session identifier
+--- @param provider string The provider name to set
+--- @return boolean|nil True if set successfully, nil if session is in progress
 function M.set_session_provider(session_id, provider)
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
@@ -208,10 +243,18 @@ function M.set_session_provider(session_id, provider)
   return true
 end
 
+--- Gets the model name for a session
+--- @param session_id string The session identifier
+--- @return string|nil The model name if session exists
 function M.get_session_model(session_id)
   return storage.sessions[session_id].model
 end
 
+--- Sets the model for a session
+--- Cannot change model while session has active streaming
+--- Updates window title if session is current
+--- @param session_id string The session identifier
+--- @param model string The model name to set
 function M.set_session_model(session_id, model)
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
@@ -227,6 +270,10 @@ function M.set_session_model(session_id, model)
   end
 end
 
+--- Gets the working directory for a session
+--- Falls back to current vim cwd if not set
+--- @param session_id string The session identifier
+--- @return string|nil The working directory path
 function M.getcwd(session_id)
   if storage.sessions[session_id] and not storage.sessions[session_id].cwd then
     storage.sessions[session_id].cwd = vim.fn.getcwd()
@@ -234,6 +281,10 @@ function M.getcwd(session_id)
   return storage.sessions[session_id].cwd
 end
 
+--- Changes the working directory for a session
+--- Updates window title if session is current
+--- @param session_id string The session identifier
+--- @param cwd string The new working directory path
 function M.change_cwd(session_id, cwd)
   local windows = require('chat.windows')
   storage.sessions[session_id].cwd = cwd
@@ -242,6 +293,12 @@ function M.change_cwd(session_id, cwd)
   end
 end
 
+--- Calculates total token usage for a session
+--- Aggregates usage from all messages if not cached
+--- @param session_id string The session identifier
+--- @return integer total_tokens Total tokens used
+--- @return integer prompt_tokens Prompt tokens used
+--- @return integer completion_tokens Completion tokens used
 function M.get_total_tokens(session_id)
   local session = storage.sessions[session_id]
   if not session then
@@ -272,4 +329,3 @@ function M.get_total_tokens(session_id)
 end
 
 return M
-

@@ -54,6 +54,8 @@ function M.on_progress_tool_call(jobid, tool_call)
   end
 end
 
+--- Handles completion of streaming tool calls
+--- @param jobid string The job identifier for the streaming request
 function M.on_progress_tool_call_done(jobid)
   local progress = require('chat.sessions.progress')
   local session_id = progress.get_progress_session(jobid)
@@ -158,6 +160,9 @@ function M.on_progress_tool_call_done(jobid)
   job_tool_calls[jobid] = nil
 end
 
+--- Handles completion of tool call processing
+--- @param session_id string The session identifier
+--- @param jobid string The job identifier
 function M.on_complete(session_id, jobid)
   local progress = require('chat.sessions.progress')
   local usage = progress.get_progress_usage(jobid)

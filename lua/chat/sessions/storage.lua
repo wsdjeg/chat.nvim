@@ -8,6 +8,12 @@
 ---@field content string
 ---@field created integer
 ---@field usage? ChatMessageUsage
+---@field reasoning_content? string
+---@field tool_calls? table
+---@field tool_call_id? string
+---@field on_complete? boolean
+---@field error? string
+---@field tool_call_state? string
 
 ---@class ChatSession
 ---@field id string
@@ -54,6 +60,10 @@ end
 --- @type table<string, ChatSession>
 M.sessions = {}
 
+--- Writes session data to cache file in JSON format
+--- Creates cache directory if it doesn't exist
+--- @param session_id string The session identifier to write
+--- @return boolean True if write succeeded, false otherwise
 function M.write_cache(session_id)
   if not M.sessions[session_id] then
     log.error('session does not existed, skip writing cache.')
@@ -84,8 +94,10 @@ function M.write_cache(session_id)
   return true
 end
 
----@param session_id string
----@return string|nil
+--- Gets the file path for a session's cache file
+--- Only returns a path if the session exists and the file is present
+--- @param session_id string The session identifier
+--- @return string|nil The cache file path if found, nil otherwise
 function M.get_cache_path(session_id)
   if M.sessions[session_id] then
     local f_name = M.cache_dir .. session_id .. '.json'
@@ -96,6 +108,10 @@ function M.get_cache_path(session_id)
   end
 end
 
+--- Iterates over all cached sessions, loading them from disk if not already loaded
+--- Handles backward compatibility for older cache formats
+--- @return function A coroutine iterator that yields (session_id, session_data) pairs
+--- @usage for session_id, session_data in storage.iter_sessions() do ... end
 function M.iter_sessions()
   if vim.fn.isdirectory(M.cache_dir) == 0 then
     return coroutine.wrap(function() end)
@@ -160,4 +176,3 @@ function M.iter_sessions()
 end
 
 return M
-

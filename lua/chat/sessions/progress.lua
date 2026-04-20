@@ -10,32 +10,54 @@ local progress_usage = {} ---@type table<string, table>
 local jobid_session = {} ---@type table<integer, string>
 local progress_messages = {} ---@type table<string, string>
 
+--- Associates a session ID with a job ID for tracking streaming progress
+--- @param session_id string The session identifier
+--- @param jobid integer The job identifier for the streaming request
 function M.set_session_jobid(session_id, jobid)
   if jobid > 0 then
     jobid_session[jobid] = session_id
   end
 end
 
+--- Retrieves the session ID associated with a job ID
+--- @param jobid integer The job identifier
+--- @return string|nil The session ID if found, nil otherwise
 function M.get_progress_session(jobid)
   return jobid_session[jobid]
 end
 
+--- Stores usage statistics for a job
+--- @param jobid integer The job identifier
+--- @param usage table Usage statistics table (prompt_tokens, completion_tokens, etc.)
 function M.set_progress_usage(jobid, usage)
   progress_usage[jobid] = usage
 end
 
+--- Retrieves usage statistics for a job
+--- @param jobid integer The job identifier
+--- @return table|nil Usage statistics table if available, nil otherwise
 function M.get_progress_usage(jobid)
   return progress_usage[jobid]
 end
 
+--- Sets the finish reason for a streaming job
+--- @param jobid integer The job identifier
+--- @param reason string The finish reason (e.g., "stop", "length", "tool_calls")
 function M.set_progress_finish_reason(jobid, reason)
   progress_finish_reasons[jobid] = reason
 end
 
+--- Gets the finish reason for a streaming job
+--- @param jobid integer The job identifier
+--- @return string|nil The finish reason if available, nil otherwise
 function M.get_progress_finish_reason(jobid)
   return progress_finish_reasons[jobid]
 end
 
+--- Handles streaming text output from LLM response
+--- Updates the progress message buffer and pushes text to the result window
+--- @param jobid integer The job identifier for the streaming request
+--- @param text string The text chunk received from the stream
 function M.on_progress(jobid, text)
   local session_id = jobid_session[jobid]
   if session_id then
@@ -67,6 +89,10 @@ function M.on_progress(jobid, text)
   end
 end
 
+--- Handles streaming reasoning content from LLM response (for models with reasoning tokens)
+--- Updates the reasoning content buffer and pushes to the result window
+--- @param jobid integer The job identifier for the streaming request
+--- @param text string The reasoning text chunk received from the stream
 function M.on_progress_reasoning_content(jobid, text)
   local session_id = jobid_session[jobid]
   if session_id then
@@ -94,6 +120,10 @@ function M.on_progress_reasoning_content(jobid, text)
   end
 end
 
+--- Finalizes the streaming response and saves the complete message
+--- @param jobid integer The job identifier for the streaming request
+--- @param opts table|nil Optional parameters including tool_calls
+--- @param opts.tool_calls table|nil Array of tool call objects if present
 function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
   if progress_messages[session_id] then
@@ -120,6 +150,11 @@ function M.on_progress_done(jobid, opts)
   require('chat.sessions.storage').write_cache(session_id)
 end
 
+--- Handles job exit/cleanup when streaming ends or is interrupted
+--- Clears all progress tracking data for the job
+--- @param jobid integer The job identifier
+--- @param code integer The exit code from the job
+--- @param signal integer The signal that caused the exit (if any)
 function M.on_progress_exit(jobid, code, signal)
   local session_id = M.get_progress_session(jobid)
   progress_reasoning_contents[session_id] = nil
@@ -127,14 +162,23 @@ function M.on_progress_exit(jobid, code, signal)
   jobid_session[jobid] = nil
 end
 
+--- Gets the current streaming message content for a session
+--- @param session_id string The session identifier
+--- @return string|nil The current message content being streamed, nil if none
 function M.get_progress_message(session_id)
   return progress_messages[session_id]
 end
 
+--- Gets the current reasoning content for a session
+--- @param session_id string The session identifier
+--- @return string|nil The current reasoning content being streamed, nil if none
 function M.get_progress_reasoning_content(session_id)
   return progress_reasoning_contents[session_id]
 end
 
+--- Checks if a session has an active streaming request or pending async tools
+--- @param session_id string The session identifier
+--- @return boolean True if the session has active progress, false otherwise
 function M.is_in_progress(session_id)
   -- Check if there's an active job for this session
   for _, v in pairs(jobid_session) do
@@ -152,6 +196,9 @@ function M.is_in_progress(session_id)
   return false
 end
 
+--- Cancels any active streaming request or async tool calls for a session
+--- Stops LLM streaming jobs and cancels pending MCP tool requests
+--- @param session_id string The session identifier
 function M.cancel_progress(session_id)
   --- if the llm progress is running, stop llm progress and return
   for jobid, v in pairs(jobid_session) do

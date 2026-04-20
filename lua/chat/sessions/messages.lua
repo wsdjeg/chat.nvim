@@ -3,6 +3,20 @@ local M = {}
 
 local storage = require('chat.sessions.storage')
 
+--- Appends a message to a session's message history
+--- Updates usage statistics if provided and notifies integrations for assistant responses
+--- @param session_id string The session identifier
+--- @param message table The message object to append
+--- @param message.role string The role of the message sender ('user', 'assistant', 'tool')
+--- @param message.content string|nil The text content of the message
+--- @param message.reasoning_content string|nil Reasoning content for models with reasoning tokens
+--- @param message.tool_calls table|nil Array of tool call objects if present
+--- @param message.tool_call_id string|nil Tool call ID for tool response messages
+--- @param message.created integer|nil Timestamp when message was created
+--- @param message.usage table|nil Token usage statistics
+--- @param message.usage.total_tokens integer Total tokens used
+--- @param message.usage.prompt_tokens integer Prompt tokens used
+--- @param message.usage.completion_tokens integer Completion tokens used
 function M.append_message(session_id, message)
   if
     message.role == 'assistant'
@@ -44,6 +58,10 @@ function M.append_message(session_id, message)
   end
 end
 
+--- Retrieves all messages from a session's history
+--- Returns a copy of the messages array with all message fields
+--- @param session_id string The session identifier
+--- @return table Array of message objects with all fields preserved
 function M.get_messages(session_id)
   local message = {}
   for _, m in ipairs(storage.sessions[session_id].messages) do
@@ -63,6 +81,10 @@ function M.get_messages(session_id)
   return message
 end
 
+--- Gets messages formatted for LLM API request
+--- Prepends system prompt if configured and applies context truncation
+--- @param session_id string The session identifier
+--- @return table Array of messages formatted for API request (system, user, assistant, tool roles only)
 function M.get_request_messages(session_id)
   local message = {}
   if storage.sessions[session_id].prompt and #storage.sessions[session_id].prompt > 0 then
@@ -94,4 +116,3 @@ function M.get_request_messages(session_id)
 end
 
 return M
-
