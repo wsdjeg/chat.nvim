@@ -8,6 +8,15 @@ local storage = require('chat.sessions.storage')
 
 local job_tool_calls = {} ---@type table<string, table>
 
+--- @class ChatToolCallFunction
+--- @field name string
+--- @field arguments string
+
+--- @class ChatToolCall
+--- @field id string
+--- @field type string
+--- @field function ChatToolCallFunction
+
 function M.on_progress_tool_call(jobid, tool_call)
   job_tool_calls[jobid] = job_tool_calls[jobid] or {}
 

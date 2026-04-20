@@ -6,17 +6,7 @@ local storage = require('chat.sessions.storage')
 --- Appends a message to a session's message history
 --- Updates usage statistics if provided and notifies integrations for assistant responses
 --- @param session_id string The session identifier
---- @param message table The message object to append
---- @param message.role string The role of the message sender ('user', 'assistant', 'tool')
---- @param message.content string|nil The text content of the message
---- @param message.reasoning_content string|nil Reasoning content for models with reasoning tokens
---- @param message.tool_calls table|nil Array of tool call objects if present
---- @param message.tool_call_id string|nil Tool call ID for tool response messages
---- @param message.created integer|nil Timestamp when message was created
---- @param message.usage table|nil Token usage statistics
---- @param message.usage.total_tokens integer Total tokens used
---- @param message.usage.prompt_tokens integer Prompt tokens used
---- @param message.usage.completion_tokens integer Completion tokens used
+--- @param message ChatMessage The message object to append
 function M.append_message(session_id, message)
   if
     message.role == 'assistant'

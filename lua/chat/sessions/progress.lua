@@ -2,7 +2,6 @@
 local M = {}
 
 local job = require('job')
-local storage = require('chat.sessions.storage')
 
 local progress_reasoning_contents = {} ---@type table<string, string>
 local progress_finish_reasons = {} ---@type table<string, string>
@@ -120,10 +119,12 @@ function M.on_progress_reasoning_content(jobid, text)
   end
 end
 
+--- @class ChatProgressDoneOpt
+--- @field tool_calls? ChatToolCall[]
+
 --- Finalizes the streaming response and saves the complete message
 --- @param jobid integer The job identifier for the streaming request
---- @param opts table|nil Optional parameters including tool_calls
---- @param opts.tool_calls table|nil Array of tool call objects if present
+--- @param opts ChatProgressDoneOpt Optional parameters including tool_calls
 function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
   if progress_messages[session_id] then
