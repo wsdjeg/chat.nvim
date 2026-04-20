@@ -94,7 +94,7 @@ function M.on_progress_reasoning_content(jobid, text)
   end
 end
 
-function M.on_progress_done(jobid)
+function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
   if progress_messages[session_id] then
     local reasoning_content
@@ -102,12 +102,16 @@ function M.on_progress_done(jobid)
       reasoning_content = progress_reasoning_contents[session_id]
       progress_reasoning_contents[session_id] = nil
     end
-    require('chat.sessions.messages').append_message(session_id, {
+    local message = {
       role = 'assistant',
       reasoning_content = reasoning_content,
       content = progress_messages[session_id],
       created = os.time(),
-    })
+    }
+    if opts and opts.tool_calls then
+      message.tool_calls = opts.tool_calls
+    end
+    require('chat.sessions.messages').append_message(session_id, message)
     progress_messages[session_id] = nil
   else
     progress_reasoning_contents[session_id] = nil
@@ -182,4 +186,3 @@ function M.cancel_progress(session_id)
 end
 
 return M
-

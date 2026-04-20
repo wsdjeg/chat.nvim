@@ -59,24 +59,16 @@ function M.on_progress_tool_call_done(jobid)
   local session_id = progress.get_progress_session(jobid)
   local windows = require('chat.windows')
 
-  local reasoning_content = progress.get_progress_reasoning_content(session_id)
-  local content = progress.get_progress_message(session_id)
   local tool_calls = util.transform(job_tool_calls[jobid])
 
-  local message = {
+  progress.on_progress_done(jobid, {
+    tool_calls = tool_calls,
+  })
+
+  windows.on_tool_call_start(session_id, {
     role = 'assistant',
-    reasoning_content = reasoning_content,
-    content = content,
     tool_calls = tool_calls,
     created = os.time(),
-    session = session_id,
-  }
-
-  progress.on_progress_done(jobid)
-  windows.on_tool_call_start(session_id, {
-    role = message.role,
-    tool_calls = message.tool_calls,
-    created = message.created,
     session = session_id,
   })
   M.on_complete(session_id, jobid)
@@ -205,4 +197,3 @@ function M.send_tool_results(session_id)
 end
 
 return M
-
