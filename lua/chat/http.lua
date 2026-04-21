@@ -127,6 +127,37 @@ function M.start()
         )
         client:write(resp)
         client:close()
+      elseif method == 'GET' and path:match('^/messages%?') then
+        -- GET /messages?session=session_id: return message list
+        local session_id = path:match('session=([^&]+)')
+        if not session_id then
+          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        -- URL decode session_id
+        session_id = session_id:gsub('%%(%x%x)', function(h)
+          return string.char(tonumber(h, 16))
+        end)
+
+        if not sessions.exists(session_id) then
+          local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
+          client:write(resp)
+          client:close()
+          return
+        end
+
+        local messages = sessions.get_messages(session_id)
+        local json_data = vim.json.encode(messages)
+        local resp = string.format(
+          'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+          #json_data,
+          json_data
+        )
+        client:write(resp)
+        client:close()
       elseif method == 'POST' and path == '/' then
         -- POST /: push message to session (existing behavior)
         local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
