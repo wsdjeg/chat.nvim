@@ -28,11 +28,10 @@ function M.iso_to_snowflake(iso)
 
   return bit.lshift(timestamp_ms - DISCORD_EPOCH, 22)
 end
-
 local function is_windows()
-  return vim.fn.has('win32') == 1 or vim.fn.has('win64') == 1
+  local uname = vim.uv.os_uname()
+  return uname.sysname:lower():find('windows') ~= nil
 end
-
 local function is_absolute(path)
   if is_windows() then
     if path:match('^%a:[/\\]') then

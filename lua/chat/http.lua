@@ -60,6 +60,161 @@ local function send_response(client, status, message)
   client:close()
 end
 
+--- Handle HTTP request (separated for vim.schedule_wrap)
+local function handle_request(client, method, path, headers, body, content_length)
+  -- GET /session?id=session_id: return HTML preview (no auth required)
+  if method == 'GET' and path:match('^/session%?') then
+    local session_id = path:match('id=([^&]+)')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    local all_sessions = sessions.get()
+    local session_data = all_sessions[session_id]
+
+    if not session_data then
+      send_response(client, 404, 'Not Found')
+      return
+    end
+
+    local html = require('chat.preview').generate_html(session_data)
+    local resp = string.format(
+      'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s',
+      #html,
+      html
+    )
+    client:write(resp)
+    client:close()
+    return
+  end
+
+  --------------------------------------------------
+  -- API key check (use header: X-API-Key)
+  --------------------------------------------------
+  if headers['x-api-key'] ~= config.config.http.api_key then
+    send_response(client, 401, 'Unauthorized')
+    return
+  end
+
+  -- Route handling
+  if method == 'GET' and path == '/sessions' then
+    -- GET /sessions: return session list with details
+    local all_sessions = sessions.get()
+    local session_list = {}
+    for id, data in pairs(all_sessions) do
+      table.insert(session_list, {
+        id = id,
+        cwd = data.cwd or vim.fn.getcwd(),
+        provider = data.provider,
+        model = data.model,
+      })
+    end
+    table.sort(session_list, function(a, b)
+      return a.id < b.id
+    end)
+    send_json(client, 200, session_list)
+
+  elseif method == 'POST' and path == '/session/new' then
+    -- POST /session/new: create new session
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok then
+      obj = {}
+    end
+
+    local new_id = sessions.new()
+
+    -- Apply optional parameters
+    if obj then
+      if type(obj.cwd) == 'string' then
+        sessions.change_cwd(new_id, obj.cwd)
+      end
+      if type(obj.provider) == 'string' then
+        sessions.set_session_provider(new_id, obj.provider)
+      end
+      if type(obj.model) == 'string' then
+        sessions.set_session_model(new_id, obj.model)
+      end
+    end
+
+    -- Save the new session
+    require('chat.sessions.storage').write_cache(new_id)
+
+    send_json(client, 201, { id = new_id })
+
+  elseif method == 'DELETE' and path:match('^/session/') then
+    -- DELETE /session/:id: delete session
+    local session_id = path:match('^/session/(.+)$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Check if session is in progress
+    if sessions.is_in_progress(session_id) then
+      send_json(client, 409, { error = 'Session is in progress' })
+      return
+    end
+
+    -- Delete session
+    sessions.delete(session_id)
+
+    send_response(client, 204, 'No Content')
+
+  elseif method == 'GET' and path:match('^/messages%?') then
+    -- GET /messages?session=session_id: return message list
+    local session_id = path:match('session=([^&]+)')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    if not sessions.exists(session_id) then
+      send_response(client, 404, 'Not Found')
+      return
+    end
+
+    local messages = sessions.get_messages(session_id)
+    send_json(client, 200, messages)
+
+  elseif method == 'POST' and path == '/' then
+    -- POST /: push message to session (existing behavior)
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok or type(obj) ~= 'table' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    local session = obj.session
+    local content = obj.content
+
+    if type(session) ~= 'string' or type(content) ~= 'string' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    require('chat.queue').push(session, content)
+
+    send_response(client, 204, 'No Content')
+
+  else
+    -- Other routes not found
+    send_response(client, 404, 'Not Found')
+  end
+end
+
 function M.start()
   if M._server then
     return
@@ -109,157 +264,9 @@ function M.start()
         return
       end
 
-      -- GET /session?id=session_id: return HTML preview (no auth required)
-      if method == 'GET' and path:match('^/session%?') then
-        local session_id = path:match('id=([^&]+)')
-        if not session_id then
-          send_response(client, 400, 'Bad Request')
-          return
-        end
-
-        session_id = url_decode(session_id)
-
-        local all_sessions = sessions.get()
-        local session_data = all_sessions[session_id]
-
-        if not session_data then
-          send_response(client, 404, 'Not Found')
-          return
-        end
-
-        local html = require('chat.preview').generate_html(session_data)
-        local resp = string.format(
-          'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s',
-          #html,
-          html
-        )
-        client:write(resp)
-        client:close()
-        return
-      end
-
-      --------------------------------------------------
-      -- API key check (use header: X-API-Key)
-      --------------------------------------------------
-      if headers['x-api-key'] ~= config.config.http.api_key then
-        send_response(client, 401, 'Unauthorized')
-        return
-      end
-
-      -- Route handling
-      if method == 'GET' and path == '/sessions' then
-        -- GET /sessions: return session list with details
-        local all_sessions = sessions.get()
-        local session_list = {}
-        for id, data in pairs(all_sessions) do
-          table.insert(session_list, {
-            id = id,
-            cwd = data.cwd or vim.fn.getcwd(),
-            provider = data.provider,
-            model = data.model,
-          })
-        end
-        table.sort(session_list, function(a, b)
-          return a.id < b.id
-        end)
-        send_json(client, 200, session_list)
-
-      elseif method == 'POST' and path == '/session/new' then
-        -- POST /session/new: create new session
-        local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-        if not ok then
-          obj = {}
-        end
-
-        local new_id = sessions.new()
-
-        -- Apply optional parameters
-        if obj then
-          if type(obj.cwd) == 'string' then
-            sessions.change_cwd(new_id, obj.cwd)
-          end
-          if type(obj.provider) == 'string' then
-            sessions.set_session_provider(new_id, obj.provider)
-          end
-          if type(obj.model) == 'string' then
-            sessions.set_session_model(new_id, obj.model)
-          end
-        end
-
-        -- Save the new session
-        require('chat.sessions.storage').write_cache(new_id)
-
-        send_json(client, 201, { id = new_id })
-
-      elseif method == 'DELETE' and path:match('^/session/') then
-        -- DELETE /session/:id: delete session
-        local session_id = path:match('^/session/(.+)$')
-        if not session_id then
-          send_response(client, 400, 'Bad Request')
-          return
-        end
-
-        session_id = url_decode(session_id)
-
-        -- Check if session exists
-        if not sessions.exists(session_id) then
-          send_json(client, 404, { error = 'Session not found' })
-          return
-        end
-
-        -- Check if session is in progress
-        if sessions.is_in_progress(session_id) then
-          send_json(client, 409, { error = 'Session is in progress' })
-          return
-        end
-
-        -- Delete session
-        sessions.delete(session_id)
-
-        send_response(client, 204, 'No Content')
-
-      elseif method == 'GET' and path:match('^/messages%?') then
-        -- GET /messages?session=session_id: return message list
-        local session_id = path:match('session=([^&]+)')
-        if not session_id then
-          send_response(client, 400, 'Bad Request')
-          return
-        end
-
-        session_id = url_decode(session_id)
-
-        if not sessions.exists(session_id) then
-          send_response(client, 404, 'Not Found')
-          return
-        end
-
-        local messages = sessions.get_messages(session_id)
-        send_json(client, 200, messages)
-
-      elseif method == 'POST' and path == '/' then
-        -- POST /: push message to session (existing behavior)
-        local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-        if not ok or type(obj) ~= 'table' then
-          send_response(client, 400, 'Bad Request')
-          return
-        end
-
-        local session = obj.session
-        local content = obj.content
-
-        if type(session) ~= 'string' or type(content) ~= 'string' then
-          send_response(client, 400, 'Bad Request')
-          return
-        end
-
-        require('chat.queue').push(session, content)
-
-        send_response(client, 204, 'No Content')
-
-      else
-        -- Other routes not found
-        send_response(client, 404, 'Not Found')
-      end
+      -- Use vim.schedule_wrap to handle request in main loop
+      -- This allows safe use of vim.fn functions
+      vim.schedule_wrap(handle_request)(client, method, path, headers, body, content_length)
     end)
   end)
 
