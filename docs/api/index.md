@@ -50,7 +50,40 @@ curl -X POST http://127.0.0.1:7777/ \
   -H "Content-Type: application/json" \
   -d '{"session": "my-session", "content": "Hello from curl!"}'
 ```
+
 Learn more: [HTTP API](./http/)
+
+---
+
+## Building Applications
+
+The HTTP API enables you to build applications on top of chat.nvim. You can create custom integrations, bots, or standalone tools that leverage AI capabilities.
+
+### Example: Nova
+
+[Nova](https://github.com/wsdjeg/Nova) is an AI assistant built on chat.nvim's HTTP API. It demonstrates how to:
+
+- **Integrate with chat.nvim**: Use the HTTP API to communicate with chat sessions
+- **Build custom UI**: Create your own interface for AI interactions
+- **Extend functionality**: Add features specific to your use case
+
+```bash
+# Example: Using Nova with chat.nvim
+# Nova sends requests to chat.nvim HTTP server
+curl -X POST http://127.0.0.1:7777/ \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"session": "nova", "content": "Help me with this code"}'
+```
+
+### Getting Started
+
+1. **Enable HTTP API**: Configure `api.enabled = true` in your chat.nvim setup
+2. **Set API Key**: Configure `api.api_key` for authentication
+3. **Choose Port**: Default is `7777`, configurable via `api.port`
+4. **Build Your App**: Use any HTTP client to interact with the API
+
+See [HTTP API](./http/) for complete API reference.
 
 ---
 
