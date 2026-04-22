@@ -57,7 +57,7 @@ function M.new()
     provider = config.config.provider,
     model = config.config.model,
     prompt = get_config_system_prompt(),
-    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    cwd = vim.fs.normalize(vim.uv.cwd() or vim.fn.getcwd()),
   }
   return id
 end
