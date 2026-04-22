@@ -45,15 +45,18 @@ require('chat').setup({
 
 chat.nvim provides the following HTTP API endpoints for external integration:
 
-| Endpoint    | Method | Description                                             |
-| ----------- | ------ | ------------------------------------------------------- |
-| `/`         | POST   | Send messages to a specified chat session               |
-| `/sessions` | GET    | Get a list of all active session IDs                    |
-| `/session`  | GET    | Get HTML preview of a session (requires `id` parameter) |
+| Endpoint        | Method | Description                                              |
+| --------------- | ------ | -------------------------------------------------------- |
+| `/`             | POST   | Send messages to a specified chat session                |
+| `/sessions`     | GET    | Get a list of all sessions with details                  |
+| `/session/new`  | POST   | Create a new session                                     |
+| `/session/:id`  | DELETE | Delete a session                                         |
+| `/session`      | GET    | Get HTML preview of a session (requires `id` parameter)  |
+| `/messages`     | GET    | Get message list for a session (requires `session` param) |
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
 
-**Authentication**: All requests require the `X-API-Key` header containing your configured API key.
+**Authentication**: All requests (except GET /session for HTML preview) require the `X-API-Key` header containing your configured API key.
 
 **Example Usage**:
 
@@ -66,6 +69,12 @@ curl -X POST http://127.0.0.1:7777/ \
 
 # Get session list
 curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+
+# Create new session
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "openai", "model": "gpt-4o"}'
 ```
 
 ---
@@ -101,6 +110,76 @@ curl -X POST http://127.0.0.1:7777/ \
   -d '{"session": "2024-01-15-10-30-00", "content": "What is the weather today?"}'
 ```
 
+### POST `/session/new`
+
+Create a new chat session with optional configuration.
+
+**Request Body** (all fields optional):
+
+```json
+{
+  "cwd": "/path/to/project",
+  "provider": "openai",
+  "model": "gpt-4o"
+}
+```
+
+**Parameters**:
+
+| Parameter  | Type   | Description                                      |
+| ---------- | ------ | ------------------------------------------------ |
+| `cwd`      | string | Working directory for the session (optional)    |
+| `provider` | string | AI provider name (optional)                     |
+| `model`    | string | Model name (optional)                           |
+
+**Response** (201 Created):
+
+```json
+{
+  "id": "2024-01-15-10-30-00"
+}
+```
+
+**Example**:
+
+```bash
+# Create session with default settings
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key"
+
+# Create session with custom settings
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"}'
+```
+
+### DELETE `/session/:id`
+
+Delete a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description          |
+| --------- | ------ | -------------------- |
+| `id`      | string | Session ID to delete |
+
+**Response**:
+
+| Status Code | Description                                    |
+| ----------- | ---------------------------------------------- |
+| 204         | Success - Session deleted successfully         |
+| 404         | Not Found - Session does not exist             |
+| 409         | Conflict - Session is in progress              |
+| 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+```
+
 ---
 
 ## Response Format
@@ -116,17 +195,71 @@ curl -X POST http://127.0.0.1:7777/ \
 
 ### GET `/sessions`
 
-Returns a JSON array of active session IDs.
+Returns a JSON array of session objects with details.
 
 **Success Response** (200 OK):
 
 ```json
-["2024-01-15-10-30-00", "2024-01-15-11-45-00", "2024-01-16-09-20-00"]
+[
+  {
+    "id": "2024-01-15-10-30-00",
+    "cwd": "/home/user/project",
+    "provider": "openai",
+    "model": "gpt-4o"
+  },
+  {
+    "id": "2024-01-15-11-45-00",
+    "cwd": "/home/user/another-project",
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022"
+  }
+]
 ```
+
+**Fields**:
+
+| Field     | Type   | Description                             |
+| --------- | ------ | --------------------------------------- |
+| `id`      | string | Session ID (format: `YYYY-MM-DD-HH-MM-SS`) |
+| `cwd`     | string | Working directory for the session       |
+| `provider`| string | AI provider name                        |
+| `model`   | string | Model name                              |
 
 {: .info }
 
 > Session IDs follow the format `YYYY-MM-DD-HH-MM-SS` (e.g., `2024-01-15-10-30-00`) and are automatically generated when new sessions are created.
+
+### GET `/messages`
+
+Returns the message list for a specific session.
+
+**Query Parameters**:
+
+| Parameter | Type   | Description                    |
+| --------- | ------ | ------------------------------ |
+| `session` | string | **Required**. Session ID      |
+
+**Example**:
+
+```bash
+curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Success Response** (200 OK):
+
+```json
+[
+  {
+    "role": "user",
+    "content": "Hello!"
+  },
+  {
+    "role": "assistant",
+    "content": "Hi there! How can I help you?"
+  }
+]
+```
 
 ### GET `/session`
 
@@ -141,8 +274,7 @@ Returns an HTML preview of the specified chat session.
 **Example Request**:
 
 ```bash
-curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
-  -H "X-API-Key: your-secret-key"
+curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 ```
 
 **Response**:
@@ -152,7 +284,10 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
 | 200         | Success - Returns HTML content            |
 | 400         | Bad Request - Missing session ID          |
 | 404         | Not Found - Session not found             |
-| 401         | Unauthorized - Invalid or missing API key |
+
+{: .info }
+
+> Note: The GET /session endpoint does not require authentication (no API key needed) to allow easy HTML preview in browsers.
 
 **HTML Preview Features**:
 
@@ -199,16 +334,37 @@ curl -X POST http://127.0.0.1:7777/ \
 **Get session list**:
 
 ```bash
-# Get all active session IDs
+# Get all sessions with details
 curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+```
+
+**Create new session**:
+
+```bash
+# Create session with default settings
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key"
+
+# Create session with custom settings
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/home/user/my-project", "provider": "anthropic"}'
+```
+
+**Delete session**:
+
+```bash
+# Delete a session
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
 ```
 
 **Get session preview**:
 
 ```bash
 # Get HTML preview of a session
-curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00" \
-  -H "X-API-Key: your-secret-key"
+curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 ```
 
 ### Using Python
@@ -225,7 +381,7 @@ headers = {
     "Content-Type": "application/json"
 }
 data = {
-    "session": "python-script",
+    "session": "2024-01-15-10-30-00",
     "content": "Message from Python script"
 }
 response = requests.post(url, json=data, headers=headers)
@@ -237,12 +393,46 @@ print(f"Status: {response.status_code}")
 ```python
 import requests
 
-# Get session list
+# Get session list with details
 headers = {"X-API-Key": "your-secret-key"}
 sessions_response = requests.get("http://127.0.0.1:7777/sessions", headers=headers)
 if sessions_response.status_code == 200:
     sessions = sessions_response.json()
-    print(f"Active sessions: {sessions}")
+    for session in sessions:
+        print(f"Session: {session['id']}, Provider: {session['provider']}, Model: {session['model']}")
+```
+
+**Create new session**:
+
+```python
+import requests
+
+# Create a new session
+headers = {"X-API-Key": "your-secret-key"}
+data = {
+    "cwd": "/home/user/my-project",
+    "provider": "openai",
+    "model": "gpt-4o"
+}
+response = requests.post("http://127.0.0.1:7777/session/new", json=data, headers=headers)
+if response.status_code == 201:
+    session_id = response.json()["id"]
+    print(f"Created session: {session_id}")
+```
+
+**Delete session**:
+
+```python
+import requests
+
+# Delete a session
+session_id = "2024-01-15-10-30-00"
+headers = {"X-API-Key": "your-secret-key"}
+response = requests.delete(f"http://127.0.0.1:7777/session/{session_id}", headers=headers)
+if response.status_code == 204:
+    print("Session deleted successfully")
+elif response.status_code == 409:
+    print("Cannot delete: session is in progress")
 ```
 
 **Get session preview**:
@@ -251,9 +441,8 @@ if sessions_response.status_code == 200:
 import requests
 
 # Get HTML preview
-headers = {"X-API-Key": "your-secret-key"}
 params = {"id": "2024-01-15-10-30-00"}
-response = requests.get("http://127.0.0.1:7777/session", headers=headers, params=params)
+response = requests.get("http://127.0.0.1:7777/session", params=params)
 if response.status_code == 200:
     html_content = response.text
     print("Preview generated successfully")
@@ -296,13 +485,13 @@ sendMessage("2024-01-15-10-30-00", "Hello from Node.js!");
 ```javascript
 const axios = require("axios");
 
-// Get all active sessions
+// Get all sessions with details
 async function getSessions() {
   try {
     const response = await axios.get("http://127.0.0.1:7777/sessions", {
       headers: { "X-API-Key": "your-secret-key" },
     });
-    console.log("Active sessions:", response.data);
+    console.log("Sessions:", response.data);
     return response.data;
   } catch (error) {
     console.error("Error:", error.response?.status);
@@ -310,6 +499,61 @@ async function getSessions() {
 }
 
 getSessions();
+```
+
+**Create new session**:
+
+```javascript
+const axios = require("axios");
+
+// Create a new session
+async function createSession(cwd, provider, model) {
+  try {
+    const response = await axios.post(
+      "http://127.0.0.1:7777/session/new",
+      { cwd, provider, model },
+      {
+        headers: {
+          "X-API-Key": "your-secret-key",
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    console.log("Created session:", response.data.id);
+    return response.data.id;
+  } catch (error) {
+    console.error("Error:", error.response?.status);
+  }
+}
+
+createSession("/home/user/project", "openai", "gpt-4o");
+```
+
+**Delete session**:
+
+```javascript
+const axios = require("axios");
+
+// Delete a session
+async function deleteSession(sessionId) {
+  try {
+    const response = await axios.delete(
+      `http://127.0.0.1:7777/session/${sessionId}`,
+      {
+        headers: { "X-API-Key": "your-secret-key" },
+      },
+    );
+    console.log("Session deleted successfully");
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.error("Cannot delete: session is in progress");
+    } else {
+      console.error("Error:", error.response?.status);
+    }
+  }
+}
+
+deleteSession("2024-01-15-10-30-00");
 ```
 
 ---
@@ -402,26 +646,47 @@ ipcMain.handle("send-to-chat", async (event, message) => {
 
 ### Session Management Tools
 
-External scripts can periodically fetch active session lists for cleanup or backup:
+External scripts can manage sessions programmatically:
 
 ```python
 import requests
-import json
 
 def backup_sessions():
     headers = {'X-API-Key': 'your-secret-key'}
+    
+    # Get all sessions
     response = requests.get('http://127.0.0.1:7777/sessions', headers=headers)
     sessions = response.json()
-
-    for session_id in sessions:
-        # Backup each session
-        preview = requests.get(
-            'http://127.0.0.1:7777/session',
-            params={'id': session_id},
+    
+    for session in sessions:
+        session_id = session['id']
+        
+        # Get messages for backup
+        msgs = requests.get(
+            f'http://127.0.0.1:7777/messages?session={session_id}',
             headers=headers
         )
-        with open(f'backup_{session_id}.html', 'w') as f:
-            f.write(preview.text)
+        
+        with open(f'backup_{session_id}.json', 'w') as f:
+            json.dump(msgs.json(), f)
+
+def cleanup_old_sessions(days_old=30):
+    """Delete sessions older than specified days"""
+    headers = {'X-API-Key': 'your-secret-key'}
+    
+    response = requests.get('http://127.0.0.1:7777/sessions', headers=headers)
+    sessions = response.json()
+    
+    cutoff = datetime.now() - timedelta(days=days_old)
+    
+    for session in sessions:
+        session_date = datetime.strptime(session['id'], '%Y-%m-%d-%H-%M-%S')
+        if session_date < cutoff:
+            # Delete old session
+            requests.delete(
+                f'http://127.0.0.1:7777/session/{session["id"]}',
+                headers=headers
+            )
 ```
 
 ### Monitoring Dashboard
@@ -439,17 +704,13 @@ async function updateDashboard() {
   // Update dashboard UI
   document.getElementById("session-count").textContent = sessions.length;
   document.getElementById("session-list").innerHTML = sessions
-    .map((id) => `<li>${id}</li>`)
+    .map((s) => `<li>${s.id} - ${s.provider}/${s.model}</li>`)
     .join("");
 }
 
 // Update every 5 seconds
 setInterval(updateDashboard, 5000);
 ```
-
----
-
-## Next Steps
 
 ---
 

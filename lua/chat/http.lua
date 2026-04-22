@@ -16,6 +16,50 @@ local function parse_headers(raw)
   return headers
 end
 
+--- URL decode helper
+local function url_decode(str)
+  return str:gsub('%%(%x%x)', function(h)
+    return string.char(tonumber(h, 16))
+  end)
+end
+
+--- Send JSON response
+local function send_json(client, status, data)
+  local json_data = vim.json.encode(data)
+  local resp = string.format(
+    'HTTP/1.1 %d OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+    status,
+    #json_data,
+    json_data
+  )
+  client:write(resp)
+  client:close()
+end
+
+--- Send error response
+local function send_error(client, status, message)
+  local resp = string.format(
+    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n{"error":"%s"}',
+    status,
+    message,
+    #string.format('{"error":"%s"}', message),
+    message
+  )
+  client:write(resp)
+  client:close()
+end
+
+--- Send simple response
+local function send_response(client, status, message)
+  local resp = string.format(
+    'HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n',
+    status,
+    message
+  )
+  client:write(resp)
+  client:close()
+end
+
 function M.start()
   if M._server then
     return
@@ -64,28 +108,22 @@ function M.start()
       if #body < content_length then
         return
       end
+
+      -- GET /session?id=session_id: return HTML preview (no auth required)
       if method == 'GET' and path:match('^/session%?') then
-        -- GET /session?id=session_id: return HTML preview
         local session_id = path:match('id=([^&]+)')
         if not session_id then
-          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 400, 'Bad Request')
           return
         end
 
-        -- URL decode session_id (simple version)
-        session_id = session_id:gsub('%%(%x%x)', function(h)
-          return string.char(tonumber(h, 16))
-        end)
+        session_id = url_decode(session_id)
 
         local all_sessions = sessions.get()
         local session_data = all_sessions[session_id]
 
         if not session_data then
-          local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 404, 'Not Found')
           return
         end
 
@@ -104,67 +142,105 @@ function M.start()
       -- API key check (use header: X-API-Key)
       --------------------------------------------------
       if headers['x-api-key'] ~= config.config.http.api_key then
-        local resp = 'HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n'
-        client:write(resp)
-        client:close()
+        send_response(client, 401, 'Unauthorized')
         return
       end
 
       -- Route handling
       if method == 'GET' and path == '/sessions' then
-        -- GET /sessions: return session id list
+        -- GET /sessions: return session list with details
         local all_sessions = sessions.get()
-        local session_ids = {}
-        for id, _ in pairs(all_sessions) do
-          table.insert(session_ids, id)
+        local session_list = {}
+        for id, data in pairs(all_sessions) do
+          table.insert(session_list, {
+            id = id,
+            cwd = data.cwd or vim.fn.getcwd(),
+            provider = data.provider,
+            model = data.model,
+          })
         end
-        table.sort(session_ids)
-        local json_data = vim.json.encode(session_ids)
-        local resp = string.format(
-          'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
-          #json_data,
-          json_data
-        )
-        client:write(resp)
-        client:close()
+        table.sort(session_list, function(a, b)
+          return a.id < b.id
+        end)
+        send_json(client, 200, session_list)
+
+      elseif method == 'POST' and path == '/session/new' then
+        -- POST /session/new: create new session
+        local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+        if not ok then
+          obj = {}
+        end
+
+        local new_id = sessions.new()
+
+        -- Apply optional parameters
+        if obj then
+          if type(obj.cwd) == 'string' then
+            sessions.change_cwd(new_id, obj.cwd)
+          end
+          if type(obj.provider) == 'string' then
+            sessions.set_session_provider(new_id, obj.provider)
+          end
+          if type(obj.model) == 'string' then
+            sessions.set_session_model(new_id, obj.model)
+          end
+        end
+
+        -- Save the new session
+        require('chat.sessions.storage').write_cache(new_id)
+
+        send_json(client, 201, { id = new_id })
+
+      elseif method == 'DELETE' and path:match('^/session/') then
+        -- DELETE /session/:id: delete session
+        local session_id = path:match('^/session/(.+)$')
+        if not session_id then
+          send_response(client, 400, 'Bad Request')
+          return
+        end
+
+        session_id = url_decode(session_id)
+
+        -- Check if session exists
+        if not sessions.exists(session_id) then
+          send_json(client, 404, { error = 'Session not found' })
+          return
+        end
+
+        -- Check if session is in progress
+        if sessions.is_in_progress(session_id) then
+          send_json(client, 409, { error = 'Session is in progress' })
+          return
+        end
+
+        -- Delete session
+        sessions.delete(session_id)
+
+        send_response(client, 204, 'No Content')
+
       elseif method == 'GET' and path:match('^/messages%?') then
         -- GET /messages?session=session_id: return message list
         local session_id = path:match('session=([^&]+)')
         if not session_id then
-          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 400, 'Bad Request')
           return
         end
 
-        -- URL decode session_id
-        session_id = session_id:gsub('%%(%x%x)', function(h)
-          return string.char(tonumber(h, 16))
-        end)
+        session_id = url_decode(session_id)
 
         if not sessions.exists(session_id) then
-          local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 404, 'Not Found')
           return
         end
 
         local messages = sessions.get_messages(session_id)
-        local json_data = vim.json.encode(messages)
-        local resp = string.format(
-          'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
-          #json_data,
-          json_data
-        )
-        client:write(resp)
-        client:close()
+        send_json(client, 200, messages)
+
       elseif method == 'POST' and path == '/' then
         -- POST /: push message to session (existing behavior)
         local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
         if not ok or type(obj) ~= 'table' then
-          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 400, 'Bad Request')
           return
         end
 
@@ -172,22 +248,17 @@ function M.start()
         local content = obj.content
 
         if type(session) ~= 'string' or type(content) ~= 'string' then
-          local resp = 'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n'
-          client:write(resp)
-          client:close()
+          send_response(client, 400, 'Bad Request')
           return
         end
 
         require('chat.queue').push(session, content)
 
-        local resp = 'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n'
-        client:write(resp)
-        client:close()
+        send_response(client, 204, 'No Content')
+
       else
         -- Other routes not found
-        local resp = 'HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n'
-        client:write(resp)
-        client:close()
+        send_response(client, 404, 'Not Found')
       end
     end)
   end)
