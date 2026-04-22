@@ -87,7 +87,7 @@ function M.delete(session_id)
   end
   table.sort(s)
 
-  vim.fn.delete(storage.cache_dir or (vim.fn.stdpath('cache') .. '/chat.nvim/') .. session_id .. '.json')
+  vim.fn.delete(storage.cache_dir .. session_id .. '.json')
   storage.sessions[session_id] = nil
 
   local memories = require('chat.memory').get_memories()
