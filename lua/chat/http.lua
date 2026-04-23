@@ -110,6 +110,7 @@ local function handle_request(client, method, path, headers, body, content_lengt
         cwd = data.cwd or vim.fn.getcwd(),
         provider = data.provider,
         model = data.model,
+        in_progress = sessions.is_in_progress(id),
       })
     end
     table.sort(session_list, function(a, b)

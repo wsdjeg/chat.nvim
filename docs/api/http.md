@@ -205,27 +205,28 @@ Returns a JSON array of session objects with details.
     "id": "2024-01-15-10-30-00",
     "cwd": "/home/user/project",
     "provider": "openai",
-    "model": "gpt-4o"
+    "model": "gpt-4o",
+    "in_progress": false
   },
   {
     "id": "2024-01-15-11-45-00",
     "cwd": "/home/user/another-project",
     "provider": "anthropic",
-    "model": "claude-3-5-sonnet-20241022"
+    "model": "claude-3-5-sonnet-20241022",
+    "in_progress": true
   }
 ]
 ```
 
 **Fields**:
 
-| Field     | Type   | Description                             |
-| --------- | ------ | --------------------------------------- |
-| `id`      | string | Session ID (format: `YYYY-MM-DD-HH-MM-SS`) |
-| `cwd`     | string | Working directory for the session       |
-| `provider`| string | AI provider name                        |
-| `model`   | string | Model name                              |
-
-{: .info }
+| Field         | Type    | Description                                      |
+| ------------- | ------- | ------------------------------------------------ |
+| `id`          | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)       |
+| `cwd`         | string  | Working directory for the session                |
+| `provider`    | string  | AI provider name                                 |
+| `model`       | string  | Model name                                       |
+| `in_progress` | boolean | Whether the session has an active request        |
 
 > Session IDs follow the format `YYYY-MM-DD-HH-MM-SS` (e.g., `2024-01-15-10-30-00`) and are automatically generated when new sessions are created.
 

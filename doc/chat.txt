@@ -1621,12 +1621,7 @@ configured API key.
     }
 <
 
-Parameters:
-- `session` - Chat session ID
-- `content` - Message content to send to the chat session
-
-------------------------------------------------------------------------------
- 8.4 Response Format                                   *chat-response-format*
+8.4 Response Format                                   *chat-response-format*
 
 POST `/`:
 - **Success**: HTTP 204 No Content
@@ -1634,11 +1629,23 @@ POST `/`:
 - **Validation Error**: HTTP 400 Bad Request
 
 GET `/sessions`:
-- **Success**: HTTP 200 OK, returns a JSON array of session IDs
+- **Success**: HTTP 200 OK, returns a JSON array of session objects
 >
     [
-      "2024-01-15-10-30-00",
-      "2024-01-15-11-45-00"
+      {
+        "id": "2024-01-15-10-30-00",
+        "cwd": "/home/user/project",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "in_progress": false
+      },
+      {
+        "id": "2024-01-15-11-45-00",
+        "cwd": "/home/user/another-project",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022",
+        "in_progress": true
+      }
     ]
 <
 
@@ -1646,7 +1653,6 @@ GET `/session`:
 - **Success**: HTTP 200 OK, returns HTML content
 - **Missing ID**: HTTP 400 Bad Request
 - **Session Not Found**: HTTP 404 Not Found
-
 ------------------------------------------------------------------------------
  8.5 Message Queue System                         *chat-message-queue-system*
 
