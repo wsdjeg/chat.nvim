@@ -9,7 +9,11 @@ vim.opt.backup = false
 vim.opt.undofile = false
 vim.opt.verbose = 1
 
--- Set up package path
+-- Set up package path for:
+-- 1. lua/?.lua - Main plugin source code
+-- 2. test/?.lua - Mock modules (like job.lua)
+-- 3. test/.deps/?.lua - Test dependencies (luaunit)
+package.path = 'lua/?.lua;test/?.lua;test/.deps/?.lua;' .. package.path
 vim.opt.runtimepath:prepend('.')
 
 -- Create temporary test directory
