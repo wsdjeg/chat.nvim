@@ -5,8 +5,14 @@ local config = require('chat.config')
 TestConfig = {}
 
 function TestConfig:setUp()
-  -- Reset config before each test
-  config.setup({})
+  -- Reset config to default values before each test
+  -- We need to manually reset because config.setup({}) doesn't reset previous values
+  config.config.provider = 'deepseek'
+  config.config.model = 'deepseek-chat'
+  config.config.width = 0.8
+  config.config.height = 0.8
+  config.config.border = 'rounded'
+  config.config.auto_scroll = true
 end
 
 function TestConfig:testDefaultConfig()

@@ -38,6 +38,8 @@ function TestGetTime:testIsoFormat()
   lu.assertNil(result.error)
 
   local data = vim.json.decode(result.content)
+  lu.assertNotNil(data.iso)
+  lu.assertNotNil(data.iso_utc)
   lu.assertStrContains(data.iso, 'T')
   lu.assertStrContains(data.iso_utc, 'Z')
 end
@@ -131,12 +133,12 @@ end
 
 function TestGetTime:testInfoWithFormat()
   local info = get_time.info('{"format":"iso"}', {})
-  lu.assertStrContains(info, 'format=iso')
+  lu.assertStrContains(info, 'format="iso"')
 end
 
 function TestGetTime:testInfoWithTimezone()
   local info = get_time.info('{"timezone":"utc"}', {})
-  lu.assertStrContains(info, 'timezone=utc')
+  lu.assertStrContains(info, 'timezone="utc"')
 end
 
 return TestGetTime

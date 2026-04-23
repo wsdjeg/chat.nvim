@@ -213,12 +213,12 @@ function M.get_time(action, ctx)
     return { content = vim.json.encode(result) }
   elseif format == 'iso' then
     local result = build_time_result(now, timezone)
-    return { content = vim.json.encode({ iso = result.iso }) }
+    return { content = vim.json.encode({ iso = result.iso, iso_utc = result.iso_utc }) }
   elseif format == 'unix' then
     return { content = vim.json.encode({ unix = now }) }
   else -- format == 'human'
     local result = build_time_result(now, timezone)
-    return { content = vim.json.encode({ human = result.human }) }
+    return { content = vim.json.encode({ human = result.human, human_utc = result.human_utc }) }
   end
 end
 
