@@ -112,8 +112,7 @@ function TestGetTime:testTimeOfDay()
   -- Test all possible time_of_day values by checking format
   local result = get_time.get_time({}, {})
   local data = vim.json.decode(result.content)
-
-  local valid_times = { 'night', 'morning', 'afternoon', 'evening' }
+  local valid_times = { 'night', 'morning', 'noon', 'afternoon', 'evening' }
   local found = false
   for _, v in ipairs(valid_times) do
     if data.relative.time_of_day == v then
