@@ -105,15 +105,15 @@ function M.read_file(action, ctx)
       local message
       if action.line_start ~= nil or action.line_to ~= nil then
         message = string.format(
-          'the file content is (lines %d-%d): \n\n%s',
+          "<FileContent lines=\"%d-%d\">\n%s\n</FileContent>",
           start_line,
           end_line,
-          table.concat(range_content, '\n')
+          table.concat(range_content, "\n")
         )
       else
         message = string.format(
-          'the file content is: \n\n%s',
-          table.concat(content, '\n')
+          "<FileContent>\n%s\n</FileContent>",
+          table.concat(content, "\n")
         )
       end
 
@@ -205,4 +205,3 @@ function M.info(action, ctx)
 end
 
 return M
-
