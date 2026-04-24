@@ -135,6 +135,8 @@ end
 function M.scheme()
   return {
     type = 'function',
+    ['function'] = {
+      name = 'read_file',
       description = [[Reads the content of a file or specific line range.
       
       Examples:
@@ -163,6 +165,8 @@ function M.scheme()
       })
       ```
       ]],
+      parameters = {
+        type = 'object',
         properties = {
           filepath = {
             type = 'string',
@@ -184,7 +188,6 @@ function M.scheme()
     },
   }
 end
-
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
