@@ -922,10 +922,14 @@ Usage:
     @read_file <filepath> line_start=10 line_to=20
 <
 
+Output Format:
+- Returns structured XML output for easier parsing
+- Full file: `<FileContent>\ncontent\n</FileContent>`
+- With range: `<FileContent lines="start-end">\ncontent\n</FileContent>`
+
 Notes:
 - Line numbers are 1-indexed (first line is line 1)
 - File path must be within `allowed_path` configuration
-
 **write_file**                                            *chat-tool-write_file*
 
 Write, modify, or delete file content with automatic parent directory

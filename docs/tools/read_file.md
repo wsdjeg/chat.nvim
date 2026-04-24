@@ -35,6 +35,24 @@ Reads the content of a file and makes it available to the AI assistant.
 | `line_start`  | integer | Starting line number (1-indexed, default: 1)                     |
 | `line_to`     | integer | Ending line number (1-indexed, default: last line)               |
 
+## Output Format
+
+The tool returns structured XML output for easier parsing:
+
+**Full file:**
+```xml
+<FileContent>
+file content here
+</FileContent>
+```
+
+**With line range:**
+```xml
+<FileContent lines="10-20">
+content from lines 10 to 20
+</FileContent>
+```
+
 ## Notes
 
 {: .info }

@@ -135,8 +135,6 @@ end
 function M.scheme()
   return {
     type = 'function',
-    ['function'] = {
-      name = 'read_file',
       description = [[Reads the content of a file or specific line range.
       
       Examples:
@@ -144,6 +142,12 @@ function M.scheme()
       - @read_file ./src/main.lua line_start=10 line_to=20 - Read lines 10-20
       - @read_file ./src/main.lua line_start=50           - Read from line 50 to end
       - @read_file ./src/main.lua line_to=10              - Read first 10 lines
+      
+      Output Format:
+      Returns structured XML output for easier parsing:
+      - Full file: <FileContent>\ncontent\n</FileContent>
+      - With range: <FileContent lines="start-end">\ncontent\n</FileContent>
+      
       Notes:
       - Line numbers are 1-indexed (first line is line 1)
       - line_start and line_to are both inclusive (e.g., line_start=10 line_to=20 reads lines 10-20, including both)
@@ -159,8 +163,6 @@ function M.scheme()
       })
       ```
       ]],
-      parameters = {
-        type = 'object',
         properties = {
           filepath = {
             type = 'string',
