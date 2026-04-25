@@ -118,6 +118,29 @@ local function handle_request(client, method, path, headers, body, content_lengt
     end)
     send_json(client, 200, session_list)
 
+  elseif method == 'GET' and path == '/providers' then
+    -- GET /providers: return list of supported providers with their models
+    local provider_files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
+    local providers = {}
+    for _, file in ipairs(provider_files) do
+      local name = vim.fn.fnamemodify(file, ':t:r')
+      local ok, provider = pcall(require, 'chat.providers.' .. name)
+      if ok and provider then
+        local models = {}
+        if provider.available_models then
+          models = provider.available_models() or {}
+        end
+        table.insert(providers, {
+          name = name,
+          models = models,
+        })
+      end
+    end
+    table.sort(providers, function(a, b)
+      return a.name < b.name
+    end)
+    send_json(client, 200, providers)
+
   elseif method == 'POST' and path == '/session/new' then
     -- POST /session/new: create new session
     local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))

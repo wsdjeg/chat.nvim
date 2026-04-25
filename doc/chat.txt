@@ -1617,12 +1617,17 @@ configured API key.
 
 ------------------------------------------------------------------------------
  8.3 Request Format                                     *chat-request-format*
-
->
-    {
-      "session": "session-id",
-      "content": "Message content from external application"
-    }
+| Endpoint              | Method | Description                                             |
+| --------------------- | ------ | ------------------------------------------------------- |
+| `/`                   | POST   | Send messages to a specified chat session               |
+| `/sessions`           | GET    | Get a list of all sessions with details                 |
+| `/providers`          | GET    | Get a list of all supported AI providers                |
+| `/session/new`        | POST   | Create a new session                                    |
+| `/session/:id`        | DELETE | Delete a session                                        |
+| `/session/:id/stop`   | POST   | Stop generation for a session                           |
+| `/session/:id/retry`  | POST   | Retry last message for a session                        |
+| `/session`            | GET    | Get HTML preview of a session (requires `id` parameter) |
+| `/messages`           | GET    | Get message list for a session (requires `session` param)|
 <
 
 8.4 Response Format                                   *chat-response-format*
