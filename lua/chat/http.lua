@@ -132,6 +132,10 @@ local function handle_request(client, method, path, headers, body, content_lengt
       if type(obj.cwd) == 'string' then
         sessions.change_cwd(new_id, obj.cwd)
       end
+    end
+
+    send_json(client, 200, { session_id = new_id })
+
   elseif method == 'DELETE' and path:match('^/session/') then
     -- DELETE /session/:id: delete session
     local session_id = path:match('^/session/(.+)$')
@@ -208,30 +212,6 @@ local function handle_request(client, method, path, headers, body, content_lengt
       send_json(client, 400, { error = err or 'Retry failed' })
       return
     end
-
-    send_response(client, 204, 'No Content')
-    local session_id = path:match('^/session/(.+)$')
-    if not session_id then
-      send_response(client, 400, 'Bad Request')
-      return
-    end
-
-    session_id = url_decode(session_id)
-
-    -- Check if session exists
-    if not sessions.exists(session_id) then
-      send_json(client, 404, { error = 'Session not found' })
-      return
-    end
-
-    -- Check if session is in progress
-    if sessions.is_in_progress(session_id) then
-      send_json(client, 409, { error = 'Session is in progress' })
-      return
-    end
-
-    -- Delete session
-    sessions.delete(session_id)
 
     send_response(client, 204, 'No Content')
 
