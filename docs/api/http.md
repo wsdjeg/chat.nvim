@@ -42,14 +42,16 @@ require('chat').setup({
 ---
 
 ## API Endpoints
-
-chat.nvim provides the following HTTP API endpoints for external integration:
-
-| Endpoint        | Method | Description                                              |
-| --------------- | ------ | -------------------------------------------------------- |
-| `/`             | POST   | Send messages to a specified chat session                |
-| `/sessions`     | GET    | Get a list of all sessions with details                  |
-| `/session/new`  | POST   | Create a new session                                     |
+| Endpoint           | Method | Description                                              |
+| ------------------ | ------ | -------------------------------------------------------- |
+| `/`                | POST   | Send messages to a specified chat session                |
+| `/sessions`        | GET    | Get a list of all sessions with details                  |
+| `/session/new`     | POST   | Create a new session                                     |
+| `/session/:id`     | DELETE | Delete a session                                         |
+| `/session/:id/stop`| POST   | Stop generation for a session                            |
+| `/session/:id/retry`| POST  | Retry last message for a session                         |
+| `/session`         | GET    | Get HTML preview of a session (requires `id` parameter) |
+| `/messages`        | GET    | Get message list for a session (requires `session` param)|
 | `/session/:id`  | DELETE | Delete a session                                         |
 | `/session`      | GET    | Get HTML preview of a session (requires `id` parameter)  |
 | `/messages`     | GET    | Get message list for a session (requires `session` param) |
@@ -163,6 +165,15 @@ Delete a specific session.
 | Parameter | Type   | Description          |
 | --------- | ------ | -------------------- |
 | `id`      | string | Session ID to delete |
+### DELETE `/session/:id`
+
+Delete a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description          |
+| --------- | ------ | -------------------- |
+| `id`      | string | Session ID to delete |
 
 **Response**:
 
@@ -172,6 +183,70 @@ Delete a specific session.
 | 404         | Not Found - Session does not exist             |
 | 409         | Conflict - Session is in progress              |
 | 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+```
+
+### POST `/session/:id/stop`
+
+Stop an ongoing generation for a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description                    |
+| --------- | ------ | ------------------------------ |
+| `id`      | string | Session ID to stop generation  |
+
+**Response**:
+
+| Status Code | Description                                    |
+| ----------- | ---------------------------------------------- |
+| 204         | Success - Generation stopped                   |
+| 404         | Not Found - Session does not exist             |
+| 409         | Conflict - Session is not in progress          |
+| 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+```
+
+### POST `/session/:id/retry`
+
+Retry the last message for a specific session. This will resend the last user message to the AI.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description                    |
+| --------- | ------ | ------------------------------ |
+| `id`      | string | Session ID to retry            |
+
+**Response**:
+
+| Status Code | Description                                    |
+| ----------- | ---------------------------------------------- |
+| 204         | Success - Retry initiated                      |
+| 404         | Not Found - Session does not exist             |
+| 409         | Conflict - Session is in progress              |
+| 400         | Bad Request - No message to retry              |
+| 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+## Response Format
 
 **Example**:
 
@@ -350,13 +425,31 @@ curl -X POST http://127.0.0.1:7777/session/new \
 curl -X POST http://127.0.0.1:7777/session/new \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
-  -d '{"cwd": "/home/user/my-project", "provider": "anthropic"}'
-```
-
 **Delete session**:
 
 ```bash
 # Delete a session
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Stop generation**:
+
+```bash
+# Stop ongoing generation
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Retry last message**:
+
+```bash
+# Retry the last message
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Get session preview**:
 curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
   -H "X-API-Key: your-secret-key"
 ```
@@ -422,7 +515,6 @@ if response.status_code == 201:
 ```
 
 **Delete session**:
-
 ```python
 import requests
 
@@ -434,6 +526,38 @@ if response.status_code == 204:
     print("Session deleted successfully")
 elif response.status_code == 409:
     print("Cannot delete: session is in progress")
+```
+
+**Stop generation**:
+
+```python
+import requests
+
+# Stop active generation
+session_id = "2024-01-15-10-30-00"
+headers = {"X-API-Key": "your-secret-key"}
+response = requests.post(f"http://127.0.0.1:7777/session/{session_id}/stop", headers=headers)
+if response.status_code == 204:
+    print("Generation stopped")
+elif response.status_code == 404:
+    print("Session not found")
+```
+
+**Retry generation**:
+
+```python
+import requests
+
+# Retry last message
+session_id = "2024-01-15-10-30-00"
+headers = {"X-API-Key": "your-secret-key"}
+response = requests.post(f"http://127.0.0.1:7777/session/{session_id}/retry", headers=headers)
+if response.status_code == 204:
+    print("Retry started")
+elif response.status_code == 409:
+    print("Session is busy, cannot retry")
+elif response.status_code == 400:
+    print("No message to retry")
 ```
 
 **Get session preview**:
@@ -525,11 +649,6 @@ async function createSession(cwd, provider, model) {
   } catch (error) {
     console.error("Error:", error.response?.status);
   }
-}
-
-createSession("/home/user/project", "openai", "gpt-4o");
-```
-
 **Delete session**:
 
 ```javascript
@@ -557,6 +676,65 @@ async function deleteSession(sessionId) {
 deleteSession("2024-01-15-10-30-00");
 ```
 
+**Stop generation**:
+
+```javascript
+const axios = require("axios");
+
+// Stop active generation in a session
+async function stopSession(sessionId) {
+  try {
+    const response = await axios.post(
+      `http://127.0.0.1:7777/session/${sessionId}/stop`,
+      null,
+      {
+        headers: { "X-API-Key": "your-secret-key" },
+      },
+    );
+    console.log("Generation stopped successfully");
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.error("Session is not in progress");
+    } else {
+      console.error("Error:", error.response?.status);
+    }
+  }
+}
+
+stopSession("2024-01-15-10-30-00");
+```
+
+**Retry last message**:
+
+```javascript
+const axios = require("axios");
+
+// Retry the last message in a session
+async function retrySession(sessionId) {
+  try {
+    const response = await axios.post(
+      `http://127.0.0.1:7777/session/${sessionId}/retry`,
+      null,
+      {
+        headers: { "X-API-Key": "your-secret-key" },
+      },
+    );
+    console.log("Retry started successfully");
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.error("Session is already in progress");
+    } else if (error.response?.status === 400) {
+      console.error("No user message to retry");
+    } else {
+      console.error("Error:", error.response?.status);
+    }
+  }
+}
+
+retrySession("2024-01-15-10-30-00");
+```
+
+---
 ---
 
 ## Security Considerations

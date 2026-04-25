@@ -322,10 +322,45 @@ function M.get_total_tokens(session_id)
       completion_tokens = completion,
     }
   end
-
   return session.usage.total_tokens,
     session.usage.prompt_tokens,
     session.usage.completion_tokens
+end
+
+--- Retries the last request for a session
+--- Re-sends request if last message is not from assistant
+--- @param session_id string The session identifier
+--- @return integer|nil jobid The job ID if request started, nil if cannot retry
+function M.retry(session_id)
+  local progress = require('chat.sessions.progress')
+  if progress.is_in_progress(session_id) then
+    return nil
+  end
+
+  local messages = require('chat.sessions.messages').get_request_messages(session_id)
+  if #messages == 0 then
+    return nil
+  end
+
+  -- Only retry if last message is not from assistant
+  if messages[#messages].role == 'assistant' then
+    return nil
+  end
+
+  local protocol = require('chat.protocol')
+  local jobid = protocol.request({
+    session = session_id,
+    messages = messages,
+  })
+
+  if jobid and jobid > 0 then
+    local windows = require('chat.windows')
+    if session_id == windows.current_session() then
+      require('chat.spinners').start()
+    end
+  end
+
+  return jobid
 end
 
 return M

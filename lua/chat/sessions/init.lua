@@ -13,8 +13,15 @@ local share = require('chat.sessions.share')
 -- ─── Session CRUD ──────────────────────────────────────────────
 M.new = core.new
 M.delete = core.delete
+-- ─── Session CRUD ──────────────────────────────────────────────
+M.new = core.new
+M.delete = core.delete
 M.previous = core.previous
 M.next = core.next
+M.exists = core.exists
+M.get = core.get
+M.clear = core.clear
+M.retry = core.retry
 M.exists = core.exists
 M.get = core.get
 M.clear = core.clear
