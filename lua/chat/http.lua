@@ -143,20 +143,7 @@ local function handle_request(client, method, path, headers, body, content_lengt
 
   elseif method == 'POST' and path == '/session/new' then
     -- POST /session/new: create new session
-    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-    if not ok then
-      obj = {}
-    end
-
     local new_id = sessions.new()
-
-    -- Apply optional parameters
-    if obj then
-      if type(obj.cwd) == 'string' then
-        sessions.change_cwd(new_id, obj.cwd)
-      end
-    end
-
     send_json(client, 200, { session_id = new_id })
 
   elseif method == 'DELETE' and path:match('^/session/') then

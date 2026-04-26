@@ -116,25 +116,7 @@ curl -X POST http://127.0.0.1:7777/ \
 
 ### POST `/session/new`
 
-Create a new chat session with optional configuration.
-
-**Request Body** (all fields optional):
-
-```json
-{
-  "cwd": "/path/to/project",
-  "provider": "openai",
-  "model": "gpt-4o"
-}
-```
-
-**Parameters**:
-
-| Parameter  | Type   | Description                                      |
-| ---------- | ------ | ------------------------------------------------ |
-| `cwd`      | string | Working directory for the session (optional)    |
-| `provider` | string | AI provider name (optional)                     |
-| `model`    | string | Model name (optional)                           |
+Create a new chat session.
 
 **Response** (200 OK):
 
@@ -147,17 +129,9 @@ Create a new chat session with optional configuration.
 **Example**:
 
 ```bash
-# Create session with default settings
 curl -X POST http://127.0.0.1:7777/session/new \
   -H "X-API-Key: your-secret-key"
-
-# Create session with custom settings
-curl -X POST http://127.0.0.1:7777/session/new \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"}'
 ```
-
 ### DELETE `/session/:id`
 
 Delete a specific session.
@@ -510,12 +484,7 @@ if providers_response.status_code == 200:
 import requests
 
 headers = {"X-API-Key": "your-secret-key"}
-data = {
-    "cwd": "/home/user/my-project",
-    "provider": "openai",
-    "model": "gpt-4o"
-}
-response = requests.post("http://127.0.0.1:7777/session/new", json=data, headers=headers)
+response = requests.post("http://127.0.0.1:7777/session/new", headers=headers)
 if response.status_code == 200:
     session_id = response.json()["session_id"]
     print(f"Created session: {session_id}")
