@@ -1625,14 +1625,16 @@ configured API key.
 | `/session/:id/provider`  | PUT    | Set provider for a session                              |
 | `/session/:id/model`     | PUT    | Set model for a session                                 |
 | `/session/:id/stop`      | POST   | Stop generation for a session                           |
-| `/session/:id/retry`     | POST   | Retry last message for a session                        |
-| `/session`               | GET    | Get HTML preview of a session (requires `id` parameter) |
-| `/messages`              | GET    | Get message list for a session (requires `session` param)|
-<
+| `/messages`              | GET    | Get message list for a session (requires `session` param, optional `since` param)|
 
 8.4 Response Format                                   *chat-response-format*
 
-POST `/`:
+Query Parameters for `/messages`:
+- `session` (required): Session ID
+- `since` (optional): 1-indexed message index, returns messages[index..end]
+  - `since=1` returns all messages
+  - `since=5` returns messages from index 5 onwards
+  - `since > #messages` returns empty array
 - **Success**: HTTP 204 No Content
 - **Authentication Error**: HTTP 401 Unauthorized
 - **Validation Error**: HTTP 400 Bad Request

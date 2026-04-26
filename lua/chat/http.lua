@@ -105,21 +105,39 @@ local function handle_request(client, method, path, headers, body, content_lengt
     local all_sessions = sessions.get()
     local session_list = {}
     for id, data in pairs(all_sessions) do
+      -- Get message count and last message
+      local messages = sessions.get_messages(id)
+      local message_count = #messages
+      local last_message = nil
+      if message_count > 0 then
+        local last = messages[message_count]
+        local content = last.content or ''
+        -- Truncate content to 100 characters
+        if #content > 100 then
+          content = content:sub(1, 100) .. '...'
+        end
+        last_message = {
+          role = last.role,
+          content = content,
+          created = last.created,
+        }
+      end
+
       table.insert(session_list, {
         id = id,
         cwd = data.cwd or vim.fn.getcwd(),
         provider = data.provider,
         model = data.model,
         in_progress = sessions.is_in_progress(id),
+        message_count = message_count,
+        last_message = last_message,
       })
     end
     table.sort(session_list, function(a, b)
       return a.id < b.id
     end)
     send_json(client, 200, session_list)
-
   elseif method == 'GET' and path == '/providers' then
-    -- GET /providers: return list of supported providers with their models
     local provider_files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
     local providers = {}
     for _, file in ipairs(provider_files) do
@@ -293,7 +311,7 @@ local function handle_request(client, method, path, headers, body, content_lengt
     send_response(client, 204, 'No Content')
 
   elseif method == 'GET' and path:match('^/messages%?') then
-    -- GET /messages?session=session_id: return message list
+    -- GET /messages?session=session_id&since=index: return message list
     local session_id = path:match('session=([^&]+)')
     if not session_id then
       send_response(client, 400, 'Bad Request')
@@ -308,6 +326,18 @@ local function handle_request(client, method, path, headers, body, content_lengt
     end
 
     local messages = sessions.get_messages(session_id)
+
+    -- Support since parameter (1-indexed, returns messages[since..#messages])
+    local since = path:match('since=(%d+)')
+    if since then
+      since = tonumber(since)
+      if since and since >= 1 and since <= #messages then
+        messages = vim.list_slice(messages, since)
+      elseif since and since > #messages then
+        messages = {} -- Return empty if since is beyond range
+      end
+    end
+
     send_json(client, 200, messages)
 
   elseif method == 'POST' and path == '/' then
