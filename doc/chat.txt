@@ -1637,25 +1637,40 @@ Query Parameters for `/messages`:
   - `since > #messages` returns empty array
 - **Success**: HTTP 204 No Content
 - **Authentication Error**: HTTP 401 Unauthorized
-- **Validation Error**: HTTP 400 Bad Request
-
 GET `/sessions`:
 - **Success**: HTTP 200 OK, returns a JSON array of session objects
 >
     [
       {
         "id": "2024-01-15-10-30-00",
+        "title": "Help me write a Lua plugin...",
         "cwd": "/home/user/project",
         "provider": "openai",
         "model": "gpt-4o",
-        "in_progress": false
+        "in_progress": false,
+        "message_count": 15,
+        "last_message": {
+          "role": "assistant",
+          "content": "Here's the code you requested...",
+          "created": "2024-01-15T10:35:00"
+        }
       },
       {
         "id": "2024-01-15-11-45-00",
+        "title": "Explain this error message...",
         "cwd": "/home/user/another-project",
         "provider": "anthropic",
         "model": "claude-3-5-sonnet-20241022",
-        "in_progress": true
+        "in_progress": true,
+        "message_count": 3,
+        "last_message": {
+          "role": "user",
+          "content": "Why is this not working?",
+          "created": "2024-01-15T11:45:30"
+        }
+      }
+    ]
+<
       }
     ]
 PUT `/session/:id/provider`:

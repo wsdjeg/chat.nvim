@@ -29,11 +29,13 @@ chat.nvim offers HTTP API for external applications to interact with your chat s
 - **External Integration**: Connect scripts, CI/CD, monitoring tools
 
 ---
+### Endpoints
 
-## HTTP API
-
-The HTTP API allows external applications to send messages to chat.nvim:
-
+| Endpoint    | Method | Description                         |
+| ----------- | ------ | ----------------------------------- |
+| `/`         | POST   | Send message to a session           |
+| `/sessions` | GET    | Get session list with details       |
+| `/session`  | GET    | Get HTML preview of a session       |
 ### Endpoints
 
 | Endpoint    | Method | Description                    |

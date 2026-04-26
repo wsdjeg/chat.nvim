@@ -109,6 +109,7 @@ local function handle_request(client, method, path, headers, body, content_lengt
       local messages = sessions.get_messages(id)
       local message_count = #messages
       local last_message = nil
+      local title = ''
       if message_count > 0 then
         local last = messages[message_count]
         local content = last.content or ''
@@ -121,10 +122,22 @@ local function handle_request(client, method, path, headers, body, content_lengt
           content = content,
           created = last.created,
         }
+        -- Extract title from first user message
+        for _, msg in ipairs(messages) do
+          if msg.role == 'user' then
+            title = msg.content or ''
+            -- Truncate title to 50 characters
+            if #title > 50 then
+              title = title:sub(1, 50) .. '...'
+            end
+            break
+          end
+        end
       end
 
       table.insert(session_list, {
         id = id,
+        title = title,
         cwd = data.cwd or vim.fn.getcwd(),
         provider = data.provider,
         model = data.model,
@@ -133,10 +146,8 @@ local function handle_request(client, method, path, headers, body, content_lengt
         last_message = last_message,
       })
     end
-    table.sort(session_list, function(a, b)
-      return a.id < b.id
-    end)
     send_json(client, 200, session_list)
+
   elseif method == 'GET' and path == '/providers' then
     local provider_files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
     local providers = {}

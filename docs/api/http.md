@@ -307,30 +307,54 @@ Returns a JSON array of session objects with details.
 [
   {
     "id": "2024-01-15-10-30-00",
+    "title": "Help me write a Lua plugin...",
     "cwd": "/home/user/project",
     "provider": "openai",
     "model": "gpt-4o",
-    "in_progress": false
+    "in_progress": false,
+    "message_count": 5,
+    "last_message": {
+      "role": "assistant",
+      "content": "I'd be happy to help you write a Lua plugin for Neovim. Let's start by...",
+      "created": 1705315800
+    }
   },
   {
     "id": "2024-01-15-11-45-00",
+    "title": "Explain this error message...",
     "cwd": "/home/user/another-project",
     "provider": "anthropic",
     "model": "claude-3-5-sonnet-20241022",
-    "in_progress": true
+    "in_progress": true,
+    "message_count": 3,
+    "last_message": {
+      "role": "user",
+      "content": "Can you also check the log file for more details?",
+      "created": 1705316700
+    }
   }
 ]
 ```
 
 **Fields**:
+| Field           | Type    | Description                                               |
+| --------------- | ------- | --------------------------------------------------------- |
+| `id`            | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)                |
+| `title`         | string  | Session title (extracted from first user message, max 50 chars) |
+| `cwd`           | string  | Working directory for the session                         |
+| `provider`      | string  | AI provider name                                          |
+| `model`         | string  | Model name                                                |
+| `in_progress`   | boolean | Whether the session has an active request                 |
+| `message_count` | number  | Total number of messages in the session                   |
+| `last_message`  | object  | Last message object (null if no messages)                 |
 
-| Field         | Type    | Description                                      |
-| ------------- | ------- | ------------------------------------------------ |
-| `id`          | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)       |
-| `cwd`         | string  | Working directory for the session                |
-| `provider`    | string  | AI provider name                                 |
-| `model`       | string  | Model name                                       |
-| `in_progress` | boolean | Whether the session has an active request        |
+**Last Message Object**:
+
+| Field     | Type   | Description                                      |
+| --------- | ------ | ------------------------------------------------ |
+| `role`    | string | Message role (`user` or `assistant`)             |
+| `content` | string | Message content (truncated to 100 characters)    |
+| `created` | number | Unix timestamp of message creation               |
 
 ### GET `/providers`
 
