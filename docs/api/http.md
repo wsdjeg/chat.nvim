@@ -35,17 +35,19 @@ require('chat').setup({
 })
 ```
 
-{: .warning }
-
-> The HTTP server will not start if `http.api_key` is empty or not set.
-
----
-
-## API Endpoints
-
-| Endpoint           | Method | Description                                              |
-| ------------------ | ------ | -------------------------------------------------------- |
-| `/`                | POST   | Send messages to a specified chat session                |
+| Endpoint              | Method | Description                                              |
+| --------------------- | ------ | -------------------------------------------------------- |
+| `/`                   | POST   | Send messages to a specified chat session                |
+| `/sessions`           | GET    | Get a list of all sessions with details                  |
+| `/providers`          | GET    | Get a list of all supported AI providers                 |
+| `/session/new`        | POST   | Create a new session                                     |
+| `/session/:id`        | DELETE | Delete a session                                         |
+| `/session/:id/stop`   | POST   | Stop generation for a session                            |
+| `/session/:id/retry`  | POST   | Retry last message for a session                         |
+| `/session/:id/provider`| PUT   | Set provider for a session                               |
+| `/session/:id/model`  | PUT    | Set model for a session                                  |
+| `/session`            | GET    | Get HTML preview of a session (requires `id` parameter) |
+| `/messages`           | GET    | Get message list for a session (requires `session` param)|
 | `/sessions`        | GET    | Get a list of all sessions with details                  |
 | `/providers`       | GET    | Get a list of all supported AI providers                 |
 | `/session/new`     | POST   | Create a new session                                     |
@@ -127,6 +129,78 @@ Create a new chat session.
 ```
 
 **Example**:
+
+### PUT `/session/:id/provider`
+
+Set the provider for a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description          |
+| --------- | ------ | -------------------- |
+| `id`      | string | Session ID           |
+
+**Request Body**:
+
+```json
+{
+  "provider": "openai"
+}
+```
+
+**Response**:
+
+| Status Code | Description                                    |
+| ----------- | ---------------------------------------------- |
+| 204         | Success - Provider updated                     |
+| 404         | Not Found - Session does not exist             |
+| 400         | Bad Request - Missing or invalid provider      |
+| 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "anthropic"}'
+```
+
+### PUT `/session/:id/model`
+
+Set the model for a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description          |
+| --------- | ------ | -------------------- |
+| `id`      | string | Session ID           |
+
+**Request Body**:
+
+```json
+{
+  "model": "gpt-4o"
+}
+```
+
+**Response**:
+
+| Status Code | Description                                    |
+| ----------- | ---------------------------------------------- |
+| 204         | Success - Model updated                        |
+| 404         | Not Found - Session does not exist             |
+| 400         | Bad Request - Missing or invalid model         |
+| 401         | Unauthorized - Invalid or missing API key      |
+
+**Example**:
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-3-5-sonnet-20241022"}'
+```
 
 ```bash
 curl -X POST http://127.0.0.1:7777/session/new \
@@ -405,6 +479,23 @@ curl -X POST http://127.0.0.1:7777/session/new \
   -d '{"provider": "openai", "model": "gpt-4o"}'
 ```
 
+**Set provider**:
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "anthropic"}'
+```
+
+**Set model**:
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-3-5-sonnet-20241022"}'
+```
 **Delete session**:
 
 ```bash

@@ -193,6 +193,73 @@ local function handle_request(client, method, path, headers, body, content_lengt
     sessions.cancel_progress(session_id)
 
     send_response(client, 204, 'No Content')
+  elseif method == 'PUT' and path:match('^/session/[^/]+/provider$') then
+    -- PUT /session/:id/provider: set provider for session
+    local session_id = path:match('^/session/([^/]+)/provider$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Parse body
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok or type(obj) ~= 'table' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    local provider = obj.provider
+    if type(provider) ~= 'string' or provider == '' then
+      send_json(client, 400, { error = 'Missing or invalid provider' })
+      return
+    end
+
+    -- Set provider
+    sessions.set_session_provider(session_id, provider)
+
+    send_response(client, 204, 'No Content')
+
+  elseif method == 'PUT' and path:match('^/session/[^/]+/model$') then
+    -- PUT /session/:id/model: set model for session
+    local session_id = path:match('^/session/([^/]+)/model$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Parse body
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok or type(obj) ~= 'table' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    local model = obj.model
+    if type(model) ~= 'string' or model == '' then
+      send_json(client, 400, { error = 'Missing or invalid model' })
+      return
+    end
+
+    -- Set model
+    sessions.set_session_model(session_id, model)
+
+    send_response(client, 204, 'No Content')
 
   elseif method == 'POST' and path:match('^/session/[^/]+/retry$') then
     -- POST /session/:id/retry: retry last message
