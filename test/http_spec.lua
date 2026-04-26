@@ -11,7 +11,7 @@ local function make_request(method, path, headers, body)
   for k, v in pairs(headers or {}) do
     header_str = header_str .. k .. ': ' .. v .. '\r\n'
   end
-  
+
   local request = string.format(
     '%s %s HTTP/1.1\r\n%s\r\n%s',
     method,
@@ -19,12 +19,12 @@ local function make_request(method, path, headers, body)
     header_str,
     body or ''
   )
-  
+
   -- Parse header
   local header_part, req_body = request:match('^(.-)\r\n\r\n(.*)$')
   local request_line = header_part:match('([^\r\n]+)')
   local req_method, req_path = request_line:match('^(%S+)%s+(%S+)')
-  
+
   local parsed_headers = {}
   for line in header_part:gmatch('([^\r\n]+)') do
     local k, v = line:match('^([^:]+):%s*(.+)$')
@@ -32,7 +32,7 @@ local function make_request(method, path, headers, body)
       parsed_headers[k:lower()] = v
     end
   end
-  
+
   return req_method, req_path, parsed_headers, req_body
 end
 
@@ -50,7 +50,7 @@ function TestHTTP:setUp()
       db_path = vim.fn.stdpath('data') .. '/chat_test_memories.db',
     },
   }
-  
+
   -- Create a test session
   sessions._sessions = {}
   self.test_session_id = sessions.new()
@@ -71,7 +71,7 @@ function TestHTTP:testParseHeaders()
       parsed[k:lower()] = v
     end
   end
-  
+
   lu.assertEquals(parsed['host'], 'localhost:9876')
   lu.assertEquals(parsed['content-type'], 'application/json')
   lu.assertEquals(parsed['x-api-key'], 'secret')
@@ -84,7 +84,7 @@ function TestHTTP:testUrlDecode()
       return string.char(tonumber(h, 16))
     end)
   end
-  
+
   lu.assertEquals(url_decode('hello%20world'), 'hello world')
   lu.assertEquals(url_decode('session%2Fid'), 'session/id')
   lu.assertEquals(url_decode('test%3D123'), 'test=123')
@@ -93,12 +93,12 @@ end
 -- Test authentication
 function TestHTTP:testAuthenticationRequired()
   local method, path, headers, body = make_request('GET', '/sessions', {}, '')
-  
+
   -- Without API key, should return 401
   lu.assertEquals(headers['x-api-key'], nil)
-  
+
   -- With API key
-  local method2, path2, headers2, body2 = make_request('GET', '/sessions', {['X-API-Key'] = 'test-api-key'}, '')
+  local method2, path2, headers2, body2 = make_request('GET', '/sessions', { ['X-API-Key'] = 'test-api-key' }, '')
   lu.assertEquals(headers2['x-api-key'], 'test-api-key')
 end
 
@@ -106,7 +106,7 @@ end
 function TestHTTP:testSessionsEndpoint()
   -- Create another session
   local session2 = sessions.new()
-  
+
   local all_sessions = sessions.get()
   lu.assertEquals(type(all_sessions), 'table')
   lu.assertTrue(all_sessions[self.test_session_id] ~= nil)
@@ -123,7 +123,7 @@ end
 function TestHTTP:testSessionInProgress()
   -- By default, session should not be in progress
   lu.assertFalse(sessions.is_in_progress(self.test_session_id))
-  
+
   -- cancel_progress should work even if not in progress
   sessions.cancel_progress(self.test_session_id)
   lu.assertFalse(sessions.is_in_progress(self.test_session_id))
@@ -132,7 +132,7 @@ end
 -- Test session delete
 function TestHTTP:testSessionDelete()
   lu.assertTrue(sessions.exists(self.test_session_id))
-  
+
   -- Session not in progress, can delete directly
   sessions.delete(self.test_session_id)
   lu.assertFalse(sessions.exists(self.test_session_id))
@@ -155,7 +155,7 @@ end
 function TestHTTP:testChangeCwd()
   local new_cwd = '/tmp/test'
   sessions.change_cwd(self.test_session_id, new_cwd)
-  
+
   local all_sessions = sessions.get()
   lu.assertEquals(all_sessions[self.test_session_id].cwd, new_cwd)
 end
@@ -165,15 +165,49 @@ function TestHTTP:testRequestParsing()
   local method, path, headers, body = make_request(
     'POST',
     '/session/new',
-    {['Content-Type'] = 'application/json', ['X-API-Key'] = 'test-api-key'},
+    { ['Content-Type'] = 'application/json', ['X-API-Key'] = 'test-api-key' },
     '{"cwd":"/tmp"}'
   )
-  
+
   lu.assertEquals(method, 'POST')
   lu.assertEquals(path, '/session/new')
   lu.assertEquals(headers['content-type'], 'application/json')
   lu.assertEquals(headers['x-api-key'], 'test-api-key')
   lu.assertEquals(body, '{"cwd":"/tmp"}')
+end
+
+-- Test PUT /session/:id/provider endpoint
+function TestHTTP:testSetSessionProvider()
+  -- Set provider
+  local success = sessions.set_session_provider(self.test_session_id, 'anthropic')
+  lu.assertTrue(success)
+
+  -- Verify it was set
+  local provider = sessions.get_session_provider(self.test_session_id)
+  lu.assertEquals(provider, 'anthropic')
+end
+
+-- Test PUT /session/:id/model endpoint
+function TestHTTP:testSetSessionModel()
+  -- Set model
+  sessions.set_session_model(self.test_session_id, 'claude-3-5-sonnet-20241022')
+
+  -- Verify it was set
+  local model = sessions.get_session_model(self.test_session_id)
+  lu.assertEquals(model, 'claude-3-5-sonnet-20241022')
+end
+
+-- Test route matching for PUT endpoints
+function TestHTTP:testPutRouteMatching()
+  -- Test provider path extraction
+  local provider_path = '/session/test-session-id/provider'
+  local provider_id = provider_path:match('^/session/([^/]+)/provider$')
+  lu.assertEquals(provider_id, 'test-session-id')
+
+  -- Test model path extraction
+  local model_path = '/session/test-session-id/model'
+  local model_id = model_path:match('^/session/([^/]+)/model$')
+  lu.assertEquals(model_id, 'test-session-id')
 end
 
 -- Test route matching
@@ -182,19 +216,19 @@ function TestHTTP:testRouteMatching()
   local stop_path = '/session/test-session-id/stop'
   local stop_id = stop_path:match('^/session/([^/]+)/stop$')
   lu.assertEquals(stop_id, 'test-session-id')
-  
+
   local retry_path = '/session/test-session-id/retry'
   local retry_id = retry_path:match('^/session/([^/]+)/retry$')
   lu.assertEquals(retry_id, 'test-session-id')
-  
+
   local delete_path = '/session/test-session-id'
   local delete_id = delete_path:match('^/session/(.+)$')
   lu.assertEquals(delete_id, 'test-session-id')
-  
+
   local messages_path = '/messages?session=test-id'
   local session_id = messages_path:match('session=([^&]+)')
   lu.assertEquals(session_id, 'test-id')
-  
+
   -- Test query param extraction
   local preview_path = '/session?id=test-preview-id'
   local preview_id = preview_path:match('id=([^&]+)')
@@ -210,10 +244,10 @@ function TestHTTP:testJsonResponseFormat()
     model = 'gpt-4',
     in_progress = false,
   }
-  
+
   local json_str = vim.json.encode(test_data)
   lu.assertEquals(type(json_str), 'string')
-  
+
   local decoded = vim.json.decode(json_str)
   lu.assertEquals(decoded.session_id, 'test-session')
   lu.assertEquals(decoded.cwd, '/tmp/test')
