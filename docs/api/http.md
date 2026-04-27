@@ -43,6 +43,7 @@ require('chat').setup({
 | `/session/new`          | POST   | Create a new session                                      |
 | `/session/:id`          | DELETE | Delete a session                                          |
 | `/session/:id/stop`     | POST   | Stop generation for a session                             |
+| `/session/:id/clear`    | POST   | Clear all messages in a session                           |
 | `/session/:id/retry`    | POST   | Retry last message for a session                          |
 | `/session/:id/provider` | PUT    | Set provider for a session                                |
 | `/session/:id/model`    | PUT    | Set model for a session                                   |
@@ -122,6 +123,11 @@ Create a new chat session.
 
 **Example**:
 
+```bash
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key"
+```
+
 ### PUT `/session/:id/provider`
 
 Set the provider for a specific session.
@@ -194,11 +200,6 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
   -d '{"model": "claude-3-5-sonnet-20241022"}'
 ```
 
-```bash
-curl -X POST http://127.0.0.1:7777/session/new \
-  -H "X-API-Key: your-secret-key"
-```
-
 ### DELETE `/session/:id`
 
 Delete a specific session.
@@ -247,6 +248,32 @@ Stop an ongoing generation for a specific session.
 
 ```bash
 curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+```
+
+### POST `/session/:id/clear`
+
+Clear all messages in a session. The session itself is preserved, but all messages and usage statistics are reset.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `id`      | string | Session ID to clear      |
+
+**Response**:
+
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Session cleared                 |
+| 404         | Not Found - Session does not exist        |
+| 409         | Conflict - Session is in progress         |
+| 401         | Unauthorized - Invalid or missing API key |
+
+**Example**:
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
   -H "X-API-Key: your-secret-key"
 ```
 
@@ -557,6 +584,13 @@ curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
 
 ```bash
 curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+```
+
+**Clear session**:
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
   -H "X-API-Key: your-secret-key"
 ```
 

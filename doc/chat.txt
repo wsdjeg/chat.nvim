@@ -1625,10 +1625,10 @@ configured API key.
 | `/session/:id/provider`  | PUT    | Set provider for a session                              |
 | `/session/:id/model`     | PUT    | Set model for a session                                 |
 | `/session/:id/stop`      | POST   | Stop generation for a session                           |
+| `/session/:id/clear`     | POST   | Clear all messages in a session                         |
 | `/messages`              | GET    | Get message list for a session (requires `session` param, optional `since` param)|
 
 8.4 Response Format                                   *chat-response-format*
-
 Query Parameters for `/messages`:
 - `session` (required): Session ID
 - `since` (optional): 1-indexed message index, returns messages[index..end]

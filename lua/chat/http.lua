@@ -222,6 +222,35 @@ local function handle_request(client, method, path, headers, body, content_lengt
     sessions.cancel_progress(session_id)
 
     send_response(client, 204, 'No Content')
+  elseif method == 'POST' and path:match('^/session/[^/]+/clear$') then
+    -- POST /session/:id/clear: clear session messages
+    local session_id = path:match('^/session/([^/]+)/clear$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Check if session is in progress
+    if sessions.is_in_progress(session_id) then
+      send_json(client, 409, { error = 'Session is in progress' })
+      return
+    end
+
+    -- Clear session
+    local success = sessions.clear(session_id)
+    if success then
+      send_response(client, 204, 'No Content')
+    else
+      send_json(client, 500, { error = 'Failed to clear session' })
+    end
   elseif method == 'PUT' and path:match('^/session/[^/]+/provider$') then
     -- PUT /session/:id/provider: set provider for session
     local session_id = path:match('^/session/([^/]+)/provider$')
