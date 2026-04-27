@@ -34,7 +34,6 @@ require('chat').setup({
   },
 })
 ```
-
 | Endpoint              | Method | Description                                              |
 | --------------------- | ------ | -------------------------------------------------------- |
 | `/`                   | POST   | Send messages to a specified chat session                |
@@ -48,13 +47,6 @@ require('chat').setup({
 | `/session/:id/model`  | PUT    | Set model for a session                                  |
 | `/session`            | GET    | Get HTML preview of a session (requires `id` parameter) |
 | `/messages`           | GET    | Get message list for a session (requires `session` param)|
-| `/sessions`        | GET    | Get a list of all sessions with details                  |
-| `/providers`       | GET    | Get a list of all supported AI providers                 |
-| `/session/new`     | POST   | Create a new session                                     |
-| `/session/:id`     | DELETE | Delete a session                                         |
-| `/session/:id/stop`| POST   | Stop generation for a session                            |
-| `/session/:id/retry`| POST  | Retry last message for a session                         |
-| `/session`         | GET    | Get HTML preview of a session (requires `id` parameter) |
 | `/messages`        | GET    | Get message list for a session (requires `session` param)|
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
