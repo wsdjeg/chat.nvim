@@ -34,20 +34,20 @@ require('chat').setup({
   },
 })
 ```
-| Endpoint              | Method | Description                                              |
-| --------------------- | ------ | -------------------------------------------------------- |
-| `/`                   | POST   | Send messages to a specified chat session                |
-| `/sessions`           | GET    | Get a list of all sessions with details                  |
-| `/providers`          | GET    | Get a list of all supported AI providers                 |
-| `/session/new`        | POST   | Create a new session                                     |
-| `/session/:id`        | DELETE | Delete a session                                         |
-| `/session/:id/stop`   | POST   | Stop generation for a session                            |
-| `/session/:id/retry`  | POST   | Retry last message for a session                         |
-| `/session/:id/provider`| PUT   | Set provider for a session                               |
-| `/session/:id/model`  | PUT    | Set model for a session                                  |
-| `/session`            | GET    | Get HTML preview of a session (requires `id` parameter) |
-| `/messages`           | GET    | Get message list for a session (requires `session` param)|
-| `/messages`        | GET    | Get message list for a session (requires `session` param)|
+
+| Endpoint                | Method | Description                                               |
+| ----------------------- | ------ | --------------------------------------------------------- |
+| `/`                     | POST   | Send messages to a specified chat session                 |
+| `/sessions`             | GET    | Get a list of all sessions with details                   |
+| `/providers`            | GET    | Get a list of all supported AI providers                  |
+| `/session/new`          | POST   | Create a new session                                      |
+| `/session/:id`          | DELETE | Delete a session                                          |
+| `/session/:id/stop`     | POST   | Stop generation for a session                             |
+| `/session/:id/retry`    | POST   | Retry last message for a session                          |
+| `/session/:id/provider` | PUT    | Set provider for a session                                |
+| `/session/:id/model`    | PUT    | Set model for a session                                   |
+| `/session`              | GET    | Get HTML preview of a session (requires `id` parameter)   |
+| `/messages`             | GET    | Get message list for a session (requires `session` param) |
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
 
@@ -128,9 +128,9 @@ Set the provider for a specific session.
 
 **Path Parameters**:
 
-| Parameter | Type   | Description          |
-| --------- | ------ | -------------------- |
-| `id`      | string | Session ID           |
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| `id`      | string | Session ID  |
 
 **Request Body**:
 
@@ -142,12 +142,12 @@ Set the provider for a specific session.
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 204         | Success - Provider updated                     |
-| 404         | Not Found - Session does not exist             |
-| 400         | Bad Request - Missing or invalid provider      |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Provider updated                |
+| 404         | Not Found - Session does not exist        |
+| 400         | Bad Request - Missing or invalid provider |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
@@ -164,9 +164,9 @@ Set the model for a specific session.
 
 **Path Parameters**:
 
-| Parameter | Type   | Description          |
-| --------- | ------ | -------------------- |
-| `id`      | string | Session ID           |
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| `id`      | string | Session ID  |
 
 **Request Body**:
 
@@ -178,12 +178,12 @@ Set the model for a specific session.
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 204         | Success - Model updated                        |
-| 404         | Not Found - Session does not exist             |
-| 400         | Bad Request - Missing or invalid model         |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Model updated                   |
+| 404         | Not Found - Session does not exist        |
+| 400         | Bad Request - Missing or invalid model    |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
@@ -198,6 +198,7 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
 curl -X POST http://127.0.0.1:7777/session/new \
   -H "X-API-Key: your-secret-key"
 ```
+
 ### DELETE `/session/:id`
 
 Delete a specific session.
@@ -210,12 +211,12 @@ Delete a specific session.
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 204         | Success - Session deleted successfully         |
-| 404         | Not Found - Session does not exist             |
-| 409         | Conflict - Session is in progress              |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Session deleted successfully    |
+| 404         | Not Found - Session does not exist        |
+| 409         | Conflict - Session is in progress         |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
@@ -230,17 +231,17 @@ Stop an ongoing generation for a specific session.
 
 **Path Parameters**:
 
-| Parameter | Type   | Description                    |
-| --------- | ------ | ------------------------------ |
-| `id`      | string | Session ID to stop generation  |
+| Parameter | Type   | Description                   |
+| --------- | ------ | ----------------------------- |
+| `id`      | string | Session ID to stop generation |
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 204         | Success - Generation stopped                   |
-| 404         | Not Found - Session does not exist             |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Generation stopped              |
+| 404         | Not Found - Session does not exist        |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
@@ -255,19 +256,19 @@ Retry the last message for a specific session. This will resend the last user me
 
 **Path Parameters**:
 
-| Parameter | Type   | Description                    |
-| --------- | ------ | ------------------------------ |
-| `id`      | string | Session ID to retry            |
+| Parameter | Type   | Description         |
+| --------- | ------ | ------------------- |
+| `id`      | string | Session ID to retry |
 
 **Response**:
 
-| Status Code | Description                                    |
-| ----------- | ---------------------------------------------- |
-| 204         | Success - Retry initiated                      |
-| 404         | Not Found - Session does not exist             |
-| 409         | Conflict - Session is in progress              |
-| 400         | Bad Request - No message to retry              |
-| 401         | Unauthorized - Invalid or missing API key      |
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Retry initiated                 |
+| 404         | Not Found - Session does not exist        |
+| 409         | Conflict - Session is in progress         |
+| 400         | Bad Request - No message to retry         |
+| 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
@@ -329,24 +330,25 @@ Returns a JSON array of session objects with details.
 ```
 
 **Fields**:
-| Field           | Type    | Description                                               |
-| --------------- | ------- | --------------------------------------------------------- |
-| `id`            | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)                |
+
+| Field           | Type    | Description                                                     |
+| --------------- | ------- | --------------------------------------------------------------- |
+| `id`            | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)                      |
 | `title`         | string  | Session title (extracted from first user message, max 50 chars) |
-| `cwd`           | string  | Working directory for the session                         |
-| `provider`      | string  | AI provider name                                          |
-| `model`         | string  | Model name                                                |
-| `in_progress`   | boolean | Whether the session has an active request                 |
-| `message_count` | number  | Total number of messages in the session                   |
-| `last_message`  | object  | Last message object (null if no messages)                 |
+| `cwd`           | string  | Working directory for the session                               |
+| `provider`      | string  | AI provider name                                                |
+| `model`         | string  | Model name                                                      |
+| `in_progress`   | boolean | Whether the session has an active request                       |
+| `message_count` | number  | Total number of messages in the session                         |
+| `last_message`  | object  | Last message object (null if no messages)                       |
 
 **Last Message Object**:
 
-| Field     | Type   | Description                                      |
-| --------- | ------ | ------------------------------------------------ |
-| `role`    | string | Message role (`user` or `assistant`)             |
-| `content` | string | Message content (truncated to 100 characters)    |
-| `created` | number | Unix timestamp of message creation               |
+| Field     | Type   | Description                                   |
+| --------- | ------ | --------------------------------------------- |
+| `role`    | string | Message role (`user` or `assistant`)          |
+| `content` | string | Message content (truncated to 100 characters) |
+| `created` | number | Unix timestamp of message creation            |
 
 ### GET `/providers`
 
@@ -373,10 +375,10 @@ Returns a JSON array of supported AI providers with their available models.
 
 **Fields**:
 
-| Field    | Type         | Description                                      |
-| -------- | ------------ | ------------------------------------------------ |
-| `name`   | string       | Provider name (e.g., "openai", "anthropic")      |
-| `models` | string array | List of available models for this provider       |
+| Field    | Type         | Description                                 |
+| -------- | ------------ | ------------------------------------------- |
+| `name`   | string       | Provider name (e.g., "openai", "anthropic") |
+| `models` | string array | List of available models for this provider  |
 
 **Example**:
 
@@ -390,9 +392,9 @@ Returns the message list for a specific session.
 
 **Query Parameters**:
 
-| Parameter | Type   | Description                    |
-| --------- | ------ | ------------------------------ |
-| `session` | string | **Required**. Session ID      |
+| Parameter | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `session` | string | **Required**. Session ID |
 
 **Example**:
 
@@ -434,11 +436,11 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 
 **Response**:
 
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 200         | Success - Returns HTML content            |
-| 400         | Bad Request - Missing session ID          |
-| 404         | Not Found - Session not found             |
+| Status Code | Description                      |
+| ----------- | -------------------------------- |
+| 200         | Success - Returns HTML content   |
+| 400         | Bad Request - Missing session ID |
+| 404         | Not Found - Session not found    |
 
 {: .info }
 
@@ -512,6 +514,7 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
   -H "Content-Type: application/json" \
   -d '{"model": "claude-3-5-sonnet-20241022"}'
 ```
+
 **Delete session**:
 
 ```bash
@@ -623,7 +626,12 @@ async function sendMessage(sessionId, content) {
     const response = await axios.post(
       "http://127.0.0.1:7777/",
       { session: sessionId, content: content },
-      { headers: { "X-API-Key": "your-secret-key", "Content-Type": "application/json" } }
+      {
+        headers: {
+          "X-API-Key": "your-secret-key",
+          "Content-Type": "application/json",
+        },
+      },
     );
     console.log("Message sent successfully");
   } catch (error) {
@@ -642,7 +650,7 @@ const axios = require("axios");
 async function getProviders() {
   try {
     const response = await axios.get("http://127.0.0.1:7777/providers", {
-      headers: { "X-API-Key": "your-secret-key" }
+      headers: { "X-API-Key": "your-secret-key" },
     });
     console.log("Providers:", response.data);
     return response.data;
@@ -697,12 +705,12 @@ Display providers and models in a web dashboard:
 ```javascript
 async function updateDashboard() {
   const response = await fetch("http://127.0.0.1:7777/providers", {
-    headers: { "X-API-Key": "your-secret-key" }
+    headers: { "X-API-Key": "your-secret-key" },
   });
   const providers = await response.json();
 
   document.getElementById("provider-list").innerHTML = providers
-    .map(p => `<li>${p.name} - ${p.models.length} models</li>`)
+    .map((p) => `<li>${p.name} - ${p.models.length} models</li>`)
     .join("");
 }
 ```
