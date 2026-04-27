@@ -392,18 +392,26 @@ Returns the message list for a specific session.
 
 **Query Parameters**:
 
-| Parameter | Type   | Description              |
-| --------- | ------ | ------------------------ |
-| `session` | string | **Required**. Session ID |
+| Parameter | Type   | Description                                                                 |
+| --------- | ------ | --------------------------------------------------------------------------- |
+| `session` | string | **Required**. Session ID                                                   |
+| `since`   | number | **Optional**. Return messages starting from this index (1-indexed)        |
 
 **Example**:
 
 ```bash
+# Get all messages
 curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
+  -H "X-API-Key: your-secret-key"
+
+# Get messages starting from index 5
+curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
   -H "X-API-Key: your-secret-key"
 ```
 
 **Success Response** (200 OK):
+
+Returns an array of messages in chronological order (oldest first).
 
 ```json
 [
@@ -418,9 +426,36 @@ curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
 ]
 ```
 
+**Message Fields**:
+
+| Field                | Type   | Description                                      |
+| -------------------- | ------ | ------------------------------------------------ |
+| `role`               | string | Message role: `user`, `assistant`, or `tool`    |
+| `content`            | string | Message content (may be null for tool calls)     |
+| `reasoning_content`  | string | Optional. Reasoning content (for thinking models)|
+| `tool_calls`         | array  | Optional. Tool calls made by assistant           |
+| `tool_call_id`       | string | Optional. Tool call ID (for tool role messages)  |
+| `created`            | number | Optional. Timestamp when message was created     |
+| `usage`              | object | Optional. Token usage statistics                 |
+| `error`              | string | Optional. Error message if request failed         |
+| `tool_call_state`    | string | Optional. Tool call execution state              |
+
+**Message Order**:
+
+- Messages are returned in chronological order (oldest to newest)
+- Index is 1-based (first message is at index 1)
+- `since` parameter uses this 1-based index
+
+**Error Responses**:
+
+| Status Code | Description                          |
+| ----------- | ------------------------------------ |
+| 400         | Bad Request - Missing session param  |
+| 404         | Not Found - Session does not exist   |
+
 ### GET `/session`
 
-Returns an HTML preview of the specified chat session.
+Returns an HTML preview of the specified chat session (no authentication required).
 
 **Query Parameters**:
 
@@ -442,8 +477,6 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 | 400         | Bad Request - Missing session ID |
 | 404         | Not Found - Session not found    |
 
-{: .info }
-
 > Note: The GET /session endpoint does not require authentication (no API key needed) to allow easy HTML preview in browsers.
 
 ---
@@ -460,8 +493,6 @@ Incoming messages are processed through a queue system to ensure reliability:
 4. If a session is busy (processing another request), messages remain in the queue until the session becomes available
 
 This ensures that messages are never lost and are delivered in the order they were received.
-
----
 
 ## Usage Examples
 
