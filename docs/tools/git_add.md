@@ -17,11 +17,36 @@ Stage file changes for commit.
 
 ## Examples
 
-- `@git_add path="src/main.lua"` - Add specific file
-- `@git_add path=["src/main.lua", "src/utils.lua"]` - Add multiple files
-- `@git_add all=true` - Add all changes (git add -A)
-- `@git_add path="."` - Add all changes in current directory
-- `@git_add path="./src"` - Add all changes in directory
+### Single File
+
+```
+@git_add path="src/main.lua"
+```
+
+### Multiple Files
+
+**IMPORTANT**: Use JSON array format without quotes around the array.
+
+```
+# Correct format (JSON array, no quotes around the whole array)
+@git_add path=["src/main.lua", "src/utils.lua", "README.md"]
+
+# Wrong format (array wrapped in quotes - will NOT work)
+@git_add path="["src/main.lua", "src/utils.lua"]"
+```
+
+### Add All Changes
+
+```
+@git_add all=true
+```
+
+### Add Directory
+
+```
+@git_add path="./src"
+@git_add path="."
+```
 
 ## Parameters
 
@@ -38,3 +63,9 @@ Stage file changes for commit.
 > - Use `all=true` to add all changes in the repository
 > - Files must be within the working directory
 
+{: .warning }
+> **Multiple Files Format**: When adding multiple files, use JSON array format:
+> - ✅ Correct: `path=["file1.lua", "file2.lua"]`
+> - ❌ Wrong: `path="["file1.lua", "file2.lua"]"`
+>
+> The array should NOT be wrapped in quotes!
