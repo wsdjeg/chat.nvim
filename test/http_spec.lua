@@ -256,4 +256,45 @@ function TestHTTP:testJsonResponseFormat()
   lu.assertEquals(decoded.in_progress, false)
 end
 
+-- Test /session/new returns full session info
+function TestHTTP:testNewSessionResponse()
+  -- Create session via sessions module
+  local new_id = sessions.new()
+
+  -- Verify session was created with correct defaults
+  lu.assertTrue(sessions.exists(new_id))
+  lu.assertEquals(type(new_id), 'string')
+
+  -- Get session data
+  local all_sessions = sessions.get()
+  local session_data = all_sessions[new_id]
+
+  -- Verify expected fields for response
+  lu.assertNotNil(session_data.id)
+  lu.assertNotNil(session_data.cwd)
+  lu.assertNotNil(session_data.provider)
+  lu.assertNotNil(session_data.model)
+
+  -- New session should have empty messages
+  lu.assertEquals(#session_data.messages, 0)
+end
+
+-- Test /session/new with provider and model options
+function TestHTTP:testNewSessionWithOptions()
+  -- Create session with custom provider and model
+  local new_id = sessions.new()
+
+  -- Set provider and model
+  sessions.set_session_provider(new_id, 'openai')
+  sessions.set_session_model(new_id, 'gpt-4')
+
+  -- Get updated session data
+  local all_sessions = sessions.get()
+  local session_data = all_sessions[new_id]
+
+  -- Verify custom values
+  lu.assertEquals(session_data.provider, 'openai')
+  lu.assertEquals(session_data.model, 'gpt-4')
+end
+
 return TestHTTP

@@ -1635,8 +1635,6 @@ Query Parameters for `/messages`:
   - `since=1` returns all messages
   - `since=5` returns messages from index 5 onwards
   - `since > #messages` returns empty array
-- **Success**: HTTP 204 No Content
-- **Authentication Error**: HTTP 401 Unauthorized
 GET `/sessions`:
 - **Success**: HTTP 200 OK, returns a JSON array of session objects
 >
@@ -1671,15 +1669,23 @@ GET `/sessions`:
       }
     ]
 <
-      }
-    ]
+POST `/session/new`:
+- Create a new chat session
+- **Optional Request Body**: `{"provider": "openai", "model": "gpt-4o"}`
+- **Success**: HTTP 200 OK, returns the new session object
+>
+    {
+      "id": "2024-01-15-12-00-00",
+      "title": "",
+      "cwd": "/home/user/project",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "in_progress": false,
+      "message_count": 0,
+      "last_message": null
+    }
+<
 PUT `/session/:id/provider`:
-- Set the AI provider for a session
-- **Request Body**: `{"provider": "openai"}`
-- **Success**: HTTP 204 No Content
-- **Session Not Found**: HTTP 404 Not Found
-- **Invalid Request**: HTTP 400 Bad Request
-
 PUT `/session/:id/model`:
 - Set the model for a session
 - **Request Body**: `{"model": "gpt-4o"}`

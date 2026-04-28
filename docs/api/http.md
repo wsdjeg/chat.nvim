@@ -113,19 +113,63 @@ curl -X POST http://127.0.0.1:7777/ \
 
 Create a new chat session.
 
+**Request Body** (optional):
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o"
+}
+```
+
+**Parameters**:
+
+| Parameter  | Type   | Description                                      |
+| ---------- | ------ | ------------------------------------------------ |
+| `provider` | string | Optional. Provider to use for the session        |
+| `model`    | string | Optional. Model to use for the session           |
+
 **Response** (200 OK):
 
 ```json
 {
-  "session_id": "2024-01-15-10-30-00"
+  "id": "2024-01-15-10-30-00",
+  "title": "",
+  "cwd": "/home/user/project",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "in_progress": false,
+  "message_count": 0,
+  "last_message": null
 }
 ```
+
+**Response Fields**:
+
+| Field           | Type    | Description                                    |
+| --------------- | ------- | ---------------------------------------------- |
+| `id`            | string  | The newly created session ID                   |
+| `title`         | string  | Session title (empty for new sessions)         |
+| `cwd`           | string  | Current working directory                      |
+| `provider`      | string  | AI provider for the session                    |
+| `model`         | string  | AI model for the session                       |
+| `in_progress`   | boolean | Whether a message is being generated           |
+| `message_count` | number  | Number of messages in the session              |
+| `last_message`  | object  | Last message metadata (null for new sessions)  |
 
 **Example**:
 
 ```bash
+# Create session with default provider/model
 curl -X POST http://127.0.0.1:7777/session/new \
   -H "X-API-Key: your-secret-key"
+
+# Create session with custom provider/model
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "openai", "model": "gpt-4o"}'
+```
 ```
 
 ### PUT `/session/:id/provider`

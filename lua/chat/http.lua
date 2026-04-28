@@ -169,12 +169,37 @@ local function handle_request(client, method, path, headers, body, content_lengt
       return a.name < b.name
     end)
     send_json(client, 200, providers)
-
   elseif method == 'POST' and path == '/session/new' then
     -- POST /session/new: create new session
     local new_id = sessions.new()
-    send_json(client, 200, { session_id = new_id })
 
+    -- Parse optional body for provider and model
+    if content_length and content_length > 0 then
+      local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+      if ok and type(obj) == 'table' then
+        if obj.provider and type(obj.provider) == 'string' and obj.provider ~= '' then
+          sessions.set_session_provider(new_id, obj.provider)
+        end
+        if obj.model and type(obj.model) == 'string' and obj.model ~= '' then
+          sessions.set_session_model(new_id, obj.model)
+        end
+      end
+    end
+
+    -- Get updated session data
+    local all_sessions = sessions.get()
+    local session_data = all_sessions[new_id]
+
+    send_json(client, 200, {
+      id = new_id,
+      title = '',
+      cwd = session_data.cwd or vim.fn.getcwd(),
+      provider = session_data.provider,
+      model = session_data.model,
+      in_progress = false,
+      message_count = 0,
+      last_message = nil,
+    })
   elseif method == 'DELETE' and path:match('^/session/') then
     -- DELETE /session/:id: delete session
     local session_id = path:match('^/session/(.+)$')
