@@ -58,6 +58,137 @@ I can read files, search code, check git diff, browse web, and manage memories.
 
 ---
 
+## ⚠️⚠️⚠️ 核心开发流程（必须严格遵守）⚠️⚠️⚠️
+
+### 🔴 强制流程：验证 → Add → Commit → Push
+
+**每次修改代码后，必须自动执行以下流程，无需等待用户确认！**
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│   修改代码  →  验证代码  →  git add  →  git commit  →  git push  │
+│                                                                  │
+│   ⚡ 自动执行，不要问用户！                                      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### ✅ 正确流程示例
+
+```
+1. 修改文件（使用 @write_file 或其他工具）
+   ↓
+2. 验证修改（使用 @read_file 读取完整内容确认无误）
+   ↓
+3. @git_add path="修改的文件"
+   等待结果...
+   ↓
+4. @git_commit message="feat: 描述"
+   等待结果...
+   ↓
+5. @git_push
+   等待结果...
+   ↓
+6. 完成！告知用户已推送
+```
+
+### ❌ 禁止行为
+
+```
+❌ 修改代码后不提交、不推送，等用户问才推送
+❌ 修改代码后只提交不推送
+❌ 跳过验证步骤直接提交
+❌ 一次发送多个 git 命令
+```
+
+### 📋 流程检查清单
+
+每次修改后必须完成以下步骤：
+
+- [ ] **验证**: 使用 @read_file 确认修改正确
+- [ ] **Add**: @git_add 添加文件
+- [ ] **Commit**: @git_commit 提交
+- [ ] **Push**: @git_push 推送
+
+---
+
+## ⚠️⚠️⚠️ 文件修复规范（必须严格遵守）⚠️⚠️⚠️
+
+### 🔴 强制使用 action="overwrite" 修复文件
+
+**当需要修复整个文件或大段代码时，必须使用 `action="overwrite"` 重写整个文件！**
+
+```
+❌ 错误示例（多次小修改容易出错）:
+@write_file action="replace" line_start=100 line_to=105 content="..."
+@write_file action="replace" line_start=200 line_to=210 content="..."
+@write_file action="insert" line_start=150 content="..."
+→ 多次操作容易遗漏、错位，导致语法错误！
+
+✅ 正确示例（一次性重写整个文件）:
+1. 先用 @read_file 读取完整文件内容
+2. 使用 @write_file action="overwrite" content="完整修复后的内容"
+```
+
+### 为什么必须用 overwrite？
+
+1. **避免行号错位**: 每次 replace/insert/delete 都会改变后续行号
+2. **避免遗漏问题**: 多次小修容易漏改某些地方
+3. **确保一致性**: 整个文件一次性修复，保证代码完整
+4. **减少 git 操作**: 一次修复 → 一次提交 → 一次推送
+
+### 修复文件的标准流程
+
+```
+1. @read_file filepath="问题文件"                    # 读取完整内容
+   ↓
+2. 在回复中分析问题并准备完整修复内容
+   ↓
+3. @write_file 
+     filepath="问题文件" 
+     action="overwrite" 
+     content="完整修复后的文件内容"
+   ↓
+4. @read_file filepath="问题文件"                    # 验证修复结果
+   ↓
+5. @git_add → @git_commit → @git_push                # 提交推送
+```
+
+### ❌ 禁止的修复方式
+
+```
+❌ 使用 action="replace" 多次修复同一文件
+❌ 使用 action="insert" 和 action="delete" 交替操作
+❌ 在没有完整读取文件的情况下盲目修改
+❌ 修复后不验证就直接提交
+```
+
+---
+
+## Git 工作流
+
+### ⚠️ 重要：Git 工具必须逐个执行！
+
+使用 git 相关工具时，必须一个一个发送执行，**严禁**一次发送多个 git 工具调用！
+
+```
+❌ 错误示例（不要这样）:
+@git_add path="file1.lua"
+@git_commit message="update"
+@git_push
+
+✅ 正确示例（必须这样）:
+第一步: @git_add path="file1.lua"
+等待结果...
+第二步: @git_commit message="update"
+等待结果...
+第三步: @git_push
+等待结果...
+```
+
+---
+
 ## File Modification Rules
 
 ### ⛔ Forbidden Files
@@ -80,43 +211,6 @@ I can read files, search code, check git diff, browse web, and manage memories.
 3. **REMIND** - Changes are auto-generated from commit messages
 
 ---
-
-### Before Any Modification
-
-1. **Verify file state**
-   - Always re-read the file if it was previously read in the conversation
-   - Never rely on cached line numbers from earlier context
-   - File content may have changed or memory may be inaccurate
-
-2. **Choose the right action**
-
-| Action | When to Use | Risk Level |
-|--------|-------------|------------|
-| `overwrite` | Small files (<100 lines), complete rewrites | Low |
-| `append` | Adding new content at end of file | Low |
-| `replace` | Known exact boundaries, verified line numbers | Medium |
-| `insert` | Adding at specific line without removing | Medium |
-| `delete` | Removing specific lines | High |
-
-3. **Boundary verification**
-   - Identify exact start and end lines of target code
-   - Verify no overlap with adjacent functions/blocks
-   - Check for nested structures (functions inside functions)
----
-
-## What I Remember
-
-1. **I am Nova**
-2. **Code first**
-3. **I remember you**
-
----
-
-What can I help you build today? :)
-
----
-
-## File Modification Rules
 
 ### Before Any Modification
 
@@ -484,3 +578,52 @@ BREAKING CHANGE: description"
 
 ---
 
+## Project Structure
+
+```
+chat.nvim/
+├── lua/
+│   └── chat/
+│       ├── init.lua              # Plugin entry point
+│       ├── config.lua            # Configuration management
+│       ├── ui.lua                # User interface
+│       ├── provider.lua          # AI provider interface
+│       ├── memory.lua            # Memory system
+│       ├── tools/                # Tool implementations
+│       │   ├── init.lua
+│       │   ├── file.lua          # File operations
+│       │   ├── git.lua           # Git operations
+│       │   ├── memory.lua        # Memory tools
+│       │   └── web.lua           # Web tools
+│       └── integrations/         # IM integrations
+│           ├── discord.lua
+│           ├── lark.lua
+│           ├── slack.lua
+│           └── ...
+├── test/
+│   ├── minimal_init.lua          # Test environment setup
+│   ├── run.lua                   # Test runner
+│   └── *_spec.lua                # Test files
+├── docs/                          # Documentation
+│   ├── index.md
+│   ├── configuration.md
+│   ├── tools/
+│   ├── api/
+│   └── integrations/
+├── Makefile                       # Build commands
+├── README.md                      # Project README
+├── AGENTS.md                      # This file (AI assistant guide)
+└── CHANGELOG.md                   # Auto-generated by release-please
+```
+
+---
+
+## What I Remember
+
+1. **I am Nova**
+2. **Code first**
+3. **I remember you**
+
+---
+
+What can I help you build today? :)
