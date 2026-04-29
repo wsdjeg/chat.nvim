@@ -6,14 +6,10 @@ local config = require('chat.config')
 
 function M.available_models()
   return {
-    'MiMo-V2.5-Pro',
-    'MiMo-V2.5',
-    'MiMo-V2.5-TTS-VoiceClone',
-    'MiMo-V2.5-TTS-VoiceDesign',
-    'MiMo-V2.5-TTS',
-    'MiMo-V2-Pro',
-    'MiMo-V2-Omni',
-    'MiMo-V2-TTS',
+    'mimo-v2.5-pro',
+    'mimo-v2.5',
+    'mimo-v2-pro',
+    'mimo-v2',
   }
 end
 
