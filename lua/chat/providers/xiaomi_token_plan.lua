@@ -27,7 +27,7 @@ function M.request(opt)
     '-H',
     'Authorization: Bearer ' .. config.config.api_key.xiaomi,
     '-X',
-    'POST',
+    'Authorization: Bearer ' .. config.config.api_key.xiaomi_token_plan,
     '-d',
     '@-',
   }
