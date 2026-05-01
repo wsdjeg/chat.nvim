@@ -344,6 +344,41 @@ local function handle_request(client, method, path, headers, body, content_lengt
 
     send_response(client, 204, 'No Content')
 
+  elseif method == 'PUT' and path:match('^/session/[^/]+/cwd$') then
+    -- PUT /session/:id/cwd: set working directory for session
+    local session_id = path:match('^/session/([^/]+)/cwd$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Parse body
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok or type(obj) ~= 'table' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    local cwd = obj.cwd
+    if type(cwd) ~= 'string' or cwd == '' then
+      send_json(client, 400, { error = 'Missing or invalid cwd' })
+      return
+    end
+
+    -- Normalize path
+    cwd = vim.fs.normalize(cwd)
+
+    -- Set cwd
+    sessions.change_cwd(session_id, cwd)
+    send_response(client, 204, 'No Content')
   elseif method == 'POST' and path:match('^/session/[^/]+/retry$') then
     -- POST /session/:id/retry: retry last message
     local session_id = path:match('^/session/([^/]+)/retry$')

@@ -47,7 +47,10 @@ require('chat').setup({
 | `/session/:id/retry`    | POST   | Retry last message for a session                          |
 | `/session/:id/provider` | PUT    | Set provider for a session                                |
 | `/session/:id/model`    | PUT    | Set model for a session                                   |
+| `/session/:id/cwd`      | PUT    | Set working directory for a session                       |
 | `/session`              | GET    | Get HTML preview of a session (requires `id` parameter)   |
+| `/messages`             | GET    | Get message list for a session (requires `session` param) |
+
 | `/messages`             | GET    | Get message list for a session (requires `session` param) |
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
@@ -232,6 +235,50 @@ Set the model for a specific session.
 | ----------- | ----------------------------------------- |
 | 204         | Success - Model updated                   |
 | 404         | Not Found - Session does not exist        |
+
+### PUT `/session/:id/cwd`
+
+Set the working directory for a specific session.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| `id`      | string | Session ID  |
+
+**Request Body**:
+
+```json
+{
+  "cwd": "/path/to/project"
+}
+```
+
+**Parameters**:
+
+| Parameter | Type   | Description                  |
+| --------- | ------ | ---------------------------- |
+| `cwd`     | string | New working directory path   |
+
+**Response**:
+
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Working directory updated       |
+| 404         | Not Found - Session does not exist        |
+| 400         | Bad Request - Missing or invalid cwd      |
+| 401         | Unauthorized - Invalid or missing API key |
+
+**Example**:
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/home/user/new-project"}'
+```
+
+
 | 400         | Bad Request - Missing or invalid model    |
 | 401         | Unauthorized - Invalid or missing API key |
 
