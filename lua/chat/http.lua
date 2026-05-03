@@ -60,6 +60,45 @@ local function send_response(client, status, message)
   client:close()
 end
 
+--- Build session info object (shared by GET /sessions and GET /sessions/:id)
+local function build_session_info(id, data)
+  local messages = sessions.get_messages(id)
+  local message_count = #messages
+  local last_message = nil
+  local title = ''
+  if message_count > 0 then
+    local last = messages[message_count]
+    local content = last.content or ''
+    if #content > 100 then
+      content = content:sub(1, 100) .. '...'
+    end
+    last_message = {
+      role = last.role,
+      content = content,
+      created = last.created,
+    }
+    for _, msg in ipairs(messages) do
+      if msg.role == 'user' then
+        title = msg.content or ''
+        if #title > 50 then
+          title = title:sub(1, 50) .. '...'
+        end
+        break
+      end
+    end
+  end
+  return {
+    id = id,
+    title = title,
+    cwd = data.cwd or vim.fn.getcwd(),
+    provider = data.provider,
+    model = data.model,
+    in_progress = sessions.is_in_progress(id),
+    message_count = message_count,
+    last_message = last_message,
+  }
+end
+
 --- Handle HTTP request (separated for vim.schedule_wrap)
 local function handle_request(client, method, path, headers, body, content_length)
   -- GET /session?id=session_id: return HTML preview (no auth required)
@@ -105,48 +144,29 @@ local function handle_request(client, method, path, headers, body, content_lengt
     local all_sessions = sessions.get()
     local session_list = {}
     for id, data in pairs(all_sessions) do
-      -- Get message count and last message
-      local messages = sessions.get_messages(id)
-      local message_count = #messages
-      local last_message = nil
-      local title = ''
-      if message_count > 0 then
-        local last = messages[message_count]
-        local content = last.content or ''
-        -- Truncate content to 100 characters
-        if #content > 100 then
-          content = content:sub(1, 100) .. '...'
-        end
-        last_message = {
-          role = last.role,
-          content = content,
-          created = last.created,
-        }
-        -- Extract title from first user message
-        for _, msg in ipairs(messages) do
-          if msg.role == 'user' then
-            title = msg.content or ''
-            -- Truncate title to 50 characters
-            if #title > 50 then
-              title = title:sub(1, 50) .. '...'
-            end
-            break
-          end
-        end
-      end
-
-      table.insert(session_list, {
-        id = id,
-        title = title,
-        cwd = data.cwd or vim.fn.getcwd(),
-        provider = data.provider,
-        model = data.model,
-        in_progress = sessions.is_in_progress(id),
-        message_count = message_count,
-        last_message = last_message,
-      })
+      table.insert(session_list, build_session_info(id, data))
     end
     send_json(client, 200, session_list)
+
+  elseif method == 'GET' and path:match('^/sessions/[^/]+$') then
+    -- GET /sessions/:id: return single session info
+    local session_id = path:match('^/sessions/(.+)$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    local all_sessions = sessions.get()
+    local session_data = all_sessions[session_id]
+
+    if not session_data then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    send_json(client, 200, build_session_info(session_id, session_data))
 
   elseif method == 'GET' and path == '/providers' then
     local provider_files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
@@ -532,3 +552,4 @@ function M.stop()
 end
 
 return M
+
