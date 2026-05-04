@@ -23,6 +23,7 @@
 ---@field cwd string session working directory
 ---@field prompt? string
 ---@field usage? ChatMessageUsage
+---@field pin? boolean session pin status
 
 -- Session storage: cache read/write and iteration
 local M = {}

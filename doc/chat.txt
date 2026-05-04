@@ -1624,11 +1624,10 @@ configured API key.
 | `/session/:id`           | DELETE | Delete a session                                        |
 | `/session/:id/provider`  | PUT    | Set provider for a session                              |
 | `/session/:id/model`     | PUT    | Set model for a session                                 |
+| `/session/:id/pin`       | PUT    | Toggle pin status for a session                         |
 | `/session/:id/stop`      | POST   | Stop generation for a session                           |
 | `/session/:id/clear`     | POST   | Clear all messages in a session                         |
 | `/messages`              | GET    | Get message list for a session (requires `session` param, optional `since` param)|
-
-8.4 Response Format                                   *chat-response-format*
 Query Parameters for `/messages`:
 - `session` (required): Session ID
 - `since` (optional): 1-indexed message index, returns messages[index..end]
@@ -1686,6 +1685,12 @@ POST `/session/new`:
     }
 <
 PUT `/session/:id/provider`:
+- Set the provider for a session
+- **Request Body**: `{"provider": "anthropic"}`
+- **Success**: HTTP 204 No Content
+- **Session Not Found**: HTTP 404 Not Found
+- **Invalid Request**: HTTP 400 Bad Request
+
 PUT `/session/:id/model`:
 - Set the model for a session
 - **Request Body**: `{"model": "gpt-4o"}`
@@ -1693,6 +1698,15 @@ PUT `/session/:id/model`:
 - **Session Not Found**: HTTP 404 Not Found
 - **Invalid Request**: HTTP 400 Bad Request
 
+PUT `/session/:id/pin`:
+- Set the pin status for a session
+- **Request Body**: `{"pin": true}` or `{"pin": false}`
+- **Success**: HTTP 204 No Content
+- **Session Not Found**: HTTP 404 Not Found
+- **Invalid Request**: HTTP 400 Bad Request (missing or invalid pin value)
+
+------------------------------------------------------------------------------
+<
 ------------------------------------------------------------------------------
 <
 

@@ -48,9 +48,8 @@ require('chat').setup({
 | `/session/:id/provider` | PUT    | Set provider for a session                                |
 | `/session/:id/model`    | PUT    | Set model for a session                                   |
 | `/session/:id/cwd`      | PUT    | Set working directory for a session                       |
+| `/session/:id/pin`      | PUT    | Toggle pin status for a session                           |
 | `/session`              | GET    | Get HTML preview of a session (requires `id` parameter)   |
-| `/messages`             | GET    | Get message list for a session (requires `session` param) |
-
 | `/messages`             | GET    | Get message list for a session (requires `session` param) |
 
 **Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
@@ -268,9 +267,6 @@ Set the working directory for a specific session.
 | 404         | Not Found - Session does not exist        |
 | 400         | Bad Request - Missing or invalid cwd      |
 | 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
 ```bash
 curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
   -H "X-API-Key: your-secret-key" \
@@ -278,17 +274,53 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
   -d '{"cwd": "/home/user/new-project"}'
 ```
 
+### PUT `/session/:id/pin`
 
-| 400         | Bad Request - Missing or invalid model    |
+Set the pin status for a specific session. Pinning a session marks it as important or priority.
+
+**Path Parameters**:
+
+| Parameter | Type   | Description |
+| --------- | ------ | ----------- |
+| `id`      | string | Session ID  |
+
+**Request Body**:
+
+```json
+{
+  "pin": true
+}
+```
+
+**Parameters**:
+
+| Parameter | Type    | Description                          |
+| --------- | ------- | ------------------------------------ |
+| `pin`     | boolean | Pin status (true = pinned, false = not pinned) |
+
+**Response**:
+
+| Status Code | Description                               |
+| ----------- | ----------------------------------------- |
+| 204         | Success - Pin status updated              |
+| 404         | Not Found - Session does not exist        |
+| 400         | Bad Request - Missing or invalid pin value |
 | 401         | Unauthorized - Invalid or missing API key |
 
 **Example**:
 
 ```bash
-curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
+# Pin a session
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
-  -d '{"model": "claude-3-5-sonnet-20241022"}'
+  -d '{"pin": true}'
+
+# Unpin a session
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"pin": false}'
 ```
 
 ### DELETE `/session/:id`

@@ -23,19 +23,17 @@ M.get = core.get
 M.clear = core.clear
 M.retry = core.retry
 M.exists = core.exists
-M.get = core.get
-M.clear = core.clear
-
 -- ─── Session State ─────────────────────────────────────────────
 M.set_session_prompt = core.set_session_prompt
 M.get_session_provider = core.get_session_provider
 M.set_session_provider = core.set_session_provider
 M.get_session_model = core.get_session_model
 M.set_session_model = core.set_session_model
+M.get_session_pin = core.get_session_pin
+M.set_session_pin = core.set_session_pin
 M.getcwd = core.getcwd
 M.change_cwd = core.change_cwd
 M.get_total_tokens = core.get_total_tokens
-
 -- ─── Messages ──────────────────────────────────────────────────
 M.append_message = messages.append_message
 M.get_messages = messages.get_messages

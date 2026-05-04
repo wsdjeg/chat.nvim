@@ -197,6 +197,23 @@ function TestHTTP:testSetSessionModel()
   lu.assertEquals(model, 'claude-3-5-sonnet-20241022')
 end
 
+-- Test PUT /session/:id/pin endpoint
+function TestHTTP:testSetSessionPin()
+  -- Default pin value should be false (not pinned)
+  local pin_before = sessions.get_session_pin(self.test_session_id)
+  lu.assertEquals(pin_before, false)
+
+  -- Set pin to true
+  sessions.set_session_pin(self.test_session_id, true)
+  local pin_true = sessions.get_session_pin(self.test_session_id)
+  lu.assertEquals(pin_true, true)
+
+  -- Set pin to false
+  sessions.set_session_pin(self.test_session_id, false)
+  local pin_false = sessions.get_session_pin(self.test_session_id)
+  lu.assertEquals(pin_false, false)
+end
+
 -- Test route matching for PUT endpoints
 function TestHTTP:testPutRouteMatching()
   -- Test provider path extraction
@@ -208,6 +225,11 @@ function TestHTTP:testPutRouteMatching()
   local model_path = '/session/test-session-id/model'
   local model_id = model_path:match('^/session/([^/]+)/model$')
   lu.assertEquals(model_id, 'test-session-id')
+
+  -- Test pin path extraction
+  local pin_path = '/session/test-session-id/pin'
+  local pin_id = pin_path:match('^/session/([^/]+)/pin$')
+  lu.assertEquals(pin_id, 'test-session-id')
 end
 
 -- Test route matching

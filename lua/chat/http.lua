@@ -93,12 +93,12 @@ local function build_session_info(id, data)
     cwd = data.cwd or vim.fn.getcwd(),
     provider = data.provider,
     model = data.model,
+    pin = sessions.get_session_pin(id),
     in_progress = sessions.is_in_progress(id),
     message_count = message_count,
     last_message = last_message,
   }
 end
-
 --- Handle HTTP request (separated for vim.schedule_wrap)
 local function handle_request(client, method, path, headers, body, content_length)
   -- GET /session?id=session_id: return HTML preview (no auth required)
@@ -397,6 +397,39 @@ local function handle_request(client, method, path, headers, body, content_lengt
     cwd = vim.fs.normalize(cwd)
 
     -- Set cwd
+  elseif method == 'PUT' and path:match('^/session/[^/]+/pin$') then
+    -- PUT /session/:id/pin: set pin status for session
+    local session_id = path:match('^/session/([^/]+)/pin$')
+    if not session_id then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    session_id = url_decode(session_id)
+
+    -- Check if session exists
+    if not sessions.exists(session_id) then
+      send_json(client, 404, { error = 'Session not found' })
+      return
+    end
+
+    -- Parse body
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if not ok or type(obj) ~= 'table' then
+      send_response(client, 400, 'Bad Request')
+      return
+    end
+
+    local pin = obj.pin
+    if type(pin) ~= 'boolean' then
+      send_json(client, 400, { error = 'Missing or invalid pin value' })
+      return
+    end
+
+    -- Set pin status
+    sessions.set_session_pin(session_id, pin)
+
+    send_response(client, 204, 'No Content')
     sessions.change_cwd(session_id, cwd)
     send_response(client, 204, 'No Content')
   elseif method == 'POST' and path:match('^/session/[^/]+/retry$') then
