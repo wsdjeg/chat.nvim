@@ -397,6 +397,9 @@ local function handle_request(client, method, path, headers, body, content_lengt
     cwd = vim.fs.normalize(cwd)
 
     -- Set cwd
+    sessions.change_cwd(session_id, cwd)
+    send_response(client, 204, 'No Content')
+
   elseif method == 'PUT' and path:match('^/session/[^/]+/pin$') then
     -- PUT /session/:id/pin: set pin status for session
     local session_id = path:match('^/session/([^/]+)/pin$')
@@ -430,8 +433,7 @@ local function handle_request(client, method, path, headers, body, content_lengt
     sessions.set_session_pin(session_id, pin)
 
     send_response(client, 204, 'No Content')
-    sessions.change_cwd(session_id, cwd)
-    send_response(client, 204, 'No Content')
+
   elseif method == 'POST' and path:match('^/session/[^/]+/retry$') then
     -- POST /session/:id/retry: retry last message
     local session_id = path:match('^/session/([^/]+)/retry$')
@@ -585,4 +587,3 @@ function M.stop()
 end
 
 return M
-
