@@ -60,109 +60,203 @@ I can read files, search code, check git diff, browse web, and manage memories.
 
 ## ⚠️⚠️⚠️ 核心开发流程（必须严格遵守）⚠️⚠️⚠️
 
-### 🔴 强制流程：验证 → Add → Commit → Push
+### 🔴🔴🔴 强制流程：修改 → 验证 → Add → Commit → Push
 
 **每次修改代码后，必须自动执行以下流程，无需等待用户确认！**
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                                                                  │
-│   修改代码  →  验证代码  →  git add  →  git commit  →  git push  │
-│                                                                  │
-│   ⚡ 自动执行，不要问用户！                                      │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   修改代码  →  ⚠️验证代码  →  git add  →  git commit  →  git push  │
+│                                                                     │
+│   ⚡ 自动执行，不要问用户！                                         │
+│                                                                     │
+│   ⚠️ 验证是强制步骤，不可跳过！                                     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### ✅ 正确流程示例
+### ✅ 正确流程示例（必须严格遵守）
 
 ```
-1. 修改文件（使用 @write_file 或其他工具）
-   ↓
-2. 验证修改（使用 @read_file 读取完整内容确认无误）
-   ↓
-3. @git_add path="修改的文件"
-   等待结果...
-   ↓
-4. @git_commit message="feat: 描述"
-   等待结果...
-   ↓
-5. @git_push
-   等待结果...
-   ↓
-6. 完成！告知用户已推送
+步骤 1: 修改文件（使用 @write_file action="overwrite"）
+        ↓
+步骤 2: ⚠️ 验证修改（使用 @read_file 读取【完整文件】确认无误）
+        ↓
+步骤 3: @git_add path="修改的文件"
+        等待结果...
+        ↓
+步骤 4: @git_commit message="feat: 描述"
+        等待结果...
+        ↓
+步骤 5: @git_push
+        等待结果...
+        ↓
+步骤 6: 完成！告知用户已推送
+```
+
+### ⛔⛔⛔ 验证步骤的严格要求 ⛔⛔⛔
+
+**验证是强制步骤，必须读取【完整文件内容】检查！**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   ⛔ 禁止跳过验证步骤！                                              │
+│   ⛔ 禁止只读取部分内容验证！                                        │
+│   ⛔ 禁止修改后直接提交！                                            │
+│                                                                     │
+│   ✅ 必须读取完整文件内容，确认修改正确                              │
+│   ✅ 必须检查是否有语法错误、代码缺失、重复等问题                    │
+│   ✅ 确认无误后才能提交                                              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**验证示例：**
+
+```
+✅ 正确验证方式:
+@read_file filepath="lua/chat/tools/init.lua"
+→ 读取完整内容，检查：
+  - 是否有语法错误
+  - 方法是否完整
+  - 是否有重复代码
+  - 修改是否正确应用
+→ 确认无误后，执行 git add
+
+❌ 错误验证方式:
+@read_file filepath="..." line_start=100 line_to=150
+→ 只读取部分内容，无法发现其他问题！
 ```
 
 ### ❌ 禁止行为
 
 ```
+❌ 修改代码后不验证直接提交
 ❌ 修改代码后不提交、不推送，等用户问才推送
 ❌ 修改代码后只提交不推送
-❌ 跳过验证步骤直接提交
+❌ 验证时只读取部分文件内容
 ❌ 一次发送多个 git 命令
 ```
 
-### 📋 流程检查清单
+### 📋 流程检查清单（每次修改必须完成）
 
-每次修改后必须完成以下步骤：
+```
+修改前检查:
+- [ ] 使用 @read_file 读取目标文件完整内容
 
-- [ ] **验证**: 使用 @read_file 确认修改正确
+修改后检查:
+- [ ] **验证**: 使用 @read_file 读取【完整文件】确认修改正确
+- [ ] 检查语法是否正确
+- [ ] 检查是否有代码重复或缺失
 - [ ] **Add**: @git_add 添加文件
 - [ ] **Commit**: @git_commit 提交
 - [ ] **Push**: @git_push 推送
+```
 
 ---
 
-## ⚠️⚠️⚠️ 文件修复规范（必须严格遵守）⚠️⚠️⚠️
+## ⛔⛔⛔ 文件修改规范（最高优先级，必须严格遵守）⛔⛔⛔
 
-### 🔴 强制使用 action="overwrite" 修复文件
+### 🔴🔴🔴 强制使用 action="overwrite" 修改任何文件！
 
-**当需要修复整个文件或大段代码时，必须使用 `action="overwrite"` 重写整个文件！**
-
-```
-❌ 错误示例（多次小修改容易出错）:
-@write_file action="replace" line_start=100 line_to=105 content="..."
-@write_file action="replace" line_start=200 line_to=210 content="..."
-@write_file action="insert" line_start=150 content="..."
-→ 多次操作容易遗漏、错位，导致语法错误！
-
-✅ 正确示例（一次性重写整个文件）:
-1. 先用 @read_file 读取完整文件内容
-2. 使用 @write_file action="overwrite" content="完整修复后的内容"
-```
-
-### 为什么必须用 overwrite？
-
-1. **避免行号错位**: 每次 replace/insert/delete 都会改变后续行号
-2. **避免遗漏问题**: 多次小修容易漏改某些地方
-3. **确保一致性**: 整个文件一次性修复，保证代码完整
-4. **减少 git 操作**: 一次修复 → 一次提交 → 一次推送
-
-### 修复文件的标准流程
+**任何文件修改，无论大小，都必须使用 `action="overwrite"` 重写整个文件！**
 
 ```
-1. @read_file filepath="问题文件"                    # 读取完整内容
+┌────────────────────────────────────────────────────────────────────┐
+│                                                                    │
+│   ⛔ 禁止使用 action="replace"                                      │
+│   ⛔ 禁止使用 action="insert"                                       │
+│   ⛔ 禁止使用 action="delete"                                       │
+│                                                                    │
+│   ✅ 只允许使用 action="overwrite"                                  │
+│                                                                    │
+│   哪怕只改一行代码，也要用 overwrite 重写整个文件！                  │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### ❌ 为什么禁止 replace/insert/delete？
+
+**这些操作会导致灾难性错误！**
+
+```
+❌ action="replace" line_start=100 line_to=105
+   → 替换后，后续所有行号都会变化！
+   → 下一次操作如果还用旧行号，就会改错位置！
+   → 最终导致：代码重复、方法缺失、语法错误！
+
+❌ action="insert" line_start=150
+   → 插入后，后续所有行号都会增加！
+   → 行号错位，导致后续操作全部失败！
+
+❌ action="delete" line_start=200 line_to=210
+   → 删除后，后续所有行号都会减少！
+   → 行号错位，导致后续操作全部失败！
+```
+
+### ✅ 正确做法：只使用 overwrite
+
+```
+✅ 修改任何文件的标准流程：
+
+1. @read_file filepath="目标文件"        # 读取完整内容
    ↓
-2. 在回复中分析问题并准备完整修复内容
+2. 在回复中编辑完整内容（修改需要改的部分）
    ↓
 3. @write_file 
-     filepath="问题文件" 
-     action="overwrite" 
-     content="完整修复后的文件内容"
+     filepath="目标文件" 
+     action="overwrite"                 # ⚠️ 必须是 overwrite！
+     content="完整修改后的文件内容"      # ⚠️ 必须是完整内容！
    ↓
-4. @read_file filepath="问题文件"                    # 验证修复结果
+4. @read_file filepath="目标文件"        # ⚠️ 验证修改结果（强制！）
    ↓
-5. @git_add → @git_commit → @git_push                # 提交推送
+5. @git_add → @git_commit → @git_push    # 提交推送
 ```
 
-### ❌ 禁止的修复方式
+### 📋 overwrite 检查清单
+
+每次使用 @write_file 时必须确认：
+
+- [ ] **action**: 必须是 `"overwrite"`，不能是其他任何值
+- [ ] **content**: 必须是完整文件内容，不能只写一部分
+- [ ] **验证**: 修改后必须用 @read_file 读取完整文件验证
+
+### ⛔ 绝对禁止的操作
 
 ```
-❌ 使用 action="replace" 多次修复同一文件
-❌ 使用 action="insert" 和 action="delete" 交替操作
-❌ 在没有完整读取文件的情况下盲目修改
-❌ 修复后不验证就直接提交
+⛔ 以下是绝对禁止的操作，违反将导致代码损坏！
+
+❌ @write_file action="replace" line_start=X line_to=Y content="..."
+❌ @write_file action="insert" line_start=X content="..."
+❌ @write_file action="delete" line_start=X line_to=Y
+❌ 多次修改同一文件使用不同的 action
+❌ 不读取完整文件就修改
+❌ 只写部分内容而不是完整文件
+❌ 修改后不验证直接提交
 ```
+
+---
+
+## ⛔ Forbidden Files
+
+**NEVER modify these files under any circumstances:**
+
+| File | Reason |
+|------|--------|
+| `CHANGELOG.md` | Auto-generated by release-please GitHub Action |
+| `CHANGELOG.*.md` | Any changelog files are managed by automation |
+
+**Why?** These files are automatically updated by CI/CD pipelines. Manual changes will:
+- Be overwritten by automation
+- Cause conflicts with release process
+- Break the release workflow
+
+**If asked to modify CHANGELOG.md:**
+1. **REFUSE** - Explain it's auto-generated
+2. **REDIRECT** - Suggest updating source code or docs instead
+3. **REMIND** - Changes are auto-generated from commit messages
 
 ---
 
@@ -189,85 +283,6 @@ I can read files, search code, check git diff, browse web, and manage memories.
 
 ---
 
-## File Modification Rules
-
-### ⛔ Forbidden Files
-
-**NEVER modify these files under any circumstances:**
-
-| File | Reason |
-|------|--------|
-| `CHANGELOG.md` | Auto-generated by release-please GitHub Action |
-| `CHANGELOG.*.md` | Any changelog files are managed by automation |
-
-**Why?** These files are automatically updated by CI/CD pipelines. Manual changes will:
-- Be overwritten by automation
-- Cause conflicts with release process
-- Break the release workflow
-
-**If asked to modify CHANGELOG.md:**
-1. **REFUSE** - Explain it's auto-generated
-2. **REDIRECT** - Suggest updating source code or docs instead
-3. **REMIND** - Changes are auto-generated from commit messages
-
----
-
-### Before Any Modification
-
-1. **Verify file state**
-   - Always re-read the file if it was previously read in the conversation
-   - Never rely on cached line numbers from earlier context
-   - File content may have changed or memory may be inaccurate
-
-2. **Choose the right action**
-
-| Action | When to Use | Risk Level |
-|--------|-------------|------------|
-| `overwrite` | Small files (<100 lines), complete rewrites | Low |
-| `append` | Adding new content at end of file | Low |
-| `replace` | Known exact boundaries, verified line numbers | Medium |
-| `insert` | Adding at specific line without removing | Medium |
-| `delete` | Removing specific lines | High |
-
-3. **Boundary verification**
-   - Identify exact start and end lines of target code
-   - Verify no overlap with adjacent functions/blocks
-   - Check for nested structures (functions inside functions)
-
-### Safety Guidelines
-
-**Prefer overwrite when:**
-- File is small and complete content is known
-- Multiple changes needed in different locations
-- Unsure about exact line boundaries
-
-**Prefer append when:**
-- Adding new functions or sections
-- Order of functions does not matter
-- End of file is the safest insertion point
-
-**Use replace/delete only when:**
-- File has just been read and line numbers are confirmed
-- Boundaries are 100% certain
-- No risk of cutting through adjacent code
-
-### Verification Steps
-
-Before executing `replace` or `delete`:
-1. Confirm current file content with `read_file`
-2. Identify target code boundaries precisely
-3. Verify adjacent code is not affected
-4. Consider using `overwrite` if any doubt exists
-
-### When in Doubt
-
-- Re-read the file
-- Use `overwrite` for small files
-- Ask user for confirmation on critical changes
-- Prefer safe operations over precise ones
-
----
-
 ## Documentation Updates
 
 ### Insert Operation Caution
@@ -281,42 +296,15 @@ Inserting at line N causes the original content at line N onwards to shift down.
 2. **Move Notes sections** - Trailing notes from previous section get displaced
 3. **Corrupt structure** - Headers and content become misaligned
 
-**Example of Bad Insert:**
-```
-Original file:
-Line 10: #### `git_show`
-Line 11: Show commit details.
-...
-Line 20: **Notes:**
-Line 21: - Note 1
-Line 22: - Note 2
-Line 23: 
-Line 24: #### `get_history`  <-- Target: insert before this
-
-Bad: insert at line 23
-Result: Notes (lines 21-22) stay in place, new content inserted after them,
-        but they should belong to git_show, not appear after new tools.
-```
-
 **Best Practices:**
 
 1. **Insert before the next section header** - Find the exact line where the next section starts
 2. **Preserve trailing content** - Notes, examples, and trailing text belong to the section above
 3. **Use empty lines as anchors** - Insert at the blank line before the next header, not after the last content
 
-**Correct Insert Point:**
-```
-Line 10: #### `git_show`
-...
-Line 22: - Note 2
-Line 23:                    <-- Correct: Insert HERE (empty line before next header)
-Line 24: #### `get_history`
-```
-
-**Alternative: Use Replace Instead**
+**Alternative: Use overwrite Instead**
 
 When inserting multiple sections, consider:
-- `replace` the entire section block (more predictable)
 - `overwrite` for small documentation files
 - Re-read file immediately before modification
 
@@ -589,6 +577,7 @@ chat.nvim/
 │       ├── ui.lua                # User interface
 │       ├── provider.lua          # AI provider interface
 │       ├── memory.lua            # Memory system
+│       ├── http.lua              # HTTP server
 │       ├── tools/                # Tool implementations
 │       │   ├── init.lua
 │       │   ├── file.lua          # File operations
