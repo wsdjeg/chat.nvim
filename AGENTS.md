@@ -58,188 +58,83 @@ I can read files, search code, check git diff, browse web, and manage memories.
 
 ---
 
-## ⚠️⚠️⚠️ 核心开发流程（必须严格遵守）⚠️⚠️⚠️
+## Core Development Workflow
 
-### 🔴🔴🔴 强制流程：修改 → 验证 → Add → Commit → Push
+### Mandatory Flow: Modify → Verify → Add → Commit → Push
 
-**每次修改代码后，必须自动执行以下流程，无需等待用户确认！**
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│   修改代码  →  ⚠️验证代码  →  git add  →  git commit  →  git push  │
-│                                                                     │
-│   ⚡ 自动执行，不要问用户！                                         │
-│                                                                     │
-│   ⚠️ 验证是强制步骤，不可跳过！                                     │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### ✅ 正确流程示例（必须严格遵守）
+**After any code modification, automatically execute this flow without asking user!**
 
 ```
-步骤 1: 修改文件（使用 @write_file action="overwrite"）
-        ↓
-步骤 2: ⚠️ 验证修改（使用 @read_file 读取【完整文件】确认无误）
-        ↓
-步骤 3: @git_add path="修改的文件"
-        等待结果...
-        ↓
-步骤 4: @git_commit message="feat: 描述"
-        等待结果...
-        ↓
-步骤 5: @git_push
-        等待结果...
-        ↓
-步骤 6: 完成！告知用户已推送
+Step 1: Modify file (use @write_file action="overwrite")
+Step 2: Verify modification (use @read_file to read complete file)
+Step 3: @git_add path="modified_file"
+Step 4: @git_commit message="type: description"
+Step 5: @git_push
+Step 6: Done! Tell user pushed
 ```
 
-### ⛔⛔⛔ 验证步骤的严格要求 ⛔⛔⛔
+### Verification Requirements
 
-**验证是强制步骤，必须读取【完整文件内容】检查！**
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│   ⛔ 禁止跳过验证步骤！                                              │
-│   ⛔ 禁止只读取部分内容验证！                                        │
-│   ⛔ 禁止修改后直接提交！                                            │
-│                                                                     │
-│   ✅ 必须读取完整文件内容，确认修改正确                              │
-│   ✅ 必须检查是否有语法错误、代码缺失、重复等问题                    │
-│   ✅ 确认无误后才能提交                                              │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**验证示例：**
+**Verification is mandatory, must read complete file content!**
 
 ```
-✅ 正确验证方式:
-@read_file filepath="lua/chat/tools/init.lua"
-→ 读取完整内容，检查：
-  - 是否有语法错误
-  - 方法是否完整
-  - 是否有重复代码
-  - 修改是否正确应用
-→ 确认无误后，执行 git add
+Verification checklist:
+- Check for syntax errors
+- Check for missing code
+- Check for duplicate code
+- Confirm modification is correct
 
-❌ 错误验证方式:
-@read_file filepath="..." line_start=100 line_to=150
-→ 只读取部分内容，无法发现其他问题！
+After verification passes, then execute git add
 ```
 
-### ❌ 禁止行为
+### Forbidden Actions
 
-```
-❌ 修改代码后不验证直接提交
-❌ 修改代码后不提交、不推送，等用户问才推送
-❌ 修改代码后只提交不推送
-❌ 验证时只读取部分文件内容
-❌ 一次发送多个 git 命令
-```
-
-### 📋 流程检查清单（每次修改必须完成）
-
-```
-修改前检查:
-- [ ] 使用 @read_file 读取目标文件完整内容
-
-修改后检查:
-- [ ] **验证**: 使用 @read_file 读取【完整文件】确认修改正确
-- [ ] 检查语法是否正确
-- [ ] 检查是否有代码重复或缺失
-- [ ] **Add**: @git_add 添加文件
-- [ ] **Commit**: @git_commit 提交
-- [ ] **Push**: @git_push 推送
-```
+| Action | Reason |
+|--------|--------|
+| Skip verification | Cannot catch errors |
+| Only read partial file | May miss other issues |
+| Modify without commit | Changes not saved |
+| Commit without push | Changes not synced |
 
 ---
 
-## ⛔⛔⛔ 文件修改规范（最高优先级，必须严格遵守）⛔⛔⛔
+## File Modification Rules
 
-### 🔴🔴🔴 强制使用 action="overwrite" 修改任何文件！
+### Rule 1: Always Use action="overwrite"
 
-**任何文件修改，无论大小，都必须使用 `action="overwrite"` 重写整个文件！**
+**For ANY file modification, regardless of size, use `action="overwrite"` to rewrite the entire file!**
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                                                                    │
-│   ⛔ 禁止使用 action="replace"                                      │
-│   ⛔ 禁止使用 action="insert"                                       │
-│   ⛔ 禁止使用 action="delete"                                       │
-│                                                                    │
-│   ✅ 只允许使用 action="overwrite"                                  │
-│                                                                    │
-│   哪怕只改一行代码，也要用 overwrite 重写整个文件！                  │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-```
+| Action | Status | Reason |
+|--------|--------|--------|
+| `overwrite` | ✅ Required | Safe, no line number drift |
+| `replace` | ❌ Forbidden | Line numbers shift after replacement |
+| `insert` | ❌ Forbidden | Line numbers shift after insertion |
+| `delete` | ❌ Forbidden | Line numbers shift after deletion |
 
-### ❌ 为什么禁止 replace/insert/delete？
+### Why Other Actions Are Dangerous
 
-**这些操作会导致灾难性错误！**
+When using `replace`, `insert`, or `delete`:
 
-```
-❌ action="replace" line_start=100 line_to=105
-   → 替换后，后续所有行号都会变化！
-   → 下一次操作如果还用旧行号，就会改错位置！
-   → 最终导致：代码重复、方法缺失、语法错误！
+1. Line numbers change after each operation
+2. Subsequent operations use old line numbers
+3. Results in: duplicate code, missing methods, syntax errors
 
-❌ action="insert" line_start=150
-   → 插入后，后续所有行号都会增加！
-   → 行号错位，导致后续操作全部失败！
-
-❌ action="delete" line_start=200 line_to=210
-   → 删除后，后续所有行号都会减少！
-   → 行号错位，导致后续操作全部失败！
-```
-
-### ✅ 正确做法：只使用 overwrite
+### Correct Workflow
 
 ```
-✅ 修改任何文件的标准流程：
-
-1. @read_file filepath="目标文件"        # 读取完整内容
-   ↓
-2. 在回复中编辑完整内容（修改需要改的部分）
-   ↓
+1. @read_file filepath="target_file"          # Read complete content
+2. Edit complete content in reply (modify needed parts)
 3. @write_file 
-     filepath="目标文件" 
-     action="overwrite"                 # ⚠️ 必须是 overwrite！
-     content="完整修改后的文件内容"      # ⚠️ 必须是完整内容！
-   ↓
-4. @read_file filepath="目标文件"        # ⚠️ 验证修改结果（强制！）
-   ↓
-5. @git_add → @git_commit → @git_push    # 提交推送
-```
-
-### 📋 overwrite 检查清单
-
-每次使用 @write_file 时必须确认：
-
-- [ ] **action**: 必须是 `"overwrite"`，不能是其他任何值
-- [ ] **content**: 必须是完整文件内容，不能只写一部分
-- [ ] **验证**: 修改后必须用 @read_file 读取完整文件验证
-
-### ⛔ 绝对禁止的操作
-
-```
-⛔ 以下是绝对禁止的操作，违反将导致代码损坏！
-
-❌ @write_file action="replace" line_start=X line_to=Y content="..."
-❌ @write_file action="insert" line_start=X content="..."
-❌ @write_file action="delete" line_start=X line_to=Y
-❌ 多次修改同一文件使用不同的 action
-❌ 不读取完整文件就修改
-❌ 只写部分内容而不是完整文件
-❌ 修改后不验证直接提交
+     filepath="target_file" 
+     action="overwrite"                       # Must be overwrite!
+     content="complete modified content"      # Must be complete!
+4. @read_file filepath="target_file"          # Verify result
+5. @git_add → @git_commit → @git_push         # Commit and push
 ```
 
 ---
 
-## ⛔ Forbidden Files
+## Forbidden Files
 
 **NEVER modify these files under any circumstances:**
 
@@ -248,11 +143,6 @@ I can read files, search code, check git diff, browse web, and manage memories.
 | `CHANGELOG.md` | Auto-generated by release-please GitHub Action |
 | `CHANGELOG.*.md` | Any changelog files are managed by automation |
 
-**Why?** These files are automatically updated by CI/CD pipelines. Manual changes will:
-- Be overwritten by automation
-- Cause conflicts with release process
-- Break the release workflow
-
 **If asked to modify CHANGELOG.md:**
 1. **REFUSE** - Explain it's auto-generated
 2. **REDIRECT** - Suggest updating source code or docs instead
@@ -260,25 +150,25 @@ I can read files, search code, check git diff, browse web, and manage memories.
 
 ---
 
-## Git 工作流
+## Git Workflow
 
-### ⚠️ 重要：Git 工具必须逐个执行！
+### Important: Execute Git Tools One by One
 
-使用 git 相关工具时，必须一个一个发送执行，**严禁**一次发送多个 git 工具调用！
+When using git tools, must send one at a time, **never send multiple git tool calls at once!**
 
 ```
-❌ 错误示例（不要这样）:
+Wrong:
 @git_add path="file1.lua"
 @git_commit message="update"
 @git_push
 
-✅ 正确示例（必须这样）:
-第一步: @git_add path="file1.lua"
-等待结果...
-第二步: @git_commit message="update"
-等待结果...
-第三步: @git_push
-等待结果...
+Correct:
+Step 1: @git_add path="file1.lua"
+Wait for result...
+Step 2: @git_commit message="update"
+Wait for result...
+Step 3: @git_push
+Wait for result...
 ```
 
 ---
