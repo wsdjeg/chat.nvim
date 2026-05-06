@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.7.0](https://github.com/wsdjeg/chat.nvim/compare/v1.6.0...v1.7.0) (2026-05-06)
+
+
+### Features
+
+* **sessions:** add session pin status support ([5f89e0b](https://github.com/wsdjeg/chat.nvim/commit/5f89e0ba0cf525ec6bfaebfeebdb6e1ef2406ceb))
+
+
+### Bug Fixes
+
+* **http:** correct cwd and pin endpoint implementations ([809eea4](https://github.com/wsdjeg/chat.nvim/commit/809eea49544a9ca3e8db04611cd2c646bfdd7235))
+* **sessions:** add error message when tool call parsing fails ([4f28149](https://github.com/wsdjeg/chat.nvim/commit/4f281490a66f70ab6999676208ffda101d25d139))
+* **sessions:** handle nil result from tools.call ([0a733a9](https://github.com/wsdjeg/chat.nvim/commit/0a733a9b6ea4d7d88efd5d4e061be0d4b7ebb9d9))
+* **sessions:** use error field for tool call parsing errors ([18d9567](https://github.com/wsdjeg/chat.nvim/commit/18d9567e1b327142088ebc6f69c8676d03c10295))
+* **util:** add nil check in transform function to prevent pairs() error ([f4ba500](https://github.com/wsdjeg/chat.nvim/commit/f4ba500737c1566fd0721a758cb40c4367f12d1a))
+
+
+### Documentation
+
+* enhance AGENTS.md with stricter development guidelines ([b31bc8d](https://github.com/wsdjeg/chat.nvim/commit/b31bc8d19fecf8927f365a9d6e83439ab508003f))
+* optimize AGENTS.md for AI-friendly format ([a4c25cb](https://github.com/wsdjeg/chat.nvim/commit/a4c25cb279b437e68e34311572ec1a5a9e14067a))
+
 ## [1.6.0](https://github.com/wsdjeg/chat.nvim/compare/v1.5.0...v1.6.0) (2026-05-03)
 
 
