@@ -47,6 +47,18 @@ local function is_absolute(path)
 end
 
 function M.transform(tbl)
+  -- Add defensive check for nil or non-table input
+  -- This prevents errors when JSON parsing fails and tool_calls is nil
+  if not tbl or type(tbl) ~= 'table' then
+    return {}
+  end
+
+  -- Check if table is empty (no keys)
+  local next_key = next(tbl)
+  if next_key == nil then
+    return {}
+  end
+
   local keys = {}
   for key, _ in pairs(tbl) do
     table.insert(keys, key)
