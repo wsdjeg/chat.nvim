@@ -151,7 +151,21 @@ function M.on_progress_tool_call_done(jobid)
           async.finish_async_tool(session_id, res.jobid or res.mcp_tool_call_id)
         end,
       })
-      if result.jobid or result.mcp_tool_call_id then
+      -- Handle nil result from tools.call
+      if not result then
+        local tool_done_message = {
+          role = 'tool',
+          content = 'tool_call returned no result',
+          tool_call_id = tool_call.id,
+          created = os.time(),
+          tool_call_state = {
+            name = tool_call['function'].name,
+            error = 'no result returned from tool',
+          },
+        }
+        require('chat.sessions.messages').append_message(session_id, tool_done_message)
+        windows.on_tool_call_done(session_id, { tool_done_message })
+      elseif result.jobid or result.mcp_tool_call_id then
         local async = require('chat.sessions.async')
         async.start_async_tool(session_id, result.jobid or result.mcp_tool_call_id)
       else
