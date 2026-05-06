@@ -72,6 +72,30 @@ function M.on_progress_tool_call_done(jobid)
 
   local tool_calls = util.transform(job_tool_calls[jobid])
 
+  -- Check if tool call parsing failed (nil or empty)
+  if not tool_calls or #tool_calls == 0 then
+    log.error('Tool call parsing failed or no valid tool calls found for job: ' .. jobid)
+
+    -- Append error message to notify user
+    local error_message = {
+      role = 'assistant',
+      content = '⚠️ Tool call parsing failed. The AI model generated malformed tool call data. Please try again or check the logs.',
+      created = os.time(),
+      session = session_id,
+    }
+    require('chat.sessions.messages').append_message(session_id, error_message)
+    windows.on_message(session_id, error_message)
+
+    progress.on_progress_done(jobid, {
+      tool_calls = {},
+    })
+    M.on_complete(session_id, jobid)
+
+    -- Clear job_tool_calls
+    job_tool_calls[jobid] = nil
+    return
+  end
+
   progress.on_progress_done(jobid, {
     tool_calls = tool_calls,
   })
