@@ -78,8 +78,7 @@ function M.on_progress_tool_call_done(jobid)
 
     -- Append error message to notify user
     local error_message = {
-      role = 'assistant',
-      content = '⚠️ Tool call parsing failed. The AI model generated malformed tool call data. Please try again or check the logs.',
+      error = 'Tool call parsing failed. The AI model generated malformed tool call data. Please try again or check the logs.',
       created = os.time(),
       session = session_id,
     }
