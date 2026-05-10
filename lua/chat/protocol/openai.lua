@@ -114,6 +114,7 @@ function M.on_stderr(id, data)
     end
   end)
 end
+
 function M.on_exit(id, code, signal)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
@@ -163,18 +164,24 @@ function M.on_exit(id, code, signal)
         error = 'Request cancelled by user. Press r to retry.',
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 and CURL_ERRORS[code] then
       local message = {
         error = CURL_ERRORS[code],
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 then
       local message = {
-        error = 'Curl failed with exit code %d. Run `curl --help` for details.',
+        error = string.format(
+          'Curl failed with exit code %d. Run `curl --help` for details.',
+          code
+        ),
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     end
     if code == 0 and signal == 0 then
