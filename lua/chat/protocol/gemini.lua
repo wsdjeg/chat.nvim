@@ -110,7 +110,7 @@ function M.on_exit(id, code, signal)
     local session = sessions.get_progress_session(id)
 
     -- Handle accumulated buffer
-    if #sse_buffers[id] > 0 then
+    if sse_buffers[id] and #sse_buffers[id] > 0 then
       local text = table.concat(sse_buffers[id], '\n')
       local ok, chunk = pcall(vim.json.decode, text)
       if ok and chunk.error then
@@ -148,18 +148,21 @@ function M.on_exit(id, code, signal)
         error = 'Request cancelled by user. Press r to retry.',
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 and CURL_ERRORS[code] then
       local message = {
         error = CURL_ERRORS[code],
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 then
       local message = {
         error = string.format('Curl failed with exit code %d', code),
         created = os.time(),
       }
+      sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     end
 
