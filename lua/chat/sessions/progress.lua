@@ -124,33 +124,36 @@ end
 
 --- Finalizes the streaming response and saves the complete message
 --- @param jobid integer The job identifier for the streaming request
---- @param opts ChatProgressDoneOpt Optional parameters including tool_calls
 function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
-  if progress_messages[session_id] then
+  local has_content = progress_messages[session_id] ~= nil
+
+  -- Build the message
+  local message = {
+    role = 'assistant',
+    created = os.time(),
+  }
+
+  if has_content then
+    -- Has text content (may also have tool_calls)
     local reasoning_content
     if progress_reasoning_contents[session_id] then
       reasoning_content = progress_reasoning_contents[session_id]
       progress_reasoning_contents[session_id] = nil
     end
-    local message = {
-      role = 'assistant',
-      reasoning_content = reasoning_content,
-      content = progress_messages[session_id],
-      created = os.time(),
-    }
-    if opts and opts.tool_calls then
-      message.tool_calls = opts.tool_calls
-    end
-    require('chat.sessions.messages').append_message(session_id, message)
-    progress_messages[session_id] = nil
-  else
-    progress_reasoning_contents[session_id] = nil
+    message.reasoning_content = reasoning_content
+    message.content = progress_messages[session_id]
     progress_messages[session_id] = nil
   end
+
+  -- Always include tool_calls if provided (handles pure tool_calls case)
+  -- Only append if we have content or tool_calls
+  if has_content or (opts and opts.tool_calls) then
+    require('chat.sessions.messages').append_message(session_id, message)
+  end
+
   require('chat.sessions.storage').write_cache(session_id)
 end
-
 --- Handles job exit/cleanup when streaming ends or is interrupted
 --- Clears all progress tracking data for the job
 --- @param jobid integer The job identifier
