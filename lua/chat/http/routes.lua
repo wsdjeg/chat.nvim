@@ -1,8 +1,8 @@
 local sessions = require('chat.sessions')
 local queue = require('chat.queue')
 local response = require('chat.http.response')
+local config = require('chat.config')
 local M = {}
-
 --- Build session info object (shared by GET /sessions and GET /sessions/:id)
 local function build_session_info(id, data)
   local messages = sessions.get_messages(id)
