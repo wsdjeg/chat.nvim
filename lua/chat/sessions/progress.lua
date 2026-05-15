@@ -122,8 +122,6 @@ end
 --- @class ChatProgressDoneOpt
 --- @field tool_calls? ChatToolCall[]
 
---- Finalizes the streaming response and saves the complete message
---- @param jobid integer The job identifier for the streaming request
 function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
   local has_content = progress_messages[session_id] ~= nil
@@ -147,8 +145,17 @@ function M.on_progress_done(jobid, opts)
   end
 
   -- Always include tool_calls if provided (handles pure tool_calls case)
+  if opts and opts.tool_calls then
+    message.tool_calls = opts.tool_calls
+  end
+
   -- Only append if we have content or tool_calls
   if has_content or (opts and opts.tool_calls) then
+    require('chat.sessions.messages').append_message(session_id, message)
+  end
+
+  require('chat.sessions.storage').write_cache(session_id)
+end
     require('chat.sessions.messages').append_message(session_id, message)
   end
 
