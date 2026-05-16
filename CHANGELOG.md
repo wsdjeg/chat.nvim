@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.7.0](https://github.com/wsdjeg/chat.nvim/compare/v1.6.0...v1.7.0) (2026-05-16)
+
+
+### Features
+
+* **api:** add GET /sessions/:id/raw endpoint ([bc6c6c5](https://github.com/wsdjeg/chat.nvim/commit/bc6c6c5d81f615e49cd0d524abe2c258e7c26d8b))
+* **queue:** add has_pending function to check pending messages ([2ffa379](https://github.com/wsdjeg/chat.nvim/commit/2ffa379b5ba5b4cae0766dfab744277646d0a8cb))
+* **sessions:** add session pin status support ([5f89e0b](https://github.com/wsdjeg/chat.nvim/commit/5f89e0ba0cf525ec6bfaebfeebdb6e1ef2406ceb))
+* **sessions:** add session.title field with API support ([3989438](https://github.com/wsdjeg/chat.nvim/commit/3989438929a8bbc2fc46db9f3108bcd599c74594))
+
+
+### Bug Fixes
+
+* append assistant tool_calls message to storage ([f7ce868](https://github.com/wsdjeg/chat.nvim/commit/f7ce868749c0a2f07ee98855759f3e2f7e01801b))
+* **http:** add missing config import in routes.lua ([ead389c](https://github.com/wsdjeg/chat.nvim/commit/ead389ca1e4da9bb7b879ec149ea825ba610d433))
+* **http:** check queue when returning in_progress status ([a854215](https://github.com/wsdjeg/chat.nvim/commit/a854215c612b33e4ebc6ae3f2110bf74b6620974))
+* **http:** correct cwd and pin endpoint implementations ([809eea4](https://github.com/wsdjeg/chat.nvim/commit/809eea49544a9ca3e8db04611cd2c646bfdd7235))
+* **http:** use response.parse_headers instead of routes.parse_headers ([e10007a](https://github.com/wsdjeg/chat.nvim/commit/e10007a9974b9114edea8c3f8893dc2a47f52f20))
+* **progress:** actually add tool_calls to message ([72f3fe4](https://github.com/wsdjeg/chat.nvim/commit/72f3fe48a96e5dae31fa4dcb969d06606adf3e35))
+* **progress:** handle pure tool_calls without content ([f4c68b4](https://github.com/wsdjeg/chat.nvim/commit/f4c68b4b68767f764db9fb3c31e8a133c2b4c3f7))
+* **protocol:** append error message on non-zero exit code ([a4044ef](https://github.com/wsdjeg/chat.nvim/commit/a4044efc809c934f55dafe72054ded244390c603))
+* **protocol:** save error messages to session history ([ecac625](https://github.com/wsdjeg/chat.nvim/commit/ecac625a13361af562eecdb3e23a4bdce3f3bc75))
+* remove duplicate code in progress.lua ([62bbd33](https://github.com/wsdjeg/chat.nvim/commit/62bbd339bea8a78963b328b3ce7e7b98e5d09e1b))
+* remove duplicate message append in tool_call_done ([bdaf260](https://github.com/wsdjeg/chat.nvim/commit/bdaf26064c4d576f2257f5184e7a9f06f8efc601))
+* **sessions:** add error message when tool call parsing fails ([4f28149](https://github.com/wsdjeg/chat.nvim/commit/4f281490a66f70ab6999676208ffda101d25d139))
+* **sessions:** handle nil result from tools.call ([0a733a9](https://github.com/wsdjeg/chat.nvim/commit/0a733a9b6ea4d7d88efd5d4e061be0d4b7ebb9d9))
+* **sessions:** use error field for tool call parsing errors ([18d9567](https://github.com/wsdjeg/chat.nvim/commit/18d9567e1b327142088ebc6f69c8676d03c10295))
+* **util:** add nil check in transform function to prevent pairs() error ([f4ba500](https://github.com/wsdjeg/chat.nvim/commit/f4ba500737c1566fd0721a758cb40c4367f12d1a))
+
+
+### Code Refactoring
+
+* **http:** remove old http.lua after split ([b1deac9](https://github.com/wsdjeg/chat.nvim/commit/b1deac9eab554ed4acfe11a017c5ef13121accd9))
+* **http:** split http.lua into http/*.lua ([ef791b6](https://github.com/wsdjeg/chat.nvim/commit/ef791b693c411baef77e4abc24865300ee1c4ad2))
+
+
+### Documentation
+
+* enhance AGENTS.md with stricter development guidelines ([b31bc8d](https://github.com/wsdjeg/chat.nvim/commit/b31bc8d19fecf8927f365a9d6e83439ab508003f))
+* optimize AGENTS.md for AI-friendly format ([a4c25cb](https://github.com/wsdjeg/chat.nvim/commit/a4c25cb279b437e68e34311572ec1a5a9e14067a))
+
 ## [1.6.0](https://github.com/wsdjeg/chat.nvim/compare/v1.5.0...v1.6.0) (2026-05-03)
 
 
