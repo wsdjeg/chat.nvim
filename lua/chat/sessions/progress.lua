@@ -132,16 +132,22 @@ function M.on_progress_done(jobid, opts)
     created = os.time(),
   }
 
+  -- Handle reasoning_content for both content and tool_calls cases
+  -- DeepSeek thinking mode requires reasoning_content when tool_calls present
+  local reasoning_content
+  if progress_reasoning_contents[session_id] then
+    reasoning_content = progress_reasoning_contents[session_id]
+    progress_reasoning_contents[session_id] = nil
+  end
+
   if has_content then
-    -- Has text content (may also have tool_calls)
-    local reasoning_content
-    if progress_reasoning_contents[session_id] then
-      reasoning_content = progress_reasoning_contents[session_id]
-      progress_reasoning_contents[session_id] = nil
-    end
-    message.reasoning_content = reasoning_content
     message.content = progress_messages[session_id]
     progress_messages[session_id] = nil
+  end
+
+  -- Always include reasoning_content if present (for thinking models like DeepSeek)
+  if reasoning_content then
+    message.reasoning_content = reasoning_content
   end
 
   -- Always include tool_calls if provided (handles pure tool_calls case)
