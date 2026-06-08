@@ -10,7 +10,7 @@ local config = require('chat.config')
 
 function M.available_models()
   if #available_models == 0 and not systemObj then
-    if config.config.api_key.aliyuncs then
+    if config.config.api_key.baidu then
       local cmd = {
         'curl',
         '-s',

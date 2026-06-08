@@ -43,7 +43,7 @@ function M.request(opt)
     '-H',
     'Content-Type: application/json',
     '-H',
-    'Authorization: Bearer ' .. config.config.api_key.moonshot,
+    'Authorization: Bearer ' .. config.config.api_key.cherryin,
     '-X',
     'POST',
     '-d',
