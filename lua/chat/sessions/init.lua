@@ -13,16 +13,13 @@ local share = require('chat.sessions.share')
 -- ─── Session CRUD ──────────────────────────────────────────────
 M.new = core.new
 M.delete = core.delete
--- ─── Session CRUD ──────────────────────────────────────────────
-M.new = core.new
-M.delete = core.delete
 M.previous = core.previous
 M.next = core.next
 M.exists = core.exists
 M.get = core.get
 M.clear = core.clear
 M.retry = core.retry
-M.exists = core.exists
+
 -- ─── Session State ─────────────────────────────────────────────
 M.set_session_prompt = core.set_session_prompt
 M.get_session_provider = core.get_session_provider
@@ -36,6 +33,7 @@ M.set_session_title = core.set_session_title
 M.getcwd = core.getcwd
 M.change_cwd = core.change_cwd
 M.get_total_tokens = core.get_total_tokens
+
 -- ─── Messages ──────────────────────────────────────────────────
 M.append_message = messages.append_message
 M.get_messages = messages.get_messages
