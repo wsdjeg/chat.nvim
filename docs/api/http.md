@@ -18,97 +18,87 @@ nav_order: 1
 
 ---
 
-chat.nvim includes a built-in HTTP server that allows external applications to send messages to your chat sessions. This enables integration with other tools, scripts, and automation workflows.
+chat.nvim 内置了一个基于 libuv TCP 的 HTTP 服务器，允许外部应用与聊天会话交互。
+这使得 CLI 工具、CI/CD 流水线、Web 应用等都能通过 HTTP API 发送消息到 Neovim 会话。
 
-## Enabling the HTTP Server
+---
 
-The HTTP server is automatically started when the `http.api_key` configuration is set to a non-empty value:
+## 启用 HTTP 服务器
+
+设置 `http.api_key` 为非空值即可自动启用：
 
 ```lua
 require('chat').setup({
   -- ... other configuration
   http = {
-    host = '127.0.0.1',    -- Default: '127.0.0.1'
-    port = 7777,           -- Default: 7777
-    api_key = 'your-secret-key', -- Required to enable server
+    host = '127.0.0.1',  -- 默认: '127.0.0.1'
+    port = 7777,          -- 默认: 7777
+    api_key = 'your-secret-key',  -- 必填，用于启用服务器
   },
 })
 ```
 
-| Endpoint                | Method | Description                                               |
-| ----------------------- | ------ | --------------------------------------------------------- |
-| `/`                     | POST   | Send messages to a specified chat session                 |
-| Endpoint                | Method | Description                                               |
-| ----------------------- | ------ | --------------------------------------------------------- |
-| `/`                     | POST   | Send messages to a specified chat session                 |
-| `/sessions`             | GET    | Get a list of all sessions with details                   |
-| `/sessions/:id`         | GET    | Get single session info by ID                             |
-| `/sessions/:id/raw`     | GET    | Get raw cache content for a session                       |
-| `/providers`            | GET    | Get a list of all supported AI providers                  |
-| `/session/new`          | POST   | Create a new session                                      |
-| `/session/:id`          | DELETE | Delete a session                                          |
-| `/session/:id/stop`     | POST   | Stop generation for a session                             |
-| `/session/:id/clear`    | POST   | Clear all messages in a session                           |
-| `/session/:id/retry`    | POST   | Retry last message for a session                          |
-| `/session/:id/provider` | PUT    | Set provider for a session                                |
-| `/session/:id/model`    | PUT    | Set model for a session                                   |
-| `/session/:id/cwd`      | PUT    | Set working directory for a session                       |
-| `/session/:id/pin`      | PUT    | Toggle pin status for a session                           |
-| `/session/:id/title`    | PUT    | Set custom title for a session                            |
-| `/session`              | GET    | Get HTML preview of a session (requires `id` parameter)   |
-| `/messages`             | GET    | Get message list for a session (requires `session` param) |
+**Base URL**: `http://{host}:{port}`
 
-**Base URL**: `http://{host}:{port}/` where `{host}` and `{port}` are configured in your chat.nvim settings (default: `127.0.0.1:7777`)
-
-**Authentication**: All requests (except GET /session for HTML preview) require the `X-API-Key` header containing your configured API key.
-
-**Example Usage**:
-
-```bash
-# Send message to session
-curl -X POST http://127.0.0.1:7777/ \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"session": "my-session", "content": "Hello from curl!"}'
-
-# Get session list
-curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
-
-# Get providers list
-curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
-
-# Create new session
-curl -X POST http://127.0.0.1:7777/session/new \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "openai", "model": "gpt-4o"}'
-```
+**认证方式**: 除 `GET /session`（HTML 预览）外，所有请求都需要在 HTTP 头中携带 `X-API-Key`。
 
 ---
 
-## Request Format
+## 端点一览
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/` | POST | 推送消息到会话队列 |
+| `/sessions` | GET | 获取所有会话列表 |
+| `/sessions/{id}` | GET | 获取单个会话详情 |
+| `/sessions/{id}/raw` | GET | 获取会话原始缓存 JSON |
+| `/providers` | GET | 获取所有可用 Provider 及其模型 |
+| `/messages` | GET | 获取会话消息列表 |
+| `/session/new` | POST | 创建新会话 |
+| `/session/{id}` | DELETE | 删除会话 |
+| `/session/{id}/stop` | POST | 停止生成 |
+| `/session/{id}/clear` | POST | 清空会话消息 |
+| `/session/{id}/retry` | POST | 重试最后一条消息 |
+| `/session/{id}/provider` | PUT | 设置会话 Provider |
+| `/session/{id}/model` | PUT | 设置会话模型 |
+| `/session/{id}/cwd` | PUT | 设置会话工作目录 |
+| `/session/{id}/pin` | PUT | 设置会话置顶状态 |
+| `/session/{id}/title` | PUT | 设置会话标题 |
+| `/session` | GET | 获取会话 HTML 预览（无需认证） |
+
+---
+
+## 端点详情
 
 ### POST `/`
 
-Send a message to a specific chat session.
+推送消息到指定会话的消息队列。
 
-**Request Body**:
+**Request Body:**
 
 ```json
 {
-  "session": "session-id",
-  "content": "Message content from external application"
+  "session": "2024-01-15-10-30-00",
+  "content": "Hello from external app!"
 }
 ```
 
-**Parameters**:
+**参数:**
 
-| Parameter | Type   | Description                                 |
-| --------- | ------ | ------------------------------------------- |
-| `session` | string | Chat session ID.                            |
-| `content` | string | Message content to send to the chat session |
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `session` | string | 是 | 目标会话 ID |
+| `content` | string | 是 | 消息内容 |
 
-**Example**:
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 消息已入队 |
+| 400 | 请求体 JSON 解析失败，或缺少必填字段 |
+| 401 | API Key 无效或缺失 |
+
+**示例:**
 
 ```bash
 curl -X POST http://127.0.0.1:7777/ \
@@ -117,396 +107,13 @@ curl -X POST http://127.0.0.1:7777/ \
   -d '{"session": "2024-01-15-10-30-00", "content": "What is the weather today?"}'
 ```
 
-### POST `/session/new`
-
-Create a new chat session.
-
-**Request Body** (optional):
-
-```json
-{
-  "provider": "openai",
-  "model": "gpt-4o"
-}
-```
-
-**Parameters**:
-
-| Parameter  | Type   | Description                                      |
-| ---------- | ------ | ------------------------------------------------ |
-| `provider` | string | Optional. Provider to use for the session        |
-| `model`    | string | Optional. Model to use for the session           |
-
-**Response** (200 OK):
-
-```json
-{
-  "id": "2024-01-15-10-30-00",
-  "title": "",
-  "cwd": "/home/user/project",
-  "provider": "openai",
-  "model": "gpt-4o",
-  "in_progress": false,
-  "message_count": 0,
-  "last_message": null
-}
-```
-
-**Response Fields**:
-
-| Field           | Type    | Description                                    |
-| --------------- | ------- | ---------------------------------------------- |
-| `id`            | string  | The newly created session ID                   |
-| `title`         | string  | Session title (empty for new sessions)         |
-| `cwd`           | string  | Current working directory                      |
-| `provider`      | string  | AI provider for the session                    |
-| `model`         | string  | AI model for the session                       |
-| `in_progress`   | boolean | Whether a message is being generated           |
-| `message_count` | number  | Number of messages in the session              |
-| `last_message`  | object  | Last message metadata (null for new sessions)  |
-
-**Example**:
-
-```bash
-# Create session with default provider/model
-curl -X POST http://127.0.0.1:7777/session/new \
-  -H "X-API-Key: your-secret-key"
-
-# Create session with custom provider/model
-curl -X POST http://127.0.0.1:7777/session/new \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "openai", "model": "gpt-4o"}'
-```
-```
-
-### PUT `/session/:id/provider`
-
-Set the provider for a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Request Body**:
-
-```json
-{
-  "provider": "openai"
-}
-```
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Provider updated                |
-| 404         | Not Found - Session does not exist        |
-| 400         | Bad Request - Missing or invalid provider |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "anthropic"}'
-```
-
-### PUT `/session/:id/model`
-
-Set the model for a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Request Body**:
-
-```json
-{
-  "model": "gpt-4o"
-}
-```
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Model updated                   |
-| 404         | Not Found - Session does not exist        |
-
-### PUT `/session/:id/cwd`
-
-Set the working directory for a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Request Body**:
-
-```json
-{
-  "cwd": "/path/to/project"
-}
-```
-
-**Parameters**:
-
-| Parameter | Type   | Description                  |
-| --------- | ------ | ---------------------------- |
-| `cwd`     | string | New working directory path   |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Working directory updated       |
-| 404         | Not Found - Session does not exist        |
-| 400         | Bad Request - Missing or invalid cwd      |
-| 401         | Unauthorized - Invalid or missing API key |
-```bash
-curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"cwd": "/home/user/new-project"}'
-```
-
-### PUT `/session/:id/pin`
-
-Set the pin status for a specific session. Pinning a session marks it as important or priority.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Request Body**:
-
-```json
-{
-  "pin": true
-}
-```
-
-**Parameters**:
-
-| Parameter | Type    | Description                          |
-| --------- | ------- | ------------------------------------ |
-| `pin`     | boolean | Pin status (true = pinned, false = not pinned) |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Pin status updated              |
-| 404         | Not Found - Session does not exist        |
-| 400         | Bad Request - Missing or invalid pin value |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-# Pin a session
-```
-
-### PUT `/session/:id/title`
-
-Set a custom title for a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Request Body**:
-
-```json
-{
-  "title": "My custom title"
-}
-```
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Title updated                   |
-| 404         | Not Found - Session does not exist        |
-| 400         | Bad Request - Missing or invalid title    |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Debugging Lua plugin"}'
-```
-
-### GET `/sessions/:id/raw`
-
-Get the raw cache content for a specific session. This returns the complete JSON content of the session's cache file.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Session ID  |
-
-**Response**:
-
-Returns the raw JSON content from the session's cache file, including all messages, metadata, and session state.
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 200         | Success - Returns raw JSON content        |
-| 404         | Not Found - Session cache not found       |
-| 500         | Server Error - Failed to read cache file  |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions/2024-01-15-10-30-00/raw
-```
-
-**Notes**:
-
-- This endpoint is useful for debugging or exporting session data
-- The response is the complete session cache file content (JSON)
-- Unlike `/messages`, this includes all session metadata and state
-Delete a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description          |
-| --------- | ------ | -------------------- |
-| `id`      | string | Session ID to delete |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Session deleted successfully    |
-| 404         | Not Found - Session does not exist        |
-| 409         | Conflict - Session is in progress         |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
-  -H "X-API-Key: your-secret-key"
-```
-
-### POST `/session/:id/stop`
-
-Stop an ongoing generation for a specific session.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description                   |
-| --------- | ------ | ----------------------------- |
-| `id`      | string | Session ID to stop generation |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Generation stopped              |
-| 404         | Not Found - Session does not exist        |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
-  -H "X-API-Key: your-secret-key"
-```
-
-### POST `/session/:id/clear`
-
-Clear all messages in a session. The session itself is preserved, but all messages and usage statistics are reset.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description              |
-| --------- | ------ | ------------------------ |
-| `id`      | string | Session ID to clear      |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Session cleared                 |
-| 404         | Not Found - Session does not exist        |
-| 409         | Conflict - Session is in progress         |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
-  -H "X-API-Key: your-secret-key"
-```
-
-### POST `/session/:id/retry`
-
-Retry the last message for a specific session. This will resend the last user message to the AI.
-
-**Path Parameters**:
-
-| Parameter | Type   | Description         |
-| --------- | ------ | ------------------- |
-| `id`      | string | Session ID to retry |
-
-**Response**:
-
-| Status Code | Description                               |
-| ----------- | ----------------------------------------- |
-| 204         | Success - Retry initiated                 |
-| 404         | Not Found - Session does not exist        |
-| 409         | Conflict - Session is in progress         |
-| 400         | Bad Request - No message to retry         |
-| 401         | Unauthorized - Invalid or missing API key |
-
-**Example**:
-
-```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
-  -H "X-API-Key: your-secret-key"
-```
-
 ---
-
-## Response Format
-
-### POST `/`
-
-| Status Code | Description                                           |
-| ----------- | ----------------------------------------------------- |
-| 204         | Success - Message queued successfully                 |
-| 401         | Unauthorized - Invalid or missing API key             |
-| 400         | Bad Request - Invalid JSON or missing required fields |
-| 404         | Not Found - Wrong method or path                      |
 
 ### GET `/sessions`
 
-Returns a JSON array of session objects with details.
+获取所有会话的详细信息列表。
 
-**Success Response** (200 OK):
+**Response (200 OK):**
 
 ```json
 [
@@ -516,6 +123,7 @@ Returns a JSON array of session objects with details.
     "cwd": "/home/user/project",
     "provider": "openai",
     "model": "gpt-4o",
+    "pin": false,
     "in_progress": false,
     "message_count": 5,
     "last_message": {
@@ -523,50 +131,100 @@ Returns a JSON array of session objects with details.
       "content": "I'd be happy to help you write a Lua plugin for Neovim. Let's start by...",
       "created": 1705315800
     }
-  },
-  {
-    "id": "2024-01-15-11-45-00",
-    "title": "Explain this error message...",
-    "cwd": "/home/user/another-project",
-    "provider": "anthropic",
-    "model": "claude-3-5-sonnet-20241022",
-    "in_progress": true,
-    "message_count": 3,
-    "last_message": {
-      "role": "user",
-      "content": "Can you also check the log file for more details?",
-      "created": 1705316700
-    }
   }
 ]
 ```
 
-**Fields**:
+**响应字段:**
 
-| Field           | Type    | Description                                                     |
-| --------------- | ------- | --------------------------------------------------------------- |
-| `id`            | string  | Session ID (format: `YYYY-MM-DD-HH-MM-SS`)                      |
-| `title`         | string  | Session title (extracted from first user message, max 50 chars) |
-| `cwd`           | string  | Working directory for the session                               |
-| `provider`      | string  | AI provider name                                                |
-| `model`         | string  | Model name                                                      |
-| `in_progress`   | boolean | Whether the session has an active request                       |
-| `message_count` | number  | Total number of messages in the session                         |
-| `last_message`  | object  | Last message object (null if no messages)                       |
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | 会话 ID（格式: `YYYY-MM-DD-HH-MM-SS`） |
+| `title` | string | 会话标题（自动从首条用户消息提取，最多 50 字） |
+| `cwd` | string | 会话工作目录 |
+| `provider` | string | Provider 名称 |
+| `model` | string | 模型名称 |
+| `pin` | boolean | 是否置顶 |
+| `in_progress` | boolean | 是否正在生成中 |
+| `message_count` | number | 消息总数 |
+| `last_message` | object\|null | 最后一条消息对象（无消息时为 null） |
 
-**Last Message Object**:
+**`last_message` 对象:**
 
-| Field     | Type   | Description                                   |
-| --------- | ------ | --------------------------------------------- |
-| `role`    | string | Message role (`user` or `assistant`)          |
-| `content` | string | Message content (truncated to 100 characters) |
-| `created` | number | Unix timestamp of message creation            |
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `role` | string | 消息角色（`user` / `assistant`） |
+| `content` | string | 消息内容（截断至 100 字符） |
+| `created` | number | 消息创建时的 Unix 时间戳 |
+
+**示例:**
+
+```bash
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+```
+
+---
+
+### GET `/sessions/{id}`
+
+获取单个会话的详细信息。
+
+**Path 参数:**
+
+| 参数 | 说明 |
+|---|---|
+| `id` | 会话 ID |
+
+**Response (200 OK):**
+
+返回格式与 `GET /sessions` 的单个元素相同。
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 200 | 成功 |
+| 404 | 会话不存在 |
+
+**示例:**
+
+```bash
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions/2024-01-15-10-30-00
+```
+
+---
+
+### GET `/sessions/{id}/raw`
+
+获取会话的完整缓存 JSON 文件内容。包含所有消息、元数据、Usage 统计等。
+
+**Path 参数:**
+
+| 参数 | 说明 |
+|---|---|
+| `id` | 会话 ID |
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 200 | 成功 — 返回原始 JSON |
+| 404 | 缓存文件不存在 |
+| 500 | 读取缓存文件失败 |
+
+**示例:**
+
+```bash
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions/2024-01-15-10-30-00/raw
+```
+
+---
 
 ### GET `/providers`
 
-Returns a JSON array of supported AI providers with their available models.
+获取所有已注册的 Provider 及其可用模型列表。
 
-**Success Response** (200 OK):
+**Response (200 OK):**
 
 ```json
 [
@@ -585,45 +243,33 @@ Returns a JSON array of supported AI providers with their available models.
 ]
 ```
 
-**Fields**:
+**响应字段:**
 
-| Field    | Type         | Description                                 |
-| -------- | ------------ | ------------------------------------------- |
-| `name`   | string       | Provider name (e.g., "openai", "anthropic") |
-| `models` | string array | List of available models for this provider  |
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | string | Provider 名称（如 `openai`, `anthropic`） |
+| `models` | string[] | 可用模型列表（来自 `available_models()` 方法） |
 
-**Example**:
+**示例:**
 
 ```bash
 curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
 ```
 
+---
+
 ### GET `/messages`
 
-Returns the message list for a specific session.
+获取指定会话的消息列表，支持分页。
 
-**Query Parameters**:
+**Query 参数:**
 
-| Parameter | Type   | Description                                                                 |
-| --------- | ------ | --------------------------------------------------------------------------- |
-| `session` | string | **Required**. Session ID                                                   |
-| `since`   | number | **Optional**. Return messages starting from this index (1-indexed)        |
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `session` | string | 是 | 会话 ID |
+| `since` | number | 否 | 从第 N 条消息开始（1-indexed） |
 
-**Example**:
-
-```bash
-# Get all messages
-curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
-  -H "X-API-Key: your-secret-key"
-
-# Get messages starting from index 5
-curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
-  -H "X-API-Key: your-secret-key"
-```
-
-**Success Response** (200 OK):
-
-Returns an array of messages in chronological order (oldest first).
+**Response (200 OK):**
 
 ```json
 [
@@ -633,114 +279,232 @@ Returns an array of messages in chronological order (oldest first).
   },
   {
     "role": "assistant",
-    "content": "Hi there! How can I help you?"
+    "content": "Hi there! How can I help you?",
+    "reasoning_content": "The user is greeting me...",
+    "tool_calls": null,
+    "tool_call_id": null,
+    "created": 1705315800,
+    "usage": {
+      "total_tokens": 50,
+      "prompt_tokens": 20,
+      "completion_tokens": 30
+    },
+    "error": null,
+    "tool_call_state": null
   }
 ]
 ```
 
-**Message Fields**:
+**消息对象字段:**
 
-| Field                | Type   | Description                                      |
-| -------------------- | ------ | ------------------------------------------------ |
-| `role`               | string | Message role: `user`, `assistant`, or `tool`    |
-| `content`            | string | Message content (may be null for tool calls)     |
-| `reasoning_content`  | string | Optional. Reasoning content (for thinking models)|
-| `tool_calls`         | array  | Optional. Tool calls made by assistant           |
-| `tool_call_id`       | string | Optional. Tool call ID (for tool role messages)  |
-| `created`            | number | Optional. Timestamp when message was created     |
-| `usage`              | object | Optional. Token usage statistics                 |
-| `error`              | string | Optional. Error message if request failed         |
-| `tool_call_state`    | string | Optional. Tool call execution state              |
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `role` | string | 角色: `user` / `assistant` / `tool` / `system` |
+| `content` | string\|null | 消息内容（tool call 消息可能为 null） |
+| `reasoning_content` | string\|null | 推理内容（thinking 模型） |
+| `tool_calls` | array\|null | 助手发出的 tool call |
+| `tool_call_id` | string\|null | Tool call ID（tool 角色的消息） |
+| `created` | number\|null | Unix 时间戳 |
+| `usage` | object\|null | Token 用量统计（`total_tokens`, `prompt_tokens`, `completion_tokens`） |
+| `error` | string\|null | 请求失败时的错误信息 |
+| `tool_call_state` | string\|null | Tool call 执行状态 |
 
-**Message Order**:
+**响应状态码:**
 
-- Messages are returned in chronological order (oldest to newest)
-- Index is 1-based (first message is at index 1)
-- `since` parameter uses this 1-based index
+| 状态码 | 说明 |
+|---|---|
+| 200 | 成功 |
+| 400 | 缺少 `session` 参数 |
+| 404 | 会话不存在 |
 
-**Error Responses**:
-
-| Status Code | Description                          |
-| ----------- | ------------------------------------ |
-| 400         | Bad Request - Missing session param  |
-| 404         | Not Found - Session does not exist   |
-
-### GET `/session`
-
-Returns an HTML preview of the specified chat session (no authentication required).
-
-**Query Parameters**:
-
-| Parameter | Type   | Description                         |
-| --------- | ------ | ----------------------------------- |
-| `id`      | string | **Required**. Session ID to preview |
-
-**Example Request**:
+**示例:**
 
 ```bash
-curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
+# 获取所有消息
+curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
+  -H "X-API-Key: your-secret-key"
+
+# 从第 5 条消息开始
+curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
+  -H "X-API-Key: your-secret-key"
 ```
-
-**Response**:
-
-| Status Code | Description                      |
-| ----------- | -------------------------------- |
-| 200         | Success - Returns HTML content   |
-| 400         | Bad Request - Missing session ID |
-| 404         | Not Found - Session not found    |
-
-> Note: The GET /session endpoint does not require authentication (no API key needed) to allow easy HTML preview in browsers.
 
 ---
 
-## Message Queue System
+### POST `/session/new`
 
-Incoming messages are processed through a queue system to ensure reliability:
+创建新的会话，可选择指定 Provider 和模型。
 
-{: .highlight }
+**Request Body**（可选）:
 
-1. Messages are immediately queued upon receipt
-2. The queue is checked every 5 seconds
-3. Messages are delivered to the chat session when it's not in progress
-4. If a session is busy (processing another request), messages remain in the queue until the session becomes available
-
-This ensures that messages are never lost and are delivered in the order they were received.
-
-## Usage Examples
-
-### Using curl
-
-**Send a message**:
-
-```bash
-curl -X POST http://127.0.0.1:7777/ \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"session": "2024-01-15-10-30-00", "content": "Hello from curl!"}'
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o"
+}
 ```
 
-**Get session list**:
+**参数:**
 
-```bash
-curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `provider` | string | 否 | 指定 Provider |
+| `model` | string | 否 | 指定模型 |
+
+**Response (200 OK):**
+
+```json
+{
+  "id": "2024-01-15-10-30-00",
+  "title": "",
+  "cwd": "/home/user/project",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "in_progress": false,
+  "message_count": 0,
+  "last_message": null
+}
 ```
 
-**Get providers list**:
+**响应字段:**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | string | 新创建的会话 ID |
+| `title` | string | 会话标题（新会话为空） |
+| `cwd` | string | 当前工作目录 |
+| `provider` | string | Provider 名称 |
+| `model` | string | 模型名称 |
+| `in_progress` | boolean | 生成状态（新会话为 false） |
+| `message_count` | number | 消息数（新会话为 0） |
+| `last_message` | null | 最后消息（新会话为 null） |
+
+**示例:**
 
 ```bash
-curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
-```
+# 使用默认 Provider/模型
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key"
 
-**Create new session**:
-
-```bash
+# 指定 Provider/模型
 curl -X POST http://127.0.0.1:7777/session/new \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"provider": "openai", "model": "gpt-4o"}'
 ```
 
-**Set provider**:
+---
+
+### DELETE `/session/{id}`
+
+删除指定会话。
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 会话已删除 |
+| 404 | 会话不存在 |
+| 409 | 会话正在生成中，无法删除 |
+
+**示例:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### POST `/session/{id}/stop`
+
+停止指定会话的生成。
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 已取消生成 |
+| 404 | 会话不存在 |
+
+**示例:**
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### POST `/session/{id}/clear`
+
+清空指定会话的所有消息和 Usage 统计。
+
+> 注意：会话本身不会被删除，仅重置消息内容和统计数据。
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 会话已清空 |
+| 404 | 会话不存在 |
+| 409 | 会话正在生成中，无法清空 |
+| 500 | 清空失败 |
+
+**示例:**
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### POST `/session/{id}/retry`
+
+重试最后一条消息。将重新发送最后一条用户消息给 AI。
+
+> 注意：仅在最后一条消息**不是** assistant 角色时才能重试。
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 已发起重试 |
+| 404 | 会话不存在 |
+| 409 | 会话正在生成中，无法重试 |
+| 400 | 没有可重试的消息（如无消息或最后一条已是 assistant） |
+
+**示例:**
+
+```bash
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### PUT `/session/{id}/provider`
+
+设置会话的 Provider。
+
+**Request Body:**
+
+```json
+{
+  "provider": "anthropic"
+}
+```
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — Provider 已更新 |
+| 404 | 会话不存在 |
+| 400 | 缺少或无效的 provider 值 |
+
+**示例:**
 
 ```bash
 curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
@@ -749,7 +513,29 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
   -d '{"provider": "anthropic"}'
 ```
 
-**Set model**:
+---
+
+### PUT `/session/{id}/model`
+
+设置会话的模型。
+
+**Request Body:**
+
+```json
+{
+  "model": "claude-3-5-sonnet-20241022"
+}
+```
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 模型已更新 |
+| 404 | 会话不存在 |
+| 400 | 缺少或无效的 model 值 |
+
+**示例:**
 
 ```bash
 curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
@@ -758,218 +544,448 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
   -d '{"model": "claude-3-5-sonnet-20241022"}'
 ```
 
-**Delete session**:
+---
 
-```bash
-curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
-  -H "X-API-Key: your-secret-key"
+### PUT `/session/{id}/cwd`
+
+设置会话的工作目录。
+
+**Request Body:**
+
+```json
+{
+  "cwd": "/path/to/project"
+}
 ```
 
-**Stop generation**:
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 工作目录已更新 |
+| 404 | 会话不存在 |
+| 400 | 缺少或无效的 cwd 值 |
+
+**示例:**
 
 ```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
-  -H "X-API-Key: your-secret-key"
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/home/user/new-project"}'
 ```
 
-**Clear session**:
+---
 
-```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
-  -H "X-API-Key: your-secret-key"
+### PUT `/session/{id}/pin`
+
+设置会话的置顶状态。
+
+**Request Body:**
+
+```json
+{
+  "pin": true
+}
 ```
 
-**Retry last message**:
+**参数:**
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `pin` | boolean | 置顶状态（`true` = 置顶，`false` = 取消置顶） |
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 置顶状态已更新 |
+| 404 | 会话不存在 |
+| 400 | 缺少或无效的 pin 值 |
+
+**示例:**
 
 ```bash
-curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
-  -H "X-API-Key: your-secret-key"
+# 置顶
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"pin": true}'
+
+# 取消置顶
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"pin": false}'
 ```
 
-**Get session preview**:
+---
+
+### PUT `/session/{id}/title`
+
+设置会话的自定义标题。
+
+**Request Body:**
+
+```json
+{
+  "title": "My custom title"
+}
+```
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 204 | 成功 — 标题已更新 |
+| 404 | 会话不存在 |
+| 400 | 缺少或无效的 title 值 |
+
+**示例:**
 
 ```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Debugging Lua plugin"}'
+```
+
+---
+
+### GET `/session`
+
+获取会话的 HTML 预览页面（**无需认证**，可直接在浏览器中打开）。
+
+**Query 参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `id` | string | 是 | 会话 ID |
+
+**响应状态码:**
+
+| 状态码 | 说明 |
+|---|---|
+| 200 | 成功 — 返回 HTML 内容 |
+| 400 | 缺少 `id` 参数 |
+| 404 | 会话不存在 |
+
+**示例:**
+
+```bash
+# 命令行
 curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
-```
 
-### Using Python
-
-**Send a message**:
-
-```python
-import requests
-
-url = "http://127.0.0.1:7777/"
-headers = {
-    "X-API-Key": "your-secret-key",
-    "Content-Type": "application/json"
-}
-data = {
-    "session": "2024-01-15-10-30-00",
-    "content": "Message from Python script"
-}
-response = requests.post(url, json=data, headers=headers)
-print(f"Status: {response.status_code}")
-```
-
-**Get session list**:
-
-```python
-import requests
-
-headers = {"X-API-Key": "your-secret-key"}
-sessions_response = requests.get("http://127.0.0.1:7777/sessions", headers=headers)
-if sessions_response.status_code == 200:
-    sessions = sessions_response.json()
-    for session in sessions:
-        print(f"Session: {session['id']}, Provider: {session['provider']}, Model: {session['model']}")
-```
-
-**Get providers list**:
-
-```python
-import requests
-
-headers = {"X-API-Key": "your-secret-key"}
-providers_response = requests.get("http://127.0.0.1:7777/providers", headers=headers)
-if providers_response.status_code == 200:
-    providers = providers_response.json()
-    for provider in providers:
-        print(f"Provider: {provider['name']}, Models: {provider['models']}")
-```
-
-**Create new session**:
-
-```python
-import requests
-
-headers = {"X-API-Key": "your-secret-key"}
-response = requests.post("http://127.0.0.1:7777/session/new", headers=headers)
-if response.status_code == 200:
-    session_id = response.json()["session_id"]
-    print(f"Created session: {session_id}")
-```
-
-**Delete session**:
-
-```python
-import requests
-
-session_id = "2024-01-15-10-30-00"
-headers = {"X-API-Key": "your-secret-key"}
-response = requests.delete(f"http://127.0.0.1:7777/session/{session_id}", headers=headers)
-if response.status_code == 204:
-    print("Session deleted successfully")
-elif response.status_code == 409:
-    print("Cannot delete: session is in progress")
-```
-
-### Using JavaScript/Node.js
-
-**Send a message**:
-
-```javascript
-const axios = require("axios");
-
-async function sendMessage(sessionId, content) {
-  try {
-    const response = await axios.post(
-      "http://127.0.0.1:7777/",
-      { session: sessionId, content: content },
-      {
-        headers: {
-          "X-API-Key": "your-secret-key",
-          "Content-Type": "application/json",
-        },
-      },
-    );
-    console.log("Message sent successfully");
-  } catch (error) {
-    console.error("Error:", error.response?.status);
-  }
-}
-
-sendMessage("2024-01-15-10-30-00", "Hello from Node.js!");
-```
-
-**Get providers list**:
-
-```javascript
-const axios = require("axios");
-
-async function getProviders() {
-  try {
-    const response = await axios.get("http://127.0.0.1:7777/providers", {
-      headers: { "X-API-Key": "your-secret-key" },
-    });
-    console.log("Providers:", response.data);
-    return response.data;
-  } catch (error) {
-    console.error("Error:", error.response?.status);
-  }
-}
-
-getProviders();
+# 浏览器直接打开
+# http://127.0.0.1:7777/session?id=2024-01-15-10-30-00
 ```
 
 ---
 
-## Security Considerations
+## 消息队列系统
 
-{: .warning }
-**Important Security Notes**:
+`POST /` 推送的消息会进入内部队列，由定时器轮询处理，确保消息按序可靠投递。
 
-1. **API Key Protection**: Keep your API key secure and never commit it to version control
-2. **Network Security**: By default, the server binds to localhost (127.0.0.1). Only allow external access if you have proper network security measures
-3. **Input Validation**: All incoming messages are validated for proper JSON format and required fields
-4. **Rate Limiting**: Consider implementing external rate limiting if needed for your use case
+```
+外部应用 → POST / → 消息队列 → 定时器(5秒) → 投递到会话
+```
 
-**Best Practices**:
+**工作机制:**
 
-- Use strong, unique API keys (generate with: `openssl rand -hex 32`)
-- If exposing the server externally, use HTTPS with a reverse proxy
-- Monitor the server logs for suspicious activity
-- Restrict access to trusted IP addresses if possible
+1. 消息立即入队
+2. 定时器每 5 秒检查一次队列
+3. 当会话空闲时（`in_progress` 为 false），按 FIFO 顺序投递消息
+4. 会话忙碌时，消息留在队列中等待
+
+这样确保消息不会丢失，且按发送顺序被处理。
 
 ---
 
-## Integration Ideas
+## 通用响应状态码
 
-The HTTP API opens up many possibilities for integration:
+以下状态码在所有端点中通用：
 
-### CI/CD Pipelines
+| 状态码 | 说明 |
+|---|---|
+| 200 | 成功 — 返回 JSON 数据 |
+| 204 | 成功 — 无返回内容 |
+| 400 | 请求格式错误（JSON 解析失败、缺少参数等） |
+| 401 | API Key 无效或缺失 |
+| 404 | 资源不存在或方法/路径错误 |
 
-Send build notifications or deployment status to chat sessions:
+---
+
+## 使用示例
+
+### curl
 
 ```bash
+# 发送消息
 curl -X POST http://127.0.0.1:7777/ \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
-  -d "{\"session\": \"$SESSION_ID\", \"content\": \"Build completed successfully!\"}"
+  -d '{"session": "2024-01-15-10-30-00", "content": "Hello from curl!"}'
+
+# 获取会话列表
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+
+# 获取 Provider 列表
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
+
+# 创建新会话
+curl -X POST http://127.0.0.1:7777/session/new \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "openai", "model": "gpt-4o"}'
+
+# 设置 Provider
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "anthropic"}'
+
+# 设置模型
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/model \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "claude-3-5-sonnet-20241022"}'
+
+# 设置工作目录
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/cwd \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/home/user/project"}'
+
+# 置顶会话
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"pin": true}'
+
+# 设置标题
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My custom title"}'
+
+# 删除会话
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+
+# 停止生成
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/stop \
+  -H "X-API-Key: your-secret-key"
+
+# 清空消息
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
+  -H "X-API-Key: your-secret-key"
+
+# 重试
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
+  -H "X-API-Key: your-secret-key"
+
+# 获取消息（带分页）
+curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
+  -H "X-API-Key: your-secret-key"
+
+# 获取原始缓存
+curl "http://127.0.0.1:7777/sessions/2024-01-15-10-30-00/raw" \
+  -H "X-API-Key: your-secret-key"
+
+# 获取 HTML 预览（无需 Key）
+curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 ```
 
-### Monitoring Dashboard
+### Python
 
-Display providers and models in a web dashboard:
+```python
+import requests
+
+BASE_URL = "http://127.0.0.1:7777"
+HEADERS = {"X-API-Key": "your-secret-key"}
+
+
+# 发送消息
+def send_message(session_id: str, content: str) -> bool:
+    resp = requests.post(
+        f"{BASE_URL}/",
+        json={"session": session_id, "content": content},
+        headers=HEADERS,
+    )
+    return resp.status_code == 204
+
+
+# 获取会话列表
+def list_sessions() -> list:
+    resp = requests.get(f"{BASE_URL}/sessions", headers=HEADERS)
+    return resp.json() if resp.status_code == 200 else []
+
+
+# 获取 Provider 列表
+def list_providers() -> list:
+    resp = requests.get(f"{BASE_URL}/providers", headers=HEADERS)
+    return resp.json() if resp.status_code == 200 else []
+
+
+# 创建新会话
+def create_session(provider: str = None, model: str = None) -> str:
+    body = {}
+    if provider:
+        body["provider"] = provider
+    if model:
+        body["model"] = model
+    resp = requests.post(
+        f"{BASE_URL}/session/new",
+        json=body if body else None,
+        headers=HEADERS,
+    )
+    return resp.json().get("id") if resp.status_code == 200 else None
+
+
+# 获取消息
+def get_messages(session_id: str, since: int = None) -> list:
+    params = {"session": session_id}
+    if since:
+        params["since"] = since
+    resp = requests.get(f"{BASE_URL}/messages", params=params, headers=HEADERS)
+    return resp.json() if resp.status_code == 200 else []
+
+
+# 删除会话
+def delete_session(session_id: str) -> bool:
+    resp = requests.delete(f"{BASE_URL}/session/{session_id}", headers=HEADERS)
+    return resp.status_code == 204
+
+
+# 使用示例
+if __name__ == "__main__":
+    # 创建新会话
+    session_id = create_session(provider="openai", model="gpt-4o")
+    if session_id:
+        print(f"Created session: {session_id}")
+
+        # 发送消息
+        send_message(session_id, "Hello from Python!")
+
+        # 列出所有会话
+        for s in list_sessions():
+            print(f"Session: {s['id']}, Provider: {s['provider']}, Messages: {s['message_count']}")
+```
+
+### JavaScript / Node.js
 
 ```javascript
+const BASE_URL = "http://127.0.0.1:7777";
+const HEADERS = { "X-API-Key": "your-secret-key" };
+
+// 发送消息
+async function sendMessage(sessionId, content) {
+  const resp = await fetch(`${BASE_URL}/`, {
+    method: "POST",
+    headers: { ...HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ session: sessionId, content }),
+  });
+  return resp.status === 204;
+}
+
+// 获取会话列表
+async function listSessions() {
+  const resp = await fetch(`${BASE_URL}/sessions`, { headers: HEADERS });
+  return resp.ok ? resp.json() : [];
+}
+
+// 获取 Provider 列表
+async function listProviders() {
+  const resp = await fetch(`${BASE_URL}/providers`, { headers: HEADERS });
+  return resp.ok ? resp.json() : [];
+}
+
+// 创建新会话
+async function createSession(provider, model) {
+  const body = {};
+  if (provider) body.provider = provider;
+  if (model) body.model = model;
+
+  const resp = await fetch(`${BASE_URL}/session/new`, {
+    method: "POST",
+    headers: { ...HEADERS, "Content-Type": "application/json" },
+    body: Object.keys(body).length ? JSON.stringify(body) : undefined,
+  });
+  return resp.ok ? (await resp.json()).id : null;
+}
+
+// 获取消息
+async function getMessages(sessionId, since) {
+  const params = new URLSearchParams({ session: sessionId });
+  if (since) params.set("since", since);
+
+  const resp = await fetch(`${BASE_URL}/messages?${params}`, { headers: HEADERS });
+  return resp.ok ? resp.json() : [];
+}
+
+// 使用示例
+(async () => {
+  const sessionId = await createSession("openai", "gpt-4o");
+  if (sessionId) {
+    console.log(`Created session: ${sessionId}`);
+
+    await sendMessage(sessionId, "Hello from Node.js!");
+
+    const sessions = await listSessions();
+    sessions.forEach((s) =>
+      console.log(`Session: ${s.id}, Provider: ${s.provider}, Messages: ${s.message_count}`)
+    );
+  }
+})();
+```
+
+---
+
+## 安全注意事项
+
+> ⚠️ **重要安全说明**
+
+1. **API Key 保护**: 使用强密钥（建议 `openssl rand -hex 32` 生成），切勿提交到版本控制
+2. **网络隔离**: 默认绑定 `127.0.0.1`，仅本地可访问。如需暴露到外网，请务必使用 HTTPS 反向代理
+3. **输入验证**: 所有请求体都经过 JSON 解析和字段类型校验
+4. **速率限制**: 如有需要，请在外部自行实现限流
+
+---
+
+## 集成场景
+
+### CI/CD 流水线
+
+```bash
+# 在构建脚本中发送通知
+curl -X POST http://127.0.0.1:7777/ \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d "{\"session\": \"$SESSION_ID\", \"content\": \"Build #$BUILD_NUMBER completed: $STATUS\"}"
+```
+
+### 监控仪表盘
+
+```javascript
+// Web 仪表盘显示 Provider 列表
 async function updateDashboard() {
-  const response = await fetch("http://127.0.0.1:7777/providers", {
+  const resp = await fetch("http://127.0.0.1:7777/providers", {
     headers: { "X-API-Key": "your-secret-key" },
   });
-  const providers = await response.json();
+  const providers = await resp.json();
 
   document.getElementById("provider-list").innerHTML = providers
-    .map((p) => `<li>${p.name} - ${p.models.length} models</li>`)
+    .map((p) => `<li>${p.name} — ${p.models.length} models</li>`)
     .join("");
 }
 ```
 
 ---
 
-## Next Steps
+## 参考
 
-- [Providers](../providers/) - Learn about AI providers
-- [Tools](../tools/) - Explore available tools
-- [Memory System](../memory/) - Memory system configuration
-- [IM Integration](../integrations/im/) - Instant messaging integrations
+- [Providers](../providers/) — AI Provider 配置
+- [Tools](../tools/) — 工具系统
+- [Memory System](../memory/) — 记忆系统
+- [IM Integration](../integrations/im/) — 即时通讯集成
+
