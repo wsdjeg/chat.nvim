@@ -52,7 +52,9 @@ function M.request(opt)
   local body = vim.json.encode({
     model = model,
     messages = opt.messages,
-    enable_thinking = true,
+    thinking = {
+      type = 'enabled',
+    },
     stream = true,
     max_tokens = get_max_tokens(model),
     stream_options = { include_usage = true },
