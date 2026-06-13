@@ -4,6 +4,15 @@ local job = require('job')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
+local model_max_tokens = {
+  ['deepseek-v4-flash'] = 384 * 1024,
+  ['deepseek-v4-pro'] = 384 * 1024,
+}
+
+local function get_max_tokens(model)
+  return model_max_tokens[model] or 4096
+end
+
 function M.available_models()
   return {
     'glm-5.1',
@@ -34,11 +43,14 @@ function M.request(opt)
     '@-',
   }
 
+  local model = sessions.get_session_model(opt.session)
+
   local body = vim.json.encode({
-    model = sessions.get_session_model(opt.session),
+    model = model,
     messages = opt.messages,
     enable_thinking = true,
     stream = true,
+    max_tokens = get_max_tokens(model),
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
   })
