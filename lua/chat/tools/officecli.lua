@@ -47,7 +47,7 @@ function M.officecli(action, ctx)
   if util.is_allowed_path(filepath) then
 
   -- Build officecli command
-  local cmd = { 'make' }
+  local cmd = { 'officecli' }
 
   if action.command and type(action.command) == 'string' and #action.command > 0 then
     table.insert(cmd, action.command)
@@ -55,6 +55,7 @@ function M.officecli(action, ctx)
 
   table.insert(cmd, filepath)
 
+  table.insert(cmd, 'text')
 
   local stdout = {}
   local stderr = {}
