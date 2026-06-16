@@ -26,7 +26,7 @@ end
 ---@param action ChatToolsSearchTextAction
 ---@param ctx ChatToolContext
 function M.search_text(action, ctx)
-  -- Parameter validation (enhanced)
+  -- Parameter validation (strict)
   if
     not action.pattern
     or type(action.pattern) ~= 'string'
@@ -34,6 +34,27 @@ function M.search_text(action, ctx)
   then
     return {
       error = 'Pattern is required and must be a non-empty string.',
+    }
+  end
+
+  -- Validate array-type parameters: AI must pass arrays, not strings
+  -- file_types MUST be an array like ["*.lua", "*.md"], NOT a single string like "*.lua"
+  if action.file_types ~= nil and type(action.file_types) ~= 'table' then
+    return {
+      error = string.format(
+        'file_types must be an array of strings, e.g. ["*.lua", "*.md"]. Got %s instead.',
+        type(action.file_types)
+      ),
+    }
+  end
+
+  -- exclude_patterns MUST be an array like ["*.log", "tmp/*"], NOT a single string
+  if action.exclude_patterns ~= nil and type(action.exclude_patterns) ~= 'table' then
+    return {
+      error = string.format(
+        'exclude_patterns must be an array of strings, e.g. ["*.log", "tmp/*"]. Got %s instead.',
+        type(action.exclude_patterns)
+      ),
     }
   end
 
@@ -91,16 +112,16 @@ function M.search_text(action, ctx)
     table.insert(cmd, tostring(action.context_lines))
   end
 
-  -- File type filtering
-  if action.file_types and type(action.file_types) == 'table' then
+  -- File type filtering (safe: validated as table above)
+  if action.file_types then
     for _, ft in ipairs(action.file_types) do
       table.insert(cmd, '-g')
       table.insert(cmd, ft)
     end
   end
 
-  -- Exclusion patterns
-  if action.exclude_patterns and type(action.exclude_patterns) == 'table' then
+  -- Exclusion patterns (safe: validated as table above)
+  if action.exclude_patterns then
     for _, excl in ipairs(action.exclude_patterns) do
       table.insert(cmd, '--glob')
       table.insert(cmd, '!' .. excl)
@@ -140,7 +161,8 @@ function M.search_text(action, ctx)
         })
         return
       end
-      if code == 0 and signal == 0 then
+
+      if code == 0 then
         -- Parse JSON output from ripgrep
         local matches = {}
         local file_set = {}
@@ -267,16 +289,20 @@ function M.scheme()
     ['function'] = {
       name = 'search_text',
       description = [[
-      Advanced text search tool using ripgrep (rg) to search text content in directories.
-      Supports regex, file type filtering, exclusion patterns, context lines, and other advanced features.
+Advanced text search tool using ripgrep (rg) to search text content in directories.
+Supports regex, file type filtering, exclusion patterns, context lines, and other advanced features.
 
-      before using this function, you need to setup allowed_path in chat.nvim config. for example:
-      ```lua
-      require('chat').setup({
-        allowed_path = 'path/to/your_project'
-      })
-      ```
-      ]],
+before using this function, you need to setup allowed_path in chat.nvim config. for example:
+```lua
+require('chat').setup({
+  allowed_path = 'path/to/your_project'
+})
+```
+
+IMPORTANT: 
+- file_types MUST be an array of strings. Example: ["*.py", "*.md"] — NOT a single string!
+- exclude_patterns MUST be an array of strings. Example: ["*.log", "tmp/*"] — NOT a single string!
+]],
       parameters = {
         type = 'object',
         properties = {
@@ -291,7 +317,7 @@ function M.scheme()
           file_types = {
             type = 'array',
             minItems = 1,
-            description = 'List of file patterns. MUST be an array of strings, not a single string. Example: ["*.py", "*.md"]',
+            description = '⚠️ MUST be an array of strings, NOT a single string! Example: ["*.py", "*.md"]. Passing a string like "*.py" will cause an error.',
             items = {
               type = 'string',
               description = 'File glob pattern, e.g. "*.py"',
@@ -300,7 +326,7 @@ function M.scheme()
           exclude_patterns = {
             type = 'array',
             minItems = 1,
-            description = 'List of glob patterns to exclude. MUST be an array of strings, not a single string. Each item is a pattern like "*.log" or "tmp/*". Example: ["*.log", "tmp/*"]',
+            description = '⚠️ MUST be an array of strings, NOT a single string! Example: ["*.log", "tmp/*"]. Passing a string like "*.log" will cause an error.',
             items = {
               type = 'string',
               description = 'A single glob pattern to exclude, e.g. "*.log"',
@@ -335,7 +361,7 @@ end
 
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
-  if ok then
+  if ok and arguments then
     local info_parts = {
       string.format('search_text "%s"', arguments.pattern),
       string.format(
@@ -355,7 +381,14 @@ function M.info(action, ctx)
       table.insert(options, 'no_regex')
     end
     if arguments.file_types then
-      table.insert(options, 'file_types: ["' .. table.concat(arguments.file_types, '", "') .. '"]')
+      if type(arguments.file_types) == 'table' then
+        table.insert(
+          options,
+          'file_types: ["' .. table.concat(arguments.file_types, '", "') .. '"]'
+        )
+      else
+        table.insert(options, 'file_types: ' .. tostring(arguments.file_types))
+      end
     end
     if arguments.max_results then
       table.insert(options, 'max: ' .. arguments.max_results)
@@ -373,4 +406,6 @@ function M.info(action, ctx)
     return 'search_text'
   end
 end
+
 return M
+
