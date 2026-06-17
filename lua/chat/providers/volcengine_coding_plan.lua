@@ -10,7 +10,7 @@ local model_max_tokens = {
   ['minimax-m2.7'] = 128 * 1024,
   ['minimax-m3'] = 128 * 1024,
   ['kimi-k2.6'] = 32 * 1024,
-  ['glm-5.2'] = 128 * 1024,
+  ['glm-5.2'] = 128000,
 }
 
 local function get_max_tokens(model)
