@@ -242,9 +242,13 @@ function M.send_tool_results(session_id)
       session = session_id,
       messages = require('chat.sessions.messages').get_request_messages(session_id),
     })
-    log.info('curl request jobid is ' .. jobid)
-    if session_id == require('chat.windows').current_session() then
-      require('chat.spinners').start()
+    log.info('curl request jobid is ' .. tostring(jobid))
+    if jobid and jobid > 0 then
+      if session_id == require('chat.windows').current_session() then
+        require('chat.spinners').start()
+      end
+    else
+      log.error('Failed to start request: jobid is nil or invalid')
     end
   end
 end

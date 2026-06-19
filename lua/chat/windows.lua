@@ -137,7 +137,7 @@ function M.open(opt)
 
         if jobid and jobid > 0 then
           spinners.start()
-          log.info('curl request jobid is ' .. jobid)
+          log.info('curl request jobid is ' .. tostring(jobid))
         else
           log.error('Failed to start request: jobid is nil or invalid')
         end
@@ -154,10 +154,12 @@ function M.open(opt)
             session = current_session,
             messages = messages,
           })
-          if jobid > 0 then
+          if jobid and jobid > 0 then
             spinners.start()
+          else
+            log.error('Failed to start request: jobid is nil or invalid')
           end
-          log.info('curl request jobid is ' .. jobid)
+          log.info('curl request jobid is ' .. tostring(jobid))
         end
       end,
     })
@@ -224,10 +226,12 @@ function M.send_message(session, content)
     messages = sessions.get_request_messages(session),
   })
 
-  if jobid > 0 and session == current_session then
+  if jobid and jobid > 0 and session == current_session then
     spinners.start()
+  elseif not jobid then
+    log.error('Failed to start request: jobid is nil or invalid')
   end
-  log.info('curl request jobid is ' .. jobid)
+  log.info('curl request jobid is ' .. tostring(jobid))
 end
 
 -- Message handling - forward to result module
