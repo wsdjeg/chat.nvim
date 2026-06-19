@@ -13,6 +13,10 @@ local function is_make_available()
   return make_available
 end
 
+-- Detect Windows for encoding conversion
+-- Windows cmd.exe uses GBK (CP936) by default, not UTF-8
+local is_windows = vim.fn.has('win32') == 1
+
 ---@class ChatToolsMakeAction
 ---@field target? string Make target to run (e.g., "test", "build")
 ---@field args? string[] Additional arguments for make
@@ -74,7 +78,7 @@ function M.make(action, ctx)
   local work_dir = ctx.cwd
   if action.directory and type(action.directory) == 'string' then
     work_dir = util.resolve(action.directory, ctx.cwd)
-    
+
     -- Security: ensure work_dir is within ctx.cwd
     if not vim.startswith(vim.fs.normalize(work_dir), vim.fs.normalize(ctx.cwd)) then
       return {
@@ -86,7 +90,10 @@ function M.make(action, ctx)
   local stdout = {}
   local stderr = {}
 
-  local jobid = job.start(cmd, {
+  -- Build job options
+  -- On Windows, use encoding='gbk' to convert cmd.exe output to UTF-8
+  -- job.nvim uses vim.fn.iconv() internally for this conversion
+  local job_opts = {
     cwd = work_dir,
     on_stdout = function(_, data)
       vim.list_extend(stdout, data)
@@ -126,7 +133,14 @@ function M.make(action, ctx)
         jobid = id,
       })
     end,
-  })
+  }
+
+  -- On Windows, convert GBK output to UTF-8 to prevent NonUTF8Body API errors
+  if is_windows then
+    job_opts.encoding = 'gbk'
+  end
+
+  local jobid = job.start(cmd, job_opts)
 
   if jobid > 0 then
     return { jobid = jobid }
@@ -198,5 +212,4 @@ function M.info(action, ctx)
 end
 
 return M
-
 
