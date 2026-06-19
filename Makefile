@@ -15,33 +15,13 @@ help:
 	@echo "  make test PATTERN=git_add               # Match test/**/*git_add*_spec.lua"
 	@echo "  make test PATTERN=test/tools/git_add_spec.lua  # Full path"
 
-# Install all test dependencies
-install-deps: install-luaunit install-job
-	@echo "All dependencies installed."
+# Install all test dependencies (cross-platform, uses Lua)
+install-deps:
+	@nvim --headless -c "lua dofile('test/install_deps.lua')" -c "qa!"
 
-# Install luaunit test framework
-install-luaunit:
-	@echo "Installing luaunit..."
-	@mkdir -p test/.deps
-	@if [ ! -f test/.deps/luaunit.lua ]; then \
-		curl -fsSL https://raw.githubusercontent.com/bluebird75/luaunit/main/luaunit.lua \
-			-o test/.deps/luaunit.lua; \
-		echo "luaunit installed to test/.deps/luaunit.lua"; \
-	else \
-		echo "luaunit already installed"; \
-	fi
-
-# Install job.nvim mock module
-install-job:
-	@echo "Installing job.nvim..."
-	@mkdir -p test/.deps
-	@if [ ! -f test/.deps/job.lua ]; then \
-		curl -fsSL https://raw.githubusercontent.com/wsdjeg/job.nvim/refs/heads/master/lua/job/init.lua \
-			-o test/.deps/job.lua; \
-		echo "job.nvim installed to test/.deps/job.lua"; \
-	else \
-		echo "job.nvim already installed"; \
-	fi
+# Aliases for individual dependency install (same cross-platform Lua script)
+install-luaunit: install-deps
+install-job: install-deps
 
 # Run tests with nvim headless
 # Supports PATTERN parameter to run specific test file(s)
@@ -62,3 +42,4 @@ clean:
 	@rm -rf test/*.out
 	@rm -rf *.swp
 	@rm -rf /tmp/chat_nvim_test_* 2>/dev/null || true
+
