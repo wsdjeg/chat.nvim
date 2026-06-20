@@ -24,6 +24,7 @@
 ---@field prompt? string
 ---@field usage? ChatMessageUsage
 ---@field pin? boolean session pin status
+---@field last_user_message_time? integer timestamp of the last user message
 
 -- Session storage: cache read/write and iteration
 local M = {}
@@ -177,3 +178,4 @@ function M.iter_sessions()
 end
 
 return M
+
