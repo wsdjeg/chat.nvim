@@ -44,6 +44,11 @@ here is a list of available tools:
 | -------------------------------------------- | ------------------------------------------------------------------ |
 | [read_file](./read_file.md)                  | Reads the content of a file                                        |
 | [write_file](./write_file.md)                | Write, modify, or delete file content                              |
+| [copy_file](./copy_file.md)                  | Copy a file or directory (recursive)                               |
+| [create_directory](./create_directory.md)    | Create a directory (including parent directories)                  |
+| [file_info](./file_info.md)                  | Get file or directory metadata                                     |
+| [list_directory](./list_directory.md)        | List directory contents with file metadata                         |
+| [move_file](./move_file.md)                  | Move or rename a file/directory                                    |
 | [find_files](./find_files.md)                | Finds files in the current working directory                       |
 | [search_text](./search_text.md)              | Advanced text search using ripgrep                                 |
 | [extract_memory](./extract_memory.md)        | Extract memories from conversation text                            |
@@ -51,6 +56,10 @@ here is a list of available tools:
 | [set_prompt](./set_prompt.md)                | Set system prompt from file                                        |
 | [fetch_web](./fetch_web.md)                  | Fetch content from web URLs                                        |
 | [web_search](./web_search.md)                | Search the web using multiple engines                              |
+| [get_time](./get_time.md)                    | Get current time and date information                              |
+| [get_weather](./get_weather.md)              | Get weather data from Meizu weather API                            |
+| [lsp_diagnostics](./lsp_diagnostics.md)      | Get LSP diagnostics for a file                                     |
+| [officecli](./officecli.md)                  | View office documents (Excel .xlsx)                                |
 | [make](./make.md)                            | Run make targets                                                   |
 | [git_add](./git_add.md)                      | Stage file changes for commit                                      |
 | [git_branch](./git_branch.md)                | Manage git branches                                                |
