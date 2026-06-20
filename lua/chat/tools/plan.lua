@@ -1,7 +1,7 @@
 -- lua/chat/tools/plan.lua
 
 ---@class ChatToolPlanAction
----@field action '"create"'|'"show"'|'"list"'|'"add"'|'"next"'|'"done"'|'"review"'|'"delete"' Plan action to perform
+---@field action '"create"'|'"show"'|'"list"'|'"add"'|'"next"'|'"done"'|'"review"'|'"delete"'|'"pause"'|'"resume"' Plan action to perform
 ---@field title? string Plan title (for create)
 ---@field steps? string[] Initial steps (for create)
 ---@field plan_id? string Plan ID
@@ -27,11 +27,10 @@ local config = require('chat.config')
 ---@return ChatToolPlanResult Result with content or error
 function M.plan(arguments, ctx)
   local action = arguments.action
-  local title = arguments.title
-  local steps = arguments.steps
-  local plan_id = arguments.plan_id
-  local step_content = arguments.step_content
-  local notes = arguments.notes
+
+  if not action then
+    return { error = 'action is required.' }
+  end
 
   if not config.config.memory or not config.config.memory.enable then
     return { error = 'Memory system is not enabled.' }
@@ -39,12 +38,13 @@ function M.plan(arguments, ctx)
 
   -- Create new plan
   if action == 'create' then
-    if not title then
+    local title = arguments.title
+    if not title or title == '' then
       return { error = 'Plan title is required for create action.' }
     end
 
-    local plan = plan_module.create(title, steps, {
-      working_dir = vim.fn.getcwd(),
+    local plan = plan_module.create(title, arguments.steps, {
+      working_dir = ctx.cwd or vim.fn.getcwd(),
       session = ctx.session,
     })
 
@@ -62,6 +62,12 @@ function M.plan(arguments, ctx)
     }
   end
 
+  -- All remaining actions require plan_id
+  local plan_id = arguments.plan_id
+  if not plan_id or plan_id == '' then
+    return { error = 'plan_id is required for action: ' .. action }
+  end
+
   -- Show plan details
   if action == 'show' then
     local plan = plan_module.get(plan_id)
@@ -77,13 +83,21 @@ function M.plan(arguments, ctx)
         '**Created:** %s',
         os.date('%Y-%m-%d %H:%M', plan.created_at)
       ),
-      '',
-      '## Steps:',
     }
+
+    if plan.context and plan.context.working_dir then
+      local folder = plan.context.working_dir:match('[^/\\]+$')
+        or plan.context.working_dir
+      table.insert(output, string.format('**Project:** %s', folder))
+    end
+
+    table.insert(output, '')
+    table.insert(output, '## Steps:')
 
     for _, step in ipairs(plan.steps) do
       local status_icon = step.status == 'completed' and '✅'
         or step.status == 'in_progress' and '⏳'
+        or step.status == 'cancelled' and '❌'
         or '⬜'
       local step_line =
         string.format('%s **%d.** %s', status_icon, step.id, step.content)
@@ -102,16 +116,21 @@ function M.plan(arguments, ctx)
     return { content = table.concat(output, '\n') }
   end
 
-  -- List all plans
+  -- List all plans (filtered by current project)
   if action == 'list' then
     local status = arguments.status
-    local plans = plan_module.list(status)
+    local cwd = ctx.cwd or vim.fn.getcwd()
+    local plans = plan_module.list(status, cwd)
 
     if #plans == 0 then
-      return { content = 'No plans found.' }
+      return {
+        content = status
+            and string.format('No %s plans found in current project.', status)
+          or 'No plans found in current project.',
+      }
     end
 
-    local output = { '# 📚 All Plans\n' }
+    local output = { '# 📚 Plans (Current Project)\n' }
     for _, plan in ipairs(plans) do
       local completed = #vim.tbl_filter(function(s)
         return s.status == 'completed'
@@ -135,8 +154,9 @@ function M.plan(arguments, ctx)
 
   -- Add step to plan
   if action == 'add' then
-    if not plan_id or not step_content then
-      return { error = 'plan_id and step_content are required.' }
+    local step_content = arguments.step_content
+    if not step_content or step_content == '' then
+      return { error = 'step_content is required for add action.' }
     end
 
     local step, err = plan_module.add_step(plan_id, step_content)
@@ -179,7 +199,7 @@ function M.plan(arguments, ctx)
       -- Find current in_progress step
       local plan = plan_module.get(plan_id)
       if not plan then
-        return { error = 'Plan not found.' }
+        return { error = 'Plan not found: ' .. plan_id }
       end
 
       for _, s in ipairs(plan.steps) do
@@ -194,7 +214,7 @@ function M.plan(arguments, ctx)
       end
     end
 
-    local step, err = plan_module.complete_step(plan_id, step_id, notes)
+    local step, err = plan_module.complete_step(plan_id, step_id, arguments.notes)
     if not step then
       return { error = err }
     end
@@ -214,6 +234,40 @@ function M.plan(arguments, ctx)
     end
 
     return { content = content }
+  end
+
+  -- Pause plan
+  if action == 'pause' then
+    local reason = arguments.notes or arguments.pause_reason
+    local plan, err = plan_module.pause(plan_id, reason)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '⏸️ **Plan paused:** %s\nReason: %s',
+        plan.title,
+        reason or 'N/A'
+      ),
+    }
+  end
+
+  -- Resume plan
+  if action == 'resume' then
+    local plan, err = plan_module.resume(plan_id)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '▶️ **Plan resumed:** %s\n\n'
+          .. 'Use `@plan action="next" plan_id="%s"` to continue.',
+        plan.title,
+        plan_id
+      ),
+    }
   end
 
   -- Review completed plan
@@ -264,10 +318,12 @@ Plan mode for creating, managing, and reviewing task plans.
 Actions:
 - create: Create new plan with title and optional steps
 - show: Show plan details by ID
-- list: List all plans (optional status filter)
+- list: List all plans in current project (optional status filter)
 - add: Add step to existing plan
 - next: Start next pending step
 - done: Mark current/completed step as done
+- pause: Pause an in-progress plan
+- resume: Resume a paused plan
 - review: Review completed plan with summary
 - delete: Delete a plan
 
@@ -276,6 +332,8 @@ Examples:
 @plan action="list" status="in_progress"
 @plan action="next" plan_id="plan-20250110-xxxx"
 @plan action="done" plan_id="plan-20250110-xxxx" notes="Completed successfully"
+@plan action="pause" plan_id="plan-20250110-xxxx"
+@plan action="resume" plan_id="plan-20250110-xxxx"
 @plan action="review" plan_id="plan-20250110-xxxx" summary="Feature implemented" lessons=["Lesson 1"]
       ]],
       parameters = {
@@ -290,6 +348,8 @@ Examples:
               'add',
               'next',
               'done',
+              'pause',
+              'resume',
               'review',
               'delete',
             },
@@ -309,7 +369,7 @@ Examples:
           step_id = { type = 'integer', description = 'Step ID (for done)' },
           notes = {
             type = 'string',
-            description = 'Notes for step completion',
+            description = 'Notes for step completion or pause reason',
           },
           status = {
             type = 'string',
@@ -342,11 +402,18 @@ end
 ---@return string Formatted info
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
-  if ok then
-    return string.format('Plan: %s', arguments.action)
-  else
-    return 'Plan'
+  if ok and arguments.action then
+    local parts = { 'Plan: ' .. arguments.action }
+    if arguments.title then
+      table.insert(parts, '"' .. arguments.title .. '"')
+    end
+    if arguments.plan_id then
+      table.insert(parts, '`' .. arguments.plan_id .. '`')
+    end
+    return table.concat(parts, ' ')
   end
+  return 'Plan'
 end
 
 return M
+

@@ -5,9 +5,8 @@
 ---@alias ChatPlanStepStatus '"pending"'|'"in_progress"'|'"completed"'|'"cancelled"'
 
 ---@class ChatPlanContext
----@field working_dir string Working directory
+---@field working_dir string Working directory (project isolation key)
 ---@field session? string Session ID
----@field related_files? string[] Related files
 
 ---@class ChatPlanStep
 ---@field id integer Step ID
@@ -34,6 +33,7 @@
 ---@field steps ChatPlanStep[] Plan steps
 ---@field context ChatPlanContext Plan context
 ---@field review ChatPlanReview Plan review
+---@field next_step_id integer Next step ID counter (stable IDs)
 ---@field paused_at? integer Pause timestamp
 ---@field pause_reason? string Pause reason
 ---@field resumed_at? integer Resume timestamp
@@ -68,10 +68,10 @@ function M.create(title, steps, context)
     updated_at = os.time(),
     status = 'pending',
     steps = {},
+    next_step_id = 1,
     context = context or {
       working_dir = vim.fn.getcwd(),
       session = nil,
-      related_files = {},
     },
     review = {
       completed_at = nil,
@@ -82,9 +82,9 @@ function M.create(title, steps, context)
   }
 
   -- Add initial steps
-  for i, step_content in ipairs(steps or {}) do
+  for _, step_content in ipairs(steps or {}) do
     table.insert(plan.steps, {
-      id = i,
+      id = plan.next_step_id,
       content = step_content,
       status = 'pending',
       created_at = os.time(),
@@ -92,6 +92,7 @@ function M.create(title, steps, context)
       completed_at = nil,
       notes = '',
     })
+    plan.next_step_id = plan.next_step_id + 1
   end
 
   table.insert(plans, plan)
@@ -99,7 +100,7 @@ function M.create(title, steps, context)
 
   -- Auto store to working memory
   working_memory.store(
-    nil,
+    context and context.session,
     'system',
     string.format('[plan] Created: %s', title)
   )
@@ -119,17 +120,26 @@ function M.get(plan_id)
   return nil
 end
 
----List all plans
+---List plans, optionally filtered by status and/or working_dir
 ---@param status? string Filter by status (optional)
+---@param working_dir? string Filter by working directory (project isolation)
 ---@return ChatPlan[] List of plans
-function M.list(status)
-  if not status then
-    return plans
+function M.list(status, working_dir)
+  local filtered = plans
+
+  if status then
+    filtered = vim.tbl_filter(function(p)
+      return p.status == status
+    end, filtered)
   end
 
-  return vim.tbl_filter(function(p)
-    return p.status == status
-  end, plans)
+  if working_dir then
+    filtered = vim.tbl_filter(function(p)
+      return p.context and p.context.working_dir == working_dir
+    end, filtered)
+  end
+
+  return filtered
 end
 
 ---Add step to plan
@@ -143,8 +153,11 @@ function M.add_step(plan_id, step_content)
     return nil, 'Plan not found'
   end
 
+  -- Ensure next_step_id exists (backward compat for old plans without it)
+  plan.next_step_id = plan.next_step_id or (#plan.steps + 1)
+
   local step = {
-    id = #plan.steps + 1,
+    id = plan.next_step_id,
     content = step_content,
     status = 'pending',
     created_at = os.time(),
@@ -154,6 +167,7 @@ function M.add_step(plan_id, step_content)
   }
 
   table.insert(plan.steps, step)
+  plan.next_step_id = plan.next_step_id + 1
   plan.updated_at = os.time()
 
   if plan.status == 'pending' then
@@ -174,6 +188,10 @@ function M.start_next(plan_id)
     return nil, 'Plan not found'
   end
 
+  if plan.status == 'paused' then
+    return nil, 'Plan is paused. Use resume action first.'
+  end
+
   -- Find first pending step
   for _, step in ipairs(plan.steps) do
     if step.status == 'pending' then
@@ -185,7 +203,7 @@ function M.start_next(plan_id)
 
       -- Update working memory
       working_memory.store(
-        nil,
+        plan.context and plan.context.session,
         'system',
         string.format('[plan] Started step %d: %s', step.id, step.content)
       )
@@ -247,6 +265,52 @@ function M.complete_step(plan_id, step_id, notes)
   return nil, 'Step not found'
 end
 
+---Pause an in_progress plan
+---@param plan_id string Plan ID
+---@param reason? string Pause reason
+---@return ChatPlan|nil plan Paused plan if success
+---@return string|nil error Error message if failed
+function M.pause(plan_id, reason)
+  local plan = M.get(plan_id)
+  if not plan then
+    return nil, 'Plan not found'
+  end
+
+  if plan.status ~= 'in_progress' then
+    return nil, 'Only in_progress plans can be paused (current: ' .. plan.status .. ')'
+  end
+
+  plan.status = 'paused'
+  plan.paused_at = os.time()
+  plan.pause_reason = reason
+  plan.updated_at = os.time()
+  M.save()
+
+  return plan
+end
+
+---Resume a paused plan
+---@param plan_id string Plan ID
+---@return ChatPlan|nil plan Resumed plan if success
+---@return string|nil error Error message if failed
+function M.resume(plan_id)
+  local plan = M.get(plan_id)
+  if not plan then
+    return nil, 'Plan not found'
+  end
+
+  if plan.status ~= 'paused' then
+    return nil, 'Only paused plans can be resumed (current: ' .. plan.status .. ')'
+  end
+
+  plan.status = 'in_progress'
+  plan.resumed_at = os.time()
+  plan.updated_at = os.time()
+  M.save()
+
+  return plan
+end
+
 ---Complete plan and add review
 ---@param plan_id string Plan ID
 ---@param summary? string Plan summary
@@ -267,14 +331,19 @@ function M.review_plan(plan_id, summary, lessons, issues)
 
   M.save()
 
-  -- Extract key lessons to long-term memory
+  -- Extract key lessons to long-term memory (with project session context)
   if lessons and #lessons > 0 then
     local content = string.format(
       '[plan_review] %s: %s',
       plan.title,
       table.concat(lessons, '; ')
     )
-    require('chat.memory').store_memory(nil, 'system', content, 'long_term')
+    require('chat.memory').store_memory(
+      plan.context and plan.context.session,
+      'system',
+      content,
+      'long_term'
+    )
   end
 
   return plan
