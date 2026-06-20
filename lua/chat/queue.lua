@@ -2,6 +2,8 @@ local M = {}
 
 local uv = vim.uv
 
+local log = require('chat.log')
+
 local timer = nil
 local message_queue = {}
 
@@ -37,7 +39,11 @@ end
 local function start_timer()
   if not timer then
     timer = uv.new_timer()
-    timer:start(5000, 5000, vim.schedule_wrap(process_queue))
+    if timer then
+      timer:start(5000, 5000, vim.schedule_wrap(process_queue))
+    else
+      log.error('Failed to start message queue timer')
+    end
   end
 end
 
