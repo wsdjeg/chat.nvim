@@ -91,14 +91,17 @@ function M.generate_message(message, session)
     return msg
   elseif message.role == 'tool' then
     if message.tool_call_state and message.tool_call_state.error then
-      local msg = vim.split(
-        string.format(
-          '[%s] ❌ : Tool Error: %s',
-          os.date(config.config.strftime, message.created),
-          message.tool_call_state.error
-        ),
-        '\n'
+      local base = string.format(
+        '[%s] ❌ : Tool Error: ',
+        os.date(config.config.strftime, message.created)
       )
+      local error_lines = vim.split(message.tool_call_state.error, '\n')
+      local msg = { base .. error_lines[1] }
+      if #error_lines > 1 then
+        for i = 2, #error_lines do
+          table.insert(msg, string.rep(' ', vim.api.nvim_strwidth(base)) .. error_lines[i])
+        end
+      end
       table.insert(msg, '')
       return msg
     else
@@ -144,14 +147,17 @@ function M.generate_message(message, session)
       '',
     }
   elseif message.error then
-    local msg = vim.split(
-      string.format(
-        '[%s] ❌ : %s',
-        os.date(config.config.strftime, message.created),
-        message.error
-      ),
-      '\n'
+    local base = string.format(
+      '[%s] ❌ : ',
+      os.date(config.config.strftime, message.created)
     )
+    local error_lines = vim.split(message.error, '\n')
+    local msg = { base .. error_lines[1] }
+    if #error_lines > 1 then
+      for i = 2, #error_lines do
+        table.insert(msg, string.rep(' ', vim.api.nvim_strwidth(base)) .. error_lines[i])
+      end
+    end
     table.insert(msg, '')
     return msg
   else
@@ -170,3 +176,4 @@ function M.generate_buffer(messages, session)
 end
 
 return M
+
