@@ -15,6 +15,12 @@ function M.append_message(session_id, message)
   then
     require('chat.integrations').on_response(session_id, message.content)
   end
+
+  -- Record the time when user sends a message
+  if message.role == 'user' then
+    storage.sessions[session_id].last_user_message_time = os.time()
+  end
+
   table.insert(storage.sessions[session_id].messages, message)
 
   if message.usage then
@@ -106,3 +112,4 @@ function M.get_request_messages(session_id)
 end
 
 return M
+

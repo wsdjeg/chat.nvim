@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local util = require('chat.util')
 local job = require('job')
+local storage = require('chat.sessions.storage')
 
 -- Cache make availability check
 local make_available = nil
@@ -21,6 +22,48 @@ local is_windows = vim.fn.has('win32') == 1
 ---@field target? string Make target to run (e.g., "test", "build")
 ---@field args? string[] Additional arguments for make
 ---@field directory? string Directory to run make in (default: ctx.cwd)
+
+--- Check if Makefile was modified after user's last message
+--- Returns nil if safe to run, or an error string if blocked
+--- @param work_dir string The working directory to check
+--- @param session_id string|nil The session ID
+--- @return string|nil error message if blocked, nil if safe
+local function check_makefile_mtime(work_dir, session_id)
+  if not session_id then
+    return nil -- No session context, allow execution
+  end
+
+  local session = storage.sessions[session_id]
+  if not session then
+    return nil
+  end
+
+  local last_user_time = session.last_user_message_time
+  if not last_user_time then
+    return nil -- No user message recorded yet, allow execution
+  end
+
+  -- Check Makefile in the working directory
+  local makefile_path = vim.fs.normalize(work_dir .. '/Makefile')
+  local makefile_stat = vim.uv.fs_stat(makefile_path)
+  if not makefile_stat then
+    return nil -- No Makefile exists, allow execution
+  end
+
+  local makefile_mtime = makefile_stat.mtime.sec
+  if makefile_mtime > last_user_time then
+    return string.format(
+      'Security: Makefile was modified after your last message.\n'
+      .. 'Makefile mtime: %s\n'
+      .. 'Last user message: %s\n'
+      .. 'Please review the Makefile changes before running make.',
+      os.date('%Y-%m-%d %H:%M:%S', makefile_mtime),
+      os.date('%Y-%m-%d %H:%M:%S', last_user_time)
+    )
+  end
+
+  return nil
+end
 
 ---@param action ChatToolsMakeAction
 ---@param ctx ChatToolContext
@@ -85,6 +128,14 @@ function M.make(action, ctx)
         error = 'Cannot access directory outside working directory.',
       }
     end
+  end
+
+  -- Check Makefile modification time vs user message time
+  local mtime_error = check_makefile_mtime(work_dir, ctx.session)
+  if mtime_error then
+    return {
+      error = mtime_error,
+    }
   end
 
   local stdout = {}
