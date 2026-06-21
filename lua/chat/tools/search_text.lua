@@ -35,6 +35,8 @@ function M.search_text(action, ctx)
     return {
       error = 'Pattern is required and must be a non-empty string.',
     }
+  end
+
   -- Validate array-type parameters: normalize string→array for robustness
   -- (some LLMs pass a single string instead of an array)
   if action.file_types ~= nil then
