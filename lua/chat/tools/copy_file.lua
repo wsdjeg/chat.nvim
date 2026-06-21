@@ -80,7 +80,7 @@ local function format_size(size)
   end
 end
 
---- Recursive copy using readfile/writefile
+--- Recursive copy using uv
 ---@param source string
 ---@param destination string
 ---@return boolean ok
@@ -88,10 +88,7 @@ end
 local function copy_recursive(source, destination)
   local source_type = vim.fn.getftype(source)
   if source_type == 'file' then
-    local ok, err = pcall(function()
-      local lines = vim.fn.readfile(source, 'b')
-      vim.fn.writefile(lines, destination)
-    end)
+    local ok, err = vim.uv.fs_copyfile(source, destination)
     if not ok then
       return false, err or 'copy failed'
     end
@@ -103,8 +100,10 @@ local function copy_recursive(source, destination)
         local src = source .. '/' .. name
         local dst = destination .. '/' .. name
         if ftype == 'file' then
-          local lines = vim.fn.readfile(src, 'b')
-          vim.fn.writefile(lines, dst)
+          local cok, cerr = vim.uv.fs_copyfile(src, dst)
+          if not cok then
+            error(cerr or 'copy failed for ' .. src)
+          end
         elseif ftype == 'directory' then
           copy_recursive(src, dst)
         end
@@ -124,7 +123,6 @@ function M.copy_file(action, ctx)
   if not ctx.cwd or ctx.cwd == '' then
     return { error = 'No working directory (cwd) specified in context.' }
   end
-
   local source, src_err = resolve_and_validate(
     action.source, ctx.cwd, 'source'
   )

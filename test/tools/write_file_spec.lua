@@ -616,13 +616,13 @@ function TestWriteFile:testWriteFileBackupCreatedAndCleaned()
     backup = true,
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
-  -- Skip if vim.fn.copy fails on certain platforms
+  -- Skip if uv.fs_copyfile fails on certain platforms
   if not ok then return end
 
   lu.assertStrContains(result.content, 'replaced')
 
   -- Verify backup is cleaned up
-  local files = vim.fn.glob(self.test_dir .. '/*backup*', true, true)
+  local files = vim.fn.glob(self.test_dir .. '/*.backup.*', true, true)
   lu.assertEquals(#files, 0)
 end
 
@@ -639,7 +639,7 @@ function TestWriteFile:testWriteFileBackupRestoredOnValidationError()
     backup = true,
   }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
 
-  -- Skip if vim.fn.copy fails on certain platforms
+  -- Skip if uv.fs_copyfile fails on certain platforms
   if not ok then return end
 
   lu.assertNotNil(result.error)

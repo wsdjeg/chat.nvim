@@ -80,7 +80,8 @@ end
 ---@return string? backup_path
 local function create_backup(filepath)
   local backup_path = filepath .. '.backup.' .. os.time()
-  if vim.fn.copy(filepath, backup_path) == 0 then
+  local ok = vim.uv.fs_copyfile(filepath, backup_path)
+  if ok then
     return backup_path
   end
   return nil

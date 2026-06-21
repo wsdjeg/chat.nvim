@@ -69,24 +69,23 @@ end
 local function copy_recursive(source, destination)
   local source_type = vim.fn.getftype(source)
   if source_type == 'file' then
-    -- Regular file: use vim.fn.copy
-    if vim.fn.copy(source, destination) == 0 then
-      return true, nil
+    local ok, err = vim.uv.fs_copyfile(source, destination)
+    if not ok then
+      return false, err or 'copy failed'
     end
-    return false, 'vim.fn.copy failed'
+    return true, nil
   elseif source_type == 'dir' then
-    -- Directory: recursive copy
     local ok, err = pcall(function()
-      -- Create destination directory
       vim.fn.mkdir(destination, 'p')
-      -- Walk and copy
-      local scandir = vim.fs.dir(source)
-      for name, type in scandir do
+      for name, ftype in vim.fs.dir(source) do
         local src = source .. '/' .. name
         local dst = destination .. '/' .. name
-        if type == 'file' then
-          vim.fn.copy(src, dst)
-        elseif type == 'directory' then
+        if ftype == 'file' then
+          local cok, cerr = vim.uv.fs_copyfile(src, dst)
+          if not cok then
+            error(cerr or 'copy failed for ' .. src)
+          end
+        elseif ftype == 'directory' then
           copy_recursive(src, dst)
         end
       end
