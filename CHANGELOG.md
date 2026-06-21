@@ -1,5 +1,86 @@
 # Changelog
 
+## [1.7.0](https://github.com/wsdjeg/chat.nvim/compare/v1.6.0...v1.7.0) (2026-06-21)
+
+
+### Features
+
+* add copy_file tool + create_directory, file_info, list_directory tools ([4c11822](https://github.com/wsdjeg/chat.nvim/commit/4c118225111a90d60aaffb1dbd35192b6c4d593f))
+* add move_file tool with comprehensive tests ([694ca3d](https://github.com/wsdjeg/chat.nvim/commit/694ca3df529145a85277243d68705b8076bc95c7))
+* add officecli tool ([10163ce](https://github.com/wsdjeg/chat.nvim/commit/10163ce5c8667cbcc0cbdca3d21b1af1ad40d229))
+* add tool_stream option to volcengine_coding_plan provider ([74129cc](https://github.com/wsdjeg/chat.nvim/commit/74129cc47c6ea0f96e8a627be3991907e19f795d))
+* **api:** add GET /sessions/:id/raw endpoint ([bc6c6c5](https://github.com/wsdjeg/chat.nvim/commit/bc6c6c5d81f615e49cd0d524abe2c258e7c26d8b))
+* **make:** block make execution if Makefile modified after user message ([f617721](https://github.com/wsdjeg/chat.nvim/commit/f61772129b30ca3e1828c405d3b1bfe94da2d6c4))
+* **picker:** use session title when available ([91b5cb1](https://github.com/wsdjeg/chat.nvim/commit/91b5cb18170f519624b3bfea3a39f0332357462d))
+* **plan:** add pause/resume actions and project isolation filtering ([a90fd90](https://github.com/wsdjeg/chat.nvim/commit/a90fd90918c2dc25e9188aeda4d44657b867ccbf))
+* **providers:** add max_tokens config for minimax, kimi, glm models ([b732a3d](https://github.com/wsdjeg/chat.nvim/commit/b732a3d0da442a44d9a63bc7784a15190f3676c0))
+* **providers:** add max_tokens support for volcengine_coding_plan ([5cb6081](https://github.com/wsdjeg/chat.nvim/commit/5cb608100e1b1338cf75074855c387f395db4d18))
+* **providers:** add volcengine_coding_plan provider ([a4f6346](https://github.com/wsdjeg/chat.nvim/commit/a4f63461d9319c6c0d21b898e6d9a26d18835934))
+* **providers:** update deepseek models and add max_tokens config ([f9af562](https://github.com/wsdjeg/chat.nvim/commit/f9af5621d3838fc5a0023afee9e332aed3f3740c))
+* **queue:** add has_pending function to check pending messages ([2ffa379](https://github.com/wsdjeg/chat.nvim/commit/2ffa379b5ba5b4cae0766dfab744277646d0a8cb))
+* **sessions:** add session pin status support ([5f89e0b](https://github.com/wsdjeg/chat.nvim/commit/5f89e0ba0cf525ec6bfaebfeebdb6e1ef2406ceb))
+* **sessions:** add session.title field with API support ([3989438](https://github.com/wsdjeg/chat.nvim/commit/3989438929a8bbc2fc46db9f3108bcd599c74594))
+* **tools:** add get_weather tool ([90df79a](https://github.com/wsdjeg/chat.nvim/commit/90df79a1aa5f6c57affa2db054fa24745be6b08f))
+* **tools:** improve officecli view command ([0b4314d](https://github.com/wsdjeg/chat.nvim/commit/0b4314d8608ae792c8b5a34caf8c4d12432278f9))
+
+
+### Bug Fixes
+
+* add missing 'end' in search_text.lua causing module load failure ([1f6495a](https://github.com/wsdjeg/chat.nvim/commit/1f6495afea77a660b7719b56ab6751d7833ddfd8))
+* append assistant tool_calls message to storage ([f7ce868](https://github.com/wsdjeg/chat.nvim/commit/f7ce868749c0a2f07ee98855759f3e2f7e01801b))
+* fix api_key for baidu and cherryin providers ([bd55f5a](https://github.com/wsdjeg/chat.nvim/commit/bd55f5a318f0746b148d3fc7daf18111018eab59))
+* fix officecli tool command ([6529ff3](https://github.com/wsdjeg/chat.nvim/commit/6529ff35750be02c3d8200294c7819368c949bab))
+* **formatter:** align multiline error messages with prefix ([2067190](https://github.com/wsdjeg/chat.nvim/commit/20671903c12823d9121eaa11bb507b88ab4257c4))
+* git_add path array handling — remove oneOf, add stringified array defense ([fe003e8](https://github.com/wsdjeg/chat.nvim/commit/fe003e8a2069cfed13012041b51846744d140b23))
+* handle nil jobid in request functions ([a782068](https://github.com/wsdjeg/chat.nvim/commit/a78206812d253f696339edb3fd757e12f63db020))
+* handle nil timer in message queue ([e5e2b57](https://github.com/wsdjeg/chat.nvim/commit/e5e2b57968c2b05724baa3c6547af1003cccadb3))
+* **http:** add missing config import in routes.lua ([ead389c](https://github.com/wsdjeg/chat.nvim/commit/ead389ca1e4da9bb7b879ec149ea825ba610d433))
+* **http:** check queue when returning in_progress status ([a854215](https://github.com/wsdjeg/chat.nvim/commit/a854215c612b33e4ebc6ae3f2110bf74b6620974))
+* **http:** correct cwd and pin endpoint implementations ([809eea4](https://github.com/wsdjeg/chat.nvim/commit/809eea49544a9ca3e8db04611cd2c646bfdd7235))
+* **http:** use response.parse_headers instead of routes.parse_headers ([e10007a](https://github.com/wsdjeg/chat.nvim/commit/e10007a9974b9114edea8c3f8893dc2a47f52f20))
+* **plan:** add nil check for lessons in review_plan ([b4ab361](https://github.com/wsdjeg/chat.nvim/commit/b4ab361de7e23147c2d90e6a9686d7dfaf34b7e3))
+* **progress:** actually add tool_calls to message ([72f3fe4](https://github.com/wsdjeg/chat.nvim/commit/72f3fe48a96e5dae31fa4dcb969d06606adf3e35))
+* **progress:** handle pure tool_calls without content ([f4c68b4](https://github.com/wsdjeg/chat.nvim/commit/f4c68b4b68767f764db9fb3c31e8a133c2b4c3f7))
+* **progress:** handle reasoning_content for tool_calls in thinking mode ([8e21096](https://github.com/wsdjeg/chat.nvim/commit/8e21096e18d60c30c421e817bad83448cf637c42))
+* **protocol:** append error message on non-zero exit code ([a4044ef](https://github.com/wsdjeg/chat.nvim/commit/a4044efc809c934f55dafe72054ded244390c603))
+* **protocol:** save error messages to session history ([ecac625](https://github.com/wsdjeg/chat.nvim/commit/ecac625a13361af562eecdb3e23a4bdce3f3bc75))
+* remove duplicate code in progress.lua ([62bbd33](https://github.com/wsdjeg/chat.nvim/commit/62bbd339bea8a78963b328b3ce7e7b98e5d09e1b))
+* remove duplicate message append in tool_call_done ([bdaf260](https://github.com/wsdjeg/chat.nvim/commit/bdaf26064c4d576f2257f5184e7a9f06f8efc601))
+* replace JSON Schema oneOf with simple types and add defensive string→array handling ([b163870](https://github.com/wsdjeg/chat.nvim/commit/b163870c206d7757a9f070041583600af2fb739c))
+* replace shell-based dependency install with cross-platform Lua script ([eca7222](https://github.com/wsdjeg/chat.nvim/commit/eca7222c9f5817e2ac592157147b0786d4062dcc))
+* **search_text:** strict type validation for array params, remove auto-conversion ([5509368](https://github.com/wsdjeg/chat.nvim/commit/55093683910f28a3d6b8b701c94318dde19ec92e))
+* **sessions:** add error message when tool call parsing fails ([4f28149](https://github.com/wsdjeg/chat.nvim/commit/4f281490a66f70ab6999676208ffda101d25d139))
+* **sessions:** handle nil result from tools.call ([0a733a9](https://github.com/wsdjeg/chat.nvim/commit/0a733a9b6ea4d7d88efd5d4e061be0d4b7ebb9d9))
+* **sessions:** persist session cache after local message append ([f896d15](https://github.com/wsdjeg/chat.nvim/commit/f896d15994ae3ec8ffbb1235223033dec98ff0d3))
+* **sessions:** persist session cache after sending message ([a952d5b](https://github.com/wsdjeg/chat.nvim/commit/a952d5bffa5f2bfca5fb593c07b59cc4c1a585be))
+* **sessions:** use error field for tool call parsing errors ([18d9567](https://github.com/wsdjeg/chat.nvim/commit/18d9567e1b327142088ebc6f69c8676d03c10295))
+* simplify makefile to use cross-platform Lua installer ([d48659d](https://github.com/wsdjeg/chat.nvim/commit/d48659d7821bcc25c5c3e733badbc155b58442a1))
+* **tools:** add encoding='gbk' for make tool on Windows ([f9c9743](https://github.com/wsdjeg/chat.nvim/commit/f9c97431d8d76ee11042bb9c11632c0c88764bf5))
+* **util:** add nil check in transform function to prevent pairs() error ([f4ba500](https://github.com/wsdjeg/chat.nvim/commit/f4ba500737c1566fd0721a758cb40c4367f12d1a))
+* **volcengine:** correct glm-5.2 max_tokens to 128000 ([b2825fd](https://github.com/wsdjeg/chat.nvim/commit/b2825fdb1bf3d281465260c622d8b9bf54079ddd))
+
+
+### Code Refactoring
+
+* **http:** remove old http.lua after split ([b1deac9](https://github.com/wsdjeg/chat.nvim/commit/b1deac9eab554ed4acfe11a017c5ef13121accd9))
+* **http:** split handle_request into per-endpoint functions ([97e45a2](https://github.com/wsdjeg/chat.nvim/commit/97e45a2214732494dd60fbb84370f57eb94d4ad6))
+* **http:** split http.lua into http/*.lua ([ef791b6](https://github.com/wsdjeg/chat.nvim/commit/ef791b693c411baef77e4abc24865300ee1c4ad2))
+* **providers:** use thinking config object for volcengine ([3d10041](https://github.com/wsdjeg/chat.nvim/commit/3d10041cf483a09a20068d99ad9a3e33d9f32d62))
+* **sessions:** remove duplicate exports in init.lua ([b2f989c](https://github.com/wsdjeg/chat.nvim/commit/b2f989c9a3e276883f6dc6167ac22ff19184844b))
+* use vim.uv.fs_copyfile for binary-safe file operations ([00f6acb](https://github.com/wsdjeg/chat.nvim/commit/00f6acb36ee572ad3fede10f0799183fd18ad2b1))
+
+
+### Documentation
+
+* add individual tool documentation pages ([a4393ef](https://github.com/wsdjeg/chat.nvim/commit/a4393ef4dbb33ef6e439c5d7ac3360fae851a99c))
+* add last_user_message_time field to ChatSession type ([012bc2f](https://github.com/wsdjeg/chat.nvim/commit/012bc2f85255446a2cee5a48de27ec4fde137310))
+* **api:** rewrite HTTP API docs in English to match actual implementation ([64a077c](https://github.com/wsdjeg/chat.nvim/commit/64a077caef35a40ed5685c3a6fd5931c3efe95bb))
+* **api:** rewrite HTTP API documentation to match actual implementation ([22aa8b5](https://github.com/wsdjeg/chat.nvim/commit/22aa8b5c36ec2897c8925e07f6e2bc0c8954778a))
+* enhance AGENTS.md with stricter development guidelines ([b31bc8d](https://github.com/wsdjeg/chat.nvim/commit/b31bc8d19fecf8927f365a9d6e83439ab508003f))
+* optimize AGENTS.md for AI-friendly format ([a4c25cb](https://github.com/wsdjeg/chat.nvim/commit/a4c25cb279b437e68e34311572ec1a5a9e14067a))
+* remove duplicate Endpoints table in API index ([e289a0d](https://github.com/wsdjeg/chat.nvim/commit/e289a0d04be6852862fea7d34a829afde3ed7d28))
+* **tools:** add new tools to index table ([841a3b4](https://github.com/wsdjeg/chat.nvim/commit/841a3b4bd34db6200507e95794da32fee5f1b0f9))
+
 ## [1.6.0](https://github.com/wsdjeg/chat.nvim/compare/v1.5.0...v1.6.0) (2026-05-03)
 
 
