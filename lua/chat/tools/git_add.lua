@@ -12,6 +12,27 @@ local function is_git_available()
   return git_available
 end
 
+---Normalize path argument: handle string, stringified array, or table
+---@param paths any
+---@return string[]|nil result, string|nil error
+local function normalize_paths(paths)
+  if type(paths) == 'string' then
+    -- LLM may pass array as string (e.g. '["a.lua", "b.lua"]')
+    -- because many models don't support JSON Schema oneOf
+    if vim.startswith(paths, '[') then
+      local ok, parsed = pcall(vim.json.decode, paths)
+      if ok and type(parsed) == 'table' then
+        return parsed
+      end
+    end
+    return { paths }
+  elseif type(paths) == 'table' then
+    return paths
+  else
+    return nil, 'path must be a string or array of strings.'
+  end
+end
+
 ---@class ChatToolsGitAddAction
 ---@field path? string|string[] File or directory path(s) to add
 ---@field all? boolean Add all changes (like git add -A)
@@ -40,14 +61,9 @@ function M.git_add(action, ctx)
     -- Add all changes
     table.insert(cmd, '-A')
   elseif action.path then
-    -- Normalize path to array for unified processing
-    local paths = action.path
-    if type(paths) == 'string' then
-      paths = { paths }
-    elseif type(paths) ~= 'table' then
-      return {
-        error = 'path must be a string or array of strings.',
-      }
+    local paths, err = normalize_paths(action.path)
+    if not paths then
+      return { error = err }
     end
 
     -- Process each path
@@ -168,27 +184,17 @@ EXAMPLES:
 @git_add path="src/main.lua"
 @git_add path=["src/main.lua", "src/utils.lua", "README.md"]
 @git_add all=true
-@git_add path="./src"
-
-NOTES:
-- Requires git to be installed and in PATH.
-- By default (no arguments), adds changes in current directory.
-- Use all=true to add all changes in the repository.]],
+@git_add path="./src"]],
       parameters = {
         type = 'object',
         properties = {
           path = {
+            type = 'array',
+            items = { type = 'string' },
             description = [[File or directory path(s) to add.
-Format: string for single file, array of strings for multiple files.
-Example: "src/main.lua" or ["a.lua", "b.lua"]],
-            oneOf = {
-              { type = 'string', description = 'Single file or directory path' },
-              {
-                type = 'array',
-                items = { type = 'string' },
-                description = 'Array of file or directory paths',
-              },
-            },
+For a single file: ["src/main.lua"]
+For multiple files: ["a.lua", "b.lua"]
+NOTE: A single string like "src/main.lua" is also accepted.]],
           },
           all = {
             type = 'boolean',
@@ -208,11 +214,7 @@ function M.info(action, ctx)
     if args.all then
       table.insert(parts, 'all=true')
     elseif args.path then
-      -- Normalize to array for display
-      local paths = args.path
-      if type(paths) == 'string' then
-        paths = { paths }
-      end
+      local paths = normalize_paths(args.path) or { tostring(args.path) }
       table.insert(
         parts,
         string.format('path=["%s"]', table.concat(paths, '", "'))
@@ -224,3 +226,4 @@ function M.info(action, ctx)
 end
 
 return M
+
