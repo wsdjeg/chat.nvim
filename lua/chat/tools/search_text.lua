@@ -35,27 +35,32 @@ function M.search_text(action, ctx)
     return {
       error = 'Pattern is required and must be a non-empty string.',
     }
+  -- Validate array-type parameters: normalize string→array for robustness
+  -- (some LLMs pass a single string instead of an array)
+  if action.file_types ~= nil then
+    if type(action.file_types) == 'string' then
+      action.file_types = { action.file_types }
+    elseif type(action.file_types) ~= 'table' then
+      return {
+        error = string.format(
+          'file_types must be an array of strings, e.g. ["*.lua", "*.md"]. Got %s instead.',
+          type(action.file_types)
+        ),
+      }
+    end
   end
 
-  -- Validate array-type parameters: AI must pass arrays, not strings
-  -- file_types MUST be an array like ["*.lua", "*.md"], NOT a single string like "*.lua"
-  if action.file_types ~= nil and type(action.file_types) ~= 'table' then
-    return {
-      error = string.format(
-        'file_types must be an array of strings, e.g. ["*.lua", "*.md"]. Got %s instead.',
-        type(action.file_types)
-      ),
-    }
-  end
-
-  -- exclude_patterns MUST be an array like ["*.log", "tmp/*"], NOT a single string
-  if action.exclude_patterns ~= nil and type(action.exclude_patterns) ~= 'table' then
-    return {
-      error = string.format(
-        'exclude_patterns must be an array of strings, e.g. ["*.log", "tmp/*"]. Got %s instead.',
-        type(action.exclude_patterns)
-      ),
-    }
+  if action.exclude_patterns ~= nil then
+    if type(action.exclude_patterns) == 'string' then
+      action.exclude_patterns = { action.exclude_patterns }
+    elseif type(action.exclude_patterns) ~= 'table' then
+      return {
+        error = string.format(
+          'exclude_patterns must be an array of strings, e.g. ["*.log", "tmp/*"]. Got %s instead.',
+          type(action.exclude_patterns)
+        ),
+      }
+    end
   end
 
   -- Security check

@@ -34,6 +34,10 @@ local function normalize_city_ids(action)
   local city_ids = {}
 
   if action.city_ids ~= nil then
+    -- Defensive: handle string→array (some LLMs pass a single string instead of array)
+    if type(action.city_ids) == 'string' then
+      action.city_ids = { action.city_ids }
+    end
     if type(action.city_ids) ~= 'table' then
       return nil, 'city_ids must be an array of city ID strings or numbers.'
     end
@@ -214,20 +218,18 @@ provided city list, for example:
         type = 'object',
         properties = {
           city_id = {
-            oneOf = {
-              { type = 'string' },
-              { type = 'number' },
-            },
+            type = 'string',
+            -- NOTE: Schema uses type='string' instead of oneOf (string|number)
+            -- because many models don't support JSON Schema oneOf properly.
+            -- Execution code handles both string and number via normalize_city_id.
             description = 'Single numeric city ID, for example 101240101 for 南昌.',
           },
           city_ids = {
             type = 'array',
             description = 'Multiple numeric city IDs. If provided, city_id is ignored.',
             items = {
-              oneOf = {
-                { type = 'string' },
-                { type = 'number' },
-              },
+              type = 'string',
+              description = 'City ID (numeric string, e.g. "101240101")',
             },
           },
           timeout = {

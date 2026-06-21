@@ -246,11 +246,12 @@ function M.scheme()
             description = 'Do not respect .gitignore and ignore files (default: false)',
           },
           exclude = {
-            description = 'Glob pattern(s) to exclude files (e.g., "*.test.lua" or ["*.test.lua", "node_modules/*"])',
-            oneOf = {
-              { type = 'string' },
-              { type = 'array', items = { type = 'string' } },
-            },
+            type = 'array',
+            items = { type = 'string' },
+            -- NOTE: Schema uses type='array' instead of oneOf (string|array)
+            -- because many models don't support JSON Schema oneOf properly.
+            -- Execution code also handles string→array for robustness.
+            description = 'Glob pattern(s) to exclude files (e.g., ["*.test.lua", "node_modules/*"])',
           },
           max_results = {
             type = 'integer',

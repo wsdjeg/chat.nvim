@@ -89,15 +89,20 @@ function M.fetch_web(action, ctx)
   end
 
   -- Custom headers
-  if action.headers and type(action.headers) == 'table' then
-    for _, header in ipairs(action.headers) do
-      if type(header) == 'string' and header ~= '' then
-        table.insert(cmd, '-H')
-        table.insert(cmd, header)
+  -- Custom headers (defensive: handle string→array)
+  if action.headers then
+    if type(action.headers) == 'string' then
+      action.headers = { action.headers }
+    end
+    if type(action.headers) == 'table' then
+      for _, header in ipairs(action.headers) do
+        if type(header) == 'string' and header ~= '' then
+          table.insert(cmd, '-H')
+          table.insert(cmd, header)
+        end
       end
     end
   end
-
   -- HTTP method (validate allowed methods)
   local allowed_methods = { GET = true, POST = true, PUT = true, DELETE = true, PATCH = true, HEAD = true }
   local method = (action.method or 'GET'):upper()

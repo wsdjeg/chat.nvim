@@ -110,9 +110,16 @@ function M.make(action, ctx)
 
   -- Add additional arguments
   if action.args and type(action.args) == 'table' then
-    for _, arg in ipairs(action.args) do
-      if type(arg) == 'string' and #arg > 0 then
-        table.insert(cmd, arg)
+  -- Add additional arguments (defensive: handle string→array)
+  if action.args then
+    if type(action.args) == 'string' then
+      action.args = { action.args }
+    end
+    if type(action.args) == 'table' then
+      for _, arg in ipairs(action.args) do
+        if type(arg) == 'string' and #arg > 0 then
+          table.insert(cmd, arg)
+        end
       end
     end
   end
@@ -121,8 +128,6 @@ function M.make(action, ctx)
   local work_dir = ctx.cwd
   if action.directory and type(action.directory) == 'string' then
     work_dir = util.resolve(action.directory, ctx.cwd)
-
-    -- Security: ensure work_dir is within ctx.cwd
     if not vim.startswith(vim.fs.normalize(work_dir), vim.fs.normalize(ctx.cwd)) then
       return {
         error = 'Cannot access directory outside working directory.',

@@ -43,7 +43,13 @@ function M.plan(arguments, ctx)
       return { error = 'Plan title is required for create action.' }
     end
 
-    local plan = plan_module.create(title, arguments.steps, {
+    -- Defensive: normalize steps string→array
+    local steps = arguments.steps
+    if type(steps) == 'string' then
+      steps = { steps }
+    end
+
+    local plan = plan_module.create(title, steps, {
       working_dir = ctx.cwd or vim.fn.getcwd(),
       session = ctx.session,
     })
@@ -273,9 +279,11 @@ function M.plan(arguments, ctx)
   -- Review completed plan
   if action == 'review' then
     local summary = arguments.summary
+    -- Defensive: normalize string→array
     local lessons = arguments.lessons
+    if type(lessons) == 'string' then lessons = { lessons } end
     local issues = arguments.issues
-
+    if type(issues) == 'string' then issues = { issues } end
     local plan, err =
       plan_module.review_plan(plan_id, summary, lessons, issues)
     if not plan then
