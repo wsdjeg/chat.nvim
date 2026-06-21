@@ -56,6 +56,7 @@ function M.request(opt)
       type = 'enabled',
     },
     stream = true,
+    tool_stream = true,
     max_tokens = get_max_tokens(model),
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
@@ -74,3 +75,4 @@ function M.request(opt)
 end
 
 return M
+
