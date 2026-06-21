@@ -12,21 +12,46 @@ local function is_git_available()
   return git_available
 end
 
+---Try to parse a string as JSON array, return parsed table or nil
+---@param s string
+---@return string[]|nil
+local function try_parse_json_array(s)
+  if type(s) == 'string' and vim.startswith(s, '[') then
+    local ok, parsed = pcall(vim.json.decode, s)
+    if ok and type(parsed) == 'table' then
+      return parsed
+    end
+  end
+  return nil
+end
+
 ---Normalize path argument: handle string, stringified array, or table
+---LLM may return path in various formats:
+---  1. "file.lua"                         (plain string)
+---  2. '["a.lua", "b.lua"]'               (stringified JSON array)
+---  3. {"a.lua", "b.lua"}                  (proper array)
+---  4. {'["a.lua", "b.lua"]'}              (array wrapping a stringified JSON array)
 ---@param paths any
 ---@return string[]|nil result, string|nil error
 local function normalize_paths(paths)
   if type(paths) == 'string' then
-    -- LLM may pass array as string (e.g. '["a.lua", "b.lua"]')
-    -- because many models don't support JSON Schema oneOf
-    if vim.startswith(paths, '[') then
-      local ok, parsed = pcall(vim.json.decode, paths)
-      if ok and type(parsed) == 'table' then
+    -- Case 2: LLM passes array as string (e.g. '["a.lua", "b.lua"]')
+    local parsed = try_parse_json_array(paths)
+    if parsed then
+      return parsed
+    end
+    -- Case 1: plain string
+    return { paths }
+  elseif type(paths) == 'table' then
+    -- Case 4: LLM wraps stringified JSON array in an array
+    -- e.g. { '["a.lua", "b.lua"]' } instead of { "a.lua", "b.lua" }
+    if #paths == 1 then
+      local parsed = try_parse_json_array(paths[1])
+      if parsed then
         return parsed
       end
     end
-    return { paths }
-  elseif type(paths) == 'table' then
+    -- Case 3: proper array
     return paths
   else
     return nil, 'path must be a string or array of strings.'
