@@ -53,12 +53,19 @@ function M.redraw_title(session)
     ins = ins .. '| ' .. i .. ' '
   end
 
+  local title = sessions.get_session_title(session) or ''
+  local title_part = ''
+  if title ~= '' then
+    title_part = title .. ' | '
+  end
+
   vim.api.nvim_win_set_config(prompt_win, {
     title = {
       { '', config.config.highlights.title_badge },
       {
         ' Input ' .. string.format(
-          '| %s %s | %s %s',
+          '| %s%s %s | %s %s',
+          title_part,
           sessions.get_session_provider(session),
           sessions.get_session_model(session),
           sessions.getcwd(session),
@@ -85,6 +92,12 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
     ins = ins .. '| ' .. i .. ' '
   end
 
+  local title = sessions.get_session_title(session) or ''
+  local title_part = ''
+  if title ~= '' then
+    title_part = title .. ' | '
+  end
+
   prompt_win = vim.api.nvim_open_win(buf, true, {
     relative = 'editor',
     border = config.config.border,
@@ -92,7 +105,8 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
       { '', config.config.highlights.title_badge },
       {
         ' Input ' .. string.format(
-          '| %s %s | %s %s',
+          '| %s%s %s | %s %s',
+          title_part,
           sessions.get_session_provider(session),
           sessions.get_session_model(session),
           sessions.getcwd(session),
@@ -142,3 +156,4 @@ function M.clear()
 end
 
 return M
+

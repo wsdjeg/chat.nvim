@@ -39,6 +39,23 @@ function M.close()
   prompt.close()
 end
 
+-- Rename current session title via vim.ui.input
+function M.rename_title()
+  if not current_session then
+    return
+  end
+  local old_title = sessions.get_session_title(current_session) or ''
+  vim.ui.input({
+    prompt = 'Session title: ',
+    default = old_title,
+  }, function(input)
+    if input and input ~= '' then
+      sessions.set_session_title(current_session, input)
+      M.redraw_title()
+    end
+  end)
+end
+
 -- Open chat windows
 function M.open(opt)
   if not validate_api_key() then
@@ -162,6 +179,8 @@ function M.open(opt)
           log.info('curl request jobid is ' .. tostring(jobid))
         end
       end,
+
+      rename_title_fn = M.rename_title,
     })
   end
 
@@ -267,3 +286,4 @@ function M.push_text(chunk)
 end
 
 return M
+

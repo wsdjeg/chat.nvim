@@ -35,6 +35,7 @@ function M.setup_prompt_keymaps(buf, opts)
   local cancel_progress_fn = opts.cancel_progress_fn
   local send_message_fn = opts.send_message_fn
   local retry_message_fn = opts.retry_message_fn
+  local rename_title_fn = opts.rename_title_fn
 
   -- Disable <C-o> in prompt buffer
   vim.api.nvim_buf_set_keymap(buf, 'n', '<C-o>', '<Nop>', {})
@@ -124,6 +125,14 @@ function M.setup_prompt_keymaps(buf, opts)
   vim.api.nvim_buf_set_keymap(buf, 'n', 'r', '', {
     callback = retry_message_fn,
   })
+
+  -- Rename session title
+  if rename_title_fn then
+    vim.api.nvim_buf_set_keymap(buf, 'n', '<M-t>', '', {
+      callback = rename_title_fn,
+      silent = true,
+    })
+  end
 end
 
 return M

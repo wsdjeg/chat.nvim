@@ -34,6 +34,12 @@ function M.set_title(text, session)
     local total, prompt, complete = sessions.get_total_tokens(session)
     local title = text
 
+    -- Show session title if set
+    local session_title = sessions.get_session_title(session) or ''
+    if session_title ~= '' then
+      title = session_title .. ' | ' .. title
+    end
+
     if total > 0 then
       title = title
         .. ' | '
@@ -47,9 +53,9 @@ function M.set_title(text, session)
 
     vim.api.nvim_win_set_config(result_win, {
       title = {
-        { '', config.config.highlights.title_badge },
+        { '', config.config.highlights.title_badge },
         { title, config.config.highlights.title },
-        { '', config.config.highlights.title_badge },
+        { '', config.config.highlights.title_badge },
       },
       title_pos = 'center',
     })
@@ -265,9 +271,9 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
     width = screen_width,
     border = config.config.border,
     title = {
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
       { 'chat.nvim', config.config.highlights.title },
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
     },
     title_pos = 'center',
   })
@@ -330,3 +336,4 @@ function M.render(session)
 end
 
 return M
+
