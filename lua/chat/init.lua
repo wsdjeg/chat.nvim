@@ -35,6 +35,9 @@ function M.setup(opt)
   config.setup(opt)
   setup_highlights(config)
 
+  -- 初始化定时任务调度器（加载持久化任务并 arm timer）
+  require('chat.scheduler').init()
+
   vim.api.nvim_create_autocmd({ 'ColorScheme' }, {
     pattern = { '*' },
     group = vim.api.nvim_create_augroup('chat.nvim', { clear = true }),
@@ -42,6 +45,15 @@ function M.setup(opt)
       setup_highlights(config)
     end,
   })
+
+  -- Neovim 退出时清理所有 timer
+  vim.api.nvim_create_autocmd('VimLeavePre', {
+    group = vim.api.nvim_create_augroup('chat_scheduler', { clear = true }),
+    callback = function()
+      require('chat.scheduler').shutdown()
+    end,
+  })
 end
 
 return M
+

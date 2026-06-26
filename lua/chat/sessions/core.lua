@@ -99,6 +99,9 @@ function M.delete(session_id)
 
   require('chat.integrations').on_session_deleted(session_id)
 
+  -- 清理该 session 的所有定时任务
+  require('chat.scheduler').cancel_session(session_id)
+
   if current_session == session_id then
     for i = 1, #s do
       if s[i] == session_id then
