@@ -214,8 +214,17 @@ function M.list(session)
   local result = {}
   for _, task in pairs(M.tasks) do
     if not session or task.session == session then
-      local t = vim.deepcopy(task)
-      t.timer = nil -- 不暴露 timer 句柄
+      -- 手动浅拷贝，避免 deepcopy 遇到 userdata (timer)
+      local t = {
+        id = task.id,
+        session = task.session,
+        trigger_at = task.trigger_at,
+        interval = task.interval,
+        message = task.message,
+        created = task.created,
+        repeat_count = task.repeat_count,
+        executed_count = task.executed_count,
+      }
       if t.trigger_at then
         t.remaining_seconds = t.trigger_at - os.time()
       elseif t.interval then

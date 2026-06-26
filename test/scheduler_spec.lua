@@ -305,9 +305,13 @@ function TestScheduler:testSaveAndInitRoundTrip()
   -- Save to disk
   scheduler.save()
 
-  -- Clear in-memory tasks
-  for tid, _ in pairs(scheduler.tasks) do
-    scheduler.cancel(tid)
+  -- Clear in-memory tasks WITHOUT calling cancel (which saves to disk)
+  for tid, task in pairs(scheduler.tasks) do
+    if task.timer then
+      task.timer:stop()
+      task.timer:close()
+    end
+    scheduler.tasks[tid] = nil
   end
   lu.assertEquals(#scheduler.list(), 0)
 
@@ -323,6 +327,7 @@ function TestScheduler:testSaveAndInitRoundTrip()
   -- Clean up
   scheduler.cancel(id)
 end
+
 
 function TestScheduler:testInitSkipsExpiredTasks()
   -- Create an expired task directly in the save file
