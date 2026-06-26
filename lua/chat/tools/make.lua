@@ -108,8 +108,6 @@ function M.make(action, ctx)
     table.insert(cmd, action.target)
   end
 
-  -- Add additional arguments
-  if action.args and type(action.args) == 'table' then
   -- Add additional arguments (defensive: handle string→array)
   if action.args then
     if type(action.args) == 'string' then
@@ -123,7 +121,6 @@ function M.make(action, ctx)
       end
     end
   end
-
   -- Resolve working directory
   local work_dir = ctx.cwd
   if action.directory and type(action.directory) == 'string' then
