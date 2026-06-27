@@ -11,6 +11,11 @@ M.DEFAULT_CONFIG = {
   keep_recent = 10, -- Don't include recent N messages in truncation search
 }
 
+--- Truncate conversation messages to fit context window
+--- Ensures tool_call/tool_result pairs are not broken by truncation
+--- @param messages table Array of messages (system, user, assistant, tool)
+--- @param config? table Configuration override
+--- @return table, boolean Truncated messages, whether truncation occurred
 function M.truncate_messages(messages, config)
   config = vim.tbl_extend('force', M.DEFAULT_CONFIG, config or {})
 
@@ -18,7 +23,7 @@ function M.truncate_messages(messages, config)
     return messages, false
   end
 
-  -- Separate system messages
+  -- Separate system messages from conversation messages
   local system_messages = {}
   local other_messages = {}
 
@@ -30,50 +35,125 @@ function M.truncate_messages(messages, config)
     end
   end
 
-  -- Calculate position of the (keep_recent)-th message from the end
-  -- Example: 50 messages, keep_recent=10, cutoff = 50 - 10 = 40
+  -- Calculate cutoff position
   local cutoff_idx = #other_messages - config.keep_recent
 
-  -- If cutoff position is already user, start from here
-  -- Otherwise, find the nearest user before cutoff
-  local start_idx = cutoff_idx
+  if cutoff_idx < 1 then
+    return messages, false
+  end
 
-  if other_messages[cutoff_idx].role ~= 'user' then
-    -- Find nearest user going backward
-    for i = cutoff_idx - 1, 1, -1 do
-      if other_messages[i].role == 'user' then
-        start_idx = i
-        break
+  -- Find nearest user message at or before cutoff.
+  -- Starting from a user message ensures we don't begin mid-conversation
+  -- (e.g., at an orphaned tool result or an assistant continuation).
+  local start_idx = nil
+  for i = cutoff_idx, 1, -1 do
+    if other_messages[i].role == 'user' then
+      start_idx = i
+      break
+    end
+  end
+
+  -- If no user message found before cutoff, don't truncate (safety fallback)
+  if not start_idx then
+    return messages, false
+  end
+
+  -- Collect kept messages (from start_idx to end)
+  local kept = {}
+  for i = start_idx, #other_messages do
+    table.insert(kept, other_messages[i])
+  end
+
+  -- ── Validate tool_call/tool_result pairing ──────────────
+  --
+  -- After truncation, two kinds of orphans can appear:
+  --   1. tool result whose assistant tool_call was truncated away
+  --   2. assistant with tool_calls whose results were truncated away
+  --
+  -- Both cause API errors (OpenAI requires matching pairs, Anthropic
+  -- requires tool_result to follow tool_use in the same turn).
+
+  -- Build set of tool_call_ids declared by assistant messages
+  local declared_tool_call_ids = {}
+  for _, msg in ipairs(kept) do
+    if msg.role == 'assistant' and msg.tool_calls then
+      for _, tc in ipairs(msg.tool_calls) do
+        if tc.id then
+          declared_tool_call_ids[tc.id] = true
+        end
       end
     end
   end
 
-  -- Build result: system messages + messages from start_idx
+  -- Build set of tool_call_ids that have results
+  local answered_tool_call_ids = {}
+  for _, msg in ipairs(kept) do
+    if msg.role == 'tool' and msg.tool_call_id then
+      answered_tool_call_ids[msg.tool_call_id] = true
+    end
+  end
+
+  -- Filter: remove orphaned messages
+  local cleaned = {}
+  local removed_count = 0
+
+  for _, msg in ipairs(kept) do
+    if msg.role == 'tool' and msg.tool_call_id then
+      -- Case 1: tool result without matching assistant tool_call
+      if not declared_tool_call_ids[msg.tool_call_id] then
+        removed_count = removed_count + 1
+        goto continue
+      end
+    elseif msg.role == 'assistant' and msg.tool_calls then
+      -- Case 2: assistant with tool_calls but missing results
+      local all_answered = true
+      for _, tc in ipairs(msg.tool_calls) do
+        if tc.id and not answered_tool_call_ids[tc.id] then
+          all_answered = false
+          break
+        end
+      end
+      if not all_answered then
+        -- Strip tool_calls, keep text content if present
+        if msg.content and msg.content ~= '' then
+          table.insert(cleaned, {
+            role = 'assistant',
+            content = msg.content,
+            reasoning_content = msg.reasoning_content,
+            created = msg.created,
+          })
+        end
+        removed_count = removed_count + 1
+        goto continue
+      end
+    end
+    table.insert(cleaned, msg)
+    ::continue::
+  end
+
+  -- Build final result: system messages + context notice + cleaned messages
   local result = {}
   vim.list_extend(result, system_messages)
 
-  -- Add context notice (after system messages)
   table.insert(result, {
     role = 'system',
     content = M._generate_context_notice(
       #messages,
-      #other_messages - start_idx + 1,
+      #cleaned,
       start_idx,
       #other_messages
     ),
   })
 
-  -- Keep only messages from start_idx
-  for i = start_idx, #other_messages do
-    table.insert(result, other_messages[i])
-  end
+  vim.list_extend(result, cleaned)
 
   log.info(
     string.format(
-      '[Context] Truncated: %d -> %d messages (kept %d recent)',
+      '[Context] Truncated: %d -> %d messages (kept %d, removed %d orphaned)',
       #messages,
       #result,
-      #other_messages - start_idx + 1
+      #cleaned,
+      removed_count
     )
   )
 
@@ -140,3 +220,4 @@ function M.get_stats(messages)
 end
 
 return M
+
