@@ -34,7 +34,11 @@ local function get_storage_path()
 end
 
 local function generate_id()
-  return tostring(os.time()) .. '-' .. tostring(math.random(10000, 99999))
+  local id
+  repeat
+    id = tostring(os.time()) .. '-' .. tostring(math.random(10000, 99999))
+  until not M.tasks[id]
+  return id
 end
 
 --- 持久化所有任务到磁盘（不含 timer 句柄）

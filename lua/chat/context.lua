@@ -101,6 +101,51 @@ function M.truncate_messages(messages, config)
     ::continue::
   end
 
+  -- Build set of tool_call_ids that have matching tool results
+  local answered_tool_call_ids = {}
+  for _, msg in ipairs(cleaned) do
+    if msg.role == 'tool' and msg.tool_call_id then
+      answered_tool_call_ids[msg.tool_call_id] = true
+    end
+  end
+
+  -- Second pass: remove orphaned tool_calls from assistant messages
+  -- (assistant has tool_calls but corresponding results were truncated away)
+  local cleaned2 = {}
+  for _, msg in ipairs(cleaned) do
+    if msg.role == 'assistant' and msg.tool_calls then
+      local valid_tool_calls = {}
+      for _, tc in ipairs(msg.tool_calls) do
+        if tc.id and answered_tool_call_ids[tc.id] then
+          table.insert(valid_tool_calls, tc)
+        else
+          removed_count = removed_count + 1
+          log.warn(
+            '[Context] Removing orphaned tool_call: ' .. tostring(tc.id)
+          )
+        end
+      end
+      if #valid_tool_calls == 0 then
+        -- No valid tool_calls remain; keep message only if it has text content
+        if
+          msg.content
+          and type(msg.content) == 'string'
+          and #msg.content > 0
+        then
+          msg.tool_calls = nil
+          table.insert(cleaned2, msg)
+        end
+        -- else: remove message entirely (only had tool_calls, no text)
+      else
+        msg.tool_calls = valid_tool_calls
+        table.insert(cleaned2, msg)
+      end
+    else
+      table.insert(cleaned2, msg)
+    end
+  end
+  cleaned = cleaned2
+
   -- Build final result: system messages + context notice + cleaned messages
   local result = {}
   vim.list_extend(result, system_messages)

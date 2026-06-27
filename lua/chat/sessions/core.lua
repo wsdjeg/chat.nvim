@@ -81,15 +81,11 @@ function M.delete(session_id)
     progress.cancel_progress(session_id)
   end
 
-  local s = {}
-  for id, _ in pairs(storage.sessions) do
-    table.insert(s, id)
-  end
-  table.sort(s)
-
+  -- Delete session data
   vim.fn.delete(storage.cache_dir .. session_id .. '.json')
   storage.sessions[session_id] = nil
 
+  -- Clean up associated memories
   local memories = require('chat.memory').get_memories()
   for _, m in ipairs(memories) do
     if m.session == session_id then
@@ -102,20 +98,22 @@ function M.delete(session_id)
   -- 清理该 session 的所有定时任务
   require('chat.scheduler').cancel_session(session_id)
 
+  -- If the deleted session was the current one, switch to the next available
   if current_session == session_id then
-    for i = 1, #s do
-      if s[i] == session_id then
-        if i == #s then
-          return M.new()
-        else
-          return s[i + 1]
-        end
-      end
+    -- Build sorted list of remaining sessions (after deletion)
+    local s = {}
+    for id, _ in pairs(storage.sessions) do
+      table.insert(s, id)
+    end
+    table.sort(s)
+
+    if #s == 0 then
+      return M.new()
+    else
+      return s[1]
     end
   end
 end
-
---- Switches to the previous session in sorted order (circular navigation)
 --- @return string The previous session ID, or creates new session if none exist
 function M.previous()
   local s = {}

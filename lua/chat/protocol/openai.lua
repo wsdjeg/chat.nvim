@@ -118,8 +118,16 @@ end
 function M.on_exit(id, code, signal)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
+    if not session then
+      log.warn('on_exit: session not found for job ' .. id .. ', cleaning up')
+      sessions.on_progress_exit(id, code, signal)
+      sse_buffers[id] = nil
+      body_buffers[id] = nil
+      return
+    end
     if body_buffers[id] and #body_buffers[id] > 0 then
       local text = table.concat(body_buffers[id], '\n')
+
       body_buffers[id] = {}
       local ok, chunk = pcall(vim.json.decode, text)
       if not ok then
@@ -186,7 +194,7 @@ function M.on_exit(id, code, signal)
     end
     if code == 0 and signal == 0 then
       local session_messages = sessions.get_messages(session)
-      if session_messages[#session_messages].error then
+      if #session_messages == 0 or session_messages[#session_messages].error then
         log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
@@ -197,6 +205,10 @@ function M.on_exit(id, code, signal)
         end
       end
     end
+
+    -- Clean up buffers to prevent memory leak
+    sse_buffers[id] = nil
+    body_buffers[id] = nil
   end)
 end
 

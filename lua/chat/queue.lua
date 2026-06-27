@@ -6,6 +6,8 @@ local log = require('chat.log')
 
 local timer = nil
 local message_queue = {}
+local retry_counts = {} -- Track consecutive send failures per session
+local MAX_RETRIES = 3
 
 -- Stop timer when no messages
 local function stop_timer()
@@ -37,7 +39,27 @@ function M._process_queue()
     if queue and #queue > 0 then
       has_messages = true
       if not require('chat.sessions').is_in_progress(session) then
-        require('chat.windows').send_message(session, M.pop(session))
+        local msg = M.pop(session)
+        require('chat.windows').send_message(session, msg)
+        -- Check if send failed (session didn't enter in_progress)
+        if not require('chat.sessions').is_in_progress(session) then
+          retry_counts[session] = (retry_counts[session] or 0) + 1
+          if retry_counts[session] >= MAX_RETRIES then
+            log.error(
+              'Message dropped after '
+                .. MAX_RETRIES
+                .. ' failed attempts for session: '
+                .. session
+            )
+            retry_counts[session] = nil
+          else
+            -- Put message back at front of queue for retry
+            table.insert(message_queue[session], 1, msg)
+          end
+        else
+          -- Send succeeded, reset retry counter
+          retry_counts[session] = nil
+        end
       else
         -- Session is busy, messages are blocked
         has_blocked = true
@@ -50,10 +72,12 @@ function M._process_queue()
     stop_timer()
   elseif has_blocked then
     -- There are blocked messages waiting for sessions to become free
-    -- Ensure timer is running to retry
+    -- Ensure timer is running to retry when it becomes free
     start_timer()
   end
 end
+
+
 
 function M.push(session, content)
   if not message_queue[session] then

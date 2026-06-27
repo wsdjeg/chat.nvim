@@ -72,10 +72,16 @@ function M.on_progress_tool_call_done(jobid)
   local messages = require('chat.sessions.messages')
 
   local tool_calls = util.transform(job_tool_calls[jobid])
+  local raw_tool_calls = job_tool_calls[jobid]
+  local tool_calls = util.transform(raw_tool_calls)
 
   -- Check if tool call parsing failed (nil or empty)
   if not tool_calls or #tool_calls == 0 then
-    log.error('Tool call parsing failed or no valid tool calls found for job: ' .. jobid)
+    if not raw_tool_calls then
+      log.warn('No tool calls received for job: ' .. jobid .. ' (finish_reason was tool_calls but no data)')
+    else
+      log.error('Tool call parsing failed or no valid tool calls found for job: ' .. jobid)
+    end
 
     -- Append error message to notify user
     local error_message = {
@@ -94,6 +100,7 @@ function M.on_progress_tool_call_done(jobid)
     -- Clear job_tool_calls
     job_tool_calls[jobid] = nil
     return
+  end
   end
 
   progress.on_progress_done(jobid, {
@@ -240,7 +247,8 @@ function M.send_tool_results(session_id)
     log.info('send tool_call results to server.')
     local jobid = protocol.request({
       session = session_id,
-      messages = require('chat.sessions.messages').get_request_messages(session_id),
+      messages = msg,
+    })
     })
     log.info('curl request jobid is ' .. tostring(jobid))
     if jobid and jobid > 0 then

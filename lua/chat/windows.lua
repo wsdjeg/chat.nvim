@@ -121,12 +121,16 @@ function M.open(opt)
         end
       end,
       cancel_progress_fn = function()
-        sessions.cancel_progress(current_session)
+        if current_session and sessions.exists(current_session) then
+          sessions.cancel_progress(current_session)
+        end
       end,
       send_message_fn = function()
-        local content = prompt.get_content()
-        if #content == 1 and content[1] == '' then
+        if not current_session or not sessions.exists(current_session) then
+          log.notify('No active session. Please create or select a session.', 'ErrorMsg')
           return
+        end
+        local content = prompt.get_content()
         end
 
         if sessions.is_in_progress(current_session) then
@@ -159,8 +163,11 @@ function M.open(opt)
           log.error('Failed to start request: jobid is nil or invalid')
         end
       end,
-
       retry_message_fn = function()
+        if not current_session or not sessions.exists(current_session) then
+          log.notify('No active session. Please create or select a session.', 'ErrorMsg')
+          return
+        end
         if sessions.is_in_progress(current_session) then
           log.notify('Request is in progress.')
           return

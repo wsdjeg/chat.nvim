@@ -184,9 +184,17 @@ end
 function M.on_exit(id, code, signal)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
+    if not session then
+      log.warn('on_exit: session not found for job ' .. id .. ', cleaning up')
+      sessions.on_progress_exit(id, code, signal)
+      sse_buffers[id] = nil
+      body_buffers[id] = nil
+      return
+    end
 
     if body_buffers[id] and #body_buffers[id] > 0 then
       local text = table.concat(body_buffers[id], '\n')
+
       body_buffers[id] = {}
       local ok, chunk = pcall(vim.json.decode, text)
       if ok and chunk.error then
@@ -250,7 +258,7 @@ function M.on_exit(id, code, signal)
     -- Send tool results back to server (same as OpenAI protocol)
     if code == 0 and signal == 0 then
       local session_messages = sessions.get_messages(session)
-      if session_messages[#session_messages].error then
+      if #session_messages == 0 or session_messages[#session_messages].error then
         log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
@@ -295,15 +303,29 @@ function M.convert_message(messages)
       end
       if msg.tool_calls then
         for _, tool_call in ipairs(msg.tool_calls) do
+          local input = {}
+          if tool_call['function'].arguments then
+            local ok, decoded = pcall(
+              vim.json.decode,
+              tool_call['function'].arguments
+            )
+            if ok and type(decoded) == 'table' then
+              input = decoded
+            else
+              log.warn(
+                'Failed to decode tool_call arguments: '
+                  .. tostring(tool_call['function'].arguments)
+              )
+            end
+          end
           table.insert(content, {
             type = 'tool_use',
             id = tool_call.id,
             name = tool_call['function'].name,
-            input = vim.json.decode(tool_call['function'].arguments),
+            input = input,
           })
         end
       end
-      -- Add regular text content if present
       if msg.content and msg.content ~= '' then
         table.insert(content, {
           type = 'text',

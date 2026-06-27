@@ -172,9 +172,10 @@ function M.on_progress_exit(jobid, code, signal)
   local session_id = M.get_progress_session(jobid)
   progress_reasoning_contents[session_id] = nil
   progress_messages[session_id] = nil
+  progress_usage[jobid] = nil
+  progress_finish_reasons[jobid] = nil
   jobid_session[jobid] = nil
 end
-
 --- Gets the current streaming message content for a session
 --- @param session_id string The session identifier
 --- @return string|nil The current message content being streamed, nil if none

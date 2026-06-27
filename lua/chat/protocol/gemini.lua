@@ -108,6 +108,14 @@ end
 function M.on_exit(id, code, signal)
   vim.schedule(function()
     local session = sessions.get_progress_session(id)
+    if not session then
+      log.warn('on_exit: session not found for job ' .. id .. ', cleaning up')
+      sessions.on_progress_exit(id, code, signal)
+      sse_buffers[id] = nil
+      body_buffers[id] = nil
+      return
+    end
+
 
     -- Handle accumulated buffer
     if sse_buffers[id] and #sse_buffers[id] > 0 then

@@ -85,8 +85,8 @@ function M.resolve(path, cwd)
 
   return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
-
 --- Check if a path is within allowed_path configuration
+--- Ensures directory boundary to prevent path escape (e.g., /home/user/foo should not match /home/user/foobar)
 ---@param path string The path to check (should be normalized absolute path)
 ---@return boolean
 function M.is_allowed_path(path)
@@ -98,7 +98,11 @@ function M.is_allowed_path(path)
   if type(allowed_path) == 'table' then
     for _, v in ipairs(allowed_path) do
       if type(v) == 'string' and #v > 0 then
-        if vim.startswith(normalized_path, vim.fs.normalize(v)) then
+        local normalized_allowed = vim.fs.normalize(v)
+        if
+          normalized_path == normalized_allowed
+          or vim.startswith(normalized_path, normalized_allowed .. '/')
+        then
           return true
         end
       end
@@ -107,13 +111,13 @@ function M.is_allowed_path(path)
     type(allowed_path) == 'string'
     and #allowed_path > 0
   then
-    return vim.startswith(
-      normalized_path,
-      vim.fs.normalize(allowed_path)
-    )
+    local normalized_allowed = vim.fs.normalize(allowed_path)
+    return normalized_path == normalized_allowed
+      or vim.startswith(normalized_path, normalized_allowed .. '/')
   end
   return false
 end
+
 
 function M.format_number(num)
   if num == nil then
