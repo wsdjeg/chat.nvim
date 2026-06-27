@@ -85,44 +85,14 @@ function M.truncate_messages(messages, config)
     end
   end
 
-  -- Build set of tool_call_ids that have results
-  local answered_tool_call_ids = {}
-  for _, msg in ipairs(kept) do
-    if msg.role == 'tool' and msg.tool_call_id then
-      answered_tool_call_ids[msg.tool_call_id] = true
-    end
-  end
-
-  -- Filter: remove orphaned messages
+  -- Filter: remove orphaned tool results (their assistant tool_call was truncated)
   local cleaned = {}
   local removed_count = 0
 
   for _, msg in ipairs(kept) do
     if msg.role == 'tool' and msg.tool_call_id then
-      -- Case 1: tool result without matching assistant tool_call
+      -- tool result without matching assistant tool_call
       if not declared_tool_call_ids[msg.tool_call_id] then
-        removed_count = removed_count + 1
-        goto continue
-      end
-    elseif msg.role == 'assistant' and msg.tool_calls then
-      -- Case 2: assistant with tool_calls but missing results
-      local all_answered = true
-      for _, tc in ipairs(msg.tool_calls) do
-        if tc.id and not answered_tool_call_ids[tc.id] then
-          all_answered = false
-          break
-        end
-      end
-      if not all_answered then
-        -- Strip tool_calls, keep text content if present
-        if msg.content and msg.content ~= '' then
-          table.insert(cleaned, {
-            role = 'assistant',
-            content = msg.content,
-            reasoning_content = msg.reasoning_content,
-            created = msg.created,
-          })
-        end
         removed_count = removed_count + 1
         goto continue
       end
