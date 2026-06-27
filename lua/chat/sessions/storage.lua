@@ -149,16 +149,12 @@ function M.iter_sessions()
               }
               need_save = true
             end
-              }
-              need_save = true
-            end
 
             -- Compatibility: old version without cwd field
             if not obj.cwd then
               obj.cwd = vim.fn.getcwd()
               need_save = true
             end
-
             -- Compatibility: old version without prompt field
             if not obj.prompt then
               obj.prompt = get_config_system_prompt()

@@ -70,8 +70,6 @@ function M.on_progress_tool_call_done(jobid)
   local session_id = progress.get_progress_session(jobid)
   local windows = require('chat.windows')
   local messages = require('chat.sessions.messages')
-
-  local tool_calls = util.transform(job_tool_calls[jobid])
   local raw_tool_calls = job_tool_calls[jobid]
   local tool_calls = util.transform(raw_tool_calls)
 
@@ -100,7 +98,6 @@ function M.on_progress_tool_call_done(jobid)
     -- Clear job_tool_calls
     job_tool_calls[jobid] = nil
     return
-  end
   end
 
   progress.on_progress_done(jobid, {
@@ -248,7 +245,6 @@ function M.send_tool_results(session_id)
     local jobid = protocol.request({
       session = session_id,
       messages = msg,
-    })
     })
     log.info('curl request jobid is ' .. tostring(jobid))
     if jobid and jobid > 0 then

@@ -131,8 +131,6 @@ function M.open(opt)
           return
         end
         local content = prompt.get_content()
-        end
-
         if sessions.is_in_progress(current_session) then
           log.notify(
             { 'Request in progress.', 'Press Ctrl-C to cancel.' },
