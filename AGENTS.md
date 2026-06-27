@@ -31,7 +31,8 @@ Three types, use `@extract_memory` to store and `@recall_memory` to recall:
 2. Edit in reply                          # Modify what's needed
 3. @write_file action="overwrite"         # Write complete content
 4. @read_file filepath="target"           # Verify: check syntax, duplicates, correctness
-5. @git_add → @git_commit → @git_push     # One at a time, wait for each result
+5. @make test                             # Run tests — MUST pass before committing
+6. @git_add → @git_commit → @git_push     # One at a time, wait for each result
 ```
 
 ### Git tools: one at a time
@@ -45,10 +46,10 @@ Never batch git calls. Send `@git_add`, wait for result, then `@git_commit`, wai
 After any code change, auto-execute without asking:
 
 ```
-Modify → Verify → git_add → git_commit → git_push → Done
+Modify → Verify → make test → git_add → git_commit → git_push → Done
 ```
 
-**Never:** skip verification, read only partial file, modify without commit, commit without push.
+**Never:** skip verification, skip tests, read only partial file, modify without commit, commit without push.
 
 ---
 
