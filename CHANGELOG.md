@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.8.0](https://github.com/wsdjeg/chat.nvim/compare/v1.7.0...v1.8.0) (2026-07-01)
+
+
+### Features
+
+* **user_profile:** enhance tool description for arbitrary user lookup ([bc70f1e](https://github.com/wsdjeg/chat.nvim/commit/bc70f1e30a7dbb3da89c7d38c6c02210a0112f9e))
+* **user:** add user profile (人物画像) feature ([a525800](https://github.com/wsdjeg/chat.nvim/commit/a525800ca571296b1c34947b4f4e0be8e4d2efc5))
+* **windows:** add session title rename and display ([7133568](https://github.com/wsdjeg/chat.nvim/commit/7133568372e388a312946d27a00e6311902b5a53))
+
+
+### Bug Fixes
+
+* **context:** validate tool_call/tool_result pairing after truncation ([c0d7cbd](https://github.com/wsdjeg/chat.nvim/commit/c0d7cbd2afe9afead6a6683d2f3690ff49faa455))
+* fix testSaveAndInitRoundTrip by avoiding cancel() side-effect on disk ([f3947f7](https://github.com/wsdjeg/chat.nvim/commit/f3947f70e7872921f3927c725e49e7dd5d219133))
+* queue timer delay on idle sessions ([b780c93](https://github.com/wsdjeg/chat.nvim/commit/b780c93665275d5b198d76ab6000091fb88e1aad))
+* remove duplicate code blocks in storage, tools, and windows ([f6ea301](https://github.com/wsdjeg/chat.nvim/commit/f6ea301f2782c4628b7c9a381aad9071f2bab23b))
+* remove duplicate incomplete if statement in make.lua ([58dece9](https://github.com/wsdjeg/chat.nvim/commit/58dece929ad9bdd4c66dea84d03604dabc9320f9))
+* resolve 13 code quality and safety issues across codebase ([356bfc5](https://github.com/wsdjeg/chat.nvim/commit/356bfc5305d206580b92c67e2cd5b99e3938be53))
+* **tools:** handle stringified JSON array in git_add path ([0c12c5c](https://github.com/wsdjeg/chat.nvim/commit/0c12c5cd0a640a6d6555b0bc33efb35555092657))
+
+
+### Code Refactoring
+
+* remove Case 2 orphaned tool_calls stripping in context truncation ([1385d40](https://github.com/wsdjeg/chat.nvim/commit/1385d4049f3d78022338ff1b91e0aa7b5cd9fc17))
+* **user:** do not auto-detect user id when config id is empty ([4064560](https://github.com/wsdjeg/chat.nvim/commit/4064560634e2b107cdc7fdb8e0e79e7b20357e60))
+* 重写定时任务为独立 uv.timer 架构 ([e704fcd](https://github.com/wsdjeg/chat.nvim/commit/e704fcdb53242121fca9f2a5e9854a63e98b8dfc))
+
+
+### Documentation
+
+* add make test step before commit in workflow ([ae8faf8](https://github.com/wsdjeg/chat.nvim/commit/ae8faf833a927f776ac0c4c6184dee47ee631687))
+* reorganize AGENTS.md for clarity and brevity ([c0795eb](https://github.com/wsdjeg/chat.nvim/commit/c0795eb8b1d29ea80a578e94f655d4f6fda339ee))
+
+
+### Tests
+
+* add scheduler and schedule_task test specs ([a5f8373](https://github.com/wsdjeg/chat.nvim/commit/a5f837302e01aed91707877865f1c46f5a113877))
+
 ## [1.7.0](https://github.com/wsdjeg/chat.nvim/compare/v1.6.0...v1.7.0) (2026-06-21)
 
 
