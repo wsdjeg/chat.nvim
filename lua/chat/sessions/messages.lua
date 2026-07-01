@@ -78,7 +78,7 @@ function M.get_messages(session_id)
 end
 
 --- Gets messages formatted for LLM API request
---- Prepends system prompt if configured and applies context truncation
+--- Prepends system prompt and user profile if configured, applies context truncation
 --- @param session_id string The session identifier
 --- @return table Array of messages formatted for API request (system, user, assistant, tool roles only)
 function M.get_request_messages(session_id)
@@ -89,6 +89,16 @@ function M.get_request_messages(session_id)
       content = storage.sessions[session_id].prompt,
     })
   end
+
+  -- Inject user profile as system context
+  local profile_msg = require('chat.user').get_profile_system_message()
+  if profile_msg then
+    table.insert(message, {
+      role = 'system',
+      content = profile_msg,
+    })
+  end
+
   for _, m in ipairs(storage.sessions[session_id].messages) do
     if vim.tbl_contains({ 'user', 'assistant', 'tool' }, m.role) then
       table.insert(message, {

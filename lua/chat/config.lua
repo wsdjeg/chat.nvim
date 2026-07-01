@@ -17,6 +17,7 @@ local M = {}
 ---@field system_prompt? string | function
 ---@field context? table
 ---@field memory? table
+---@field user? table
 ---@field integrations? table
 ---@field mcp? table
 ---@field winhighlight? string
@@ -73,6 +74,14 @@ local default = {
     },
     storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
   },
+  -- User profile (人物画像) configuration
+  user = {
+    enable = true,
+    -- User ID, auto-detected from system username if empty
+    id = '',
+    -- Storage directory for user profile markdown files
+    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
+  },
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',
 }
@@ -99,3 +108,4 @@ function M.setup(opt)
 end
 
 return M
+
