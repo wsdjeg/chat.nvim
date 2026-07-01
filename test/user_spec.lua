@@ -26,10 +26,16 @@ function TestUser:testGetUserId()
   lu.assertEquals(uid, 'testuser')
 end
 
-function TestUser:testGetDefaultUserId()
-  local uid = user.get_default_user_id()
-  lu.assertNotNil(uid)
-  lu.assertTrue(#uid > 0)
+function TestUser:testGetUserIdEmpty()
+  config.setup({
+    user = {
+      enable = true,
+      id = '',
+      storage_dir = vim.fn.tempname() .. '_empty/',
+    },
+  })
+  local uid = user.get_user_id()
+  lu.assertEquals(uid, '')
 end
 
 function TestUser:testGetProfilePath()
@@ -54,6 +60,11 @@ end
 
 function TestUser:testGetProfileNotFound()
   local profile = user.get_profile('nonexistent')
+  lu.assertNil(profile)
+end
+
+function TestUser:testGetProfileEmptyId()
+  local profile = user.get_profile('')
   lu.assertNil(profile)
 end
 
@@ -112,6 +123,18 @@ end
 
 function TestUser:testGetProfileSystemMessageNotFound()
   local msg = user.get_profile_system_message('nonexistent')
+  lu.assertNil(msg)
+end
+
+function TestUser:testGetProfileSystemMessageEmptyId()
+  config.setup({
+    user = {
+      enable = true,
+      id = '',
+      storage_dir = vim.fn.tempname() .. '_empty_msg/',
+    },
+  })
+  local msg = user.get_profile_system_message()
   lu.assertNil(msg)
 end
 

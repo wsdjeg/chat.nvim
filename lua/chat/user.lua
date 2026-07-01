@@ -30,24 +30,12 @@ local function sanitize_user_id(user_id)
   return user_id:gsub('[^%w%-_]', '-')
 end
 
---- Get the default user ID from system environment
---- @return string
-function M.get_default_user_id()
-  local username = os.getenv('USER') or os.getenv('USERNAME') or ''
-  if username and #username > 0 then
-    return sanitize_user_id(username)
-  end
-  return 'default'
-end
-
---- Get the current user ID from config (or auto-detect)
+--- Get the current user ID from config
+--- Returns empty string if not configured (no auto-detection)
 --- @return string
 function M.get_user_id()
   local cfg = config.config.user or {}
-  if cfg.id and #cfg.id > 0 then
-    return cfg.id
-  end
-  return M.get_default_user_id()
+  return cfg.id or ''
 end
 
 --- Get the file path for a user profile
@@ -62,6 +50,9 @@ end
 --- @return string|nil profile content (markdown), nil if not found
 function M.get_profile(user_id)
   user_id = user_id or M.get_user_id()
+  if not user_id or #user_id == 0 then
+    return nil
+  end
   local path = M.get_profile_path(user_id)
   if vim.fn.filereadable(path) == 0 then
     return nil
@@ -133,7 +124,7 @@ function M.list_profiles()
 end
 
 --- Get the user profile as a system message string
---- Returns nil if user profiles are disabled or no profile exists
+--- Returns nil if user profiles are disabled, user ID is empty, or no profile exists
 --- @param user_id? string (defaults to current user)
 --- @return string|nil
 function M.get_profile_system_message(user_id)
@@ -142,6 +133,9 @@ function M.get_profile_system_message(user_id)
     return nil
   end
   user_id = user_id or M.get_user_id()
+  if not user_id or #user_id == 0 then
+    return nil
+  end
   local profile = M.get_profile(user_id)
   if not profile or #profile == 0 then
     return nil
