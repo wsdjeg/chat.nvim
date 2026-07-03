@@ -99,13 +99,7 @@ local function handle_session_preview(client, path)
   end
 
   local html = require('chat.preview').generate_html(session_data)
-  local resp = string.format(
-    'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s',
-    #html,
-    html
-  )
-  client:write(resp)
-  client:close()
+  response.send_raw(client, 200, 'text/html; charset=utf-8', html)
 end
 
 --- GET /sessions: list sessions with details
@@ -138,13 +132,7 @@ local function handle_get_session_raw(client, path)
   local content = file:read('*a')
   file:close()
 
-  local resp = string.format(
-    'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
-    #content,
-    content
-  )
-  client:write(resp)
-  client:close()
+  response.send_raw(client, 200, 'application/json', content)
 end
 
 --- GET /sessions/:id: return single session info
