@@ -260,7 +260,7 @@ function M.set_session_model(session_id, model)
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
     log.notify(
-      'session is in progress, can not change provider.',
+      'session is in progress, can not change model.',
       'WarningMsg'
     )
     return
@@ -277,7 +277,7 @@ end
 --- @return string|nil The working directory path
 function M.getcwd(session_id)
   if storage.sessions[session_id] and not storage.sessions[session_id].cwd then
-    storage.sessions[session_id].cwd = vim.fn.getcwd()
+    storage.sessions[session_id].cwd = vim.fs.normalize(vim.fn.getcwd())
   end
   return storage.sessions[session_id].cwd
 end
@@ -421,3 +421,4 @@ function M.retry(session_id)
 end
 
 return M
+

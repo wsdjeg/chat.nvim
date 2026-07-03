@@ -1,17 +1,22 @@
 local M = {}
 local log
+local logger_failed = false
 
 for _, v in ipairs({ 'info', 'warn', 'error', 'debug' }) do
   M[v] = function(msg)
+    if logger_failed then
+      return
+    end
     if not log then
       local ok, l = pcall(require, 'logger')
       if ok then
         log = l.derive('chat.nvim')
-        log[v](msg)
+      else
+        logger_failed = true
+        return
       end
-    else
-      log[v](msg)
     end
+    log[v](msg)
   end
 end
 
@@ -31,3 +36,4 @@ function M.notify(msg, color)
 end
 
 return M
+

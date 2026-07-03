@@ -138,6 +138,8 @@ function M.iter_sessions()
           io.close(file)
           local ok, obj = pcall(vim.json.decode, content)
           if ok and obj ~= vim.NIL then
+            local need_save = false
+
             -- Compatibility: old version without id field
             if not obj.id then
               obj = {
@@ -145,14 +147,14 @@ function M.iter_sessions()
                 messages = obj,
                 provider = require('chat.config').config.provider,
                 model = require('chat.config').config.model,
-                cwd = vim.fn.getcwd(),
+                cwd = vim.fs.normalize(vim.fn.getcwd()),
               }
               need_save = true
             end
 
             -- Compatibility: old version without cwd field
             if not obj.cwd then
-              obj.cwd = vim.fn.getcwd()
+              obj.cwd = vim.fs.normalize(vim.fn.getcwd())
               need_save = true
             end
             -- Compatibility: old version without prompt field
