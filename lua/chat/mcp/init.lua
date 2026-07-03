@@ -390,7 +390,23 @@ function M.call_tool(tool_name, arguments, ctx)
     -- 清理映射
     mcp_tool_call_to_request[current_mcp_tool_call_id] = nil
 
-    if result.content then
+    if result.isError then
+      -- MCP protocol: isError is a boolean, actual error text is in content
+      local error_parts = {}
+      if result.content then
+        for _, part in ipairs(result.content) do
+          if part.type == 'text' then
+            table.insert(error_parts, part.text)
+          end
+        end
+      end
+      ctx.callback({
+        error = #error_parts > 0
+          and table.concat(error_parts, '\n')
+          or 'MCP tool call failed',
+        mcp_tool_call_id = current_mcp_tool_call_id,
+      })
+    elseif result.content then
       local content_parts = {}
       for _, part in ipairs(result.content) do
         if part.type == 'text' then
@@ -399,11 +415,6 @@ function M.call_tool(tool_name, arguments, ctx)
       end
       ctx.callback({
         content = table.concat(content_parts, '\n'),
-        mcp_tool_call_id = current_mcp_tool_call_id,
-      })
-    elseif result.isError then
-      ctx.callback({
-        error = result.isError or 'MCP tool call failed',
         mcp_tool_call_id = current_mcp_tool_call_id,
       })
     else
@@ -506,7 +517,8 @@ end
 
 -- 检查是否是 MCP tool
 function M.is_mcp_tool(tool_name)
-  return tool_name:match('^mcp_[^_]+_.+$') ~= nil
+  -- 使用 .+ 匹配服务器名，支持含下划线的名称（如 open_webSearch）
+  return tool_name:match('^mcp_.+_.+$') ~= nil
 end
 
 -- 获取 MCP tool 的信息描述
@@ -551,3 +563,4 @@ function M.stop()
 end
 
 return M
+

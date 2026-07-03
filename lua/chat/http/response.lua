@@ -1,4 +1,5 @@
---- HTTP response utilities
+local uv = vim.loop
+
 local M = {}
 
 --- Parse HTTP headers from raw string
@@ -20,6 +21,36 @@ function M.url_decode(str)
   end)
 end
 
+--- Safely close a uv handle, checking is_closing first
+local function safe_close(client)
+  if client and not client:is_closing() then
+    client:close()
+  end
+end
+
+--- Write data then close client after write completes
+local function write_and_close(client, resp)
+  client:write(resp, function()
+    safe_close(client)
+  end)
+end
+
+--- Send raw response with given content type
+--- @param client table uv tcp handle
+--- @param status number HTTP status code
+--- @param content_type string Content-Type header value
+--- @param data string response body
+function M.send_raw(client, status, content_type, data)
+  local resp = string.format(
+    'HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s',
+    status,
+    content_type,
+    #data,
+    data
+  )
+  write_and_close(client, resp)
+end
+
 --- Send JSON response
 function M.send_json(client, status, data)
   local json_data = vim.json.encode(data)
@@ -29,8 +60,7 @@ function M.send_json(client, status, data)
     #json_data,
     json_data
   )
-  client:write(resp)
-  client:close()
+  write_and_close(client, resp)
 end
 
 --- Send error response
@@ -42,8 +72,7 @@ function M.send_error(client, status, message)
     #string.format('{"error":"%s"}', message),
     message
   )
-  client:write(resp)
-  client:close()
+  write_and_close(client, resp)
 end
 
 --- Send simple response
@@ -53,8 +82,8 @@ function M.send_response(client, status, message)
     status,
     message
   )
-  client:write(resp)
-  client:close()
+  write_and_close(client, resp)
 end
 
 return M
+

@@ -24,12 +24,20 @@ function M.start()
     server:accept(client)
 
     local buffer = ''
+    local handled = false
 
     client:read_start(function(err, chunk)
-      assert(not err, err)
+      if err then
+        if not handled and not client:is_closing() then
+          client:close()
+        end
+        return
+      end
 
       if not chunk then
-        client:close()
+        if not handled and not client:is_closing() then
+          client:close()
+        end
         return
       end
 
@@ -55,6 +63,9 @@ function M.start()
         return
       end
 
+      -- Mark as handled to prevent double-close from read callback
+      handled = true
+
       -- Use vim.schedule_wrap to handle request in main loop
       -- This allows safe use of vim.fn functions
       vim.schedule_wrap(routes.handle_request)(client, method, path, headers, body, content_length)
@@ -72,3 +83,4 @@ function M.stop()
 end
 
 return M
+
