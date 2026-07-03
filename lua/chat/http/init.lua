@@ -63,12 +63,19 @@ function M.start()
         return
       end
 
-      -- Mark as handled to prevent double-close from read callback
+      -- Mark as handled and stop reading to prevent further callbacks
       handled = true
+      client:read_stop()
 
       -- Use vim.schedule_wrap to handle request in main loop
       -- This allows safe use of vim.fn functions
-      vim.schedule_wrap(routes.handle_request)(client, method, path, headers, body, content_length)
+      vim.schedule_wrap(function()
+        local ok, err = pcall(routes.handle_request, client, method, path, headers, body, content_length)
+        if not ok then
+          -- Route handler threw an error: send 500 to prevent client hang
+          response.send_json(client, 500, { error = 'Internal Server Error' })
+        end
+      end)()
     end)
   end)
 

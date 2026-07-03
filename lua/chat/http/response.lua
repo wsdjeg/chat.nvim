@@ -29,10 +29,18 @@ local function safe_close(client)
 end
 
 --- Write data then close client after write completes
+--- If write fails (e.g. client already closing), close immediately
 local function write_and_close(client, resp)
-  client:write(resp, function()
+  if not client or client:is_closing() then
+    return
+  end
+  local ok = pcall(client.write, client, resp, function()
     safe_close(client)
   end)
+  if not ok then
+    -- write threw an error (client may be closing), close to avoid hang
+    safe_close(client)
+  end
 end
 
 --- Send raw response with given content type
@@ -52,6 +60,9 @@ function M.send_raw(client, status, content_type, data)
 end
 
 --- Send JSON response
+--- @param client table uv tcp handle
+--- @param status number HTTP status code
+--- @param data table|string response data (table will be JSON-encoded)
 function M.send_json(client, status, data)
   local json_data = vim.json.encode(data)
   local resp = string.format(
@@ -64,18 +75,25 @@ function M.send_json(client, status, data)
 end
 
 --- Send error response
+--- @param client table uv tcp handle
+--- @param status number HTTP status code
+--- @param message string error message
 function M.send_error(client, status, message)
+  local body = string.format('{"error":"%s"}', message)
   local resp = string.format(
-    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n{"error":"%s"}',
+    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
     status,
     message,
-    #string.format('{"error":"%s"}', message),
-    message
+    #body,
+    body
   )
   write_and_close(client, resp)
 end
 
---- Send simple response
+--- Send simple response (no body)
+--- @param client table uv tcp handle
+--- @param status number HTTP status code
+--- @param message string status text
 function M.send_response(client, status, message)
   local resp = string.format(
     'HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n',
