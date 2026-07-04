@@ -292,7 +292,7 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
   )
   vim.api.nvim_set_option_value('wrap', true, { win = result_win })
   vim.api.nvim_set_option_value('linebreak', false, { win = result_win })
-  vim.api.nvim_set_option_value('number', true, { win = result_win })
+  vim.api.nvim_set_option_value('number', false, { win = result_win })
   vim.api.nvim_set_option_value('list', false, { win = result_win })
 
   -- Scroll to bottom on initial open

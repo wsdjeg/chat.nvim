@@ -61,7 +61,7 @@ function M.redraw_title(session)
 
   vim.api.nvim_win_set_config(prompt_win, {
     title = {
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
       {
         ' Input ' .. string.format(
           '| %s%s %s | %s %s',
@@ -73,7 +73,7 @@ function M.redraw_title(session)
         ),
         config.config.highlights.title,
       },
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
     },
     title_pos = 'center',
   })
@@ -102,7 +102,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
     relative = 'editor',
     border = config.config.border,
     title = {
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
       {
         ' Input ' .. string.format(
           '| %s%s %s | %s %s',
@@ -114,7 +114,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
         ),
         config.config.highlights.title,
       },
-      { '', config.config.highlights.title_badge },
+      { '', config.config.highlights.title_badge },
     },
     title_pos = 'center',
     col = start_col,
@@ -130,7 +130,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
   )
   vim.api.nvim_set_option_value('wrap', true, { win = prompt_win })
   vim.api.nvim_set_option_value('linebreak', false, { win = prompt_win })
-  vim.api.nvim_set_option_value('number', true, { win = prompt_win })
+  vim.api.nvim_set_option_value('number', false, { win = prompt_win })
   vim.api.nvim_set_option_value('list', false, { win = prompt_win })
 
   return prompt_win
