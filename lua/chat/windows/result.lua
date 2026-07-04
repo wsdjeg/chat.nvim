@@ -53,9 +53,9 @@ function M.set_title(text, session)
 
     vim.api.nvim_win_set_config(result_win, {
       title = {
-        { '', config.config.highlights.title_badge },
+        { '\238\130\182', config.config.highlights.title_badge },
         { title, config.config.highlights.title },
-        { '', config.config.highlights.title_badge },
+        { '\238\130\180', config.config.highlights.title_badge },
       },
       title_pos = 'center',
     })
@@ -271,9 +271,9 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
     width = screen_width,
     border = config.config.border,
     title = {
-      { '', config.config.highlights.title_badge },
+      { '\238\130\182', config.config.highlights.title_badge },
       { 'chat.nvim', config.config.highlights.title },
-      { '', config.config.highlights.title_badge },
+      { '\238\130\180', config.config.highlights.title_badge },
     },
     title_pos = 'center',
   })
