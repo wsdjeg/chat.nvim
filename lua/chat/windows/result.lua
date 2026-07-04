@@ -229,7 +229,14 @@ function M.create_buffer(session)
   result_buf = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = result_buf })
   vim.api.nvim_set_option_value('modifiable', false, { buf = result_buf })
+  vim.api.nvim_set_option_value('filetype', 'markdown', { buf = result_buf })
   vim.treesitter.start(result_buf, 'markdown')
+
+  vim.api.nvim_buf_call(result_buf, function()
+    pcall(function()
+      vim.cmd('RenderMarkdown buf_enable')
+    end)
+  end)
 
   local messages = sessions.get_messages(session)
   if #messages > 0 then
@@ -336,4 +343,3 @@ function M.render(session)
 end
 
 return M
-
