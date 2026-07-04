@@ -26,7 +26,6 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     require('chat.windows').redraw_title()
   elseif #opt.fargs > 0 and opt.fargs[1] == 'unbridge' then
     local ims = require('chat.integrations')
-    local windows = require('chat.windows')
     if not windows.current_session() then
       require('chat.log').notify('No active window session to unbridge', 'WarningMsg')
       return
