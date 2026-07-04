@@ -38,9 +38,9 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-here is a list of available tools:
+Here is a list of 40 built-in tools:
 
-| tool name                                    | description                                                        |
+| Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
 | [read_file](./read_file.md)                  | Reads the content of a file                                        |
 | [write_file](./write_file.md)                | Write, modify, or delete file content                              |
@@ -80,6 +80,8 @@ here is a list of available tools:
 | [git_tag](./git_tag.md)                      | Manage git tags                                                    |
 | [get_history](./get_history.md)              | Get conversation history messages                                  |
 | [plan](./plan.md)                            | Plan mode for task management                                      |
+| [user_profile](./user_profile.md)            | Manage user profiles (人物画像) for personalized assistance        |
+| [schedule_task](./schedule_task.md)          | Schedule tasks to be executed at a future time                     |
 
 ---
 
@@ -304,3 +306,4 @@ return M
 - [Memory System](../memory/) - Learn about the memory system
 - [HTTP API](../api/http/) - HTTP API integration
 - [IM Integration](../integrations/im/) - Instant messaging integrations
+

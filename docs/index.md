@@ -34,8 +34,8 @@ nav_order: 1
   </div>
   
   <div class="feature-card">
-    <h3>🛠️ 20+ Built-in Tools</h3>
-    <p>File operations, Git integration, web search, memory management, planning, and extensible custom tools.</p>
+    <h3>🛠️ 40+ Built-in Tools</h3>
+    <p>File operations, Git integration, web search, memory management, scheduling, user profiles, and extensible custom tools.</p>
   </div>
   
   <div class="feature-card">
@@ -54,6 +54,16 @@ nav_order: 1
   </div>
   
   <div class="feature-card">
+    <h3>👤 User Profiles</h3>
+    <p>Manage user profiles (人物画像) for personalized, context-aware AI assistance with per-user preferences and skills.</p>
+  </div>
+  
+  <div class="feature-card">
+    <h3>⏰ Scheduled Tasks</h3>
+    <p>Create one-time or recurring scheduled tasks that persist across Neovim restarts and trigger LLM actions.</p>
+  </div>
+  
+  <div class="feature-card">
     <h3>📝 Zettelkasten</h3>
     <p>Note-taking support via zettelkasten.nvim integration for knowledge management.</p>
   </div>
@@ -65,7 +75,7 @@ nav_order: 1
   
   <div class="feature-card">
     <h3>⚡ Streaming Responses</h3>
-    <p>Real-time AI responses with cancellation support and token usage tracking.</p>
+    <p>Real-time AI responses with cancellation support, RenderMarkdown rendering, and token usage tracking.</p>
   </div>
 </div>
 
@@ -131,3 +141,4 @@ require('plug').add({
 ## 📄 License
 
 chat.nvim is released under the [GPL-3.0 License](https://github.com/wsdjeg/chat.nvim/blob/master/LICENSE).
+

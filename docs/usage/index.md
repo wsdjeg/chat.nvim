@@ -238,6 +238,7 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
 | `Normal` | `<Leader>fp` | Run `:Picker chat_provider`             |
 | `Normal` | `<Leader>fm` | Run `:Picker chat_model`                |
+| `Normal` | `<M-t>`      | Rename current session title            |
 
 ### Result Window Key Bindings
 
@@ -247,6 +248,14 @@ The following key bindings are available in the **Result** window:
 | -------- | ----------- | --------------------------------------- |
 | `Normal` | `q`         | Close chat window                       |
 | `Normal` | `<Tab>`     | Switch between input and result windows |
+
+### Markdown Rendering
+
+The result window uses `markdown` filetype, enabling syntax highlighting and [RenderMarkdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) integration for rich rendering of AI responses including headings, code blocks, tables, and lists.
+
+### Session Title
+
+Each session has a title displayed in the title bar of both the input and result windows. Press `<M-t>` in the input window to rename the current session title.
 
 ---
 
@@ -459,7 +468,7 @@ chat.nvim provides powerful features beyond basic chatting:
 
 - **Memory System**: Three-tier memory for context retention
 - **MCP Protocol**: Extended tool capabilities via external servers
-- **Tools**: 20+ built-in tools for file operations, Git, web search, etc.
+- **Tools**: 40+ built-in tools for file operations, Git, web search, etc.
 
 ---
 
@@ -486,13 +495,14 @@ Learn more: [MCP](../mcp/)
 
 ### Built-in Tools
 
-20+ built-in tools for various operations:
+40+ built-in tools for various operations:
 
 - File: `read_file`, `write_file`, `find_files`, `search_text`
 - Git: `git_add`, `git_commit`, `git_diff`, `git_log`, etc.
 - Web: `fetch_web`, `web_search`
 - Memory: `extract_memory`, `recall_memory`
-- Planning: `plan`
+- Planning: `plan`, `schedule_task`
+- User: `user_profile`
 
 ## Next Steps
 
