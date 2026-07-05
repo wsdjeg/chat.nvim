@@ -14,6 +14,7 @@ local keymaps = require('chat.windows.keymaps')
 
 -- Session state
 local current_session
+local services_started = false
 
 -- Validate API key before opening
 local function validate_api_key()
@@ -31,6 +32,25 @@ local function validate_api_key()
     return false
   end
   return true
+end
+
+-- Start background services (queue, http, integrations, mcp)
+-- Idempotent: safe to call multiple times
+local function start_services()
+  if services_started then
+    return
+  end
+  services_started = true
+
+  queue.start()
+  if config.config.http.api_key ~= '' then
+    require('chat.http').start()
+  end
+
+  require('chat.integrations').on_message(function(message)
+    queue.push(message.session, message.content)
+  end)
+  require('chat.mcp').connect()
 end
 
 -- Close all windows
@@ -54,6 +74,34 @@ function M.rename_title()
       M.redraw_title()
     end
   end)
+end
+
+--- Start backend services without opening UI windows.
+--- Initializes session and starts queue, http, integrations, mcp.
+--- @param opt? table optional config, supports `cwd`
+--- @return string|nil session_id
+function M.start(opt)
+  if not validate_api_key() then
+    return
+  end
+
+  -- Initialize or restore session
+  if not current_session then
+    current_session = sessions.new()
+  end
+
+  -- Handle cwd option
+  if opt and opt.cwd then
+    if sessions.is_in_progress(current_session) then
+      log.notify('session is in progress, can not change cwd.', 'WarningMsg')
+    else
+      sessions.change_cwd(current_session, opt.cwd)
+    end
+  end
+
+  start_services()
+
+  return current_session
 end
 
 -- Open chat windows
@@ -212,16 +260,8 @@ function M.open(opt)
     spinners.stop()
   end
 
-  -- Start background services
-  queue.start()
-  if config.config.http.api_key ~= '' then
-    require('chat.http').start()
-  end
-
-  require('chat.integrations').on_message(function(message)
-    queue.push(message.session, message.content)
-  end)
-  require('chat.mcp').connect()
+  -- Start background services (idempotent)
+  start_services()
 end
 
 -- Get current session ID

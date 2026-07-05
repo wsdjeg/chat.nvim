@@ -4,6 +4,14 @@ function M.open(opt)
   require('chat.windows').open(opt)
 end
 
+--- Start backend services (session, queue, http, mcp, integrations)
+--- without opening any UI windows.
+--- @param opt? table optional config, supports `cwd`
+--- @return string|nil session_id
+function M.start(opt)
+  return require('chat.windows').start(opt)
+end
+
 local function setup_highlights(config)
   local normal = vim.api.nvim_get_hl(0, { name = 'Normal' })
 
