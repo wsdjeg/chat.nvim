@@ -6,6 +6,7 @@ local M = {}
 ---@field width? number
 ---@field height? number
 ---@field auto_scroll? boolean
+---@field render_markdown? boolean
 ---@field provider? string
 ---@field model? string
 ---@field border? string
@@ -28,6 +29,8 @@ local default = {
   -- if auto_scroll is false, never scroll the result window automatically.
   -- if auto_scroll is true, only scroll to the bottom if the cursor was already on the last line before new content is appended.
   auto_scroll = true,
+  -- enable RenderMarkdown plugin for the result buffer (requires render-markdown.nvim)
+  render_markdown = true,
   provider = 'deepseek',
   model = 'deepseek-chat',
   border = 'rounded',
