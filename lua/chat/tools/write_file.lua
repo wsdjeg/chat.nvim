@@ -3,10 +3,13 @@ local M = {}
 local util = require('chat.util')
 ---@class ChatToolsWriteFileAction
 ---@field filepath string
----@field action "create"|"overwrite"|"append"|"insert"|"delete"|"replace"|"remove"
+---@field action "create"|"overwrite"|"append"|"insert"|"delete"|"replace"|"str_replace"|"remove"
 ---@field content string?
 ---@field line_start integer?
 ---@field line_to integer?
+---@field old_str string? -- String to find (for str_replace action)
+---@field new_str string? -- String to replace with (for str_replace action)
+---@field replace_all boolean? -- Replace all occurrences (for str_replace action)
 ---@field backup boolean? -- Create backup before modifying
 ---@field validate boolean? -- Validate syntax after modification (for code files)
 
@@ -106,6 +109,38 @@ local function get_line_context(lines, start_line, end_line, context_lines)
   return table.concat(result, '\n')
 end
 
+--- Find all match positions (start, end) of old_str in content
+---@param content string
+---@param old_str string
+---@return table[] matches Array of {start_pos, end_pos}
+local function find_all_matches(content, old_str)
+  local matches = {}
+  local start = 1
+  while true do
+    local pos = content:find(old_str, start, true)
+    if not pos then
+      break
+    end
+    table.insert(matches, { start_pos = pos, end_pos = pos + #old_str - 1 })
+    start = pos + #old_str
+  end
+  return matches
+end
+
+--- Get line number from character position in content
+---@param content string
+---@param pos integer character position
+---@return integer
+local function get_line_number(content, pos)
+  local line = 1
+  for i = 1, pos - 1 do
+    if content:sub(i, i) == '\n' then
+      line = line + 1
+    end
+  end
+  return line
+end
+
 ---@param action ChatToolsWriteFileAction
 ---@param ctx ChatToolContext
 function M.write_file(action, ctx)
@@ -164,6 +199,7 @@ function M.write_file(action, ctx)
     'insert',
     'delete',
     'replace',
+    'str_replace',
     'remove',
   }
   local action_type = action.action or 'create'
@@ -200,7 +236,7 @@ function M.write_file(action, ctx)
 
   if
     vim.tbl_contains(
-      { 'overwrite', 'append', 'insert', 'delete', 'replace' },
+      { 'overwrite', 'append', 'insert', 'delete', 'replace', 'str_replace' },
       action_type
     ) and not file_exists
   then
@@ -485,6 +521,140 @@ function M.write_file(action, ctx)
     end
 
     return { content = result }
+  elseif action_type == 'str_replace' then
+    -- Validate parameters
+    if not action.old_str then
+      return { error = 'old_str is required for str_replace action' }
+    end
+    if action.old_str == '' then
+      return { error = 'old_str must not be empty' }
+    end
+    -- new_str can be empty (deleting a string)
+    local new_str = action.new_str or ''
+
+    local content = table.concat(lines, '\n')
+
+    -- Find all occurrences
+    local matches = find_all_matches(content, action.old_str)
+    local match_count = #matches
+
+    if match_count == 0 then
+      -- Build a helpful error message showing similar text in the file
+      local old_str_first_line = action.old_str:match('^([^\n]*)')
+      local similar_lines = {}
+      for i, line in ipairs(lines) do
+        if line:find(old_str_first_line, 1, true) then
+          table.insert(similar_lines, string.format('  Line %d: %s', i, line))
+        end
+      end
+
+      local hint = ''
+      if #similar_lines > 0 then
+        hint = '\n\nSimilar lines found (check for whitespace/trailing differences):\n'
+          .. table.concat(similar_lines, '\n')
+      end
+
+      return {
+        error = string.format(
+          'old_str not found in file: %s\n\nold_str:\n%s%s',
+          filepath,
+          action.old_str,
+          hint
+        ),
+      }
+    end
+
+    -- If not replace_all, require exactly one match
+    if not action.replace_all and match_count > 1 then
+      -- Show all match locations
+      local locations = {}
+      for _, match in ipairs(matches) do
+        local line_num = get_line_number(content, match.start_pos)
+        table.insert(
+          locations,
+          string.format('  Line %d (char %d)', line_num, match.start_pos)
+        )
+      end
+
+      return {
+        error = string.format(
+          'old_str found %d times in file: %s\nTo replace all occurrences, set replace_all=true.\n\nMatch locations:\n%s',
+          match_count,
+          filepath,
+          table.concat(locations, '\n')
+        ),
+      }
+    end
+
+    -- Create backup if requested
+    local backup_path = nil
+    if action.backup then
+      backup_path = create_backup(filepath)
+    end
+
+    -- Perform replacement
+    local new_content
+    if action.replace_all then
+      -- Use string.gsub with literal string (escape pattern chars)
+      -- Wrap inner gsub in parentheses to only take the first return value
+      -- (gsub returns string + count; count would be passed as 4th arg = max replacements)
+      new_content = content:gsub(
+        vim.pesc(action.old_str),
+        (new_str:gsub('%%', '%%%%'))
+      )
+    else
+      -- Replace only first occurrence
+      new_content = content:sub(1, matches[1].start_pos - 1)
+        .. new_str
+        .. content:sub(matches[1].end_pos + 1)
+    end
+
+    -- Validate syntax if requested
+    if action.validate then
+      local ok, err = validate_syntax(filepath, new_content)
+      if not ok then
+        -- Restore from backup if available
+        if backup_path and vim.fn.filereadable(backup_path) == 1 then
+          vim.fn.rename(backup_path, filepath)
+        end
+
+        -- Build error with context around the replacement
+        local match_line = get_line_number(content, matches[1].start_pos)
+        local new_lines = vim.split(new_content, '\n', { plain = true })
+        local context = get_line_context(
+          new_lines,
+          math.max(1, match_line - 3),
+          math.min(#new_lines, match_line + 3),
+          3
+        )
+
+        return {
+          error = string.format(
+            'Syntax validation failed after str_replace. Changes reverted.\n\nold_str:\n%s\n\nnew_str:\n%s\n\nContext:\n%s\n\nValidation error:\n%s',
+            action.old_str,
+            new_str,
+            context,
+            err
+          ),
+        }
+      end
+    end
+
+    local new_lines = vim.split(new_content, '\n', { plain = true })
+    vim.fn.writefile(new_lines, filepath, 'p')
+
+    -- Clean up backup on success
+    if backup_path and vim.fn.filereadable(backup_path) == 1 then
+      vim.fn.delete(backup_path)
+    end
+
+    local result = string.format(
+      'Successfully replaced %d occurrence(s) of old_str with new_str in: %s',
+      action.replace_all and match_count or 1,
+      filepath
+    )
+
+    return { content = result }
   end
 
   return { error = 'Unknown action' }
@@ -508,6 +678,7 @@ ACTIONS:
 - insert: Insert content at specific line
 - delete: Delete specific line range
 - replace: Replace specific line range with new content
+- str_replace: Replace string by matching old_str (no line numbers needed)
 - remove: Delete entire file
 
 VALIDATION:
@@ -520,6 +691,14 @@ BACKUP:
 - Backup is automatically cleaned up on success
 - Backup format: <filepath>.backup.<timestamp>
 
+STR_REPLACE ACTION:
+- Find old_str in file and replace with new_str
+- By default, old_str must match exactly once (safer)
+- Set replace_all=true to replace all occurrences
+- old_str cannot be empty
+- new_str can be empty (to delete a string)
+- Uses literal string matching (no regex/patterns)
+
 EXAMPLES:
 - @write_file filepath="./src/main.lua" action="create" content="print('hello')"
 - @write_file filepath="./src/main.lua" action="overwrite" content="new content"
@@ -528,6 +707,8 @@ EXAMPLES:
 - @write_file filepath="./src/main.lua" action="delete" line_start=5 line_to=10
 - @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"
 - @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines" validate=true
+- @write_file filepath="./src/main.lua" action="str_replace" old_str="local x = 1" new_str="local x = 2"
+- @write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true
 - @write_file filepath="./src/main.lua" action="remove"
 NOTES:
 - Line numbers are 1-indexed (first line is line 1)
@@ -553,6 +734,7 @@ NOTES:
               'insert',
               'delete',
               'replace',
+              'str_replace',
               'remove',
             },
             description = 'Action to perform (default: create)',
@@ -570,6 +752,18 @@ NOTES:
             type = 'integer',
             description = 'Ending line number, 1-indexed (for delete/replace)',
             minimum = 1,
+          },
+          old_str = {
+            type = 'string',
+            description = 'String to find (required for str_replace action). Uses literal matching.',
+          },
+          new_str = {
+            type = 'string',
+            description = 'String to replace with (for str_replace action). Can be empty to delete the matched text.',
+          },
+          replace_all = {
+            type = 'boolean',
+            description = 'Replace all occurrences of old_str (default: false, requires exactly one match)',
           },
           backup = {
             type = 'boolean',
@@ -600,6 +794,17 @@ function M.info(action, ctx)
       end
     end
 
+    if args.old_str then
+      local preview = args.old_str:sub(1, 30)
+      if #args.old_str > 30 then
+        preview = preview .. '...'
+      end
+      info = info .. string.format(' old_str="%s"', preview)
+      if args.replace_all then
+        info = info .. ' [all]'
+      end
+    end
+
     if args.validate then
       info = info .. ' [validate]'
     end
@@ -614,3 +819,4 @@ function M.info(action, ctx)
 end
 
 return M
+

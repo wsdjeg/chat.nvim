@@ -786,5 +786,266 @@ function TestWriteFile:testWriteFileInvalidAction()
   lu.assertStrContains(result.error, 'Invalid action')
 end
 
+-- ============================
+-- STR_REPLACE Tests
+-- ============================
+
+function TestWriteFile:testStrReplaceBasic()
+  local test_file = self.test_dir .. '/test_str_replace_basic.lua'
+  vim.fn.writefile({ 'local x = 1', 'local y = 2' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local x = 1',
+    new_str = 'local x = 2',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Successfully replaced')
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local x = 2')
+  lu.assertEquals(lines[2], 'local y = 2')
+end
+
+function TestWriteFile:testStrReplaceMultiLine()
+  local test_file = self.test_dir .. '/test_str_replace_multi.lua'
+  vim.fn.writefile({ 'local x = 1', 'local y = 2', 'local z = 3' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local x = 1\nlocal y = 2',
+    new_str = 'local x = 10\nlocal y = 20',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content)
+  lu.assertStrContains(result.content, 'Successfully replaced')
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local x = 10')
+  lu.assertEquals(lines[2], 'local y = 20')
+  lu.assertEquals(lines[3], 'local z = 3')
+end
+
+function TestWriteFile:testStrReplacePartialLine()
+  local test_file = self.test_dir .. '/test_str_replace_partial.lua'
+  vim.fn.writefile({ 'print("hello world")' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'hello world',
+    new_str = 'goodbye world',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content)
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'print("goodbye world")')
+end
+
+function TestWriteFile:testStrReplaceNewStrEmpty()
+  local test_file = self.test_dir .. '/test_str_replace_empty_new.lua'
+  vim.fn.writefile({ 'local x = 1', '-- TODO: fix this', 'local y = 2' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = '-- TODO: fix this\n',
+    new_str = '',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content)
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local x = 1')
+  lu.assertEquals(lines[2], 'local y = 2')
+end
+
+function TestWriteFile:testStrReplaceReplaceAll()
+  local test_file = self.test_dir .. '/test_str_replace_all.lua'
+  vim.fn.writefile({ 'TODO: a', 'TODO: b', 'TODO: c' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'TODO',
+    new_str = 'DONE',
+    replace_all = true,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content)
+  lu.assertStrContains(result.content, '3 occurrence')
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'DONE: a')
+  lu.assertEquals(lines[2], 'DONE: b')
+  lu.assertEquals(lines[3], 'DONE: c')
+end
+
+function TestWriteFile:testStrReplaceMultipleMatchesNoReplaceAll()
+  local test_file = self.test_dir .. '/test_str_replace_multi_match.lua'
+  vim.fn.writefile({ 'TODO: a', 'TODO: b' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'TODO',
+    new_str = 'DONE',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'found 2 times')
+  lu.assertStrContains(result.error, 'replace_all=true')
+  -- File should not be modified
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'TODO: a')
+  lu.assertEquals(lines[2], 'TODO: b')
+end
+
+function TestWriteFile:testStrReplaceNotFound()
+  local test_file = self.test_dir .. '/test_str_replace_not_found.lua'
+  vim.fn.writefile({ 'local x = 1' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'nonexistent string',
+    new_str = 'replacement',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'not found')
+function TestWriteFile:testStrReplaceNotFoundWithHint()
+  local test_file = self.test_dir .. '/test_str_replace_not_found_hint.lua'
+  vim.fn.writefile({ 'local x = 1', 'local y = 2' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    -- Multi-line old_str: first line matches but full string doesn't
+    old_str = 'local x = 1\nlocal z = 3',
+    new_str = 'local x = 2',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'not found')
+  lu.assertStrContains(result.error, 'Similar lines found')
+end
+  local test_file = self.test_dir .. '/test_str_replace_empty_old.lua'
+  vim.fn.writefile({ 'local x = 1' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = '',
+    new_str = 'something',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'must not be empty')
+end
+
+function TestWriteFile:testStrReplaceMissingOldStr()
+  local test_file = self.test_dir .. '/test_str_replace_no_old.lua'
+  vim.fn.writefile({ 'local x = 1' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    new_str = 'something',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'old_str is required')
+end
+
+function TestWriteFile:testStrReplaceNonExistentFile()
+  local test_file = self.test_dir .. '/non_existent_str_replace.lua'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'something',
+    new_str = 'other',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'does not exist')
+end
+
+function TestWriteFile:testStrReplacePatternChars()
+  -- Ensure literal matching, not Lua pattern matching
+  local test_file = self.test_dir .. '/test_str_replace_pattern.lua'
+  vim.fn.writefile({ 'local s = "hello%dworld"' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = '%d',
+    new_str = '%s',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local s = "hello%sworld"')
+end
+
+function TestWriteFile:testStrReplaceValidateSyntaxSuccess()
+  local test_file = self.test_dir .. '/test_str_replace_validate_ok.lua'
+  vim.fn.writefile({ 'local a = 1' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local a = 1',
+    new_str = 'local a = 100',
+    validate = true,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertStrContains(result.content, 'Successfully replaced')
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local a = 100')
+end
+
+function TestWriteFile:testStrReplaceValidateSyntaxError()
+  local test_file = self.test_dir .. '/test_str_replace_validate_err.lua'
+  vim.fn.writefile({ 'local a = 1' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local a = 1',
+    new_str = 'local a = !!!',
+    validate = true,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'Syntax validation failed')
+  lu.assertStrContains(result.error, 'reverted')
+  -- File should be unchanged
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local a = 1')
+end
+
+function TestWriteFile:testStrReplaceBackupRestoredOnValidationError()
+  local test_file = self.test_dir .. '/test_str_replace_backup.lua'
+  vim.fn.writefile({ 'local a = 1' }, test_file)
+
+  local ok, result = pcall(tools.call, 'write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local a = 1',
+    new_str = 'invalid !!!',
+    validate = true,
+    backup = true,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  -- Skip if uv.fs_copyfile fails on certain platforms
+  if not ok then return end
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'reverted')
+  local lines = vim.fn.readfile(test_file)
+  lu.assertEquals(lines[1], 'local a = 1')
+end
+
 return TestWriteFile
 
