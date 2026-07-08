@@ -32,7 +32,7 @@ end
 -- Create a temporary git repo in cache directory
 local function create_temp_git_repo(name)
   name = name or 'git_tag'
-  local cache_dir = vim.fs.normalize(vim.fn.stdpath('cache'))
+  local cache_dir = vim.fs.normalize(vim.fn.stdpath('data'))
   local temp_dir = cache_dir
     .. '/test_'
     .. name

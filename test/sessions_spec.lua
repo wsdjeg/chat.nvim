@@ -128,7 +128,7 @@ function TestSessions:testWriteCache()
   lu.assertTrue(success)
 
   -- Verify file exists
-  local cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
+  local cache_dir = vim.fn.stdpath('data') .. '/chat.nvim/'
   local cache_file = cache_dir .. session_id .. '.json'
   lu.assertEquals(vim.fn.filereadable(cache_file), 1)
 
