@@ -118,15 +118,15 @@ require('plug').add({
 
 ## 📚 Documentation
 
-- [Installation](./getting-started/installation/) - Setup and prerequisites
-- [Usage](./usage/) - Commands, keybindings, and workflows
+- [Getting Started](./getting-started/) - Setup and prerequisites
 - [Configuration](./configuration/) - Customize chat.nvim settings
 - [Providers](./providers/) - Configure AI providers
+- [Usage](./usage/) - Commands, keybindings, and workflows
 - [Tools](./tools/) - Explore available tools
 - [Memory System](./memory/) - Three-tier memory architecture
+- [API](./api/) - External integration via HTTP
 - [MCP](./mcp/) - Model Context Protocol integration
-- [HTTP API](./api/) - External integration via HTTP
-- [IM Integration](./integrations/im/) - Messaging platform integrations
+- [IM Integration](./integrations/) - Messaging platform integrations
 
 ---
 
