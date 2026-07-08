@@ -7,7 +7,7 @@ local log = require('chat.log')
 local json = vim.json
 local uv = vim.uv
 
-local STATE_FILE = vim.fn.stdpath('data') .. '/chat-weixin-state.json'
+local STATE_FILE = vim.fn.stdpath('data') .. '/chat.nvim/integration/weixin.json'
 
 local TYPING_TICKET_TTL_MS = 24 * 60 * 60 * 1000 -- 24小时
 

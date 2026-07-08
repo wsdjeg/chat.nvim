@@ -10,7 +10,7 @@ local uv = vim.uv
 --------------------------------------------------
 -- constants
 --------------------------------------------------
-local STATE_FILE = vim.fn.stdpath('data') .. '/chat-wecom-state.json'
+local STATE_FILE = vim.fn.stdpath('data') .. '/chat.nvim/integration/wecom.json'
 local API_BASE = 'https://qyapi.weixin.qq.com/cgi-bin'
 
 --------------------------------------------------
