@@ -120,8 +120,8 @@ require('plug').add({
 
 - [Getting Started](./getting-started/) - Setup and prerequisites
 - [Configuration](./configuration/) - Customize chat.nvim settings
-- [Providers](./providers/) - Configure AI providers
 - [Usage](./usage/) - Commands, keybindings, and workflows
+- [Providers](./providers/) - Configure AI providers
 - [Tools](./tools/) - Explore available tools
 - [Memory System](./memory/) - Three-tier memory architecture
 - [API](./api/) - External integration via HTTP
