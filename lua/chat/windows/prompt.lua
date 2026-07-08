@@ -132,6 +132,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
   vim.api.nvim_set_option_value('linebreak', false, { win = prompt_win })
   vim.api.nvim_set_option_value('number', false, { win = prompt_win })
   vim.api.nvim_set_option_value('list', false, { win = prompt_win })
+  vim.api.nvim_set_option_value('signcolumn', 'yes', { win = prompt_win })
 
   return prompt_win
 end
