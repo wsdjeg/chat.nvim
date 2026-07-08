@@ -26,7 +26,7 @@ M.tasks = {}
 -- ── 持久化 ────────────────────────────────────────────────
 
 local function get_storage_path()
-  local dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
+  local dir = vim.fn.stdpath('data') .. '/chat.nvim/'
   if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, 'p')
   end

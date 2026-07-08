@@ -75,7 +75,7 @@ local default = {
       max_memories = 20,
       priority_weight = 2.0,
     },
-    storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/memory/',
   },
   -- User profile (人物画像) configuration
   user = {

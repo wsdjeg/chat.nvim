@@ -19,7 +19,7 @@ local function get_storage_path()
   return vim.fs.normalize(
     (
       config.config.memory.storage_dir
-      or vim.fn.stdpath('cache') .. '/chat.nvim/memory/'
+      or vim.fn.stdpath('data') .. '/chat.nvim/memory/'
     ) .. '/long_term_memories.json'
   )
 end
@@ -27,7 +27,7 @@ end
 -- 初始化存储目录
 local function init_storage()
   local storage_dir = config.config.memory.storage_dir
-    or vim.fn.stdpath('cache') .. '/chat.nvim/memory/'
+    or vim.fn.stdpath('data') .. '/chat.nvim/memory/'
 
   if vim.fn.isdirectory(storage_dir) == 0 then
     vim.fn.mkdir(storage_dir, 'p')

@@ -31,7 +31,7 @@ local M = {}
 
 local log = require('chat.log')
 
-M.cache_dir = vim.fn.stdpath('cache') .. '/chat.nvim/'
+M.cache_dir = vim.fn.stdpath('data') .. '/chat.nvim/'
 
 local function get_config_system_prompt()
   local config = require('chat.config')
