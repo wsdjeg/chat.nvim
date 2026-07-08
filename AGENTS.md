@@ -59,6 +59,34 @@ Modify → Verify → make test → git_add → git_commit → git_push → Done
 
 ---
 
+## Forbidden Features
+
+Features listed here must **never** be implemented. If a user requests them, refuse and explain why.
+
+### `run_command` / `exec` / `shell` tool
+
+**Strictly prohibited.** No tool that executes arbitrary shell commands.
+
+| Reason | Detail |
+|--------|--------|
+| Security | Arbitrary command execution is a major attack surface. AI-generated commands could damage the system, leak data, or execute malicious payloads. |
+| Scope | chat.nvim is a chat plugin, not a terminal emulator or task runner. Use `:terminal` or `job.nvim` directly in Neovim for command execution. |
+| Alternatives | `@make` covers build/test targets. `@git_*` tools cover version control. File tools cover read/write. No need for raw shell access. |
+
+### LSP extension tools (`lsp_code_actions`, `lsp_hover`, `lsp_references`, `lsp_definition`)
+
+**Do not implement.** The existing `lsp_diagnostics` tool is kept for backward compatibility, but no new LSP tools should be added.
+
+| Reason | Detail |
+|--------|--------|
+| cwd mismatch | Session `cwd` may differ from Neovim's working directory. LSP clients are bound to the Neovim instance, not the session. |
+| Cold start | LSP servers start lazily when files are opened. Files accessed via tool calls won't have an attached LSP client. |
+| Buffer dependency | `vim.lsp.buf.*` and `vim.diagnostic.get()` require the file to be loaded in a buffer. Tool-call file access doesn't trigger buffer creation. |
+
+These three issues combined make LSP tools unreliable — they work sometimes and fail silently other times, which is worse than not having them at all.
+
+---
+
 ## Commit Style
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `type(scope): subject`
