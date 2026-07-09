@@ -58,7 +58,7 @@ function M.get()
             { 0, 1, 'Comment' },
             { #cwd_tail + 1, #cwd_tail + 2, 'Comment' },
             -- highlight cwd tail
-            { 1, #cwd_tail + 1, 'Directory' },
+            { 1, #cwd_tail + 1, 'String' },
           },
         })
       end
