@@ -2,6 +2,24 @@ local uv = vim.loop
 
 local M = {}
 
+--- HTTP status text mapping
+local status_texts = {
+  [200] = 'OK',
+  [204] = 'No Content',
+  [400] = 'Bad Request',
+  [401] = 'Unauthorized',
+  [404] = 'Not Found',
+  [409] = 'Conflict',
+  [500] = 'Internal Server Error',
+}
+
+--- Get status text for a given status code
+--- @param status number HTTP status code
+--- @return string status text
+local function status_text(status)
+  return status_texts[status] or 'Unknown'
+end
+
 --- Parse HTTP headers from raw string
 function M.parse_headers(raw)
   local headers = {}
@@ -50,8 +68,9 @@ end
 --- @param data string response body
 function M.send_raw(client, status, content_type, data)
   local resp = string.format(
-    'HTTP/1.1 %d OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s',
+    'HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s',
     status,
+    status_text(status),
     content_type,
     #data,
     data
@@ -66,8 +85,9 @@ end
 function M.send_json(client, status, data)
   local json_data = vim.json.encode(data)
   local resp = string.format(
-    'HTTP/1.1 %d OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
     status,
+    status_text(status),
     #json_data,
     json_data
   )
@@ -79,11 +99,11 @@ end
 --- @param status number HTTP status code
 --- @param message string error message
 function M.send_error(client, status, message)
-  local body = string.format('{"error":"%s"}', message)
+  local body = vim.json.encode({ error = message })
   local resp = string.format(
     'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
     status,
-    message,
+    status_text(status),
     #body,
     body
   )
@@ -93,12 +113,12 @@ end
 --- Send simple response (no body)
 --- @param client table uv tcp handle
 --- @param status number HTTP status code
---- @param message string status text
+--- @param message string|nil status text (optional, defaults to standard text)
 function M.send_response(client, status, message)
   local resp = string.format(
     'HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n',
     status,
-    message
+    message or status_text(status)
   )
   write_and_close(client, resp)
 end
