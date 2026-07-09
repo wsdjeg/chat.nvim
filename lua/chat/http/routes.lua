@@ -2,6 +2,7 @@ local sessions = require('chat.sessions')
 local queue = require('chat.queue')
 local response = require('chat.http.response')
 local config = require('chat.config')
+local uv = vim.loop
 
 local M = {}
 
@@ -123,16 +124,27 @@ local function handle_get_session_raw(client, path)
     return
   end
 
-  local file = io.open(cache_path, 'r')
-  if not file then
-    response.send_json(client, 500, { error = 'Failed to read cache' })
-    return
-  end
-
-  local content = file:read('*a')
-  file:close()
-
-  response.send_raw(client, 200, 'application/json', content)
+  uv.fs_open(cache_path, 'r', 438, function(open_err, fd)
+    if open_err or not fd then
+      response.send_json(client, 500, { error = 'Failed to read cache' })
+      return
+    end
+    uv.fs_fstat(fd, function(stat_err, stat)
+      if stat_err or not stat then
+        uv.fs_close(fd)
+        response.send_json(client, 500, { error = 'Failed to read cache' })
+        return
+      end
+      uv.fs_read(fd, stat.size, 0, function(read_err, data)
+        uv.fs_close(fd)
+        if read_err or not data then
+          response.send_json(client, 500, { error = 'Failed to read cache' })
+          return
+        end
+        response.send_raw(client, 200, 'application/json', data)
+      end)
+    end)
+  end)
 end
 
 --- GET /sessions/:id: return single session info
