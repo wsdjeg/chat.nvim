@@ -61,7 +61,7 @@ end
 local function parse_json_body(client, body, content_length)
   local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
   if not ok or type(obj) ~= 'table' then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return false, nil
   end
   return true, obj
@@ -84,7 +84,7 @@ end
 local function handle_session_preview(client, path)
   local session_id = path:match('id=([^&]+)')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -94,7 +94,7 @@ local function handle_session_preview(client, path)
   local session_data = all_sessions[session_id]
 
   if not session_data then
-    response.send_response(client, 404, 'Not Found')
+    response.send_response(client, 404)
     return
   end
 
@@ -137,9 +137,9 @@ end
 
 --- GET /sessions/:id: return single session info
 local function handle_get_session(client, path)
-  local session_id = path:match('^/sessions/(.+)$')
+  local session_id = path:match('^/sessions/([^/]+)$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -215,9 +215,9 @@ end
 
 --- DELETE /session/:id: delete session
 local function handle_delete_session(client, path)
-  local session_id = path:match('^/session/(.+)$')
+  local session_id = path:match('^/session/([^/]+)$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -233,14 +233,14 @@ local function handle_delete_session(client, path)
   end
 
   sessions.delete(session_id)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- POST /session/:id/stop: stop generation
 local function handle_stop_session(client, path)
   local session_id = path:match('^/session/([^/]+)/stop$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -251,14 +251,14 @@ local function handle_stop_session(client, path)
   end
 
   sessions.cancel_progress(session_id)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- POST /session/:id/clear: clear session messages
 local function handle_clear_session(client, path)
   local session_id = path:match('^/session/([^/]+)/clear$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -275,7 +275,7 @@ local function handle_clear_session(client, path)
 
   local success = sessions.clear(session_id)
   if success then
-    response.send_response(client, 204, 'No Content')
+    response.send_response(client, 204)
   else
     response.send_json(client, 500, { error = 'Failed to clear session' })
   end
@@ -285,7 +285,7 @@ end
 local function handle_set_provider(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/provider$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -307,14 +307,14 @@ local function handle_set_provider(client, path, body, content_length)
   end
 
   sessions.set_session_provider(session_id, provider)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- PUT /session/:id/model: set model for session
 local function handle_set_model(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/model$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -336,14 +336,14 @@ local function handle_set_model(client, path, body, content_length)
   end
 
   sessions.set_session_model(session_id, model)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- PUT /session/:id/cwd: set working directory for session
 local function handle_set_cwd(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/cwd$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -366,14 +366,14 @@ local function handle_set_cwd(client, path, body, content_length)
 
   cwd = vim.fs.normalize(cwd)
   sessions.change_cwd(session_id, cwd)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- PUT /session/:id/pin: set pin status for session
 local function handle_set_pin(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/pin$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -395,14 +395,14 @@ local function handle_set_pin(client, path, body, content_length)
   end
 
   sessions.set_session_pin(session_id, pin)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- PUT /session/:id/title: set title for session
 local function handle_set_title(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/title$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -424,14 +424,14 @@ local function handle_set_title(client, path, body, content_length)
   end
 
   sessions.set_session_title(session_id, title)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- POST /session/:id/retry: retry last message
 local function handle_retry_session(client, path)
   local session_id = path:match('^/session/([^/]+)/retry$')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -452,21 +452,21 @@ local function handle_retry_session(client, path)
     return
   end
 
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --- GET /messages?session=session_id&since=index: return message list
 local function handle_get_messages(client, path)
   local session_id = path:match('session=([^&]+)')
   if not session_id then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
   session_id = url_decode(session_id)
 
   if not sessions.exists(session_id) then
-    response.send_response(client, 404, 'Not Found')
+    response.send_response(client, 404)
     return
   end
 
@@ -490,7 +490,7 @@ end
 local function handle_push_message(client, body, content_length)
   local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
   if not ok or type(obj) ~= 'table' then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
@@ -498,12 +498,12 @@ local function handle_push_message(client, body, content_length)
   local content = obj.content
 
   if type(session) ~= 'string' or type(content) ~= 'string' then
-    response.send_response(client, 400, 'Bad Request')
+    response.send_response(client, 400)
     return
   end
 
   require('chat.queue').push(session, content)
-  response.send_response(client, 204, 'No Content')
+  response.send_response(client, 204)
 end
 
 --------------------------------------------------
@@ -520,7 +520,7 @@ function M.handle_request(client, method, path, headers, body, content_length)
 
   -- API key check (use header: X-API-Key)
   if headers['x-api-key'] ~= config.config.http.api_key then
-    response.send_response(client, 401, 'Unauthorized')
+    response.send_response(client, 401)
     return
   end
 
@@ -535,7 +535,7 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_list_providers(client)
   elseif method == 'POST' and path == '/session/new' then
     handle_new_session(client, body, content_length)
-  elseif method == 'DELETE' and path:match('^/session/') then
+  elseif method == 'DELETE' and path:match('^/session/[^/]+$') then
     handle_delete_session(client, path)
   elseif method == 'POST' and path:match('^/session/[^/]+/stop$') then
     handle_stop_session(client, path)
@@ -558,7 +558,7 @@ function M.handle_request(client, method, path, headers, body, content_length)
   elseif method == 'POST' and path == '/' then
     handle_push_message(client, body, content_length)
   else
-    response.send_response(client, 404, 'Not Found')
+    response.send_response(client, 404)
   end
 end
 
