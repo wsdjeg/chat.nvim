@@ -37,6 +37,8 @@ function TestScheduleTask:testScheme()
   lu.assertNotNil(scheme['function'].parameters.properties.interval)
   lu.assertNotNil(scheme['function'].parameters.properties.repeat_count)
   lu.assertNotNil(scheme['function'].parameters.properties.task_id)
+  lu.assertNotNil(scheme['function'].parameters.properties.skip_if_busy)
+  lu.assertEquals(scheme['function'].parameters.properties.skip_if_busy.type, 'boolean')
 end
 
 -- ── Create ─────────────────────────────────────────────────
@@ -95,6 +97,21 @@ function TestScheduleTask:testCreatePeriodicWithRepeatCount()
 
   lu.assertNil(result.error)
   lu.assertStrContains(result.content, '5 次')
+end
+
+function TestScheduleTask:testCreateWithSkipIfBusy()
+  local ctx = { session = 'test-skip-busy' }
+  local result = schedule_task.schedule_task({
+    action = 'create',
+    message = 'Skip when busy',
+    interval = 1800,
+    skip_if_busy = true,
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertNotNil(result.content)
+  lu.assertStrContains(result.content, '定时任务已创建')
+  lu.assertStrContains(result.content, '跳过忙碌')
 end
 
 function TestScheduleTask:testCreateWithoutMessage()
@@ -236,6 +253,31 @@ function TestScheduleTask:testListShowsPeriodicInfo()
   lu.assertStrContains(result.content, '0/10')
 end
 
+function TestScheduleTask:testListShowsSkipIfBusy()
+  local ctx = { session = 'skip-busy-list' }
+  schedule_task.schedule_task({
+    action = 'create',
+    message = 'Skip busy task',
+    interval = 3600,
+    skip_if_busy = true,
+  }, ctx)
+
+  local result = schedule_task.schedule_task({ action = 'list' }, ctx)
+  lu.assertStrContains(result.content, '跳过忙碌')
+end
+
+function TestScheduleTask:testListDoesNotShowSkipIfBusyWhenFalse()
+  local ctx = { session = 'no-skip-list' }
+  schedule_task.schedule_task({
+    action = 'create',
+    message = 'Normal task',
+    interval = 3600,
+  }, ctx)
+
+  local result = schedule_task.schedule_task({ action = 'list' }, ctx)
+  lu.assertNotStrContains(result.content, '跳过忙碌')
+end
+
 -- ── Cancel ─────────────────────────────────────────────────
 
 function TestScheduleTask:testCancelExistingTask()
@@ -323,6 +365,12 @@ function TestScheduleTask:testInfoCreateWithInterval()
   lu.assertStrContains(info, '1 天')
 end
 
+function TestScheduleTask:testInfoCreateWithSkipIfBusy()
+  local info = schedule_task.info('{"action":"create","interval":1800,"skip_if_busy":true}', {})
+  lu.assertStrContains(info, '创建定时任务')
+  lu.assertStrContains(info, '跳过忙碌')
+end
+
 function TestScheduleTask:testInfoList()
   local info = schedule_task.info('{"action":"list"}', {})
   lu.assertStrContains(info, '列出定时任务')
@@ -381,6 +429,37 @@ function TestScheduleTask:testCreateWithNilAction()
   local ctx = { session = 'nil-action' }
   local result = schedule_task.schedule_task(nil, ctx)
   lu.assertNotNil(result.error) -- needs message
+end
+
+-- ── Scheduler skip_if_busy persistence ────────────────────
+
+function TestScheduleTask:testSchedulerStoresSkipIfBusy()
+  local task_id = scheduler.create({
+    session = 'persist-test',
+    interval = 3600,
+    message = 'Persist skip_if_busy',
+    skip_if_busy = true,
+  })
+
+  local task = scheduler.get(task_id)
+  lu.assertNotNil(task)
+  lu.assertTrue(task.skip_if_busy)
+
+  scheduler.cancel(task_id)
+end
+
+function TestScheduleTask:testSchedulerDefaultSkipIfBusyNil()
+  local task_id = scheduler.create({
+    session = 'default-test',
+    interval = 3600,
+    message = 'No skip_if_busy',
+  })
+
+  local task = scheduler.get(task_id)
+  lu.assertNotNil(task)
+  lu.assertNil(task.skip_if_busy)
+
+  scheduler.cancel(task_id)
 end
 
 return TestScheduleTask

@@ -17,6 +17,7 @@ local log = require('chat.log')
 ---@field created number
 ---@field repeat_count? number max repetitions (nil = unlimited)
 ---@field executed_count number
+---@field skip_if_busy? boolean skip firing if session is in progress (periodic only)
 ---@field timer? uv.uv_timer_t active timer handle
 
 -- 所有任务
@@ -55,6 +56,7 @@ function M.save()
       created = task.created,
       repeat_count = task.repeat_count,
       executed_count = task.executed_count,
+      skip_if_busy = task.skip_if_busy,
     }
   end
   local ok, err = pcall(function()
@@ -97,6 +99,15 @@ local function clear_timer(task)
     task.timer:close()
     task.timer = nil
   end
+end
+
+--- 检查 session 是否正忙
+local function is_session_busy(session_id)
+  local ok, sessions = pcall(require, 'chat.sessions')
+  if not ok then
+    return false
+  end
+  return sessions.is_in_progress(session_id)
 end
 
 --- 为任务设置 timer
@@ -154,6 +165,19 @@ local function arm_task(task)
       return
     end
 
+    -- skip_if_busy: 周期性任务在 session 忙时跳过本轮，等待下轮
+    if task.skip_if_busy and task.interval then
+      if is_session_busy(task.session) then
+        log.info(string.format(
+          'Scheduled task %s skipped: session %s is busy, will retry next cycle',
+          task.id, task.session
+        ))
+        -- 不触发、不计数，直接重新 arm 到下轮
+        arm_task(task)
+        return
+      end
+    end
+
     -- 触发！
     fire_task(task)
     task.executed_count = task.executed_count + 1
@@ -180,18 +204,19 @@ local function arm_task(task)
   end))
 
   log.debug(string.format(
-    'Task %s armed: delay=%dms, trigger_at=%s, interval=%s',
+    'Task %s armed: delay=%dms, trigger_at=%s, interval=%s, skip_if_busy=%s',
     task.id,
     delay_ms,
     task.trigger_at and os.date('%Y-%m-%d %H:%M:%S', task.trigger_at) or 'nil',
-    task.interval and (task.interval .. 's') or 'nil'
+    task.interval and (task.interval .. 's') or 'nil',
+    task.skip_if_busy and 'true' or 'false'
   ))
 end
 
 -- ── 公开 API ──────────────────────────────────────────────
 
 --- 创建定时任务
----@param opts {session: string, trigger_at?: number, interval?: number, message: string, repeat_count?: number}
+---@param opts {session: string, trigger_at?: number, interval?: number, message: string, repeat_count?: number, skip_if_busy?: boolean}
 ---@return string task_id
 function M.create(opts)
   local task = {
@@ -203,6 +228,7 @@ function M.create(opts)
     created = os.time(),
     repeat_count = opts.repeat_count,
     executed_count = 0,
+    skip_if_busy = opts.skip_if_busy,
   }
 
   M.tasks[task.id] = task
@@ -228,6 +254,7 @@ function M.list(session)
         created = task.created,
         repeat_count = task.repeat_count,
         executed_count = task.executed_count,
+        skip_if_busy = task.skip_if_busy,
       }
       if t.trigger_at then
         t.remaining_seconds = t.trigger_at - os.time()
@@ -316,6 +343,7 @@ function M.init()
         created = task_data.created,
         repeat_count = task_data.repeat_count,
         executed_count = task_data.executed_count or 0,
+        skip_if_busy = task_data.skip_if_busy,
       }
       M.tasks[task.id] = task
       arm_task(task)

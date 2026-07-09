@@ -14,6 +14,7 @@ local scheduler = require('chat.scheduler')
 ---@field trigger_at? number
 ---@field interval? number
 ---@field repeat_count? number
+---@field skip_if_busy? boolean skip if session is in progress (periodic only)
 
 -- ── 格式化辅助 ────────────────────────────────────────────
 
@@ -72,15 +73,19 @@ EXAMPLES:
 4. Periodic task with max repeats:
    @schedule_task action="create" message="每日总结" interval=86400 repeat_count=7
 
-5. List all tasks:
+5. Periodic task that skips when session is busy:
+   @schedule_task action="create" message="定期检查" interval=1800 skip_if_busy=true
+
+6. List all tasks:
    @schedule_task action="list"
 
-6. Cancel a task:
+7. Cancel a task:
    @schedule_task action="cancel" task_id="1717200000-12345"
 
 NOTES:
 - delay_seconds and trigger_at are mutually exclusive for one-time tasks
 - interval creates a recurring task (use repeat_count to limit)
+- skip_if_busy: when true, periodic tasks will skip firing if the session is busy and wait for the next cycle (one-shot tasks are unaffected)
 - Tasks survive Neovim restarts
 - Maximum delay: 30 days (2592000 seconds)
 ]],
@@ -121,6 +126,10 @@ NOTES:
             description = 'Maximum number of repetitions for periodic tasks (nil = unlimited).',
             minimum = 1,
           },
+          skip_if_busy = {
+            type = 'boolean',
+            description = 'When true, periodic tasks skip firing if the session is currently busy (in progress) and wait for the next cycle. One-shot tasks are unaffected. Default: false.',
+          },
         },
         required = { 'action' },
       },
@@ -154,6 +163,9 @@ function M.schedule_task(action, ctx)
           type_str = type_str .. string.format(' · %d/%d 次', task.executed_count, task.repeat_count)
         else
           type_str = type_str .. string.format(' · 已执行 %d 次', task.executed_count)
+        end
+        if task.skip_if_busy then
+          type_str = type_str .. ' · 跳过忙碌'
         end
       else
         type_str = '一次性'
@@ -231,6 +243,7 @@ function M.schedule_task(action, ctx)
       message = action.message,
       interval = action.interval,
       repeat_count = action.repeat_count,
+      skip_if_busy = action.skip_if_busy,
     }
 
     if action.delay_seconds then
@@ -253,6 +266,10 @@ function M.schedule_task(action, ctx)
     if action.interval then
       table.insert(lines, string.format('周期: 每 %s', format_duration(action.interval)))
       table.insert(lines, string.format('次数: %s', action.repeat_count and (action.repeat_count .. ' 次') or '无限'))
+    end
+
+    if action.skip_if_busy then
+      table.insert(lines, '跳过忙碌: ✅ 是')
     end
 
     table.insert(lines, string.format('消息: %s', action.message))
@@ -295,6 +312,9 @@ function M.info(action_str, _)
     end
     if args.interval then
       table.insert(parts, '每' .. format_duration(args.interval))
+    end
+    if args.skip_if_busy then
+      table.insert(parts, '跳过忙碌')
     end
     local when = #parts > 0 and (' · ' .. table.concat(parts, ' ')) or ''
     return string.format('⏰ 创建定时任务%s', when)
