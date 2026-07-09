@@ -174,23 +174,24 @@ function M.on_exit(id, code, signal)
       }
       sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
-    elseif code ~= 0 and CURL_ERRORS[code] then
-      local message = {
-        error = CURL_ERRORS[code],
-        created = os.time(),
-      }
-      sessions.append_message(session, message)
-      require('chat.windows').on_message(session, message)
     elseif code ~= 0 then
-      local message = {
-        error = string.format(
-          'Curl failed with exit code %d. Run `curl --help` for details.',
-          code
-        ),
-        created = os.time(),
-      }
-      sessions.append_message(session, message)
-      require('chat.windows').on_message(session, message)
+      -- Check if error is retryable (connection failure or timeout)
+      local retry = require('chat.sessions.retry')
+      if not retry.handle_exit_error(session, code) then
+        -- Not retryable or max retries reached, show error
+        local error_msg = CURL_ERRORS[code]
+          or string.format(
+            'Curl failed with exit code %d. Run `curl --help` for details.',
+            code
+          )
+        local message = {
+          error = error_msg,
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+      end
+      -- If retry was scheduled, notification already shown to user
     end
     if code == 0 and signal == 0 then
       local session_messages = sessions.get_messages(session)
@@ -213,3 +214,4 @@ function M.on_exit(id, code, signal)
 end
 
 return M
+

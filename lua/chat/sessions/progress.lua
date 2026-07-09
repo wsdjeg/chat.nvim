@@ -190,7 +190,7 @@ function M.get_progress_reasoning_content(session_id)
   return progress_reasoning_contents[session_id]
 end
 
---- Checks if a session has an active streaming request or pending async tools
+--- Checks if a session has an active streaming request, pending async tools, or pending auto-retry
 --- @param session_id string The session identifier
 --- @return boolean True if the session has active progress, false otherwise
 function M.is_in_progress(session_id)
@@ -201,19 +201,35 @@ function M.is_in_progress(session_id)
     end
   end
 
-  -- Also check if there are pending async tools
+  -- Check if there are pending async tools
   local async = require('chat.sessions.async')
   if async.has_pending_async_tools(session_id) then
+    return true
+  end
+
+  -- Check if session is waiting for auto-retry
+  local retry = require('chat.sessions.retry')
+  if retry.is_retrying(session_id) then
     return true
   end
 
   return false
 end
 
---- Cancels any active streaming request or async tool calls for a session
+--- Cancels any active streaming request, async tool calls, or pending auto-retry for a session
 --- Stops LLM streaming jobs and cancels pending MCP tool requests
 --- @param session_id string The session identifier
 function M.cancel_progress(session_id)
+  -- Cancel any pending auto-retry first
+  local retry = require('chat.sessions.retry')
+  if retry.is_retrying(session_id) then
+    retry.cancel_retry(session_id)
+    if session_id == require('chat.windows').current_session() then
+      require('chat.spinners').stop()
+    end
+    return
+  end
+
   --- if the llm progress is running, stop llm progress and return
   for jobid, v in pairs(jobid_session) do
     if v == session_id then
@@ -247,3 +263,4 @@ function M.cancel_progress(session_id)
 end
 
 return M
+

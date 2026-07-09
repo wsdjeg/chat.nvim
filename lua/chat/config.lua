@@ -22,6 +22,7 @@ local M = {}
 ---@field integrations? table
 ---@field mcp? table
 ---@field winhighlight? string
+---@field retry? table
 
 local default = {
   width = 0.8, -- 80% of screen
@@ -84,6 +85,13 @@ local default = {
     id = '',
     -- Storage directory for user profile markdown files
     storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
+  },
+  -- Auto-retry configuration for LLM requests on connection errors and timeouts
+  retry = {
+    -- Maximum number of retry attempts per request (default: 3)
+    max_retries = 3,
+    -- Delay between retries in milliseconds (default: 2000 = 2 seconds)
+    retry_delay = 2000,
   },
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',

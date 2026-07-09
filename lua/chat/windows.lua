@@ -197,6 +197,7 @@ function M.open(opt)
         prompt.clear()
         require('chat.sessions.storage').write_cache(current_session)
 
+        sessions.reset_retry_count(current_session)
         local jobid = protocol.request({
           session = current_session,
           messages = sessions.get_request_messages(current_session),
@@ -220,6 +221,7 @@ function M.open(opt)
         end
         local messages = sessions.get_request_messages(current_session)
         if #messages > 0 and messages[#messages].role ~= 'assistant' then
+          sessions.reset_retry_count(current_session)
           local jobid = protocol.request({
             session = current_session,
             messages = messages,
@@ -285,6 +287,7 @@ function M.send_message(session, content)
   M.on_message(session, msg)
   require('chat.sessions.storage').write_cache(session)
 
+  sessions.reset_retry_count(session)
   local jobid = protocol.request({
     session = session,
     messages = sessions.get_request_messages(session),

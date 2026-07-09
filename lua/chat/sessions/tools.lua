@@ -240,6 +240,8 @@ function M.send_tool_results(session_id)
 
   local msg = require('chat.sessions.messages').get_request_messages(session_id)
   if msg[#msg].role == 'tool' then
+    -- Reset retry count for new tool result request
+    require('chat.sessions.retry').reset_retry_count(session_id)
     local protocol = require('chat.protocol')
     log.info('send tool_call results to server.')
     local jobid = protocol.request({

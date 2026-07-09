@@ -9,6 +9,7 @@ local tools = require('chat.sessions.tools')
 local async = require('chat.sessions.async')
 local storage = require('chat.sessions.storage')
 local share = require('chat.sessions.share')
+local retry = require('chat.sessions.retry')
 
 -- ─── Session CRUD ──────────────────────────────────────────────
 M.new = core.new
@@ -68,6 +69,9 @@ M.clear_cancelled = async.clear_cancelled
 -- ─── Tool Results ──────────────────────────────────────────────
 M.send_tool_results = tools.send_tool_results
 M.on_complete = tools.on_complete
+
+-- ─── Auto-Retry ────────────────────────────────────────────────
+M.reset_retry_count = retry.reset_retry_count
 
 -- ─── Storage ───────────────────────────────────────────────────
 M.write_cache = storage.write_cache

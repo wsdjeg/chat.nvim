@@ -404,6 +404,9 @@ function M.retry(session_id)
     return nil
   end
 
+  -- Reset retry count for manual retry
+  require('chat.sessions.retry').reset_retry_count(session_id)
+
   local protocol = require('chat.protocol')
   local jobid = protocol.request({
     session = session_id,
