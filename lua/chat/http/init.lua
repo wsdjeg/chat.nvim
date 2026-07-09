@@ -15,10 +15,20 @@ function M.start()
 
   local server = uv.new_tcp()
 
-  server:bind(host, port)
+  local ok, err = server:bind(host, port)
+  if not ok then
+    server:close()
+    error('Failed to bind ' .. host .. ':' .. port .. ' - ' .. (err or 'unknown error'))
+  end
 
-  server:listen(128, function(err)
-    assert(not err, err)
+  server:listen(128, function(listen_err)
+    if listen_err then
+      -- Listen error: log and stop accepting new connections
+      vim.schedule(function()
+        vim.notify('HTTP server listen error: ' .. listen_err, vim.log.levels.ERROR)
+      end)
+      return
+    end
 
     local client = uv.new_tcp()
     server:accept(client)
