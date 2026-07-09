@@ -61,7 +61,7 @@ end
 --- Attempt to schedule an auto-retry for a session
 --- Uses get_request_messages to re-send the same messages
 --- @param session_id string The session identifier
---- @return boolean True if retry was scheduled, false if max retries reached
+--- @return string|nil Hint message if retryable, nil if not retryable
 function M.schedule_retry(session_id)
   local config = require('chat.config')
   local max_retries = (config.config.retry and config.config.retry.max_retries) or 3
@@ -72,17 +72,15 @@ function M.schedule_retry(session_id)
     -- Max retries reached, reset state
     retry_counts[session_id] = 0
     retrying_sessions[session_id] = nil
-    return false
+    return string.format(
+      'All %d auto-retries exhausted. Press r to retry manually.',
+      max_retries
+    )
   end
 
   count = count + 1
   retry_counts[session_id] = count
   retrying_sessions[session_id] = true
-
-  log.notify(string.format(
-    'Connection error, auto-retry %d/%d in %dms...',
-    count, max_retries, retry_delay
-  ))
 
   -- Cancel any existing timer for this session
   if timers[session_id] then
@@ -129,16 +127,20 @@ function M.schedule_retry(session_id)
     end
   end, retry_delay)
 
-  return true
+  local remaining = max_retries - count
+  return string.format(
+    'Auto-retry %d/%d (%d remaining).',
+    count, max_retries, remaining
+  )
 end
 
 --- Handle a curl exit error, potentially scheduling an auto-retry
 --- @param session_id string The session identifier
 --- @param code integer The curl exit code
---- @return boolean True if retry was scheduled (caller should skip error display)
+--- @return string|nil Hint message if retryable, nil if not retryable
 function M.handle_exit_error(session_id, code)
   if not M.is_retryable_error(code) then
-    return false
+    return nil
   end
   return M.schedule_retry(session_id)
 end
