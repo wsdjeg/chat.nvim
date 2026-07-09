@@ -21,13 +21,6 @@ function M.setup_result_keymaps(buf, opts)
       '<cmd>Picker chat<Cr>',
       { noremap = true, silent = true }
     )
-    vim.api.nvim_buf_set_keymap(
-      buf,
-      'n',
-      '<leader>fj',
-      '<cmd>Picker chat_project<Cr>',
-      { noremap = true, silent = true }
-    )
   end
 
   vim.api.nvim_buf_set_keymap(buf, 'n', '<Tab>', '', {
@@ -68,13 +61,6 @@ function M.setup_prompt_keymaps(buf, opts)
       'n',
       '<leader>fm',
       '<cmd>Picker chat_model<Cr>',
-      { noremap = true, silent = true }
-    )
-    vim.api.nvim_buf_set_keymap(
-      buf,
-      'n',
-      '<leader>fj',
-      '<cmd>Picker chat_project<Cr>',
       { noremap = true, silent = true }
     )
   end

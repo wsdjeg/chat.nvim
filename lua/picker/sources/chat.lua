@@ -6,6 +6,18 @@ local formatter = require('chat.formatter')
 
 local previewer = require('picker.previewer.buffer')
 
+--- Get the first non-empty line from a message content
+--- @param content string
+--- @return string|nil
+local function first_non_empty_line(content)
+  for _, line in ipairs(vim.split(content, '\n')) do
+    if line ~= '' then
+      return line
+    end
+  end
+  return nil
+end
+
 function M.get()
   local items = {}
 
@@ -22,22 +34,34 @@ function M.get()
   for _, id in ipairs(ids) do
     local messages = sessions.get_messages(id)
     if #messages > 1 then
-      local title = sessions.get_session_title(id)
+      local cwd = sessions.getcwd(id) or ''
+      local cwd_tail = vim.fn.fnamemodify(cwd, ':t')
+      if cwd_tail == '' then
+        cwd_tail = '~'
+      end
+
       local str
+      local title = sessions.get_session_title(id)
       if not title or title == '' then
-        for _, v in ipairs(vim.split(messages[1].content, '\n')) do
-          if v ~= '' then
-            str = v
-            break
-          end
-        end
+        str = first_non_empty_line(messages[1].content)
       else
         str = title
       end
-      table.insert(items, {
-        str = str,
-        value = id,
-      })
+
+      if str then
+        local display = string.format('[%s] %s', cwd_tail, str)
+        table.insert(items, {
+          str = display,
+          value = id,
+          highlight = {
+            -- highlight square brackets
+            { 0, 1, 'Comment' },
+            { #cwd_tail + 1, #cwd_tail + 2, 'Comment' },
+            -- highlight cwd tail
+            { 1, #cwd_tail + 1, 'Directory' },
+          },
+        })
+      end
     end
   end
 
@@ -104,3 +128,4 @@ function M.preview(item, win, buf)
 end
 
 return M
+
