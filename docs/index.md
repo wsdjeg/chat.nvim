@@ -29,7 +29,7 @@ nav_order: 1
   </div>
   
   <div class="feature-card">
-    <h3>🤖 16+ AI Providers</h3>
+    <h3>🤖 19+ AI Providers</h3>
     <p>Built-in support for DeepSeek, OpenAI, Anthropic, GitHub AI, Gemini, Ollama, and many more AI services.</p>
   </div>
   

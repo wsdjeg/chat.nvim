@@ -281,4 +281,8 @@ See `lua/chat/integrations/discord.lua` for a complete reference implementation.
 - [Discord Integration](./discord/) - Setup Discord bot
 - [Telegram Integration](./telegram/) - Setup Telegram bot
 - [Slack Integration](./slack/) - Setup Slack bot
+- [Lark Integration](./lark/) - Setup Lark/Feishu bot
+- [DingTalk Integration](./dingtalk/) - Setup DingTalk webhook/API
+- [WeCom Integration](./wecom/) - Setup WeCom webhook/API
+- [Weixin Integration](./weixin/) - Setup personal WeChat via QR login
 - [HTTP API](../api/http/) - HTTP API integration

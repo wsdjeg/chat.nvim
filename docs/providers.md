@@ -29,7 +29,7 @@ Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`
 
 ## Built-in Providers
 
-chat.nvim comes with built-in support for 16+ AI providers:
+chat.nvim comes with built-in support for 19+ AI providers:
 
 ### 1. DeepSeek
 
@@ -284,6 +284,81 @@ api_key = {
 provider = 'yuanjing'
 model = 'yuanjing-chat'
 ```
+
+### 17. Baidu Qianfan
+
+[Baidu Qianfan](https://qianfan.baidubce.com/)
+
+```lua
+provider = 'baidu'
+model = 'ernie-4.0-8k'  -- or other Baidu models
+```
+
+**Configuration:**
+
+```lua
+api_key = {
+  baidu = 'xxxxxxxx-xxxx-xxxx',
+}
+```
+
+**Notes:**
+
+- Available models are dynamically fetched from the Baidu Qianfan API
+- Supports streaming and thinking mode (`enable_thinking`)
+
+### 18. Xiaomi MiMo
+
+[Xiaomi MiMo](https://www.xiaomimimo.com/)
+
+```lua
+provider = 'xiaomi'
+model = 'mimo-v2.5-pro'
+```
+
+**Available Models:**
+
+- `mimo-v2.5-pro` - Most capable model
+- `mimo-v2.5` - General purpose
+- `mimo-v2.5-tts` - Text-to-speech
+- `mimo-v2-pro` - Pro version
+- `mimo-v2-omni` - Omni model
+- `mimo-v2-flash` - Fast model
+
+**Configuration:**
+
+```lua
+api_key = {
+  xiaomi = 'xxxxxxxx-xxxx-xxxx',
+}
+```
+
+**Notes:**
+
+- Supports thinking mode (`thinking.type = 'enabled'`)
+
+### 19. Alibaba Cloud (Bailian/DashScope)
+
+[Alibaba Cloud Bailian](https://www.aliyun.com/product/bailian)
+
+```lua
+provider = 'aliyuncs'
+model = 'qwen-plus'  -- or other DashScope models
+```
+
+**Configuration:**
+
+```lua
+api_key = {
+  aliyuncs = 'sk-xxxxxxxxxxxx',
+}
+```
+
+**Notes:**
+
+- Available models are dynamically fetched from the DashScope API
+- Uses OpenAI-compatible API endpoint (`dashscope.aliyuncs.com/compatible-mode/v1/`)
+- Supports streaming and thinking mode (`enable_thinking`)
 
 ---
 

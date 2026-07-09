@@ -22,7 +22,7 @@ Chat with AI assistants directly in your editor using a clean, floating window i
 
 ## Features
 
-- **Multiple AI Providers:** DeepSeek, GitHub AI, OpenAI, Anthropic, Gemini, Ollama, and more
+- **Multiple AI Providers:** DeepSeek, GitHub AI, OpenAI, Anthropic, Gemini, Ollama, Baidu, Xiaomi, Alibaba Cloud, and more
 - **Three-Tier Memory System:** Working, daily, and long-term memory with smart retrieval
 - **Tool Integration:** File operations, git commands, web search, and custom tools
 - **MCP Support:** Model Context Protocol for extended tool capabilities

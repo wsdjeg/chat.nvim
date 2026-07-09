@@ -73,9 +73,9 @@ curl -X POST http://127.0.0.1:7777/ \
 
 ### Getting Started
 
-1. **Enable HTTP API**: Configure `api.enabled = true` in your chat.nvim setup
-2. **Set API Key**: Configure `api.api_key` for authentication
-3. **Choose Port**: Default is `7777`, configurable via `api.port`
+1. **Enable HTTP API**: Set `http.api_key` to a non-empty string in your chat.nvim setup
+2. **Set API Key**: Configure `http.api_key` for authentication (requests must include `X-API-Key` header)
+3. **Choose Port**: Default is `7777`, configurable via `http.port`
 4. **Build Your App**: Use any HTTP client to interact with the API
 
 See [HTTP API](./http/) for complete API reference.

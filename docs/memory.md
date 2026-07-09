@@ -138,7 +138,7 @@ require('chat').setup({
       enable = true,
       retention_days = 7,           -- Days before auto-deletion
       max_memories = 100,           -- Maximum daily memories
-      similarity_threshold = 0.3,
+      similarity_threshold = 0.4,
     },
 
     -- Working memory: Current session focus (highest priority)
@@ -166,7 +166,7 @@ require('chat').setup({
 | `daily.enable`                   | boolean | `true`                               | Enable daily memory                    |
 | `daily.retention_days`           | number  | `7`                                  | Days before auto-deletion              |
 | `daily.max_memories`             | number  | `100`                                | Maximum daily memories                 |
-| `daily.similarity_threshold`     | number  | `0.3`                                | Similarity threshold (0-1)             |
+| `daily.similarity_threshold`     | number  | `0.4`                                | Similarity threshold (0-1)             |
 | `working.enable`                 | boolean | `true`                               | Enable working memory                  |
 | `working.max_memories`           | number  | `20`                                 | Maximum working memories per session   |
 | `working.priority_weight`        | number  | `2.0`                                | Priority multiplier                    |
@@ -409,7 +409,7 @@ stdpath('data')/chat.nvim/memory/
 ### Working Memory Storage
 
 ```
-~/.cache/nvim/chat.nvim/memory/working/
+stdpath('data')/chat.nvim/memory/working/
 ```
 
 Each session has its own working memory file that is automatically cleaned up when the session ends.
@@ -417,7 +417,7 @@ Each session has its own working memory file that is automatically cleaned up wh
 ### Daily Memory Storage
 
 ```
-~/.cache/nvim/chat.nvim/memory/daily/
+stdpath('data')/chat.nvim/memory/daily/
 ```
 
 Daily memories are stored with timestamps and automatically cleaned up after the retention period.
@@ -425,7 +425,7 @@ Daily memories are stored with timestamps and automatically cleaned up after the
 ### Long-term Memory Storage
 
 ```
-~/.cache/nvim/chat.nvim/memory/long_term/memories.json
+stdpath('data')/chat.nvim/memory/long_term/memories.json
 ```
 
 Long-term memories are stored permanently and persist across sessions.

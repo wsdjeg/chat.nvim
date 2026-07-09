@@ -34,6 +34,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt` | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
 | `highlights`    | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
+| `winhighlight`  | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
 
 ### Example
 
@@ -59,7 +60,7 @@ Configure the built-in HTTP server for receiving external messages:
 | -------------- | ------ | ------------------ | --------------------------------------------------------------------------- |
 | `http.host`    | string | `'127.0.0.1'`      | Host address for the HTTP server                                            |
 | `http.port`    | number | `7777`             | Port number for the HTTP server                                             |
-| `http.api_key` | string | `'test_chat_nvim'` | API key for authenticating incoming requests (must be set to enable server) |
+| `http.api_key` | string | `''`               | API key for authenticating incoming requests (must be non-empty to enable server) |
 
 ### Example
 
@@ -91,14 +92,20 @@ api_key = {
   github = 'github_pat_xxxxxxxx',      -- GitHub AI
   moonshot = 'sk-xxxxxxxxxxxx',        -- Moonshot AI
   openrouter = 'sk-or-xxxxxxxx',       -- OpenRouter
-  qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen
+  qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen (DashScope)
+  aliyuncs = 'sk-xxxxxxxxxxxx',        -- Alibaba Cloud (Bailian)
   siliconflow = 'xxxxxxxx-xxxx-xxxx',  -- SiliconFlow
   tencent = 'xxxxxxxx-xxxx-xxxx',      -- Tencent Hunyuan
-  bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI
-  volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI
+  baidu = 'xxxxxxxx-xxxx-xxxx',        -- Baidu Qianfan
+  bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI (Zhipu)
+  volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI (Doubao)
+  xiaomi = 'xxxxxxxx-xxxx-xxxx',       -- Xiaomi MiMo
   openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
+  anthropic = 'sk-ant-xxxxxxxxxxxx',   -- Anthropic Claude
+  gemini = 'AIxxxxxxxxxxxxxxxxxxxx',   -- Google Gemini
   longcat = 'lc-xxxxxxxxxxxx',         -- LongCat AI
   cherryin = 'sk-xxxxxxxxxxxx',        -- CherryIN AI
+  yuanjing = 'xxxxxxxx-xxxx-xxxx',     -- Yuanjing AI
 }
 ```
 
@@ -186,7 +193,7 @@ memory = {
     enable = true,
     retention_days = 7,           -- Days before auto-deletion
     max_memories = 100,           -- Maximum daily memories
-    similarity_threshold = 0.3,
+    similarity_threshold = 0.4,
   },
 
   -- Working memory: Current session focus (highest priority)
@@ -216,6 +223,30 @@ The `@extract_memory` tool automatically detects memory type based on keywords:
 - **Working Memory**: "当前/正在/current", "任务/task", "决策/decision", "问题/issue"
 - **Daily Memory**: "今天/明天/today/tomorrow", "待办/todo", "临时/temporary"
 - **Long-term Memory**: Other persistent information
+
+---
+
+## User Profile Configuration
+
+chat.nvim supports user profiles (人物画像) for personalized AI assistance. Profiles store user preferences, skills, and background information as markdown files.
+
+```lua
+require('chat').setup({
+  user = {
+    enable = true,        -- Enable user profile system
+    id = '',              -- User ID (auto-detected from system username if empty)
+    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',  -- Storage directory
+  },
+})
+```
+
+| Option             | Type    | Default                                  | Description                                         |
+| ------------------ | ------- | ---------------------------------------- | --------------------------------------------------- |
+| `user.enable`      | boolean | `true`                                   | Enable/disable user profile system                  |
+| `user.id`          | string  | `''`                                     | User ID (auto-detected from system username if empty) |
+| `user.storage_dir` | string  | `stdpath('data')/chat.nvim/users/`      | Storage directory for user profile markdown files   |
+
+When enabled, the AI assistant can use the `@user_profile` tool to read, update, and manage user profiles, providing personalized and context-aware responses.
 
 ---
 
@@ -375,6 +406,13 @@ require('chat').setup({
     retry_delay = 2000,
   },
 
+  -- User profile system (人物画像)
+  user = {
+    enable = true,
+    id = '',
+    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
+  },
+
   -- MCP servers (optional)
   mcp = {
     open_webSearch = {
@@ -409,6 +447,7 @@ require('chat').setup({
 > 8. **RenderMarkdown**: The `render_markdown` option enables/disables the [RenderMarkdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin for the result buffer. Defaults to `true`. Set to `false` if you prefer plain markdown syntax highlighting without rich rendering.
 > 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. When a retryable error occurs, an error message with retry status is appended to the session (e.g., `Auto-retry 1/3 (2 remaining).`). When all retries are exhausted, the message includes `Press r to retry manually.` Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
 > 10. **Storage Migration**: Memory and session data are stored under `stdpath('data')/chat.nvim/`. Previously stored under `stdpath('cache')`, data has been migrated to the data directory for persistence across Neovim cache clears.
+> 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir`.
 
 ---
 
