@@ -23,15 +23,16 @@ When a scheduled task fires, a message is injected into the target session's mes
 
 ## Parameters
 
-| Parameter        | Type   | Description                                                                        |
-| ---------------- | ------ | ---------------------------------------------------------------------------------- |
-| `action`         | string | Action to perform: `create`, `list`, or `cancel` (default: `create`)              |
-| `message`        | string | Message to send when the task triggers (required for `create`)                     |
-| `delay_seconds`  | number | Delay in seconds before the task triggers (one-time task). Max 2592000 (30 days)   |
-| `trigger_at`     | number | Unix timestamp when the task should trigger (one-time task, alternative to delay)   |
-| `interval`       | number | Interval in seconds for periodic tasks (e.g., 86400 = daily, 3600 = hourly)        |
-| `repeat_count`   | number | Maximum repetitions for periodic tasks (nil = unlimited)                            |
-| `task_id`        | string | Task ID to cancel (required for `cancel` action)                                    |
+| Parameter        | Type    | Description                                                                        |
+| ---------------- | ------- | ---------------------------------------------------------------------------------- |
+| `action`         | string  | Action to perform: `create`, `list`, or `cancel` (default: `create`)              |
+| `message`        | string  | Message to send when the task triggers (required for `create`)                     |
+| `delay_seconds`  | number  | Delay in seconds before the task triggers (one-time task). Max 2592000 (30 days)   |
+| `trigger_at`     | number  | Unix timestamp when the task should trigger (one-time task, alternative to delay)   |
+| `interval`       | number  | Interval in seconds for periodic tasks (e.g., 86400 = daily, 3600 = hourly)        |
+| `repeat_count`   | number  | Maximum repetitions for periodic tasks (nil = unlimited)                            |
+| `skip_if_busy`   | boolean | Skip firing if session is in progress (periodic only, default: false)              |
+| `task_id`        | string  | Task ID to cancel (required for `cancel` action)                                    |
 
 ---
 
@@ -65,6 +66,12 @@ Create a new scheduled task.
 @schedule_task action="create" message="Daily summary" interval=86400 repeat_count=7
 ```
 
+**Periodic task that skips when session is busy:**
+
+```
+@schedule_task action="create" message="定期检查" interval=1800 skip_if_busy=true
+```
+
 ### list
 
 List all scheduled tasks.
@@ -89,6 +96,7 @@ Cancel a scheduled task by ID.
 
 > - `delay_seconds` and `trigger_at` are mutually exclusive for one-time tasks
 > - `interval` creates a recurring task (use `repeat_count` to limit repetitions)
+> - `skip_if_busy`: when `true`, periodic tasks check if the session is busy (in progress) at trigger time. If busy, the task skips firing without incrementing the execution count and re-arms for the next cycle. One-shot tasks are unaffected by this option.
 > - Tasks survive Neovim restarts (stored on disk)
 > - Maximum delay: 30 days (2592000 seconds)
 > - When a task fires, the message is processed by the LLM as if the user sent it

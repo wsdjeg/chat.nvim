@@ -20,13 +20,16 @@ Get conversation history messages from the current session.
 - `@get_history` - Get first 20 messages (default)
 - `@get_history offset=20 limit=20` - Get messages 21-40
 - `@get_history offset=0 limit=50` - Get first 50 messages (max)
+- `@get_history search="error"` - Search for messages containing "error"
+- `@get_history search="config" offset=0 limit=10` - First 10 messages matching "config"
 
 ## Parameters
 
-| Parameter | Type    | Description                                           |
-| --------- | ------- | ----------------------------------------------------- |
-| `offset`  | integer | Starting index (0 = oldest message, default: 0)       |
-| `limit`   | integer | Number of messages to retrieve (default: 20, max: 50) |
+| Parameter | Type    | Description                                                        |
+| --------- | ------- | ------------------------------------------------------------------ |
+| `offset`  | integer | Starting index (0 = oldest message, default: 0)                    |
+| `limit`   | integer | Number of messages to retrieve (default: 20, max: 50)              |
+| `search`  | string  | Filter messages by keyword (case-insensitive). Offset/limit apply to filtered results |
 
 ## Notes
 
@@ -35,5 +38,7 @@ Get conversation history messages from the current session.
 > - Use this tool when you need to reference earlier messages not in current context window
 > - Returns messages with their role, content, and timestamp
 > - Maximum 50 messages per request
+> - When `search` is provided, only messages containing the keyword (case-insensitive) are returned
+> - `offset` and `limit` apply to the filtered results when `search` is used
 > - Useful for maintaining context across long conversations
 

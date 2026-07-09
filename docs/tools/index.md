@@ -43,7 +43,7 @@ Here is a list of 40 built-in tools:
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
 | [read_file](./read_file.md)                  | Reads the content of a file                                        |
-| [write_file](./write_file.md)                | Write, modify, or delete file content                              |
+| [write_file](./write_file.md)                | Write, modify, or delete file content (includes str_replace)      |
 | [copy_file](./copy_file.md)                  | Copy a file or directory (recursive)                               |
 | [create_directory](./create_directory.md)    | Create a directory (including parent directories)                  |
 | [file_info](./file_info.md)                  | Get file or directory metadata                                     |
@@ -78,10 +78,10 @@ Here is a list of 40 built-in tools:
 | [git_stash](./git_stash.md)                  | Stash changes in git repository                                    |
 | [git_status](./git_status.md)                | Show the working tree status                                       |
 | [git_tag](./git_tag.md)                      | Manage git tags                                                    |
-| [get_history](./get_history.md)              | Get conversation history messages                                  |
+| [get_history](./get_history.md)              | Get conversation history messages (with search)                   |
 | [plan](./plan.md)                            | Plan mode for task management                                      |
 | [user_profile](./user_profile.md)            | Manage user profiles (人物画像) for personalized assistance        |
-| [schedule_task](./schedule_task.md)          | Schedule tasks to be executed at a future time                     |
+| [schedule_task](./schedule_task.md)          | Schedule tasks to be executed at a future time (with skip_if_busy)|
 
 ---
 

@@ -149,7 +149,7 @@ require('chat').setup({
     },
 
     -- Storage location
-    storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/memory/',
   },
 })
 ```
@@ -170,7 +170,7 @@ require('chat').setup({
 | `working.enable`                 | boolean | `true`                               | Enable working memory                  |
 | `working.max_memories`           | number  | `20`                                 | Maximum working memories per session   |
 | `working.priority_weight`        | number  | `2.0`                                | Priority multiplier                    |
-| `storage_dir`                    | string  | `stdpath('cache')/chat.nvim/memory/` | Storage directory                      |
+| `storage_dir`                    | string  | `stdpath('data')/chat.nvim/memory/` | Storage directory                      |
 
 ---
 
@@ -397,7 +397,7 @@ When retrieving memories, the system uses priority-based ranking:
 Memory data is stored in:
 
 ```
-stdpath('cache')/chat.nvim/memory/
+stdpath('data')/chat.nvim/memory/
 ├── working/
 │   └── session-id.json
 ├── daily/

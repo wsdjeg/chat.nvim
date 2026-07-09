@@ -273,8 +273,9 @@ chat.nvim provides built-in picker sources for seamless integration with [picker
 
 Search through your chat history sessions:
 
-- Uses the **first message** of each session as the search string
+- Displays the **project name** (cwd tail) and the **first message** of each session
 - Quickly resume previous conversations
+- Quickly locate sessions by project
 - Supports filtering and session management
 
 **Keyboard Shortcuts:**
@@ -394,6 +395,7 @@ chat.nvim supports streaming responses from AI providers:
 - **Real-time display**: See responses as they're generated
 - **Cancellation support**: Press `Ctrl-C` to cancel ongoing requests
 - **Retry mechanism**: Press `r` to retry the last cancelled request
+- **Auto-retry on network errors**: When LLM requests fail due to connection errors or timeouts, the system automatically retries up to 3 times (configurable via `retry` option). During retry delay, `Ctrl-C` can cancel the pending retry.
 
 ### Token Usage Tracking
 

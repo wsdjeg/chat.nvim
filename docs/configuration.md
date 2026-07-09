@@ -31,6 +31,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `provider`      | string             | `'deepseek'`                                                    | Default AI provider                                                        |
 | `model`         | string             | `'deepseek-chat'`                                               | Default AI model                                                           |
 | `strftime`      | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
+| `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt` | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
 | `highlights`    | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
 
@@ -196,7 +197,7 @@ memory = {
   },
 
   -- Storage location
-  storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+  storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/memory/',
 }
 ```
 
@@ -215,6 +216,44 @@ The `@extract_memory` tool automatically detects memory type based on keywords:
 - **Working Memory**: "当前/正在/current", "任务/task", "决策/decision", "问题/issue"
 - **Daily Memory**: "今天/明天/today/tomorrow", "待办/todo", "临时/temporary"
 - **Long-term Memory**: Other persistent information
+
+---
+
+## Auto-Retry Configuration
+
+chat.nvim automatically retries LLM requests that fail due to connection errors or timeouts. This helps maintain stable conversations even with intermittent network issues.
+
+```lua
+retry = {
+  max_retries = 3,       -- Maximum retry attempts per request (default: 3)
+  retry_delay = 2000,    -- Delay between retries in milliseconds (default: 2000 = 2 seconds)
+}
+```
+
+### How It Works
+
+- When an LLM request fails with a retryable error (connection failure or timeout), the system automatically schedules a retry
+- Retry count is per-session and reset on each new user message
+- During the retry delay period, `is_in_progress()` returns `true`, preventing new messages from being sent
+- The user can cancel a pending retry with `Ctrl-C`
+- On successful response, the retry count is immediately reset
+
+### Retryable Error Codes
+
+The following curl exit codes are considered retryable:
+
+| Code | Description                  |
+| ---- | ---------------------------- |
+| 6    | Couldn't resolve host        |
+| 7    | Failed to connect to host    |
+| 28   | Operation timeout            |
+| 35   | SSL/TLS handshake failure    |
+| 52   | Empty reply from server      |
+| 56   | Failure with receiving data  |
+
+{: .warning }
+
+> HTTP errors (e.g., 400, 429, 500) are **not** retried, as they indicate API-level issues rather than network problems.
 
 ---
 
@@ -328,6 +367,12 @@ require('chat').setup({
     },
   },
 
+  -- Auto-retry on connection errors and timeouts
+  retry = {
+    max_retries = 3,
+    retry_delay = 2000,
+  },
+
   -- MCP servers (optional)
   mcp = {
     open_webSearch = {
@@ -359,6 +404,9 @@ require('chat').setup({
 > 5. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.
 > 6. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
 > 7. **system_prompt Function Support**: The `system_prompt` option can be either a string or a function that returns a string. When a function is provided, it is called each time a new session is created, allowing for dynamic prompts based on time, project context, or external files. The function should handle errors gracefully and return a string value.
+> 8. **RenderMarkdown**: The `render_markdown` option enables/disables the [RenderMarkdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin for the result buffer. Defaults to `true`. Set to `false` if you prefer plain markdown syntax highlighting without rich rendering.
+> 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
+> 10. **Storage Migration**: Memory and session data are stored under `stdpath('data')/chat.nvim/`. Previously stored under `stdpath('cache')`, data has been migrated to the data directory for persistence across Neovim cache clears.
 
 ---
 
