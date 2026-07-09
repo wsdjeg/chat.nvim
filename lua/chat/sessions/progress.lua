@@ -160,6 +160,9 @@ function M.on_progress_done(jobid, opts)
     require('chat.sessions.messages').append_message(session_id, message)
   end
 
+  -- Reset retry count on successful response
+  require('chat.sessions.retry').reset_retry_count(session_id)
+
   require('chat.sessions.storage').write_cache(session_id)
 end
 

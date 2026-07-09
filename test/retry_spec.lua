@@ -137,6 +137,23 @@ function TestRetry:test_per_session_independence()
   lu.assertEquals(retry.get_retry_count('test-session-1'), 2)
 end
 
+function TestRetry:test_reset_on_success_allows_full_retries_next_time()
+  -- Simulate: request fails 2 times, then succeeds
+  retry.handle_exit_error('test-session-1', 7)
+  retry.handle_exit_error('test-session-1', 7)
+  lu.assertEquals(retry.get_retry_count('test-session-1'), 2)
+
+  -- Simulate success: on_progress_done calls reset_retry_count
+  retry.reset_retry_count('test-session-1')
+  lu.assertEquals(retry.get_retry_count('test-session-1'), 0)
+
+  -- Next request should get full retry budget (3 retries)
+  lu.assertTrue(retry.handle_exit_error('test-session-1', 7))
+  lu.assertTrue(retry.handle_exit_error('test-session-1', 7))
+  lu.assertTrue(retry.handle_exit_error('test-session-1', 7))
+  lu.assertFalse(retry.handle_exit_error('test-session-1', 7))
+end
+
 -- ─── cancel_retry ──────────────────────────────────────────────
 
 function TestRetry:test_cancel_retry()
