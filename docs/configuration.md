@@ -232,11 +232,13 @@ retry = {
 
 ### How It Works
 
-- When an LLM request fails with a retryable error (connection failure or timeout), the system automatically schedules a retry
+- When an LLM request fails with a retryable error (connection failure or timeout), an error message is appended to the session with a retry hint (e.g., `Auto-retry 1/3 (2 remaining).`)
+- The system then automatically schedules a retry after the configured delay
 - Retry count is per-session and reset on each new user message
 - During the retry delay period, `is_in_progress()` returns `true`, preventing new messages from being sent
 - The user can cancel a pending retry with `Ctrl-C`
 - On successful response, the retry count is immediately reset
+- When all auto-retries are exhausted, the error message includes `Press r to retry manually.`
 
 ### Retryable Error Codes
 
@@ -405,7 +407,7 @@ require('chat').setup({
 > 6. **Automatic Scrolling**: The `auto_scroll` option controls whether the result window automatically scrolls to show new content. When enabled (default), it only scrolls if the cursor was already at the bottom, preventing interruptions when reviewing history.
 > 7. **system_prompt Function Support**: The `system_prompt` option can be either a string or a function that returns a string. When a function is provided, it is called each time a new session is created, allowing for dynamic prompts based on time, project context, or external files. The function should handle errors gracefully and return a string value.
 > 8. **RenderMarkdown**: The `render_markdown` option enables/disables the [RenderMarkdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin for the result buffer. Defaults to `true`. Set to `false` if you prefer plain markdown syntax highlighting without rich rendering.
-> 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
+> 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. When a retryable error occurs, an error message with retry status is appended to the session (e.g., `Auto-retry 1/3 (2 remaining).`). When all retries are exhausted, the message includes `Press r to retry manually.` Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
 > 10. **Storage Migration**: Memory and session data are stored under `stdpath('data')/chat.nvim/`. Previously stored under `stdpath('cache')`, data has been migrated to the data directory for persistence across Neovim cache clears.
 
 ---

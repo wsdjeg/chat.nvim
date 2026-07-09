@@ -395,7 +395,7 @@ chat.nvim supports streaming responses from AI providers:
 - **Real-time display**: See responses as they're generated
 - **Cancellation support**: Press `Ctrl-C` to cancel ongoing requests
 - **Retry mechanism**: Press `r` to retry the last cancelled request
-- **Auto-retry on network errors**: When LLM requests fail due to connection errors or timeouts, the system automatically retries up to 3 times (configurable via `retry` option). During retry delay, `Ctrl-C` can cancel the pending retry.
+- **Auto-retry on network errors**: When LLM requests fail due to connection errors or timeouts, the system automatically retries up to 3 times (configurable via `retry` option). Error messages with retry status (e.g., `Auto-retry 1/3 (2 remaining).`) are appended to the session. When all retries are exhausted, the message includes `Press r to retry manually.` During retry delay, `Ctrl-C` can cancel the pending retry.
 
 ### Token Usage Tracking
 
