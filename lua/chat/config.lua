@@ -33,7 +33,7 @@ local default = {
   -- enable RenderMarkdown plugin for the result buffer (requires render-markdown.nvim)
   render_markdown = true,
   provider = 'deepseek',
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-flash',
   border = 'rounded',
   -- Highlight groups for the floating window
   highlights = {

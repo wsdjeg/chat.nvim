@@ -319,7 +319,7 @@ Each session is stored as a JSON file with the following structure:
 {
   "id": "2024-01-15-10-30-00",
   "provider": "deepseek",
-  "model": "deepseek-chat",
+  "model": "deepseek-v4-flash",
   "cwd": "/path/to/project",
   "prompt": "You are a helpful assistant...",
   "title": "",

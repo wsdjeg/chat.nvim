@@ -29,7 +29,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `auto_scroll`   | boolean            | `true`                                                          | Controls automatic scrolling behavior of the result window                 |
 | `border`        | string             | `'rounded'`                                                     | Window border style, supports all Neovim border options                    |
 | `provider`      | string             | `'deepseek'`                                                    | Default AI provider                                                        |
-| `model`         | string             | `'deepseek-chat'`                                               | Default AI model                                                           |
+| `model`         | string             | `'deepseek-v4-flash'`                                          | Default AI model                                                           |
 | `strftime`      | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt` | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
@@ -45,7 +45,7 @@ require('chat').setup({
   auto_scroll = true,
   border = 'rounded',
   provider = 'deepseek',
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-flash',
   strftime = '%Y-%m-%d %H:%M',
 })
 ```
@@ -352,7 +352,7 @@ require('chat').setup({
 
   -- AI provider settings
   provider = 'deepseek',
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-flash',
   api_key = {
     deepseek = 'sk-xxxxxxxxxxxx',
     github = 'github_pat_xxxxxxxx',
