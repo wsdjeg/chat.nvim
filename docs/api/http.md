@@ -93,7 +93,7 @@ Push a message to a session's message queue. The message will be delivered once 
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — message queued |
+| 204 | Success - message queued |
 | 400 | Invalid JSON body or missing required fields |
 | 401 | Invalid or missing API key |
 
@@ -207,7 +207,7 @@ Get the raw cache JSON content for a session. Includes all messages, metadata, u
 
 | Status Code | Description |
 |---|---|
-| 200 | Success — returns raw JSON content |
+| 200 | Success - returns raw JSON content |
 | 404 | Cache file not found |
 | 500 | Failed to read cache file |
 
@@ -233,7 +233,7 @@ Get all registered providers and their available models.
   },
   {
     "name": "deepseek",
-    "models": ["deepseek-chat", "deepseek-coder"]
+    "models": ["deepseek-v4-pro", "deepseek-v4-flash"]
   },
   {
     "name": "openai",
@@ -402,7 +402,7 @@ Delete a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — session deleted |
+| 204 | Success - session deleted |
 | 404 | Session not found |
 | 409 | Session is in progress, cannot delete |
 
@@ -423,7 +423,7 @@ Stop generation for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — generation stopped |
+| 204 | Success - generation stopped |
 | 404 | Session not found |
 
 **Example:**
@@ -443,7 +443,7 @@ Clear all messages and usage statistics for a session. The session itself is pre
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — session cleared |
+| 204 | Success - session cleared |
 | 404 | Session not found |
 | 409 | Session is in progress, cannot clear |
 | 500 | Failed to clear session |
@@ -467,7 +467,7 @@ Retry the last user message. Re-sends the last user message to the AI provider.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — retry initiated |
+| 204 | Success - retry initiated |
 | 404 | Session not found |
 | 409 | Session is in progress, cannot retry |
 | 400 | No message to retry (no messages or last is already assistant) |
@@ -497,7 +497,7 @@ Set the provider for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — provider updated |
+| 204 | Success - provider updated |
 | 404 | Session not found |
 | 400 | Missing or invalid provider value |
 
@@ -528,7 +528,7 @@ Set the model for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — model updated |
+| 204 | Success - model updated |
 | 404 | Session not found |
 | 400 | Missing or invalid model value |
 
@@ -559,7 +559,7 @@ Set the working directory for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — working directory updated |
+| 204 | Success - working directory updated |
 | 404 | Session not found |
 | 400 | Missing or invalid cwd value |
 
@@ -596,7 +596,7 @@ Set the pin status for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — pin status updated |
+| 204 | Success - pin status updated |
 | 404 | Session not found |
 | 400 | Missing or invalid pin value |
 
@@ -634,7 +634,7 @@ Set a custom title for a session.
 
 | Status Code | Description |
 |---|---|
-| 204 | Success — title updated |
+| 204 | Success - title updated |
 | 404 | Session not found |
 | 400 | Missing or invalid title value |
 
@@ -663,7 +663,7 @@ Get an HTML preview of a session (**no authentication required**, accessible dir
 
 | Status Code | Description |
 |---|---|
-| 200 | Success — returns HTML content |
+| 200 | Success - returns HTML content |
 | 400 | Missing `id` parameter |
 | 404 | Session not found |
 
@@ -681,20 +681,32 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 
 ## Message Queue System
 
-Messages pushed via `POST /` enter an internal queue, processed by a timer-based poller to ensure reliable, ordered delivery.
+Messages pushed via `POST /` enter an internal queue with intelligent delivery:
 
 ```
-External App → POST / → Message Queue → Timer (5s) → Deliver to Session
+External App
+    │
+    ▼
+POST / ──► Message Queue
+                │
+                ├─ Session idle? ──► Deliver immediately (vim.schedule)
+                │
+                └─ Session busy? ──► Start timer (5s poll)
+                                        │
+                                        ├─ Session becomes idle ──► Deliver
+                                        └─ Still busy ──► Keep polling
 ```
 
 **How it works:**
 
 1. Messages are immediately queued upon receipt
-2. A timer checks the queue every 5 seconds
-3. When a session is idle (`in_progress` is false), messages are delivered in FIFO order
-4. If a session is busy, messages remain in the queue until it becomes available
+2. If the session is idle (`in_progress` is false), the message is delivered instantly via `vim.schedule` — no timer delay
+3. If the session is busy, a timer starts polling every 5 seconds
+4. When the session becomes idle, queued messages are delivered in FIFO order
+5. Once all messages are delivered, the timer stops automatically
+6. If delivery fails (e.g., session doesn't enter `in_progress`), the message is retried up to 3 times before being dropped
 
-This ensures messages are never lost and are delivered in the order they were sent.
+This ensures messages are never lost and are delivered in the order they were sent, with minimal latency for idle sessions.
 
 ---
 
@@ -704,8 +716,8 @@ These status codes apply across all endpoints:
 
 | Status Code | Description |
 |---|---|
-| 200 | Success — returns JSON data |
-| 204 | Success — no content returned |
+| 200 | Success - returns JSON data |
+| 204 | Success - no content returned |
 | 400 | Bad request (JSON parse error, missing parameters, etc.) |
 | 401 | Invalid or missing API key |
 | 404 | Resource not found or wrong method/path |
@@ -972,7 +984,7 @@ async function updateDashboard() {
   const providers = await resp.json();
 
   document.getElementById("provider-list").innerHTML = providers
-    .map((p) => `<li>${p.name} — ${p.models.length} models</li>`)
+    .map((p) => `<li>${p.name} - ${p.models.length} models</li>`)
     .join("");
 }
 ```
@@ -981,8 +993,8 @@ async function updateDashboard() {
 
 ## Next Steps
 
-- [Providers](../providers/) — AI provider configuration
-- [Tools](../tools/) — Tool system
-- [Memory System](../memory/) — Memory system configuration
-- [IM Integration](../integrations/im/) — Instant messaging integrations
+- [Providers](../providers/) - AI provider configuration
+- [Tools](../tools/) - Tool system
+- [Memory System](../memory/) - Memory system configuration
+- [IM Integration](../integrations/im/) - Instant messaging integrations
 
