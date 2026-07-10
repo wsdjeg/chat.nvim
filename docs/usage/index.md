@@ -244,10 +244,11 @@ The following key bindings are available in the **Input** window:
 
 The following key bindings are available in the **Result** window:
 
-| Mode     | Key Binding | Description                             |
-| -------- | ----------- | --------------------------------------- |
-| `Normal` | `q`         | Close chat window                       |
-| `Normal` | `<Tab>`     | Switch between input and result windows |
+| Mode     | Key Binding  | Description                             |
+| -------- | ------------ | --------------------------------------- |
+| `Normal` | `q`          | Close chat window                       |
+| `Normal` | `<Tab>`      | Switch between input and result windows |
+| `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
 
 ### Markdown Rendering
 
@@ -320,22 +321,52 @@ Each session is stored as a JSON file with the following structure:
   "provider": "deepseek",
   "model": "deepseek-chat",
   "cwd": "/path/to/project",
+  "prompt": "You are a helpful assistant...",
+  "title": "",
+  "pin": false,
   "messages": [
     {
       "role": "user",
       "content": "Hello!",
-      "timestamp": "2024-01-15T10:30:00"
+      "created": 1705300200
     },
     {
       "role": "assistant",
       "content": "Hi! How can I help you?",
-      "timestamp": "2024-01-15T10:30:05"
+      "created": 1705300205,
+      "usage": {
+        "total_tokens": 30,
+        "prompt_tokens": 10,
+        "completion_tokens": 20
+      }
     }
   ],
-  "created_at": "2024-01-15T10:30:00",
-  "updated_at": "2024-01-15T10:30:05"
+  "usage": {
+    "total_tokens": 30,
+    "prompt_tokens": 10,
+    "completion_tokens": 20
+  }
 }
 ```
+
+**Field Reference:**
+
+| Field                     | Type    | Description                                          |
+| ------------------------- | ------- | ---------------------------------------------------- |
+| `id`                      | string  | Session ID (timestamp format: `YYYY-MM-DD-HH-MM-SS`) |
+| `provider`                | string  | AI provider name                                     |
+| `model`                   | string  | Model name                                           |
+| `cwd`                     | string  | Session working directory                            |
+| `prompt`                  | string  | System prompt for this session                       |
+| `title`                   | string  | Session title (shown in window title bar)            |
+| `pin`                     | boolean | Whether the session is pinned                        |
+| `messages`                | array   | Array of message objects                             |
+| `messages[].role`         | string  | Message role (`user`, `assistant`, `tool`)           |
+| `messages[].content`      | string  | Message content                                      |
+| `messages[].created`      | integer | Unix timestamp (seconds)                             |
+| `messages[].usage`        | object  | Token usage (assistant messages only, optional)      |
+| `usage`                   | object  | Cumulative token usage for the session               |
+| `last_user_message_time`  | integer | Unix timestamp of last user message (optional)       |
 
 ### Session Commands
 
@@ -512,3 +543,4 @@ Learn more: [MCP](../mcp/)
 - [Tools](../tools/) - Explore available tools
 - [Memory System](../memory/) - Learn about the memory system
 - [API Documentation](../api/http/) - HTTP API integration
+
