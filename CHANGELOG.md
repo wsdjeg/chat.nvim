@@ -1,5 +1,84 @@
 # Changelog
 
+## [1.8.0](https://github.com/wsdjeg/chat.nvim/compare/v1.7.0...v1.8.0) (2026-07-10)
+
+
+### Features
+
+* add auto-retry for LLM requests on connection errors and timeouts ([628b991](https://github.com/wsdjeg/chat.nvim/commit/628b991d50185382f30ac0488e9531d1b17c4754))
+* add start() to init backend without opening UI ([29e3d6e](https://github.com/wsdjeg/chat.nvim/commit/29e3d6e07a390c7c49771e17ab39dd928789a9e1))
+* **config:** add render_markdown option ([2051e61](https://github.com/wsdjeg/chat.nvim/commit/2051e61c6fa898afa7ee6337fa936f76d19058f7))
+* **picker:** add chat_cwd source to search sessions by cwd ([dbe634f](https://github.com/wsdjeg/chat.nvim/commit/dbe634fd62135fbe89182a342f9ff781bed91050))
+* **scheduler:** add skip_if_busy option for periodic tasks ([3f80eb8](https://github.com/wsdjeg/chat.nvim/commit/3f80eb8189754da03713a7c5c6db18b393389ad8))
+* **tools:** add search to get_history tool ([b472aaf](https://github.com/wsdjeg/chat.nvim/commit/b472aaf1fcf6b7137c50566806f8447e50ec7751))
+* **tools:** add str_replace action to write_file tool ([38e66b7](https://github.com/wsdjeg/chat.nvim/commit/38e66b7bd2b01b03bebf47da4b47739def3491da))
+* **user_profile:** enhance tool description for arbitrary user lookup ([bc70f1e](https://github.com/wsdjeg/chat.nvim/commit/bc70f1e30a7dbb3da89c7d38c6c02210a0112f9e))
+* **user:** add user profile (人物画像) feature ([a525800](https://github.com/wsdjeg/chat.nvim/commit/a525800ca571296b1c34947b4f4e0be8e4d2efc5))
+* **windows:** add &lt;leader&gt;fj keymap for chat_project picker ([a794e9a](https://github.com/wsdjeg/chat.nvim/commit/a794e9ae4c1d03764a09ee9de253b6b92100669d))
+* **windows:** add session title rename and display ([7133568](https://github.com/wsdjeg/chat.nvim/commit/7133568372e388a312946d27a00e6311902b5a53))
+* **windows:** add signcolumn to result and prompt windows ([1de3bde](https://github.com/wsdjeg/chat.nvim/commit/1de3bdeb96dc2345339f146f99424620842ed126))
+* **windows:** enable markdown filetype and RenderMarkdown for result buffer ([d345c10](https://github.com/wsdjeg/chat.nvim/commit/d345c107e98b3739a278235cad141463f6d3f3bd))
+
+
+### Bug Fixes
+
+* **context:** validate tool_call/tool_result pairing after truncation ([c0d7cbd](https://github.com/wsdjeg/chat.nvim/commit/c0d7cbd2afe9afead6a6683d2f3690ff49faa455))
+* correct error message in set_session_model and normalize cwd paths ([65e12fb](https://github.com/wsdjeg/chat.nvim/commit/65e12fb81b8e9cbb2cff4860c45512c9de85652c))
+* fix testSaveAndInitRoundTrip by avoiding cancel() side-effect on disk ([f3947f7](https://github.com/wsdjeg/chat.nvim/commit/f3947f70e7872921f3927c725e49e7dd5d219133))
+* **http:** add status text mapping and fix send_error JSON encoding ([2a426e8](https://github.com/wsdjeg/chat.nvim/commit/2a426e86bf9217a360b08779b35059b6800ed3db))
+* **http:** handle bind and listen errors properly ([e2bf799](https://github.com/wsdjeg/chat.nvim/commit/e2bf7990edab96662c31add80a8421a0e021d018))
+* **http:** prevent client hang on route handler errors ([e6e1bd1](https://github.com/wsdjeg/chat.nvim/commit/e6e1bd1843f4269b7f02b860d29fc2820e90ea53))
+* **http:** replace synchronous file I/O with async uv.fs_* in raw handler ([3b1b7cd](https://github.com/wsdjeg/chat.nvim/commit/3b1b7cdb50e74dae1514b72a30aea751191821e6))
+* **http:** use consistent regex patterns for route matching ([5bd4d6e](https://github.com/wsdjeg/chat.nvim/commit/5bd4d6eccc1c9e5547ce0d0e2538838413870c52))
+* prevent double-close in HTTP server and improve MCP error handling ([0b6352a](https://github.com/wsdjeg/chat.nvim/commit/0b6352a7d99ff29bfd44ece73d8c8743acd8987c))
+* queue timer delay on idle sessions ([b780c93](https://github.com/wsdjeg/chat.nvim/commit/b780c93665275d5b198d76ab6000091fb88e1aad))
+* remove duplicate code blocks in storage, tools, and windows ([f6ea301](https://github.com/wsdjeg/chat.nvim/commit/f6ea301f2782c4628b7c9a381aad9071f2bab23b))
+* remove duplicate incomplete if statement in make.lua ([58dece9](https://github.com/wsdjeg/chat.nvim/commit/58dece929ad9bdd4c66dea84d03604dabc9320f9))
+* reset retry count on successful response ([9f8849e](https://github.com/wsdjeg/chat.nvim/commit/9f8849e2022bc973cd090cf6d62a66710e5cbaf3))
+* resolve 13 code quality and safety issues across codebase ([356bfc5](https://github.com/wsdjeg/chat.nvim/commit/356bfc5305d206580b92c67e2cd5b99e3938be53))
+* **tools:** handle stringified JSON array in git_add path ([0c12c5c](https://github.com/wsdjeg/chat.nvim/commit/0c12c5cd0a640a6d6555b0bc33efb35555092657))
+* **windows:** disable number option in prompt and result windows ([20e7530](https://github.com/wsdjeg/chat.nvim/commit/20e7530277ea9c99494a3145d1d4ad0732a114d0))
+* **windows:** restore title badge characters in prompt window ([924a539](https://github.com/wsdjeg/chat.nvim/commit/924a53995194a89a3c428b65cccd88915cbe2fd0))
+* **windows:** restore title badge characters in result window ([c977576](https://github.com/wsdjeg/chat.nvim/commit/c97757661aed28dfb7142cf4aab49b7a3a927c81))
+
+
+### Code Refactoring
+
+* **http:** use response.send_raw for raw responses in routes ([cf744f0](https://github.com/wsdjeg/chat.nvim/commit/cf744f088922fdde6409a50a6b93860b24e05f39))
+* **integrations:** move state files to chat.nvim/integration/ ([da7df4a](https://github.com/wsdjeg/chat.nvim/commit/da7df4af6324a7723df2e8eb68f0624f4c0bea89))
+* move memory and session storage from cache to data dir ([70af89d](https://github.com/wsdjeg/chat.nvim/commit/70af89d30dc6d1b1365dba31312639511adcf200))
+* **picker:** merge chat_project source into chat ([dc10c02](https://github.com/wsdjeg/chat.nvim/commit/dc10c02c5c3fc3de163d8f0a6c937fc775856176))
+* **picker:** rename chat_cwd to chat_project ([503744c](https://github.com/wsdjeg/chat.nvim/commit/503744cedc669462fd1a6696436325a1c6d2b5c6))
+* **plugin:** remove redundant local variable in unbridge command ([d7b58b7](https://github.com/wsdjeg/chat.nvim/commit/d7b58b7fe192e2f6b3885ac63db42149b04757ec))
+* remove Case 2 orphaned tool_calls stripping in context truncation ([1385d40](https://github.com/wsdjeg/chat.nvim/commit/1385d4049f3d78022338ff1b91e0aa7b5cd9fc17))
+* **retry:** always append error message with retry hint ([74d304f](https://github.com/wsdjeg/chat.nvim/commit/74d304f08f56caaa8c726999eb54d7502180ed38))
+* **sessions:** move session cache to sessions subdirectory ([f96b828](https://github.com/wsdjeg/chat.nvim/commit/f96b828421d7b962a39dddab871b84182583f100))
+* **test:** replace stdpath('cache') with stdpath('data') ([bbebda7](https://github.com/wsdjeg/chat.nvim/commit/bbebda7832a09b724e7b58ae3740c4d2c6cd948e))
+* **user:** do not auto-detect user id when config id is empty ([4064560](https://github.com/wsdjeg/chat.nvim/commit/4064560634e2b107cdc7fdb8e0e79e7b20357e60))
+* 重写定时任务为独立 uv.timer 架构 ([e704fcd](https://github.com/wsdjeg/chat.nvim/commit/e704fcdb53242121fca9f2a5e9854a63e98b8dfc))
+
+
+### Documentation
+
+* add forbidden features section to AGENTS.md ([8258626](https://github.com/wsdjeg/chat.nvim/commit/825862687c6b3d34c17a341b92c5d6983f37a65a))
+* add make test step before commit in workflow ([ae8faf8](https://github.com/wsdjeg/chat.nvim/commit/ae8faf833a927f776ac0c4c6184dee47ee631687))
+* fix consistency issues between docs and code ([de6ada5](https://github.com/wsdjeg/chat.nvim/commit/de6ada56ebee52bab88b18f9a366f98b889d7692))
+* fix DeepSeek models, custom protocol example, and protocol path ([31b73e7](https://github.com/wsdjeg/chat.nvim/commit/31b73e7079c61618f28249fe80c780eedbc46bf3))
+* fix Discord chunk size, protocol path, and queue description in help ([5548552](https://github.com/wsdjeg/chat.nvim/commit/5548552050011bee130edddf2e168ddaef5d3bf0))
+* fix message queue flow diagram and DeepSeek models in API docs ([7571a85](https://github.com/wsdjeg/chat.nvim/commit/7571a85e654e3fb779149352f535a923703dd59c))
+* fix session JSON structure and result window keybindings ([184151a](https://github.com/wsdjeg/chat.nvim/commit/184151ab7a0a9cb935d377cd6330b8d31e72b1ef))
+* fix Usage and Providers order to match TOC ([265dcca](https://github.com/wsdjeg/chat.nvim/commit/265dcca5dbf1d97e092613f71a5cd80338e77252))
+* reorganize AGENTS.md for clarity and brevity ([c0795eb](https://github.com/wsdjeg/chat.nvim/commit/c0795eb8b1d29ea80a578e94f655d4f6fda339ee))
+* sync documentation list with left sidebar TOC order ([e14baf3](https://github.com/wsdjeg/chat.nvim/commit/e14baf33be0248096db4b62681136f5afe3acea7))
+* sync documentation with recent feature updates ([013c922](https://github.com/wsdjeg/chat.nvim/commit/013c92264b15c92f3eddac5b9058cdaec0a352bc))
+* update auto-retry documentation for error message behavior ([e6a893e](https://github.com/wsdjeg/chat.nvim/commit/e6a893ecab929d9703af2aa626e245ef10ec2756))
+* update docs for user_profile, schedule_task, and new features ([4dea369](https://github.com/wsdjeg/chat.nvim/commit/4dea369c855f4fc09a5c5119c227c28f88c3e903))
+
+
+### Tests
+
+* add scheduler and schedule_task test specs ([a5f8373](https://github.com/wsdjeg/chat.nvim/commit/a5f837302e01aed91707877865f1c46f5a113877))
+
 ## [1.7.0](https://github.com/wsdjeg/chat.nvim/compare/v1.6.0...v1.7.0) (2026-06-21)
 
 
