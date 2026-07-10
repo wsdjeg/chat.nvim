@@ -126,7 +126,29 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `ty
 
 ## Testing
 
-Framework: **luaunit**. Files: `test/*_spec.lua`. Run: `make test`.
+Framework: **luaunit**. Files: `test/*_spec.lua`.
+
+### Running tests
+
+Run all tests:
+
+```
+@make target="test"
+```
+
+Run specific test file(s) with PATTERN:
+
+```
+@make target="test" args=["PATTERN=write_file"]
+```
+
+PATTERN supports shorthand - `write_file` expands to `test/**/*write_file*_spec.lua`. Full paths also work:
+
+```
+@make target="test" args=["PATTERN=test/tools/write_file_spec.lua"]
+```
+
+### Writing tests
 
 ```lua
 local lu = require('luaunit')
