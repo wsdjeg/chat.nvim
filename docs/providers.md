@@ -37,13 +37,17 @@ chat.nvim comes with built-in support for 19+ AI providers:
 
 ```lua
 provider = 'deepseek'
-model = 'deepseek-chat'  -- or 'deepseek-coder'
+model = 'deepseek-v4-pro'  -- or 'deepseek-v4-flash'
 ```
 
 **Available Models:**
 
-- `deepseek-chat` - General purpose chat model
-- `deepseek-coder` - Code-specialized model
+- `deepseek-v4-pro` - Most capable model, supports thinking mode
+- `deepseek-v4-flash` - Fast model
+
+{: .info }
+
+> DeepSeek API supports `thinking.type = 'enabled'` for reasoning mode.
 
 ### 2. GitHub AI
 
@@ -371,7 +375,7 @@ Set default provider in your configuration:
 ```lua
 require('chat').setup({
   provider = 'deepseek',
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-pro',
   api_key = {
     deepseek = 'sk-xxxxxxxxxxxx',
   },
@@ -557,24 +561,68 @@ require('chat').setup({
 
 ## Custom Protocols
 
-If you need a custom protocol, create a file at `~/.config/nvim/lua/chat/protocols/<protocol_name>.lua`:
+If you need a custom protocol, create a file at `~/.config/nvim/lua/chat/protocol/<protocol_name>.lua`:
 
 ```lua
--- ~/.config/nvim/lua/chat/protocols/my_protocol.lua
+-- ~/.config/nvim/lua/chat/protocol/my_protocol.lua
 local M = {}
 
+local log = require('chat.log')
+local sessions = require('chat.sessions')
+
+local sse_buffers = {}
+
 function M.on_stdout(id, data)
-  -- Parse stdout data from curl
-  -- Call require('chat.session').append_stream(id, content)
+  vim.schedule(function()
+    for _, line in ipairs(data) do
+      if vim.startswith(line, 'data:') then
+        local v = line:sub(6)
+        if v:sub(1, 1) == ' ' then
+          v = v:sub(2)
+        end
+        table.insert(sse_buffers, v)
+      elseif line == '' then
+        if #sse_buffers > 0 then
+          local text = table.concat(sse_buffers, '\n')
+          sse_buffers = {}
+          if vim.trim(text) ~= '[DONE]' then
+            local ok, chunk = pcall(vim.json.decode, text)
+            if ok and chunk and chunk.choices and #chunk.choices > 0 then
+              local choice = chunk.choices[1]
+              if choice.delta and choice.delta.content then
+                -- Stream content to the session
+                sessions.on_progress(id, choice.delta.content)
+              end
+              if chunk.usage then
+                sessions.set_progress_usage(id, chunk.usage)
+              end
+            end
+          end
+        end
+      end
+    end
+  end)
 end
 
 function M.on_stderr(id, data)
-  -- Handle stderr data
+  vim.schedule(function()
+    for _, line in ipairs(data) do
+      log.debug(string.format('jobid %d, stderr %s', id, line))
+    end
+  end)
 end
 
 function M.on_exit(id, code, signal)
-  -- Handle request completion
-  -- Call require('chat.session').complete_stream(id)
+  vim.schedule(function()
+    local session = sessions.get_progress_session(id)
+    if code == 0 and signal == 0 then
+      sessions.on_progress_done(id)
+      if session then
+        sessions.on_complete(session, id)
+      end
+    end
+    sessions.on_progress_exit(id, code, signal)
+  end)
 end
 
 return M
@@ -582,9 +630,25 @@ return M
 
 ### Protocol Functions
 
-- `on_stdout(id, data)` - Handle stdout data from curl
-- `on_stderr(id, data)` - Handle stderr data
-- `on_exit(id, code, signal)` - Handle request completion
+| Function                  | Description                                    |
+| ------------------------- | ---------------------------------------------- |
+| `on_stdout(id, data)`     | Handle stdout data from curl (SSE stream lines) |
+| `on_stderr(id, data)`     | Handle stderr data                             |
+| `on_exit(id, code, signal)` | Handle request completion                     |
+
+### Key Session API Calls
+
+Within protocol functions, use these `sessions` module functions:
+
+| Function                                  | Description                                          |
+| ----------------------------------------- | ---------------------------------------------------- |
+| `sessions.on_progress(id, content)`       | Stream a text chunk to the UI                        |
+| `sessions.on_progress_tool_call(id, tc)`  | Handle a tool call delta                             |
+| `sessions.on_progress_done(id)`           | Mark the stream as done                              |
+| `sessions.on_complete(session, id)`       | Trigger post-completion logic (e.g. tool results)    |
+| `sessions.on_progress_exit(id, code, sig)`| Clean up progress state on exit                      |
+| `sessions.get_progress_session(id)`       | Get the session object from job ID                   |
+| `sessions.set_progress_usage(id, usage)`  | Set token usage for the request                      |
 
 See `lua/chat/protocol/openai.lua` for reference implementation.
 
@@ -671,9 +735,9 @@ This will show all available models for the current provider.
 
 ### DeepSeek
 
-- **Default model**: `deepseek-chat`
+- **Default model**: `deepseek-v4-pro`
 - **API Base**: `https://api.deepseek.com`
-- **Supports**: Streaming, function calling
+- **Supports**: Streaming, function calling, thinking mode
 
 ### OpenAI
 
@@ -737,7 +801,7 @@ If you get "Provider not found" error:
 If you get protocol-related errors:
 
 1. Check if the provider uses a custom protocol
-2. Ensure the protocol file exists in `lua/chat/protocols/`
+2. Ensure the protocol file exists in `lua/chat/protocol/`
 3. Verify the protocol module implements all required functions
 
 ---
@@ -747,3 +811,4 @@ If you get protocol-related errors:
 - [Tools](./tools/) - Explore available tools
 - [Usage](./usage/) - Learn how to use chat.nvim
 - [Memory System](./memory/) - Learn about the memory system
+
