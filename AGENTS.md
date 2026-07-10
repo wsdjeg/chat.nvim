@@ -57,7 +57,7 @@ Modify -> Verify -> make test -> git_add -> git_commit -> git_push -> Done
 
 Release-please creates a PR on branch `release-please--branches--master`. To re-trigger or fix the release PR version, use git tools one at a time:
 
-1. `@git_fetch` - fetch latest from origin
+1. `@git_fetch remote="origin"` - fetch latest from origin
 2. `@git_checkout branch="release-please--branches--master"` - switch to release PR branch
 3. `@git_rebase branch="master"` - rebase release PR branch onto latest master
 4. `@git_push branch="release-please--branches--master" force=true` - force push to update PR
