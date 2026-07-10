@@ -47,19 +47,19 @@ CONTENTS                                                                *chat*
       Request Format                                     |chat-request-format|
       Response Format                                   |chat-response-format|
       Message Queue System                         |chat-message-queue-system|
-      Usage Examples                                     |chat-usage-examples|
-      Security Considerations                   |chat-security-considerations|
-  9. Picker Integration                              |chat-picker-integration|
-10. IM Integration                                         |chat-im-integration|
-      Discord                                                 |chat-discord|
-      Lark (Feishu)                                         |chat-lark|
-      DingTalk                                               |chat-dingtalk|
-      WeCom                                                     |chat-wecom|
-      Weixin (Personal WeChat)                               |chat-weixin|
-      Telegram                                               |chat-telegram|
-      Slack                                                     |chat-slack|
-  11. Self-Promotion                                      |chat-self-promotion|
-  12. Feedback                                                  |chat-feedback|
+      Usage Examples                                     *chat-usage-examples|
+      Security Considerations                   *chat-security-considerations|
+  9. Picker Integration                              *chat-picker-integration|
+10. IM Integration                                         *chat-im-integration|
+      Discord                                                 *chat-discord|
+      Lark (Feishu)                                         *chat-lark|
+      DingTalk                                               *chat-dingtalk|
+      WeCom                                                     *chat-wecom|
+      Weixin (Personal WeChat)                               *chat-weixin|
+      Telegram                                               *chat-telegram|
+      Slack                                                     *chat-slack|
+  11. Self-Promotion                                      *chat-self-promotion|
+  12. Feedback                                                  *chat-feedback|
   13. License                                                   *chat-license*
 
 ==============================================================================
@@ -242,7 +242,7 @@ chat.nvim provides flexible configuration options through the
 | `auto_scroll`   | boolean            | `true`                          |
 | `border`        | string             | `'rounded'`                     |
 | `provider`      | string             | `'deepseek'`                    |
-| `model`         | string             | `'deepseek-chat'`               |
+| `model`         | string             | `'deepseek-v4-pro'`             |
 | `strftime`      | string             | `'%m-%d %H:%M:%S'`              |
 | `system_prompt` | string or function | `''`                            |
 | `highlights`    | table              | `{title = 'ChatNvimTitle', ...}`|
@@ -455,7 +455,7 @@ MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
 <
 
 ------------------------------------------------------------------------------
- 4.9 IM Integration Configuration                |chat-im-integration-configuration*
+ 4.9 IM Integration Configuration                *chat-im-integration-configuration*
 
 Configure instant messaging platform integrations:
 >
@@ -510,7 +510,7 @@ Configure instant messaging platform integrations:
 
       -- AI provider settings
       provider = 'deepseek',
-      model = 'deepseek-chat',
+      model = 'deepseek-v4-pro',
       api_key = {
         deepseek = 'sk-xxxxxxxxxxxx',
         github = 'github_pat_xxxxxxxx',
@@ -748,10 +748,11 @@ The following key bindings are available in the `Input` window:
 | `Normal` | `<Leader>fm` | run `:Picker chat_model`                |
 The following key bindings are available in the `Result` window:
 
-| Mode     | Key Binding | Description                             |
-| -------- | ----------- | --------------------------------------- |
-| `Normal` | `q`         | Close chat window                       |
-| `Normal` | `<Tab>`     | Switch between input and result windows |
+| Mode     | Key Binding  | Description                             |
+| -------- | ------------ | --------------------------------------- |
+| `Normal` | `q`          | Close chat window                       |
+| `Normal` | `<Tab>`      | Switch between input and result windows |
+| `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
 
 ==============================================================================
  6. PROVIDERS                                                 *chat-providers*
@@ -872,7 +873,7 @@ Protocols handle parsing of API responses. Currently, chat.nvim supports:
 - **`gemini`**: Google Gemini API format
 
 If you need a custom protocol, create a file at
-`~/.config/nvim/lua/chat/protocols/<protocol_name>.lua` and implement:
+`~/.config/nvim/lua/chat/protocol/<protocol_name>.lua` and implement:
 
 - `on_stdout(id, data)` - Handle stdout data from curl
 - `on_stderr(id, data)` - Handle stderr data
@@ -1717,12 +1718,15 @@ GET `/session`:
 ------------------------------------------------------------------------------
  8.5 Message Queue System                         *chat-message-queue-system*
 
-Incoming messages are processed through a queue system:
+Incoming messages are processed through an intelligent queue system:
 
 1. Messages are immediately queued upon receipt
-2. The queue is checked every 5 seconds
-3. Messages are delivered to the chat session when it's not in progress
-4. If a session is busy, messages remain in the queue until available
+2. If the session is idle, the message is delivered instantly via
+   `vim.schedule` - no timer delay
+3. If the session is busy, a timer starts polling every 5 seconds
+4. When the session becomes idle, queued messages are delivered in FIFO order
+5. Once all messages are delivered, the timer stops automatically
+6. If delivery fails, the message is retried up to 3 times before being dropped
 
 ------------------------------------------------------------------------------
  8.6 Usage Examples                                     *chat-usage-examples*
@@ -1823,13 +1827,14 @@ Features:
   and receive responses
 - **Session Binding**: Bind specific Discord channels to chat.nvim sessions
 - **Automatic Polling**: Bot polls for new messages every 3 seconds
+- **Long Message Support**: Auto-chunking for messages > 2,000 characters
 
 Setup Guide:
 
 1. Create Discord Application at https://discord.com/developers/applications
 2. Create Bot User and copy the **Token**
 3. Enable "Message Content Intent" under "Privileged Gateway Intents"
-4. Get Channel ID (enable Developer Mode in Discord, right-click channel →
+4. Get Channel ID (enable Developer Mode in Discord, right-click channel ->
    Copy ID)
 5. Invite Bot to Server with required permissions
 6. Configure chat.nvim:
@@ -2020,7 +2025,7 @@ Setup Guide:
    - `mpim:history` - Read messages in multiparty direct messages
 3. Install to Workspace and copy **Bot User OAuth Token** (starts with
    `xoxb-`)
-4. Get Channel ID from URL or right-click channel → "Copy Link"
+4. Get Channel ID from URL or right-click channel -> "Copy Link"
 5. Invite Bot to Channel: `/invite @YourBotName`
 6. Configure chat.nvim:
 >
