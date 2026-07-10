@@ -59,7 +59,7 @@ Release-please creates a PR on branch `release-please--branches--master`. To re-
 
 1. `@git_fetch` - fetch latest from origin
 2. `@git_checkout branch="release-please--branches--master"` - switch to release PR branch
-3. `@git_merge branch="master"` - merge latest master into release PR branch
+3. `@git_rebase branch="master"` - rebase release PR branch onto latest master
 4. `@git_push branch="release-please--branches--master" force=true` - force push to update PR
 5. `@git_checkout branch="master"` - switch back to master
 6. `@git_merge branch="release-please--branches--master"` - merge release PR into master
