@@ -65,6 +65,15 @@ Release-please creates a PR on branch `release-please--branches--master`. To re-
 6. `@git_checkout branch="master"` - switch back to master
 7. `@git_merge branch="release-please--branches--master"` - merge release PR into master
 
+### 禁止手动创建或推送 tags
+
+Release-please 在 release PR 合并后会**自动创建** git tags 和 GitHub Releases。在此过程中：
+
+- **不要**使用 `@git_tag` 创建任何 tag
+- **不要**使用 `@git_push tags=true` 推送 tags
+
+手动 tag 会与 release-please 的自动化冲突，导致版本混乱或重复 release。
+
 ---
 
 ## Forbidden Files
