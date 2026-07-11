@@ -17,7 +17,7 @@ help:
 
 # Install all test dependencies (cross-platform, uses Lua)
 install-deps:
-	@nvim --headless -c "lua dofile('test/install_deps.lua')" -c "qa!"
+	@nvim --headless -u test/minimal_init.lua -c "lua dofile('test/install_deps.lua')" -c "qa!"
 
 # Aliases for individual dependency install (same cross-platform Lua script)
 install-luaunit: install-deps
