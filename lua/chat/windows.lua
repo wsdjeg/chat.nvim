@@ -287,6 +287,13 @@ function M.send_message(session, content)
     return
   end
 
+  -- Skill invocation: /name [args]
+  if content:sub(1, 1) == '/' then
+    local skills = require('chat.skills')
+    skills.dispatch(content, session)
+    return
+  end
+
   sessions.clear_cancelled(session)
   local msg = {
     role = 'user',
