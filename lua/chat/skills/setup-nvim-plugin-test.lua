@@ -30,6 +30,9 @@ return {
       '4. **test/install_deps.lua** (跨平台依赖安装器)',
       '   https://raw.githubusercontent.com/wsdjeg/chat.nvim/master/test/install_deps.lua',
       '',
+      '5. **.github/workflows/test.yml** (CI GitHub Actions 测试工作流)',
+      '   https://raw.githubusercontent.com/wsdjeg/chat.nvim/master/.github/workflows/test.yml',
+      '',
       '## 要求',
       '',
       '- 使用 luaunit 作为测试框架',
@@ -38,6 +41,8 @@ return {
       '- test/run.lua 需支持 PATTERN 过滤、自动发现 `test/**/*_spec.lua`',
       '- test/install_deps.lua 需跨平台（curl / powershell / wget fallback）',
       '- 生成一个 `test/example_spec.lua` 示例测试文件',
+      '- 生成 `.github/workflows/test.yml`，在 push 到 main 和 PR 时触发，',
+      '  矩阵覆盖 Neovim nightly/stable × ubuntu/windows/macos',
       '- 先读取当前项目结构，确保生成的文件与项目实际模块名和结构匹配',
       '- 如果已有同名文件则跳过，不要覆盖',
     }
