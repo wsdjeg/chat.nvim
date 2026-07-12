@@ -369,6 +369,80 @@ require('chat').register_skill({
 require('chat').unregister_skill('greet')
 ```
 
+#### Runtime Skills (File-based Auto-load)
+
+The easiest way to add custom skills: create a `.lua` file in the `lua/chat/skills/` directory. chat.nvim automatically discovers and loads these files on startup.
+
+**How it works:**
+
+1. Place a `.lua` file under `lua/chat/skills/` (in your Neovim runtimepath)
+2. The file name (without `.lua`) becomes the module name, but the skill name is determined by the `name` field in the returned table
+3. The file must `return` a table matching the `ChatSkill` structure
+4. On `init()`, chat.nvim scans `lua/chat/skills/*.lua` and registers each one
+
+**File structure:**
+
+```
+lua/chat/skills/
+├── my-skill.lua           # /my-skill
+├── setup-nvim-plugin-test.lua  # /setup-nvim-plugin-test
+└── README.md              # Skipped (not a .lua file)
+```
+
+**Minimal example** — `lua/chat/skills/greet.lua`:
+
+```lua
+-- lua/chat/skills/greet.lua
+-- /greet [name] - Say hello
+
+return {
+  name = 'greet',
+  description = 'Say hello',
+  handler = function(args, ctx)
+    return 'Hello, ' .. (args or 'world') .. '!'
+  end,
+}
+```
+
+After creating the file, restart Neovim (or run `:Chat` which triggers init). Type `/greet Nova` in the prompt window to use it.
+
+**Advanced example** — inject a user message and trigger LLM request:
+
+```lua
+-- lua/chat/skills/setup-nvim-plugin-test.lua
+-- /setup-nvim-plugin-test - Scaffold a Neovim plugin test system
+
+return {
+  name = 'setup-nvim-plugin-test',
+  description = 'Set up Neovim plugin test system',
+  handler = function(_, _)
+    local lines = {
+      '请为当前项目搭建 Neovim 插件测试系统。',
+      '',
+      '参考 wsdjeg/chat.nvim 的测试基础设施：',
+      '1. fetch AGENTS.md from GitHub raw URL',
+      '2. Read current project structure',
+      '3. Generate test files following the spec',
+    }
+
+    -- Return a ChatSkillResult table instead of a plain string
+    return {
+      content = table.concat(lines, '\n'),
+      role = 'user',       -- Inject as a user message
+      request = true,       -- Trigger LLM request after injecting
+    }
+  end,
+}
+```
+
+**Rules:**
+
+- The file **must** return a table with `name` (string) and `handler` (function) fields
+- `description` is optional but recommended (shown in `/help`)
+- If a file fails to load, an error is logged and other skills continue loading
+- Files named `README.*` are skipped (documentation only)
+- Runtime skills are loaded **after** built-in skills, so built-in names take precedence
+
 ### Skill Handler API
 
 Each skill handler receives two arguments:
@@ -379,8 +453,20 @@ Each skill handler receives two arguments:
 | `ctx`     | table  | Context containing `ctx.session` (session ID)  |
 
 The handler can return:
-- **string**: Output text displayed to the user
-- **nil**: No output (silent execution)
+
+| Return type        | Description                                              |
+| ------------------ | -------------------------------------------------------- |
+| **string**         | Output text displayed to the user                        |
+| **nil**            | No output (silent execution)                             |
+| **ChatSkillResult**| A table to inject a message and optionally trigger LLM   |
+
+**ChatSkillResult fields:**
+
+| Field      | Type      | Description                                              |
+| ---------- | --------- | -------------------------------------------------------- |
+| `content`  | string    | Message content to append to the session                 |
+| `role`     | string?   | Message role: `"user"` or `"assistant"` (default: `"assistant"`) |
+| `request`  | boolean?  | If `true`, trigger LLM request after appending (default: `false`) |
 
 {: .info }
 > Skills are intercepted before being sent to the LLM. If the input doesn't start with `/`, it's treated as a normal message. Unknown `/name` commands will show a warning.
