@@ -372,7 +372,29 @@ M._builtin_help = {
   end,
 }
 
---- Initialize built-in skills
+--- Auto-load user skills from lua/chat/skills/*.lua
+--- Each file should return a ChatSkill table.
+function M.autoload()
+  local files = vim.api.nvim_get_runtime_file('lua/chat/skills/*.lua', true)
+  for _, f in ipairs(files) do
+    local name = vim.fn.fnamemodify(f, ':t:r')
+    -- Skip README (documentation only, not a real skill)
+    if name ~= 'README' then
+      local module = 'chat.skills.' .. name
+      local ok, skill = pcall(require, module)
+      if ok and skill and type(skill) == 'table' then
+        if type(skill.name) == 'string' and type(skill.handler) == 'function' then
+          M.register(skill)
+          log.debug('[Skills] autoloaded: /' .. skill.name .. ' from ' .. module)
+        end
+      elseif not ok then
+        log.error('[Skills] failed to load ' .. module .. ': ' .. tostring(skill))
+      end
+    end
+  end
+end
+
+--- Initialize built-in skills, then autoload user skills
 function M.init()
   for _, key in ipairs({
     'clear',
@@ -391,6 +413,8 @@ function M.init()
       M.register(skill)
     end
   end
+
+  M.autoload()
 end
 
 return M

@@ -1,0 +1,25 @@
+-- lua/chat/skills/README.lua
+-- This file documents the skill module contract and serves as an example.
+-- It is intentionally NOT a valid skill (no handler), so it won't register.
+--
+-- ## Skill Module Contract
+--
+-- Each `.lua` file in this directory should `return` a ChatSkill table:
+--
+--   return {
+--     name = 'example',          -- required: unique identifier (used as /example)
+--     description = 'Example',    -- required: short description shown in /help
+--     handler = function(args, ctx)
+--       -- args: string  (arguments after /name, e.g. "/example hello" -> "hello")
+--       -- ctx:  ChatSkillContext (has .session field)
+--       -- return: string | ChatSkillResult | nil
+--       return 'Hello from example skill!'
+--     end,
+--     complete = function(args)  -- optional: return completion candidates
+--       return { 'foo', 'bar' }
+--     end,
+--   }
+--
+-- Skills are auto-loaded on startup via `skills.init()`.
+-- Users can also register skills at runtime via `require('chat').register_skill()`.
+
