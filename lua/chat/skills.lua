@@ -352,16 +352,16 @@ M._builtin_help = {
   builtin = true,
   handler = function(_, _)
     local skills = M.list()
-    local lines = { 'Available skills:', '' }
+    local lines = { '## Available skills', '' }
     for _, skill in ipairs(skills) do
-      local tag = skill.builtin and '' or '(user) '
+      local tag = skill.builtin and '' or ' (user)'
       table.insert(
         lines,
-        string.format('  /%s %s- %s', skill.name, tag, skill.description)
+        string.format('- **/%s**%s - %s', skill.name, tag, skill.description)
       )
     end
     table.insert(lines, '')
-    table.insert(lines, 'Type /name in the prompt window to use a skill.')
+    table.insert(lines, 'Type `/name` in the prompt window to use a skill.')
     log.notify(lines)
     return table.concat(lines, '\n')
   end,
