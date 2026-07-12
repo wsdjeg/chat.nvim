@@ -259,6 +259,56 @@ function TestSkills:testInitAfterUnregister()
   lu.assertTrue(#skills.list() >= 10)
 end
 
+function TestSkills:testDispatchTableReturn()
+  skills.register({
+    name = 'tableskill',
+    handler = function(args, ctx)
+      return {
+        content = 'injected user message: ' .. args,
+        role = 'user',
+        request = true,
+      }
+    end,
+  })
+
+  local result = skills.dispatch('/tableskill hello', 'session-1')
+  lu.assertEquals(type(result), 'table')
+  lu.assertEquals(result.content, 'injected user message: hello')
+  lu.assertEquals(result.role, 'user')
+  lu.assertTrue(result.request)
+end
+
+function TestSkills:testDispatchTableReturnMinimal()
+  skills.register({
+    name = 'minimaltable',
+    handler = function(args, ctx)
+      return { content = 'just content' }
+    end,
+  })
+
+  local result = skills.dispatch('/minimaltable', 'session-1')
+  lu.assertEquals(type(result), 'table')
+  lu.assertEquals(result.content, 'just content')
+  -- role and request are optional, should not be set
+  lu.assertNil(result.role)
+  lu.assertNil(result.request)
+end
+
+function TestSkills:testDispatchTableReturnNoContent()
+  -- Table without content field should be treated as nil-like
+  -- (dispatch_skill will ignore it since it checks output.content)
+  skills.register({
+    name = 'nocontent',
+    handler = function(args, ctx)
+      return { role = 'user', request = true }
+    end,
+  })
+
+  local result = skills.dispatch('/nocontent', 'session-1')
+  lu.assertEquals(type(result), 'table')
+  lu.assertNil(result.content)
+end
+
 function TestSkills:testRegisterWithDefaultDescription()
   skills.register({
     name = 'nodesc',

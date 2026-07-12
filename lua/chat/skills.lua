@@ -15,10 +15,15 @@ local registry = {}
 ---@class ChatSkillContext
 ---@field session string Current session ID
 
+---@class ChatSkillResult
+---@field content string Message content to append to the session
+---@field role? '"user"'|'"assistant"' Message role (default: 'assistant')
+---@field request? boolean If true, trigger LLM request after appending (default: false)
+
 ---@class ChatSkill
 ---@field name string Unique identifier (used as /name)
 ---@field description string Short description shown in /help
----@field handler fun(args: string, ctx: ChatSkillContext): string|nil Handler function, returns output text or nil
+---@field handler fun(args: string, ctx: ChatSkillContext): string|ChatSkillResult|nil Handler function
 ---@field complete? fun(args: string): string[] Optional completion function
 ---@field builtin? boolean True for built-in skills
 
@@ -93,7 +98,7 @@ end
 --- Dispatch a skill invocation
 --- @param input string Raw input starting with /
 --- @param session string Current session ID
---- @return string|nil|false Returns output string, nil (no output), or false (not a skill)
+--- @return string|table|nil|false Returns output string, ChatSkillResult table, nil (no output), or false (not a skill)
 function M.dispatch(input, session)
   local name, args = M.parse(input)
   if not name or #name == 0 then

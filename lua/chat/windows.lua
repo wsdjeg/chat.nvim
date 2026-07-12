@@ -55,12 +55,46 @@ end
 
 --- Dispatch skill command and append output as assistant message.
 --- Gives HTTP clients feedback after sending a /command.
+--- Handler return convention:
+---   nil      -> no output
+---   string   -> append as assistant message (backward compatible)
+---   table    -> { content=string, role="user"|"assistant", request=boolean }
 --- @param session string Session ID
 --- @param text string Raw input starting with /
 local function dispatch_skill(session, text)
   local skills = require('chat.skills')
   local output = skills.dispatch(text, session)
-  if type(output) == 'string' and sessions.exists(session) then
+
+  if not sessions.exists(session) then
+    return
+  end
+
+  -- Table return: full control over message role and LLM request
+  if type(output) == 'table' and output.content then
+    local msg = {
+      role = output.role or 'assistant',
+      content = output.content,
+      created = os.time(),
+    }
+    sessions.append_message(session, msg)
+    M.on_message(session, msg)
+    require('chat.sessions.storage').write_cache(session)
+
+    -- Optionally trigger LLM request
+    if output.request then
+      sessions.reset_retry_count(session)
+      local jobid = protocol.request({
+        session = session,
+        messages = sessions.get_request_messages(session),
+      })
+      if jobid and jobid > 0 and session == current_session then
+        spinners.start()
+      elseif not jobid then
+        log.error('Failed to start request: jobid is nil or invalid')
+      end
+    end
+  -- String return: append as assistant message (backward compatible)
+  elseif type(output) == 'string' then
     local msg = {
       role = 'assistant',
       content = output,
@@ -70,6 +104,7 @@ local function dispatch_skill(session, text)
     M.on_message(session, msg)
     require('chat.sessions.storage').write_cache(session)
   end
+  -- nil or false: no output
 end
 
 -- Close all windows
