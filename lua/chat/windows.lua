@@ -288,10 +288,11 @@ function M.send_message(session, content)
   end
 
   -- Skill invocation: /name [args]
+  -- Returns true so the queue knows the message was handled (no LLM request)
   if content:sub(1, 1) == '/' then
     local skills = require('chat.skills')
     skills.dispatch(content, session)
-    return
+    return true
   end
 
   sessions.clear_cancelled(session)

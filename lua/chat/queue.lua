@@ -40,9 +40,13 @@ function M._process_queue()
       has_messages = true
       if not require('chat.sessions').is_in_progress(session) then
         local msg = M.pop(session)
-        require('chat.windows').send_message(session, msg)
-        -- Check if send failed (session didn't enter in_progress)
-        if not require('chat.sessions').is_in_progress(session) then
+        local result = require('chat.windows').send_message(session, msg)
+        -- Skill commands return true (handled, no LLM request)
+        if result then
+          -- Skill dispatched, message fully handled
+          retry_counts[session] = nil
+        elseif not require('chat.sessions').is_in_progress(session) then
+          -- LLM send failed (session didn't enter in_progress)
           retry_counts[session] = (retry_counts[session] or 0) + 1
           if retry_counts[session] >= MAX_RETRIES then
             log.error(
