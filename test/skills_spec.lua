@@ -142,14 +142,31 @@ function TestSkills:testDispatchKnownSkill()
       called = true
       received_args = args
       received_session = ctx.session
+      return 'test output'
     end,
   })
 
-  local ok = skills.dispatch('/testdispatch hello', 'my-session')
-  lu.assertTrue(ok)
+  local result = skills.dispatch('/testdispatch hello', 'my-session')
+  lu.assertNotEquals(result, false)
   lu.assertTrue(called)
   lu.assertEquals(received_args, 'hello')
   lu.assertEquals(received_session, 'my-session')
+  lu.assertEquals(result, 'test output')
+end
+
+function TestSkills:testDispatchNoOutput()
+  local called = false
+  skills.register({
+    name = 'nooutput',
+    handler = function(args, ctx)
+      called = true
+    end,
+  })
+
+  local result = skills.dispatch('/nooutput', 'session-1')
+  lu.assertNotEquals(result, false)
+  lu.assertTrue(called)
+  lu.assertNil(result)
 end
 
 function TestSkills:testDispatchNoArgs()
@@ -162,19 +179,20 @@ function TestSkills:testDispatchNoArgs()
     end,
   })
 
-  local ok = skills.dispatch('/noargs', 'session-1')
-  lu.assertTrue(ok)
+  local result = skills.dispatch('/noargs', 'session-1')
+  lu.assertNotEquals(result, false)
   lu.assertTrue(called)
 end
 
 function TestSkills:testDispatchUnknownSkill()
-  local ok = skills.dispatch('/nonexistent', 'session-1')
-  lu.assertFalse(ok)
+  local result = skills.dispatch('/nonexistent', 'session-1')
+  lu.assertEquals(type(result), 'string')
+  lu.assertNotNil(result:match('Unknown skill'))
 end
 
 function TestSkills:testDispatchNotASkill()
-  local ok = skills.dispatch('hello world', 'session-1')
-  lu.assertFalse(ok)
+  local result = skills.dispatch('hello world', 'session-1')
+  lu.assertFalse(result)
 end
 
 function TestSkills:testDispatchHandlerError()
@@ -185,9 +203,10 @@ function TestSkills:testDispatchHandlerError()
     end,
   })
 
-  -- Should not throw, should return true (skill was found)
-  local ok = skills.dispatch('/errorskill', 'session-1')
-  lu.assertTrue(ok)
+  -- Should not throw, should return error message string
+  local result = skills.dispatch('/errorskill', 'session-1')
+  lu.assertEquals(type(result), 'string')
+  lu.assertNotNil(result:match('intentional error'))
 end
 
 function TestSkills:testBuiltinClear()

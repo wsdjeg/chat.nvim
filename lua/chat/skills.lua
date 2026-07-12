@@ -18,7 +18,7 @@ local registry = {}
 ---@class ChatSkill
 ---@field name string Unique identifier (used as /name)
 ---@field description string Short description shown in /help
----@field handler fun(args: string, ctx: ChatSkillContext) Handler function
+---@field handler fun(args: string, ctx: ChatSkillContext): string|nil Handler function, returns output text or nil
 ---@field complete? fun(args: string): string[] Optional completion function
 ---@field builtin? boolean True for built-in skills
 
@@ -93,7 +93,7 @@ end
 --- Dispatch a skill invocation
 --- @param input string Raw input starting with /
 --- @param session string Current session ID
---- @return boolean True if skill was found and dispatched
+--- @return string|nil|false Returns output string, nil (no output), or false (not a skill)
 function M.dispatch(input, session)
   local name, args = M.parse(input)
   if not name or #name == 0 then
@@ -102,26 +102,29 @@ function M.dispatch(input, session)
 
   local skill = registry[name]
   if not skill then
-    log.notify('Unknown skill: /' .. name, 'WarningMsg')
-    return false
+    local msg = 'Unknown skill: /' .. name
+    log.notify(msg, 'WarningMsg')
+    return msg
   end
 
   local ctx = {
     session = session,
   }
 
-  local ok, err = pcall(skill.handler, args, ctx)
+  local ok, result = pcall(skill.handler, args, ctx)
   if not ok then
-    log.error('[Skills] handler error for /' .. name .. ': ' .. tostring(err))
-    log.notify('Skill /' .. name .. ' failed: ' .. tostring(err), 'ErrorMsg')
+    local msg = 'Skill /' .. name .. ' failed: ' .. tostring(result)
+    log.error('[Skills] handler error for /' .. name .. ': ' .. tostring(result))
+    log.notify(msg, 'ErrorMsg')
+    return msg
   end
 
-  return true
+  return result
 end
 
 -- ─── Built-in skills ──────────────────────────────────────────
 
---- /clear — Clear all messages in current session
+--- /clear - Clear all messages in current session
 M._builtin_clear = {
   name = 'clear',
   description = 'Clear all messages in current session',
@@ -133,11 +136,12 @@ M._builtin_clear = {
       windows.render_result_buf()
       windows.set_result_win_title(' chat.nvim ')
       log.notify('Session cleared')
+      return 'Session cleared'
     end
   end,
 }
 
---- /new — Create a new session
+--- /new - Create a new session
 M._builtin_new = {
   name = 'new',
   description = 'Create a new session',
@@ -147,10 +151,11 @@ M._builtin_new = {
     local windows = require('chat.windows')
     local new_id = sessions.new()
     windows.open({ session = new_id })
+    return 'New session: ' .. new_id
   end,
 }
 
---- /delete — Delete current session
+--- /delete - Delete current session
 M._builtin_delete = {
   name = 'delete',
   description = 'Delete current session',
@@ -162,10 +167,11 @@ M._builtin_delete = {
     if next_id then
       windows.open({ session = next_id })
     end
+    -- No return: session is deleted, can't append message
   end,
 }
 
---- /model [name] — Switch model
+--- /model [name] - Switch model
 M._builtin_model = {
   name = 'model',
   description = 'Switch model (e.g. /model gpt-4o)',
@@ -176,7 +182,7 @@ M._builtin_model = {
     if args and #args > 0 then
       sessions.set_session_model(ctx.session, args)
       log.notify('Model: ' .. args)
-      return
+      return 'Model: ' .. args
     end
 
     -- No args: show selection UI
@@ -189,7 +195,7 @@ M._builtin_model = {
 
     if #models == 0 then
       log.notify('No models available for provider: ' .. provider_name, 'WarningMsg')
-      return
+      return 'No models available for provider: ' .. provider_name
     end
 
     vim.ui.select(models, {
@@ -203,7 +209,7 @@ M._builtin_model = {
   end,
 }
 
---- /provider [name] — Switch provider
+--- /provider [name] - Switch provider
 M._builtin_provider = {
   name = 'provider',
   description = 'Switch provider (e.g. /provider openai)',
@@ -216,7 +222,7 @@ M._builtin_provider = {
       sessions.set_session_provider(ctx.session, args)
       windows.redraw_title()
       log.notify('Provider: ' .. args)
-      return
+      return 'Provider: ' .. args
     end
 
     -- No args: show selection UI
@@ -248,7 +254,7 @@ M._builtin_provider = {
   end,
 }
 
---- /cwd <path> — Change working directory
+--- /cwd <path> - Change working directory
 M._builtin_cwd = {
   name = 'cwd',
   description = 'Change working directory (e.g. /cwd /tmp)',
@@ -263,16 +269,19 @@ M._builtin_cwd = {
         sessions.change_cwd(ctx.session, dir)
         windows.redraw_title()
         log.notify('CWD: ' .. dir)
+        return 'CWD: ' .. dir
       else
         log.notify('Not a valid directory: ' .. dir, 'WarningMsg')
+        return 'Not a valid directory: ' .. dir
       end
     else
       log.notify('Usage: /cwd <directory>', 'WarningMsg')
+      return 'Usage: /cwd <directory>'
     end
   end,
 }
 
---- /pin — Toggle pin status
+--- /pin - Toggle pin status
 M._builtin_pin = {
   name = 'pin',
   description = 'Toggle pin status of current session',
@@ -282,11 +291,13 @@ M._builtin_pin = {
     local current = sessions.get_session_pin(ctx.session)
     sessions.set_session_pin(ctx.session, not current)
     require('chat.sessions.storage').write_cache(ctx.session)
-    log.notify(current and 'Unpinned' or 'Pinned')
+    local msg = current and 'Unpinned' or 'Pinned'
+    log.notify(msg)
+    return msg
   end,
 }
 
---- /title [text] — Set session title
+--- /title [text] - Set session title
 M._builtin_title = {
   name = 'title',
   description = 'Set session title (e.g. /title My Chat)',
@@ -299,6 +310,7 @@ M._builtin_title = {
       sessions.set_session_title(ctx.session, args)
       windows.redraw_title()
       log.notify('Title: ' .. args)
+      return 'Title: ' .. args
     else
       -- No args: use vim.ui.input
       local old_title = sessions.get_session_title(ctx.session) or ''
@@ -315,7 +327,7 @@ M._builtin_title = {
   end,
 }
 
---- /retry — Retry last request
+--- /retry - Retry last request
 M._builtin_retry = {
   name = 'retry',
   description = 'Retry last request',
@@ -326,13 +338,15 @@ M._builtin_retry = {
     if jobid and jobid > 0 then
       require('chat.spinners').start()
       log.notify('Retrying...')
+      -- No return: LLM request starts, client sees in_progress
     else
       log.notify('Nothing to retry', 'WarningMsg')
+      return 'Nothing to retry'
     end
   end,
 }
 
---- /help — List all available skills
+--- /help - List all available skills
 M._builtin_help = {
   name = 'help',
   description = 'Show available skills',
@@ -350,6 +364,7 @@ M._builtin_help = {
     table.insert(lines, '')
     table.insert(lines, 'Type /name in the prompt window to use a skill.')
     log.notify(lines)
+    return table.concat(lines, '\n')
   end,
 }
 

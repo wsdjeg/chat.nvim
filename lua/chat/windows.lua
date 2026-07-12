@@ -53,6 +53,25 @@ local function start_services()
   require('chat.mcp').connect()
 end
 
+--- Dispatch skill command and append output as assistant message.
+--- Gives HTTP clients feedback after sending a /command.
+--- @param session string Session ID
+--- @param text string Raw input starting with /
+local function dispatch_skill(session, text)
+  local skills = require('chat.skills')
+  local output = skills.dispatch(text, session)
+  if type(output) == 'string' and sessions.exists(session) then
+    local msg = {
+      role = 'assistant',
+      content = output,
+      created = os.time(),
+    }
+    sessions.append_message(session, msg)
+    M.on_message(session, msg)
+    require('chat.sessions.storage').write_cache(session)
+  end
+end
+
 -- Close all windows
 function M.close()
   result.close()
@@ -191,8 +210,7 @@ function M.open(opt)
 
         -- Skill invocation: /name [args]
         if text:sub(1, 1) == '/' then
-          local skills = require('chat.skills')
-          skills.dispatch(text, current_session)
+          dispatch_skill(current_session, text)
           prompt.clear()
           return
         end
@@ -290,8 +308,7 @@ function M.send_message(session, content)
   -- Skill invocation: /name [args]
   -- Returns true so the queue knows the message was handled (no LLM request)
   if content:sub(1, 1) == '/' then
-    local skills = require('chat.skills')
-    skills.dispatch(content, session)
+    dispatch_skill(session, content)
     return true
   end
 
