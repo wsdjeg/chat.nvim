@@ -301,6 +301,92 @@ Select available models for the current provider:
 
 ---
 
+## Skills (Slash Commands)
+
+chat.nvim includes a built-in skill system that lets you type `/name [args]` in the prompt window to invoke commands without sending a message to the LLM. This is useful for quick actions like switching models, clearing sessions, or changing the working directory.
+
+### Built-in Skills
+
+| Skill             | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `/clear`          | Clear all messages in current session                |
+| `/new`            | Create a new session                                 |
+| `/delete`         | Delete current session                               |
+| `/model [name]`   | Switch model (shows selection UI if no name given)   |
+| `/provider [name]`| Switch provider (shows selection UI if no name given)|
+| `/cwd <path>`     | Change working directory                             |
+| `/pin`            | Toggle pin status of current session                 |
+| `/title [text]`   | Set session title (shows input UI if no text given)  |
+| `/retry`          | Retry last request                                   |
+| `/help`           | Show all available skills                            |
+
+### Usage
+
+Type the skill name directly in the prompt window:
+
+```
+/model gpt-4o
+/provider openai
+/cwd /tmp
+/clear
+/help
+```
+
+When no arguments are provided for `/model` and `/provider`, a selection UI (`vim.ui.select`) is shown. Similarly, `/title` without arguments uses `vim.ui.input` for interactive input.
+
+### Custom Skills
+
+You can register your own skills via configuration or Lua API:
+
+#### Via Configuration
+
+```lua
+require('chat').setup({
+  skills = {
+    {
+      name = 'greet',
+      description = 'Say hello',
+      handler = function(args, ctx)
+        return 'Hello, ' .. (args or 'world') .. '!'
+      end,
+    },
+  },
+})
+```
+
+#### Via Lua API
+
+```lua
+require('chat').register_skill({
+  name = 'greet',
+  description = 'Say hello',
+  handler = function(args, ctx)
+    return 'Hello, ' .. (args or 'world') .. '!'
+  end,
+})
+
+-- Unregister a skill
+require('chat').unregister_skill('greet')
+```
+
+### Skill Handler API
+
+Each skill handler receives two arguments:
+
+| Parameter | Type   | Description                                    |
+| --------- | ------ | ---------------------------------------------- |
+| `args`    | string | Arguments passed after the skill name (trimmed)|
+| `ctx`     | table  | Context containing `ctx.session` (session ID)  |
+
+The handler can return:
+- **string**: Output text displayed to the user
+- **nil**: No output (silent execution)
+
+{: .info }
+> Skills are intercepted before being sent to the LLM. If the input doesn't start with `/`, it's treated as a normal message. Unknown `/name` commands will show a warning.
+
+---
+
 ## Session Management
 
 ### Automatic Saving
@@ -501,7 +587,8 @@ chat.nvim provides powerful features beyond basic chatting:
 
 - **Memory System**: Three-tier memory for context retention
 - **MCP Protocol**: Extended tool capabilities via external servers
-- **Tools**: 40+ built-in tools for file operations, Git, web search, etc.
+- **Tools**: 41+ built-in tools for file operations, Git, web search, etc.
+- **Skills**: Slash commands for quick actions without LLM round-trips
 
 ---
 

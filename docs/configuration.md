@@ -250,6 +250,39 @@ When enabled, the AI assistant can use the `@user_profile` tool to read, update,
 
 ---
 
+## Skills Configuration
+
+chat.nvim includes a skill (slash command) system that lets you type `/name [args]` in the prompt window to invoke commands without sending to the LLM. You can register custom skills via configuration:
+
+```lua
+require('chat').setup({
+  skills = {
+    {
+      name = 'greet',
+      description = 'Say hello',
+      handler = function(args, ctx)
+        return 'Hello, ' .. (args or 'world') .. '!'
+      end,
+    },
+  },
+})
+```
+
+Each skill spec contains:
+
+| Field          | Type     | Description                                              |
+| -------------- | -------- | -------------------------------------------------------- |
+| `name`         | string   | Unique identifier (used as `/name`)                      |
+| `description`  | string   | Short description shown in `/help`                       |
+| `handler`      | function | `function(args: string, ctx: table): string|nil`        |
+| `complete`     | function | Optional completion function `(args) -> string[]`        |
+
+You can also register skills at runtime via `require('chat').register_skill(spec)` and unregister with `require('chat').unregister_skill(name)`.
+
+See [Usage > Skills](./usage/#skills-slash-commands) for the list of built-in skills.
+
+---
+
 ## Auto-Retry Configuration
 
 chat.nvim automatically retries LLM requests that fail due to connection errors or timeouts. This helps maintain stable conversations even with intermittent network issues.
@@ -413,6 +446,17 @@ require('chat').setup({
     storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
   },
 
+  -- Custom skills (slash commands)
+  skills = {
+    {
+      name = 'greet',
+      description = 'Say hello',
+      handler = function(args, ctx)
+        return 'Hello, ' .. (args or 'world') .. '!'
+      end,
+    },
+  },
+
   -- MCP servers (optional)
   mcp = {
     open_webSearch = {
@@ -448,6 +492,7 @@ require('chat').setup({
 > 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. When a retryable error occurs, an error message with retry status is appended to the session (e.g., `Auto-retry 1/3 (2 remaining).`). When all retries are exhausted, the message includes `Press r to retry manually.` Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
 > 10. **Storage Migration**: Memory and session data are stored under `stdpath('data')/chat.nvim/`. Previously stored under `stdpath('cache')`, data has been migrated to the data directory for persistence across Neovim cache clears.
 > 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir`.
+> 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
 
 ---
 

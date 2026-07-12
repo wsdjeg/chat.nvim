@@ -38,7 +38,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 40 built-in tools:
+Here is a list of 41 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -72,6 +72,7 @@ Here is a list of 40 built-in tools:
 | [git_merge](./git_merge.md)                  | Merge branches                                                     |
 | [git_pull](./git_pull.md)                    | Pull changes from remote and merge                                 |
 | [git_push](./git_push.md)                    | Push commits to remote repository                                  |
+| [git_rebase](./git_rebase.md)                | Rebase current branch onto another branch                          |
 | [git_remote](./git_remote.md)                | Manage remote repositories                                         |
 | [git_reset](./git_reset.md)                  | Reset current HEAD to specified state                              |
 | [git_show](./git_show.md)                    | Show detailed changes of a specific commit                         |
