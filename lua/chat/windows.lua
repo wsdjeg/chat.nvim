@@ -187,9 +187,19 @@ function M.open(opt)
           return
         end
 
+        local text = table.concat(content, '\n')
+
+        -- Skill invocation: /name [args]
+        if text:sub(1, 1) == '/' then
+          local skills = require('chat.skills')
+          skills.dispatch(text, current_session)
+          prompt.clear()
+          return
+        end
+
         local message = {
           role = 'user',
-          content = table.concat(content, '\n'),
+          content = text,
           created = os.time(),
         }
         sessions.append_message(current_session, message)

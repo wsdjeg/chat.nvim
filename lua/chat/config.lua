@@ -23,6 +23,7 @@ local M = {}
 ---@field mcp? table
 ---@field winhighlight? string
 ---@field retry? table
+---@field skills? table[] User-defined skills
 
 local default = {
   width = 0.8, -- 80% of screen
