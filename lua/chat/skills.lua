@@ -136,7 +136,6 @@ M._builtin_clear = {
       windows.render_result_buf()
       windows.set_result_win_title(' chat.nvim ')
       log.notify('Session cleared')
-      return 'Session cleared'
     end
   end,
 }
