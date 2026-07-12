@@ -82,6 +82,7 @@ return {
       '3. `test/install_deps.lua` - 跨平台（curl / powershell / wget fallback）',
       '4. `Makefile` - 支持 `make test`、`make test PATTERN=xxx`、`make install-deps`、`make clean`',
       '5. `test/example_spec.lua` - 示例测试文件',
+      '6. 更新 `.gitignore`，添加 `test/.deps/` 排除测试依赖目录（如已有 .gitignore 则追加，没有则创建）',
       '',
       '### 第三步：逐一生成 CI/CD 工作流文件',
       '',
