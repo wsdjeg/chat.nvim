@@ -23,7 +23,6 @@
 - [🔌 MCP Support](#-mcp-support)
 - [💬 IM Integration](#-im-integration)
 - [🌐 HTTP API](#-http-api)
-- [📦 LuaRocks](#-luarocks)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
 
@@ -229,14 +228,6 @@ curl -X POST http://127.0.0.1:7777/chat \
 ```
 
 See the [API Guide](https://nvim.chat/api/) for all endpoints.
-
-## 📦 LuaRocks
-
-chat.nvim is available on [LuaRocks](https://luarocks.org/modules/wsdjeg/chat.nvim):
-
-```sh
-luarocks install chat.nvim
-```
 
 ## 📣 Self-Promotion
 

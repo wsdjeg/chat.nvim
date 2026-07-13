@@ -53,71 +53,10 @@ Modify -> Verify -> make test -> git_add -> git_commit -> git_push -> Done
 
 ---
 
-## Verified Commands
+## Documentation Principles
 
-These are the **only** `:Chat` subcommands that exist in the codebase (`lua/chat/init.lua`). Do not reference any other commands in docs or README.
-
-### `:Chat` Subcommands
-
-| Command               | Description                                         |
-| --------------------- | --------------------------------------------------- |
-| `:Chat`               | Open the chat window with the current session       |
-| `:Chat new`           | Start a new chat session                            |
-| `:Chat prev`          | Switch to the previous chat session                 |
-| `:Chat next`          | Switch to the next chat session                     |
-| `:Chat delete`        | Delete current session and create new empty session |
-| `:Chat clear`         | Clear all messages in current session               |
-| `:Chat cd <dir>`      | Change current session cwd, open chat window        |
-| `:Chat save <path>`   | Save current session to specified file path         |
-| `:Chat load <path>`   | Load session from file path or URL                  |
-| `:Chat share`         | Share current session via pastebin                  |
-| `:Chat preview`       | Open HTML preview of current session in browser     |
-| `:Chat bridge`        | Bind current session to external platform (Discord) |
-| `:Chat unbridge [im]` | Unbind integration (all or specific platform)       |
-| `:Chat mcp start`     | Start all configured MCP servers                    |
-| `:Chat mcp stop`      | Stop all running MCP servers                        |
-| `:Chat mcp restart`   | Restart all MCP servers                             |
-
-### Built-in Slash Skills (in prompt window)
-
-| Skill              | Description                                          |
-| ------------------ | ---------------------------------------------------- |
-| `/clear`           | Clear all messages in current session                |
-| `/new`             | Create a new session                                 |
-| `/delete`          | Delete current session                               |
-| `/model [name]`    | Switch model (shows selection UI if no name given)   |
-| `/provider [name]` | Switch provider (shows selection UI if no name given)|
-| `/cwd <path>`      | Change working directory                             |
-| `/pin`             | Toggle pin status of current session                 |
-| `/title [text]`    | Set session title (shows input UI if no text given)  |
-| `/retry`           | Retry last request                                   |
-| `/help`            | Show all available skills                            |
-
-### Key Bindings (Input Window)
-
-| Key Binding  | Description                             |
-| ------------ | --------------------------------------- |
-| `<Enter>`    | Send message                            |
-| `q`          | Close chat window                       |
-| `<Tab>`      | Switch between input and result windows |
-| `Ctrl-C`     | Cancel current request                  |
-| `Ctrl-N`     | Open new session                        |
-| `Ctrl-D`     | Delete current session                  |
-| `r`          | Retry last cancelled request            |
-| `alt-h`      | Previous chat session                   |
-| `alt-l`      | Next chat session                       |
-| `<Leader>fr` | Run `:Picker chat`                      |
-| `<Leader>fp` | Run `:Picker chat_provider`             |
-| `<Leader>fm` | Run `:Picker chat_model`                |
-| `<M-t>`      | Rename current session title            |
-
-### Non-existent Commands (DO NOT reference)
-
-The following commands **do not exist** and must never appear in docs or README:
-
-- `:ChatSwitchProvider` → use `/provider` or `<Leader>fp`
-- `:ChatSwitchModel` → use `/model` or `<Leader>fm`
-- `:ChatHistory` → use `:Chat prev`/`:Chat next` or `<Leader>fr`
+- **Verify before writing**: Only reference commands that actually exist in the codebase. Check `lua/chat/init.lua` for `:Chat` subcommands, `lua/chat/skills.lua` for slash skills, and `docs/usage/index.md` for the full command reference.
+- **No invented commands**: Commands like `:ChatSwitchProvider`, `:ChatSwitchModel`, `:ChatHistory` do **not** exist. Use `/provider`, `/model`, `:Chat prev`/`:Chat next` instead.
 
 ---
 
