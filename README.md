@@ -127,17 +127,26 @@ Open the chat window:
 :Chat
 ```
 
-Switch provider or model with [picker.nvim](https://github.com/wsdjeg/picker.nvim):
+Switch provider or model with slash commands (in the prompt window):
 
-```vim
-:ChatSwitchProvider
-:ChatSwitchModel
+```
+/provider openai
+/model gpt-4o
 ```
 
-View conversation history:
+Or use [picker.nvim](https://github.com/wsdjeg/picker.nvim) keybindings (in the input window):
+
+| Key Binding  | Action                          |
+| ------------ | ------------------------------- |
+| `<Leader>fp` | Switch provider via picker      |
+| `<Leader>fm` | Switch model via picker         |
+| `<Leader>fr` | Browse session history via picker |
+
+Navigate between sessions:
 
 ```vim
-:ChatHistory
+:Chat prev
+:Chat next
 ```
 
 See the [Usage Guide](https://nvim.chat/usage/) for all commands and keybindings.
