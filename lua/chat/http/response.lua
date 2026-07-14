@@ -11,6 +11,7 @@ local status_texts = {
   [404] = 'Not Found',
   [409] = 'Conflict',
   [500] = 'Internal Server Error',
+  [503] = 'Service Unavailable',
 }
 
 --- Get status text for a given status code
@@ -48,6 +49,7 @@ end
 
 --- Write data then close client after write completes
 --- If write fails (e.g. client already closing), close immediately
+--- Always sends Connection: close to prevent client keep-alive on closed socket
 local function write_and_close(client, resp)
   if not client or client:is_closing() then
     return
@@ -56,7 +58,6 @@ local function write_and_close(client, resp)
     safe_close(client)
   end)
   if not ok then
-    -- write threw an error (client may be closing), close to avoid hang
     safe_close(client)
   end
 end
@@ -68,7 +69,7 @@ end
 --- @param data string response body
 function M.send_raw(client, status, content_type, data)
   local resp = string.format(
-    'HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n%s',
+    'HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s',
     status,
     status_text(status),
     content_type,
@@ -85,7 +86,7 @@ end
 function M.send_json(client, status, data)
   local json_data = vim.json.encode(data)
   local resp = string.format(
-    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s',
     status,
     status_text(status),
     #json_data,
@@ -101,7 +102,7 @@ end
 function M.send_error(client, status, message)
   local body = vim.json.encode({ error = message })
   local resp = string.format(
-    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s',
+    'HTTP/1.1 %d %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s',
     status,
     status_text(status),
     #body,
@@ -116,7 +117,7 @@ end
 --- @param message string|nil status text (optional, defaults to standard text)
 function M.send_response(client, status, message)
   local resp = string.format(
-    'HTTP/1.1 %d %s\r\nContent-Length: 0\r\n\r\n',
+    'HTTP/1.1 %d %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n',
     status,
     message or status_text(status)
   )

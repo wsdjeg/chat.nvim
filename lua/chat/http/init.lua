@@ -6,6 +6,9 @@ local config = require('chat.config')
 local routes = require('chat.http.routes')
 local response = require('chat.http.response')
 
+-- Connection timeout in milliseconds (30s for idle/incomplete connections)
+local CONNECTION_TIMEOUT_MS = 30000
+
 function M.start()
   if M._server then
     return
@@ -23,7 +26,6 @@ function M.start()
 
   server:listen(128, function(listen_err)
     if listen_err then
-      -- Listen error: log and stop accepting new connections
       vim.schedule(function()
         vim.notify('HTTP server listen error: ' .. listen_err, vim.log.levels.ERROR)
       end)
@@ -33,11 +35,29 @@ function M.start()
     local client = uv.new_tcp()
     server:accept(client)
 
-    local buffer = ''
+    -- Use table-based buffer for O(1) append instead of O(n) string concat
+    local chunks = {}
     local handled = false
 
-    client:read_start(function(err, chunk)
-      if err then
+    -- Connection timeout timer: closes connection if request is not
+    -- fully received and handled within CONNECTION_TIMEOUT_MS
+    local timer = uv.new_timer()
+    local function cleanup()
+      if timer and not timer:is_closing() then
+        timer:stop()
+        timer:close()
+      end
+    end
+    timer:start(CONNECTION_TIMEOUT_MS, 0, function()
+      cleanup()
+      if not handled and not client:is_closing() then
+        client:close()
+      end
+    end)
+
+    client:read_start(function(read_err, chunk)
+      if read_err then
+        cleanup()
         if not handled and not client:is_closing() then
           client:close()
         end
@@ -45,13 +65,15 @@ function M.start()
       end
 
       if not chunk then
+        cleanup()
         if not handled and not client:is_closing() then
           client:close()
         end
         return
       end
 
-      buffer = buffer .. chunk
+      table.insert(chunks, chunk)
+      local buffer = table.concat(chunks)
 
       -- header not complete yet
       if not buffer:find('\r\n\r\n', 1, true) then
@@ -76,14 +98,17 @@ function M.start()
       -- Mark as handled and stop reading to prevent further callbacks
       handled = true
       client:read_stop()
+      cleanup()
 
       -- Use vim.schedule_wrap to handle request in main loop
       -- This allows safe use of vim.fn functions
       vim.schedule_wrap(function()
-        local ok, err = pcall(routes.handle_request, client, method, path, headers, body, content_length)
+        local ok, route_err = pcall(routes.handle_request, client, method, path, headers, body, content_length)
         if not ok then
           -- Route handler threw an error: send 500 to prevent client hang
-          response.send_json(client, 500, { error = 'Internal Server Error' })
+          if not client:is_closing() then
+            response.send_json(client, 500, { error = 'Internal Server Error' })
+          end
         end
       end)()
     end)
