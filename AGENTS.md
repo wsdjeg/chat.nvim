@@ -181,6 +181,41 @@ return TestExample
 
 CI runs on push to main and PRs, across Neovim nightly/stable, ubuntu/windows/macos.
 
+### Test configuration
+
+Tests must use **independent `storage_dir`** - never pollute real user data or use dead config keys like `db_path`.
+
+`test/minimal_init.lua` sets up a temp `storage_dir` with `memory.storage_dir` derived from it. Tests that need their own config should call `config.setup()` with a temp `storage_dir`, not overwrite `config._config` directly:
+
+```lua
+local test_storage_dir
+
+function TestExample:setUp()
+  test_storage_dir = vim.fn.tempname() .. '_test/'
+  vim.fn.mkdir(test_storage_dir, 'p')
+
+  config.setup({
+    storage_dir = test_storage_dir,
+    memory = {
+      enable = true,
+      storage_dir = test_storage_dir .. 'memory/',
+    },
+    -- other test-specific config...
+  })
+end
+
+function TestExample:tearDown()
+  if test_storage_dir and vim.fn.isdirectory(test_storage_dir) == 1 then
+    vim.fn.delete(test_storage_dir, 'rf')
+  end
+end
+```
+
+**Rules:**
+- Use `config.setup()` to merge config, never `config._config = {...}` (overwrites everything)
+- Always include `storage_dir` so memory, plan, etc. auto-derive their paths
+- Clean up temp dirs in `tearDown`
+
 ---
 
 ## Project Structure
