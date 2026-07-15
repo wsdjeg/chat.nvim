@@ -22,19 +22,20 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 
 ## Basic Options
 
-| Option          | Type               | Default                                                         | Description                                                                |
-| --------------- | ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `width`         | number             | `0.8`                                                           | Chat window width (percentage of screen width, 0.0-1.0)                    |
-| `height`        | number             | `0.8`                                                           | Chat window height (percentage of screen height, 0.0-1.0)                  |
-| `auto_scroll`   | boolean            | `true`                                                          | Controls automatic scrolling behavior of the result window                 |
-| `border`        | string             | `'rounded'`                                                     | Window border style, supports all Neovim border options                    |
-| `provider`      | string             | `'deepseek'`                                                    | Default AI provider                                                        |
-| `model`         | string             | `'deepseek-v4-flash'`                                          | Default AI model                                                           |
-| `strftime`      | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
+| Option            | Type               | Default                                                         | Description                                                                |
+| ----------------- | ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `width`           | number             | `0.8`                                                           | Chat window width (percentage of screen width, 0.0-1.0)                    |
+| `height`          | number             | `0.8`                                                           | Chat window height (percentage of screen height, 0.0-1.0)                  |
+| `auto_scroll`     | boolean            | `true`                                                          | Controls automatic scrolling behavior of the result window                 |
+| `border`          | string             | `'rounded'`                                                     | Window border style, supports all Neovim border options                    |
+| `provider`        | string             | `'deepseek'`                                                    | Default AI provider                                                        |
+| `model`           | string             | `'deepseek-v4-flash'`                                          | Default AI model                                                           |
+| `strftime`        | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
-| `system_prompt` | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
-| `highlights`    | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
-| `winhighlight`  | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
+| `system_prompt`   | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
+| `storage_dir`     | string             | `stdpath('data') .. '/chat.nvim/'`                             | Base storage directory for all persistent data (sessions, plans, scheduler, etc.) |
+| `highlights`      | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
+| `winhighlight`    | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
 
 ### Example
 
@@ -49,6 +50,38 @@ require('chat').setup({
   strftime = '%Y-%m-%d %H:%M',
 })
 ```
+
+---
+
+## Storage Paths
+
+All persistent data (sessions, plans, scheduler, memory, user profiles) is stored under `storage_dir`. Sub-module storage directories are automatically derived from `storage_dir` unless explicitly overridden:
+
+| Module         | Config Key              | Derived Path               | Description                        |
+| -------------- | ----------------------- | -------------------------- | ---------------------------------- |
+| Sessions       | —                       | `storage_dir`              | Chat session JSON files            |
+| Plans          | —                       | `storage_dir .. 'plans/'`  | Task plan JSON files               |
+| Scheduler      | —                       | `storage_dir .. 'scheduler/'` | Scheduled task JSON files        |
+| Memory         | `memory.storage_dir`    | `storage_dir .. 'memory/'` | Three-tier memory database         |
+| User Profiles  | `user.storage_dir`      | `storage_dir .. 'users/'`  | User profile markdown files        |
+
+To override a specific module's storage path, set its `storage_dir` to a custom value:
+
+```lua
+require('chat').setup({
+  -- Change the base directory for everything
+  storage_dir = '/my/custom/path/',
+
+  -- Or override individual modules
+  memory = {
+    storage_dir = '/separate/memory/path/',
+  },
+})
+```
+
+{: .info }
+
+> If `memory.storage_dir` or `user.storage_dir` is `nil` (the default), they are automatically derived from `storage_dir`. You only need to set them if you want to use a different location for that specific module.
 
 ---
 
@@ -203,10 +236,14 @@ memory = {
     priority_weight = 2.0,        -- Priority multiplier (higher = more important)
   },
 
-  -- Storage location
-  storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/memory/',
+  -- Storage location (optional, defaults to storage_dir .. 'memory/')
+  -- storage_dir = '/custom/memory/path/',
 }
 ```
+
+{: .info }
+
+> `memory.storage_dir` defaults to `nil`, which means it is automatically derived from the top-level `storage_dir` (i.e., `storage_dir .. 'memory/'`). Only set this if you want to use a different location. See [Storage Paths](#storage-paths) for details.
 
 ### Memory Type Characteristics
 
@@ -235,7 +272,7 @@ require('chat').setup({
   user = {
     enable = true,        -- Enable user profile system
     id = '',              -- User ID (auto-detected from system username if empty)
-    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',  -- Storage directory
+    -- storage_dir = '/custom/users/path/',  -- Optional, defaults to storage_dir .. 'users/'
   },
 })
 ```
@@ -244,7 +281,11 @@ require('chat').setup({
 | ------------------ | ------- | ---------------------------------------- | --------------------------------------------------- |
 | `user.enable`      | boolean | `true`                                   | Enable/disable user profile system                  |
 | `user.id`          | string  | `''`                                     | User ID (auto-detected from system username if empty) |
-| `user.storage_dir` | string  | `stdpath('data')/chat.nvim/users/`      | Storage directory for user profile markdown files   |
+| `user.storage_dir` | string  | `nil` (derived from `storage_dir`)       | Storage directory for user profile markdown files   |
+
+{: .info }
+
+> `user.storage_dir` defaults to `nil`, which means it is automatically derived from the top-level `storage_dir` (i.e., `storage_dir .. 'users/'`). Only set this if you want to use a different location. See [Storage Paths](#storage-paths) for details.
 
 When enabled, the AI assistant can use the `@user_profile` tool to read, update, and manage user profiles, providing personalized and context-aware responses.
 
@@ -404,6 +445,10 @@ require('chat').setup({
     vim.fn.expand('~/.config/nvim'),
   },
 
+  -- Base storage directory for all persistent data
+  -- Sub-modules (memory, user, plans, scheduler) auto-derive from this
+  storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/',
+
   -- Time format
   strftime = '%Y-%m-%d %H:%M',
 
@@ -431,6 +476,7 @@ require('chat').setup({
       max_memories = 20,
       priority_weight = 2.0,
     },
+    -- storage_dir omitted: auto-derived from storage_dir .. 'memory/'
   },
 
   -- Auto-retry on connection errors and timeouts
@@ -443,7 +489,7 @@ require('chat').setup({
   user = {
     enable = true,
     id = '',
-    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
+    -- storage_dir omitted: auto-derived from storage_dir .. 'users/'
   },
 
   -- Custom skills (slash commands)
@@ -490,8 +536,8 @@ require('chat').setup({
 > 7. **system_prompt Function Support**: The `system_prompt` option can be either a string or a function that returns a string. When a function is provided, it is called each time a new session is created, allowing for dynamic prompts based on time, project context, or external files. The function should handle errors gracefully and return a string value.
 > 8. **RenderMarkdown**: The `render_markdown` option enables/disables the [RenderMarkdown](https://github.com/MeanderingProgrammer/render-markdown.nvim) plugin for the result buffer. Defaults to `true`. Set to `false` if you prefer plain markdown syntax highlighting without rich rendering.
 > 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. When a retryable error occurs, an error message with retry status is appended to the session (e.g., `Auto-retry 1/3 (2 remaining).`). When all retries are exhausted, the message includes `Press r to retry manually.` Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
-> 10. **Storage Migration**: Memory and session data are stored under `stdpath('data')/chat.nvim/`. Previously stored under `stdpath('cache')`, data has been migrated to the data directory for persistence across Neovim cache clears.
-> 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir`.
+> 10. **Storage Paths**: All persistent data is stored under `storage_dir` (defaults to `stdpath('data')/chat.nvim/`). Sub-module directories (`memory.storage_dir`, `user.storage_dir`, plans, scheduler) are automatically derived from `storage_dir` unless explicitly overridden. See [Storage Paths](#storage-paths) for the full derivation table.
+> 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir` (auto-derived from `storage_dir` if not set).
 > 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
 
 ---
@@ -503,3 +549,4 @@ require('chat').setup({
 - [Usage Guide](./usage/) - Learn how to use chat.nvim
 - [Providers](./providers/) - Configure AI providers
 - [Tools](./tools/) - Explore available tools
+
