@@ -43,7 +43,7 @@ function M.plan(arguments, ctx)
       return { error = 'Plan title is required for create action.' }
     end
 
-    -- Defensive: normalize steps string→array
+    -- Defensive: normalize steps string->array
     local steps = arguments.steps
     if type(steps) == 'string' then
       steps = { steps }
@@ -66,6 +66,42 @@ function M.plan(arguments, ctx)
         plan.id
       ),
     }
+  end
+
+  -- List all plans (filtered by current project) - no plan_id needed
+  if action == 'list' then
+    local status = arguments.status
+    local cwd = ctx.cwd or vim.fn.getcwd()
+    local plans = plan_module.list(status, cwd)
+
+    if #plans == 0 then
+      return {
+        content = status
+            and string.format('No %s plans found in current project.', status)
+          or 'No plans found in current project.',
+      }
+    end
+
+    local output = { '# 📚 Plans (Current Project)\n' }
+    for _, plan in ipairs(plans) do
+      local completed = #vim.tbl_filter(function(s)
+        return s.status == 'completed'
+      end, plan.steps)
+      local progress = string.format('%d/%d', completed, #plan.steps)
+
+      table.insert(
+        output,
+        string.format(
+          '- **%s** (`%s`) - %s [%s]',
+          plan.title,
+          plan.id,
+          plan.status,
+          progress
+        )
+      )
+    end
+
+    return { content = table.concat(output, '\n') }
   end
 
   -- All remaining actions require plan_id
@@ -117,42 +153,6 @@ function M.plan(arguments, ctx)
       table.insert(output, '')
       table.insert(output, '## Review:')
       table.insert(output, plan.review.summary)
-    end
-
-    return { content = table.concat(output, '\n') }
-  end
-
-  -- List all plans (filtered by current project)
-  if action == 'list' then
-    local status = arguments.status
-    local cwd = ctx.cwd or vim.fn.getcwd()
-    local plans = plan_module.list(status, cwd)
-
-    if #plans == 0 then
-      return {
-        content = status
-            and string.format('No %s plans found in current project.', status)
-          or 'No plans found in current project.',
-      }
-    end
-
-    local output = { '# 📚 Plans (Current Project)\n' }
-    for _, plan in ipairs(plans) do
-      local completed = #vim.tbl_filter(function(s)
-        return s.status == 'completed'
-      end, plan.steps)
-      local progress = string.format('%d/%d', completed, #plan.steps)
-
-      table.insert(
-        output,
-        string.format(
-          '- **%s** (`%s`) - %s [%s]',
-          plan.title,
-          plan.id,
-          plan.status,
-          progress
-        )
-      )
     end
 
     return { content = table.concat(output, '\n') }
@@ -279,7 +279,7 @@ function M.plan(arguments, ctx)
   -- Review completed plan
   if action == 'review' then
     local summary = arguments.summary
-    -- Defensive: normalize string→array
+    -- Defensive: normalize string->array
     local lessons = arguments.lessons
     if type(lessons) == 'string' then lessons = { lessons } end
     local issues = arguments.issues
