@@ -16,6 +16,28 @@ local keymaps = require('chat.windows.keymaps')
 local current_session
 local services_started = false
 
+--- Ensure current_session is valid.
+--- If it was deleted (e.g. via HTTP API), find an available session or create one.
+--- @return string session_id
+local function ensure_session()
+  if current_session and sessions.exists(current_session) then
+    return current_session
+  end
+  -- Session was deleted externally, find an available one
+  local all = sessions.get()
+  local s = {}
+  for id, _ in pairs(all) do
+    table.insert(s, id)
+  end
+  table.sort(s)
+  if #s > 0 then
+    current_session = s[1]
+  else
+    current_session = sessions.new()
+  end
+  return current_session
+end
+
 -- Validate API key before opening
 local function validate_api_key()
   if
@@ -139,10 +161,8 @@ function M.start(opt)
     return
   end
 
-  -- Initialize or restore session
-  if not current_session then
-    current_session = sessions.new()
-  end
+  -- Initialize or restore session (handles externally deleted sessions)
+  ensure_session()
 
   -- Handle cwd option
   if opt and opt.cwd then
@@ -164,10 +184,8 @@ function M.open(opt)
     return
   end
 
-  -- Initialize or restore session
-  if not current_session then
-    current_session = sessions.new()
-  end
+  -- Initialize or restore session (handles externally deleted sessions)
+  ensure_session()
 
   -- Handle cwd option
   if opt and opt.cwd then
