@@ -16,11 +16,15 @@ CONTENTS                                                                *chat*
       Quick Start                                            |chat-quick-start|
   4. Configuration                                        |chat-configuration|
       Basic Options                                        |chat-basic-options|
+      Storage Paths                                        |chat-storage-paths|
       HTTP Server Configuration                    |chat-http-server-configuration|
       API Key Configuration                            |chat-api-key-configuration|
       File Access Control                              |chat-file-access-control|
       Context Window Configuration                |chat-context-window-configuration|
       Memory System Configuration                  |chat-memory-system-configuration|
+      User Profile Configuration                    |chat-user-profile-configuration|
+      Skills Configuration                            |chat-skills-configuration|
+      Auto-Retry Configuration                      |chat-auto-retry-configuration|
       system_prompt Usage Examples                |chat-system_prompt-usage-examples|
       MCP Server Configuration                    |chat-mcp-server-configuration|
       IM Integration Configuration                |chat-im-integration-configuration|
@@ -29,6 +33,7 @@ CONTENTS                                                                *chat*
       Basic Commands                                   |chat-basic-commands|
       MCP Commands                                       |chat-mcp-commands|
       Parallel Sessions                                 |chat-parallel-sessions|
+      Skills (Slash Commands)                      |chat-skills-slash-commands|
       Examples                                               |chat-examples|
       Key Bindings                                       |chat-key-bindings|
   6. Providers                                                |chat-providers|
@@ -77,19 +82,30 @@ floating window interface.
   automatic extraction and priority-based retrieval
 - **Parallel Sessions**: Run multiple independent conversations with different
   AI models, each maintaining separate context and settings
-- **Multiple AI Providers**: Built-in support for DeepSeek, GitHub AI,
-  Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent, BigModel, Volcengine,
-  OpenAI, LongCat, Anthropic Claude, Google Gemini, Ollama, and custom
+- **Multiple AI Providers**: Built-in support for 19+ providers including
+  DeepSeek, GitHub AI, Moonshot, OpenRouter, Qwen, SiliconFlow, Tencent,
+  BigModel, Volcengine, OpenAI, Anthropic Claude, Google Gemini, Ollama,
+  LongCat, CherryIN, Yuanjing, Baidu, Xiaomi, Alibaba Cloud, and custom
   providers
-- **Tool Call Integration**: Built-in tools for file operations (`@read_file`,
-  `@find_files`, `@search_text`), version control (`@git_diff`, `@git_log`,
-  `@git_status`, `@git_show`), conversation history (`@get_history`), memory
-  management, and more
+- **Tool Call Integration**: 41+ built-in tools for file operations
+  (`@read_file`, `@write_file`, `@find_files`, `@search_text`, `@copy_file`,
+  `@move_file`, `@create_directory`, `@list_directory`, `@file_info`),
+  version control (`@git_diff`, `@git_log`, `@git_status`, `@git_show`,
+  `@git_rebase`, and more), conversation history (`@get_history`), memory
+  management, task planning (`@plan`), scheduling (`@schedule_task`), user
+  profiles (`@user_profile`), and more
+- **Skills (Slash Commands)**: Type `/name [args]` in the prompt window to
+  invoke built-in and custom commands without LLM round-trips. Built-in skills
+  include `/clear`, `/new`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`,
+  `/retry`, and `/help`. Custom skills can be registered via configuration,
+  Lua API, or file-based auto-load
+- **User Profiles (人物画像)**: Store user preferences, skills, and background
+  as markdown files for personalized AI assistance
 - **Zettelkasten Integration**: Note-taking support via `@zettelkasten_create`
   and `@zettelkasten_get` tools for knowledge management
 - **IM Integration**: Connect Discord, Lark (Feishu), DingTalk, WeCom
-  (Enterprise WeChat), and Telegram channels to chat.nvim sessions for remote
-  AI interaction
+  (Enterprise WeChat), Weixin, Telegram, and Slack channels to chat.nvim
+  sessions for remote AI interaction
 - **HTTP API Server**: Built-in HTTP server for receiving external messages
   with API key authentication and message queue support
 - **Session Management**: Commands for creating (`:Chat new`), navigating
@@ -104,12 +120,14 @@ floating window interface.
   configurable dimensions and borders
 - **Streaming Responses**: Real-time AI responses with cancellation support
   (`Ctrl-C`) and retry mechanism (`r`)
+- **Auto-Retry**: Automatic retry of LLM requests on connection errors and
+  timeouts with configurable retry count and delay
 - **Token Usage Tracking**: Display real-time token consumption for each
   response
 - **Lightweight Implementation**: Pure Lua with minimal dependencies and
   comprehensive error handling
 - **Customizable Configuration**: Flexible setup for API keys, allowed paths,
-  memory settings, and system prompts
+  memory settings, system prompts, storage paths, and more
 - **Session HTML Preview**: Generate and open HTML previews of chat sessions
   in your browser via `:Chat preview` command
 - **Custom Tools**: Support for creating custom tools via
@@ -122,6 +140,8 @@ floating window interface.
   configurable trigger threshold and recent message preservation
 - **MCP (Model Context Protocol) Support**: Native integration with MCP
   servers for extended tool capabilities
+- **RenderMarkdown Integration**: Optional rich rendering of AI responses in
+  the result buffer
 
 ==============================================================================
  3. INSTALLATION                                           *chat-installation*
@@ -235,22 +255,58 @@ chat.nvim provides flexible configuration options through the
 ------------------------------------------------------------------------------
  4.1 Basic Options                                            *chat-basic-options*
 
-| Option          | Type               | Default                         |
-| --------------- | ------------------ | ------------------------------- |
-| `width`         | number             | `0.8`                           |
-| `height`        | number             | `0.8`                           |
-| `auto_scroll`   | boolean            | `true`                          |
-| `border`        | string             | `'rounded'`                     |
-| `provider`      | string             | `'deepseek'`                    |
-| `model`         | string             | `'deepseek-v4-pro'`             |
-| `strftime`      | string             | `'%m-%d %H:%M:%S'`              |
-| `system_prompt` | string or function | `''`                            |
-| `highlights`    | table              | `{title = 'ChatNvimTitle', ...}`|
+| Option            | Type               | Default                         |
+| ----------------- | ------------------ | ------------------------------- |
+| `width`           | number             | `0.8`                           |
+| `height`          | number             | `0.8`                           |
+| `auto_scroll`     | boolean            | `true`                          |
+| `border`          | string             | `'rounded'`                     |
+| `provider`        | string             | `'deepseek'`                    |
+| `model`           | string             | `'deepseek-v4-flash'`           |
+| `strftime`        | string             | `'%m-%d %H:%M:%S'`              |
+| `render_markdown` | boolean            | `true`                          |
+| `system_prompt`   | string or function | `''`                            |
+| `storage_dir`     | string             | `stdpath('data')/chat.nvim/`    |
+| `highlights`      | table              | `{title = 'ChatNvimTitle', ...}`|
+| `winhighlight`    | string             | `'NormalFloat:Normal,...'`      |
 
 Width/height are percentages of screen (0.0-1.0).
 
+`render_markdown` enables the RenderMarkdown plugin for the result buffer
+(requires render-markdown.nvim). Set to `false` for plain markdown highlighting.
+
+`storage_dir` is the base storage directory for all persistent data (sessions,
+plans, scheduler, memory, user profiles). Sub-module directories are
+automatically derived unless explicitly overridden.
+
+`winhighlight` configures the floating window highlight.
+
 ------------------------------------------------------------------------------
- 4.2 HTTP Server Configuration                    *chat-http-server-configuration*
+ 4.2 Storage Paths                                          *chat-storage-paths*
+
+All persistent data is stored under `storage_dir`. Sub-module storage
+directories are automatically derived unless explicitly overridden:
+
+| Module        | Config Key           | Derived Path                  |
+| ------------- | -------------------- | ----------------------------- |
+| Sessions      | -                    | `storage_dir`                 |
+| Plans         | -                    | `storage_dir .. 'plans/'`     |
+| Scheduler     | -                    | `storage_dir .. 'scheduler/'` |
+| Memory        | `memory.storage_dir` | `storage_dir .. 'memory/'`    |
+| User Profiles | `user.storage_dir`   | `storage_dir .. 'users/'`     |
+
+To override a specific module's storage path:
+>
+    require('chat').setup({
+      storage_dir = '/my/custom/path/',
+      memory = {
+        storage_dir = '/separate/memory/path/',
+      },
+    })
+<
+
+------------------------------------------------------------------------------
+ 4.3 HTTP Server Configuration                    *chat-http-server-configuration*
 
 Configure the built-in HTTP server for receiving external messages:
 >
@@ -267,7 +323,7 @@ Notes:
 - Messages are queued and processed when the chat window is not busy
 
 ------------------------------------------------------------------------------
- 4.3 API Key Configuration                            |chat-api-key-configuration*
+ 4.4 API Key Configuration                            |chat-api-key-configuration*
 
 Configure API keys for the AI providers you plan to use:
 >
@@ -276,21 +332,27 @@ Configure API keys for the AI providers you plan to use:
       github = 'github_pat_xxxxxxxx',      -- GitHub AI
       moonshot = 'sk-xxxxxxxxxxxx',        -- Moonshot AI
       openrouter = 'sk-or-xxxxxxxx',       -- OpenRouter
-      qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen
+      qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen (DashScope)
+      aliyuncs = 'sk-xxxxxxxxxxxx',        -- Alibaba Cloud (Bailian)
       siliconflow = 'xxxxxxxx-xxxx-xxxx',  -- SiliconFlow
       tencent = 'xxxxxxxx-xxxx-xxxx',      -- Tencent Hunyuan
+      baidu = 'xxxxxxxx-xxxx-xxxx',        -- Baidu Qianfan
       bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI
       volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI
+      xiaomi = 'xxxxxxxx-xxxx-xxxx',       -- Xiaomi MiMo
       openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
+      anthropic = 'sk-ant-xxxxxxxxxxxx',   -- Anthropic Claude
+      gemini = 'AIxxxxxxxxxxxxxxxxxxxx',   -- Google Gemini
       longcat = 'lc-xxxxxxxxxxxx',         -- LongCat AI
       cherryin = 'sk-xxxxxxxxxxxx',        -- CherryIN AI
+      yuanjing = 'xxxxxxxx-xxxx-xxxx',     -- Yuanjing AI
     }
 <
 
 Only configure keys for providers you plan to use; others can be omitted.
 
 ------------------------------------------------------------------------------
- 4.4 File Access Control                              *chat-file-access-control*
+ 4.5 File Access Control                              |chat-file-access-control*
 
 Control which file paths tools can access for security:
 >
@@ -309,7 +371,7 @@ Control which file paths tools can access for security:
 <
 
 ------------------------------------------------------------------------------
- 4.5 Context Window Configuration                |chat-context-window-configuration*
+ 4.6 Context Window Configuration                |chat-context-window-configuration*
 
 Configure automatic context truncation to manage token usage:
 >
@@ -321,7 +383,7 @@ Configure automatic context truncation to manage token usage:
 <
 
 ------------------------------------------------------------------------------
- 4.6 Memory System Configuration                  |chat-memory-system-configuration*
+ 4.7 Memory System Configuration                  |chat-memory-system-configuration*
 
 chat.nvim implements a sophisticated three-tier memory system:
 
@@ -352,7 +414,7 @@ chat.nvim implements a sophisticated three-tier memory system:
         enable = true,
         retention_days = 7,           -- Days before auto-deletion
         max_memories = 100,           -- Maximum daily memories
-        similarity_threshold = 0.3,
+        similarity_threshold = 0.4,
       },
 
       -- Working memory: Current session focus (highest priority)
@@ -362,8 +424,8 @@ chat.nvim implements a sophisticated three-tier memory system:
         priority_weight = 2.0,        -- Priority multiplier
       },
 
-      -- Storage location
-      storage_dir = vim.fn.stdpath('cache') .. '/chat.nvim/memory/',
+      -- Storage location (optional, defaults to storage_dir .. 'memory/')
+      -- storage_dir = '/custom/memory/path/',
     }
 <
 
@@ -375,8 +437,98 @@ chat.nvim implements a sophisticated three-tier memory system:
 | Daily     | 7-30 days    | Medium   | Short-term goals, today's tasks, reminders |
 | Long-term | Permanent    | Normal   | Facts, preferences, skills, knowledge      |
 
+`memory.storage_dir` defaults to `nil`, which means it is automatically derived
+from the top-level `storage_dir`. Only set this if you want to use a different
+location.
+
 ------------------------------------------------------------------------------
- 4.7 system_prompt Usage Examples                |chat-system_prompt-usage-examples*
+ 4.8 User Profile Configuration                  *chat-user-profile-configuration*
+
+chat.nvim supports user profiles (人物画像) for personalized AI assistance.
+Profiles store user preferences, skills, and background information as
+markdown files.
+>
+    require('chat').setup({
+      user = {
+        enable = true,        -- Enable user profile system
+        id = '',              -- User ID (auto-detected if empty)
+        -- storage_dir = '/custom/users/path/',  -- Optional
+      },
+    })
+<
+
+| Option             | Type    | Default                            |
+| ------------------ | ------- | ---------------------------------- |
+| `user.enable`      | boolean | `true`                             |
+| `user.id`          | string  | `''` (auto-detected from username) |
+| `user.storage_dir` | string  | `nil` (derived from `storage_dir`) |
+
+When enabled, the AI can use `@user_profile` to read, update, and manage user
+profiles, providing personalized and context-aware responses.
+
+------------------------------------------------------------------------------
+ 4.9 Skills Configuration                          *chat-skills-configuration*
+
+chat.nvim includes a skill (slash command) system. Type `/name [args]` in the
+prompt window to invoke commands without sending to the LLM.
+>
+    require('chat').setup({
+      skills = {
+        {
+          name = 'greet',
+          description = 'Say hello',
+          handler = function(args, ctx)
+            return 'Hello, ' .. (args or 'world') .. '!'
+          end,
+        },
+      },
+    })
+<
+
+Each skill spec contains:
+
+| Field         | Type     | Description                                       |
+| ------------- | -------- | ------------------------------------------------- |
+| `name`        | string   | Unique identifier (used as `/name`)               |
+| `description` | string   | Short description shown in `/help`                |
+| `handler`     | function | `function(args: string, ctx: table): string|nil`  |
+| `complete`    | function | Optional completion function                      |
+
+You can also register skills at runtime via
+`require('chat').register_skill(spec)` and unregister with
+`require('chat').unregister_skill(name)`.
+
+Runtime skills can be auto-loaded from `lua/chat/skills/*.lua` files in your
+Neovim runtime path. Each file must return a table with `name` and `handler`
+fields.
+
+See |chat-skills-slash-commands| for the list of built-in skills.
+
+------------------------------------------------------------------------------
+ 4.10 Auto-Retry Configuration                    *chat-auto-retry-configuration*
+
+chat.nvim automatically retries LLM requests that fail due to connection
+errors or timeouts.
+>
+    retry = {
+      max_retries = 3,       -- Maximum retry attempts per request
+      retry_delay = 2000,    -- Delay between retries in milliseconds
+    }
+<
+
+How it works:
+- When an LLM request fails with a retryable error (connection failure or
+  timeout), an error message with retry status is appended to the session
+- The system schedules a retry after the configured delay
+- Retry count is per-session and reset on each new user message
+- User can cancel a pending retry with `Ctrl-C`
+- HTTP errors (400, 429, 500, etc.) are **not** retried
+
+Retryable curl exit codes: 6 (DNS), 7 (connect), 28 (timeout), 35 (SSL),
+52 (empty reply), 56 (receive failure).
+
+------------------------------------------------------------------------------
+ 4.11 system_prompt Usage Examples                |chat-system_prompt-usage-examples*
 
 Here are different ways to use the `system_prompt` option:
 
@@ -410,7 +562,7 @@ Here are different ways to use the `system_prompt` option:
 <
 
 ------------------------------------------------------------------------------
- 4.8 MCP Server Configuration                    *chat-mcp-server-configuration*
+ 4.12 MCP Server Configuration                    *chat-mcp-server-configuration*
 
 chat.nvim supports Model Context Protocol (MCP) servers for extended tool
 capabilities. MCP allows you to connect external tool servers that provide
@@ -455,7 +607,7 @@ MCP tools are automatically prefixed with `mcp_<server>_<tool>` format:
 <
 
 ------------------------------------------------------------------------------
- 4.9 IM Integration Configuration                *chat-im-integration-configuration*
+ 4.13 IM Integration Configuration                *chat-im-integration-configuration*
 
 Configure instant messaging platform integrations:
 >
@@ -498,7 +650,7 @@ Configure instant messaging platform integrations:
 <
 
 ------------------------------------------------------------------------------
- 4.10 Complete Configuration Example              *chat-complete-configuration-example*
+ 4.14 Complete Configuration Example              *chat-complete-configuration-example*
 
 >
     require('chat').setup({
@@ -510,7 +662,7 @@ Configure instant messaging platform integrations:
 
       -- AI provider settings
       provider = 'deepseek',
-      model = 'deepseek-v4-pro',
+      model = 'deepseek-v4-flash',
       api_key = {
         deepseek = 'sk-xxxxxxxxxxxx',
         github = 'github_pat_xxxxxxxx',
@@ -529,8 +681,12 @@ Configure instant messaging platform integrations:
         vim.fn.expand('~/.config/nvim'),
       },
 
+      -- Base storage directory for all persistent data
+      storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/',
+
       -- Other settings
       strftime = '%Y-%m-%d %H:%M',
+      render_markdown = true,
       system_prompt = function()
         local path = vim.fn.expand('./AGENTS.md')
         if vim.fn.filereadable(path) == 1 then
@@ -542,9 +698,41 @@ Configure instant messaging platform integrations:
       -- Memory system
       memory = {
         enable = true,
-        max_memories = 1000,
-        retrieval_limit = 5,
-        similarity_threshold = 0.25,
+        long_term = {
+          max_memories = 500,
+          retrieval_limit = 3,
+        },
+        daily = {
+          retention_days = 7,
+          max_memories = 100,
+        },
+        working = {
+          max_memories = 20,
+          priority_weight = 2.0,
+        },
+      },
+
+      -- Auto-retry on connection errors and timeouts
+      retry = {
+        max_retries = 3,
+        retry_delay = 2000,
+      },
+
+      -- User profile system (人物画像)
+      user = {
+        enable = true,
+        id = '',
+      },
+
+      -- Custom skills (slash commands)
+      skills = {
+        {
+          name = 'greet',
+          description = 'Say hello',
+          handler = function(args, ctx)
+            return 'Hello, ' .. (args or 'world') .. '!'
+          end,
+        },
       },
 
       -- MCP servers configuration
@@ -552,6 +740,14 @@ Configure instant messaging platform integrations:
         open_webSearch = {
           command = 'npx',
           args = { '-y', 'open-websearch@latest' },
+        },
+      },
+
+      -- IM integrations
+      integrations = {
+        discord = {
+          token = 'YOUR_DISCORD_BOT_TOKEN',
+          channel_id = 'YOUR_CHANNEL_ID',
         },
       },
     })
@@ -627,7 +823,43 @@ session operating independently:
 3. Toggle between sessions: `:Chat prev` / `:Chat next`
 
 ------------------------------------------------------------------------------
- 5.4 Examples                                                  *chat-examples*
+ 5.4 Skills (Slash Commands)                      *chat-skills-slash-commands*
+
+chat.nvim includes a built-in skill system. Type `/name [args]` in the prompt
+window to invoke commands without sending a message to the LLM.
+
+**Built-in Skills:**
+
+| Skill              | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `/clear`           | Clear all messages in current session                |
+| `/new`             | Create a new session                                 |
+| `/delete`          | Delete current session                               |
+| `/model [name]`    | Switch model (shows selection UI if no name given)   |
+| `/provider [name]` | Switch provider (shows selection UI if no name given)|
+| `/cwd <path>`      | Change working directory                             |
+| `/pin`             | Toggle pin status of current session                 |
+| `/title [text]`    | Set session title (shows input UI if no text given)  |
+| `/retry`           | Retry last request                                   |
+| `/help`            | Show all available skills                            |
+
+**Usage:**
+>
+    /model gpt-4o
+    /provider openai
+    /cwd /tmp
+    /clear
+    /help
+<
+
+When no arguments are provided for `/model` and `/provider`, a selection UI
+(`vim.ui.select`) is shown. `/title` without arguments uses `vim.ui.input`.
+
+See |chat-skills-configuration| for custom skill registration and file-based
+auto-load.
+
+------------------------------------------------------------------------------
+ 5.5 Examples                                                  *chat-examples*
 
 1. **Start a new conversation**:
 >
@@ -723,7 +955,7 @@ session operating independently:
     Opens an HTML preview of the current session in your default browser.
 
 ------------------------------------------------------------------------------
- 5.5 Key Bindings                                          *chat-key-bindings*
+ 5.6 Key Bindings                                          *chat-key-bindings*
 
 NOTE: The plugin is currently in active development phase.
 Key bindings may change and may reflect the author's personal preferences.
@@ -746,6 +978,7 @@ The following key bindings are available in the `Input` window:
 | `Normal` | `<Leader>fr` | run `:Picker chat`                      |
 | `Normal` | `<Leader>fp` | run `:Picker chat_provider`             |
 | `Normal` | `<Leader>fm` | run `:Picker chat_model`                |
+| `Normal` | `<M-t>`      | Rename current session title            |
 The following key bindings are available in the `Result` window:
 
 | Mode     | Key Binding  | Description                             |
@@ -753,6 +986,9 @@ The following key bindings are available in the `Result` window:
 | `Normal` | `q`          | Close chat window                       |
 | `Normal` | `<Tab>`      | Switch between input and result windows |
 | `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
+
+The result window uses `markdown` filetype, enabling syntax highlighting and
+RenderMarkdown integration for rich rendering of AI responses.
 
 ==============================================================================
  6. PROVIDERS                                                 *chat-providers*
@@ -787,6 +1023,9 @@ if needed.
 14. `longcat` - https://longcat.chat/platform/docs/
 15. `cherryin` - https://open.cherryin.ai/
 16. `yuanjing` - https://maas.ai-yuanjing.com/
+17. `baidu` - https://qianfan.baidubce.com/
+18. `xiaomi` - https://www.xiaomimimo.com/
+19. `aliyuncs` - https://www.aliyun.com/product/bailian
 
 Note: Most built-in providers use the OpenAI protocol by default. Exceptions:
 - `anthropic` uses the Anthropic protocol
@@ -931,6 +1170,7 @@ Output Format:
 Notes:
 - Line numbers are 1-indexed (first line is line 1)
 - File path must be within `allowed_path` configuration
+
 **write_file**                                            *chat-tool-write_file*
 
 Write, modify, or delete file content with automatic parent directory
@@ -943,17 +1183,75 @@ Actions:
 - `insert` - Insert content at specific line
 - `delete` - Delete specific line range
 - `replace` - Replace specific line range with new content
+- `str_replace` - Replace string by matching old_str (no line numbers needed)
 - `remove` - Delete entire file
 
 Examples:
 >
     @write_file filepath="./src/main.lua" action="create" content="print('hello')"
     @write_file filepath="./src/main.lua" action="overwrite" content="new content"
-    @write_file filepath="./src/main.lua" action="append" content="\n-- added"
-    @write_file filepath="./src/main.lua" action="insert" line_start=5 content="-- comment"
-    @write_file filepath="./src/main.lua" action="delete" line_start=5 line_to=10
-    @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"
+    @write_file filepath="./src/main.lua" action="str_replace" old_str="old" new_str="new"
+    @write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true
     @write_file filepath="./src/main.lua" action="remove"
+<
+
+Notes:
+- `str_replace` uses literal string matching (no regex), supports multi-line
+- By default, `old_str` must match exactly once; use `replace_all=true` for all
+- `new_str` can be empty to delete the matched text
+- Use `validate=true` for code files to catch syntax errors (Lua, Python)
+- Use `backup=true` to create backup before modification
+
+**copy_file**                                              *chat-tool-copy_file*
+
+Copy a file or directory (recursive).
+
+Usage:
+>
+    @copy_file source="./config.json" destination="./config.backup.json"
+    @copy_file source="./src" destination="./src_copy"
+    @copy_file source="./templates/" destination="./new_project/templates/" overwrite=true
+<
+
+**create_directory**                                *chat-tool-create_directory*
+
+Create a directory (including parent directories). Equivalent to `mkdir -p`.
+
+Usage:
+>
+    @create_directory path="./src/utils"
+<
+
+**file_info**                                              *chat-tool-file_info*
+
+Get file or directory metadata (type, size, modification time, permissions,
+line count).
+
+Usage:
+>
+    @file_info filepath="./src/main.lua"
+    @file_info filepath="./src/"
+<
+
+**list_directory**                                    *chat-tool-list_directory*
+
+List directory contents with file metadata.
+
+Usage:
+>
+    @list_directory path="./src"
+    @list_directory path="./" recursive=true
+    @list_directory path="./test" show_hidden=true
+<
+
+**move_file**                                              *chat-tool-move_file*
+
+Move or rename a file/directory.
+
+Usage:
+>
+    @move_file source="./src/old.lua" destination="./src/new.lua"
+    @move_file source="./old_dir" destination="./new_dir" overwrite=true
 <
 
 **find_files**                                            *chat-tool-find_files*
@@ -1052,6 +1350,71 @@ Usage:
     @web_search query="latest news" engine="serpapi" serpapi_engine="bing"
 <
 
+**get_time**                                                *chat-tool-get_time*
+
+Get current time and date information.
+
+Usage:
+>
+    @get_time
+    @get_time format="iso"
+    @get_time timezone="utc"
+    @get_time format="human"
+<
+
+Formats: `iso`, `unix`, `human`, `all` (default). Timezone: `local` (default)
+or `utc`.
+
+**get_weather**                                          *chat-tool-get_weather*
+
+Get weather data from Meizu weather API.
+
+Usage:
+>
+    @get_weather
+    @get_weather city_id="101010100"
+    @get_weather city_ids=["101010100", "101020100"]
+<
+
+If no city ID is provided, defaults to 101240101 (南昌).
+
+**lsp_diagnostics**                                    *chat-tool-lsp_diagnostics*
+
+Get LSP diagnostics (errors, warnings, hints) for a file.
+
+Usage:
+>
+    @lsp_diagnostics filepath="./src/main.lua"
+    @lsp_diagnostics filepath="./src/main.lua" severity=Error
+    @lsp_diagnostics filepath="./src/main.lua" line_start=10 line_to=20
+<
+
+Parameters:
+- `severity` - Filter: Error, Warn, Info, Hint, or All (default: All)
+- `line_start` - Starting line number (1-indexed, inclusive)
+- `line_to` - Ending line number (1-indexed, inclusive)
+
+Notes:
+- Requires an LSP client to be attached to the buffer
+- Line numbers are 1-indexed
+
+**officecli**                                              *chat-tool-officecli*
+
+View office documents (currently supports Excel .xlsx).
+
+Usage:
+>
+    @officecli filepath="data.xlsx"
+    @officecli filepath="data.xlsx" mode="text"
+    @officecli filepath="data.xlsx" mode="annotated"
+    @officecli filepath="data.xlsx" mode="outline"
+    @officecli filepath="data.xlsx" mode="stats"
+    @officecli filepath="data.xlsx" mode="issues"
+    @officecli filepath="data.xlsx" mode="html" browser=true
+<
+
+View Modes: `text`, `annotated`, `outline`, `stats`, `issues`, `html`.
+
 **git_diff**                                                *chat-tool-git_diff*
 
 Run git diff to show changes between working directory and index.
@@ -1100,6 +1463,16 @@ Usage:
 <
 
 **git_add**                                                  *chat-tool-git_add*
+
+Stage file changes for commit.
+
+Usage:
+>
+    @git_add path="file.lua"
+    @git_add path=["a.lua", "b.lua"]
+    @git_add all=true
+<
+
 **git_branch**                                            *chat-tool-git_branch*
 
 Manage git branches.
@@ -1112,13 +1485,6 @@ Usage:
     @git_branch branch="old-feature" delete=true -- Delete branch
 <
 
-Notes:
-- Requires git to be installed and in PATH
-- Default action is list if no branch specified
-- Use `create=true` to create a new branch from current HEAD
-- Use `delete=true` to delete a branch (uses -d, safe delete)
-- Use `force=true` with delete for -D (force delete)
-
 **git_checkout**                                        *chat-tool-git_checkout*
 
 Switch branches or restore working tree files.
@@ -1129,15 +1495,18 @@ Usage:
     @git_checkout new_branch="feature-x"      -- Create and checkout new branch
     @git_checkout branch="origin/feature" track=true -- Track remote branch
     @git_checkout file="src/main.lua"         -- Restore file from HEAD
-    @git_checkout branch="v1.0.0" detach=true -- Checkout commit/tag
 <
 
-Notes:
-- Requires git to be installed and in PATH
-- Use `branch` for switching to existing branches or commits
-- Use `new_branch` to create and checkout a new branch (-b)
-- Use `file` to restore specific files from HEAD
-- Use `track=true` to set up upstream tracking for remote branches
+**git_commit**                                            *chat-tool-git_commit*
+
+Create a git commit with staged changes.
+
+Usage:
+>
+    @git_commit message="feat: add new feature"
+    @git_commit message="fix: bug fix" allow_empty=true
+    @git_commit message="update" amend=true
+<
 
 **git_config**                                            *chat-tool-git_config*
 
@@ -1145,17 +1514,11 @@ Get, set, or list git configuration.
 
 Usage:
 >
-    @git_config action="get" key="user.name"           -- Get user name
+    @git_config action="get" key="user.name"
     @git_config action="set" key="user.email" value="test@example.com"
-    @git_config action="list"                          -- List all config
-    @git_config action="list" global=true              -- List global config
+    @git_config action="list"
+    @git_config action="list" global=true
 <
-
-Notes:
-- Requires git to be installed and in PATH
-- Default scope is local (repository config)
-- Use `global` for user-wide settings
-- Use `system` for system-wide settings
 
 **git_fetch**                                              *chat-tool-git_fetch*
 
@@ -1167,13 +1530,7 @@ Usage:
     @git_fetch remote="upstream"         -- Fetch from specific remote
     @git_fetch branch="main"             -- Fetch specific branch
     @git_fetch all=true                  -- Fetch all remotes
-    @git_fetch prune=true                -- Remove deleted remote branches
 <
-
-Notes:
-- Requires git to be installed and in PATH
-- Default remote is "origin" if not specified
-- Unlike git_pull, this does not merge changes into your current branch
 
 **git_merge**                                              *chat-tool-git_merge*
 
@@ -1187,12 +1544,6 @@ Usage:
     @git_merge abort=true                            -- Abort current merge
 <
 
-Notes:
-- Requires git to be installed and in PATH
-- Use `no_ff` to create a merge commit even if fast-forward is possible
-- Use `abort` to cancel an ongoing merge after conflicts
-- Use `continue` after resolving merge conflicts
-
 **git_pull**                                                *chat-tool-git_pull*
 
 Pull changes from remote repository and merge.
@@ -1205,11 +1556,6 @@ Usage:
     @git_pull rebase=true               -- Use rebase instead of merge
 <
 
-Notes:
-- Requires git to be installed and in PATH
-- Default remote is "origin" if not specified
-- Use `rebase=true` to avoid merge commits
-
 **git_push**                                                *chat-tool-git_push*
 
 Push commits to remote repository.
@@ -1220,34 +1566,36 @@ Usage:
     @git_push branch="main"             -- Push specific branch
     @git_push set_upstream=true         -- Set upstream (-u)
     @git_push force=true                -- Force push
-    @git_push all=true                  -- Push all branches
-    @git_push tags=true                 -- Push tags
+<
+
+**git_rebase**                                            *chat-tool-git_rebase*
+
+Rebase current branch onto another branch.
+
+Usage:
+>
+    @git_rebase branch="main"                    -- Rebase current branch onto main
+    @git_rebase branch="develop"                 -- Rebase onto develop
+    @git_rebase abort=true                       -- Abort current rebase
+    @git_rebase continue=true                    -- Continue after conflict resolution
+    @git_rebase skip=true                        -- Skip current commit and continue
 <
 
 Notes:
-- Requires git to be installed and in PATH
-- Default remote is "origin"
-- Use `set_upstream=true` to track remote branch
-- Use `force=true` with caution (rewrites history)
+- Rebase rewrites history. Use with caution on shared branches
+- Use `abort` to cancel an in-progress rebase after conflicts
+- Use `continue` after resolving rebase conflicts
+- Use `skip` to skip the current commit that has conflicts
 
 **git_remote**                                            *chat-tool-git_remote*
 
 Manage set of tracked repositories (read-only).
 
-Actions:
-- `list`: List remote repositories (default)
-- `get-url`: Get URL of a remote
-
 Usage:
 >
     @git_remote                                    -- List all remotes
-    @git_remote action="list"                      -- List all remotes (verbose)
     @git_remote action="get-url" name="origin"     -- Get origin URL
 <
-
-Notes:
-- Requires git to be installed and in PATH
-- Only read-only operations are supported
 
 **git_reset**                                              *chat-tool-git_reset*
 
@@ -1263,23 +1611,11 @@ Usage:
     @git_reset commit="abc123" mode="soft"  -- Reset to commit, keep staged
     @git_reset mode="mixed"                 -- Unstage changes
     @git_reset mode="hard"                  -- Discard all changes
-    @git_reset path="README.md"             -- Unstage changes to README.md
 <
-
-Warning:
-- Use `--hard` with caution as it permanently discards changes!
 
 **git_stash**                                              *chat-tool-git_stash*
 
 Stash changes in git repository.
-
-Actions:
-- `save`: Save current changes (default)
-- `list`: List all stashes
-- `pop`: Apply and remove stash
-- `drop`: Delete a stash
-- `apply`: Apply without removing
-- `clear`: Remove all stashes
 
 Usage:
 >
@@ -1289,20 +1625,9 @@ Usage:
     @git_stash action="drop" index=2
 <
 
-Notes:
-- Requires git to be installed and in PATH
-- Index 0 is the most recent stash
-- Use `apply` to keep stash, `pop` to remove after applying
-
 **git_tag**                                                  *chat-tool-git_tag*
 
 Manage git tags for marking specific commits.
-
-Actions:
-- `create`: Create a new tag
-- `list`: List all tags (default)
-- `delete`: Delete a local tag
-- `push`: Push tag(s) to remote
 
 Usage:
 >
@@ -1311,11 +1636,6 @@ Usage:
     @git_tag action="delete" name="v1.0.0"
     @git_tag action="push" name="v1.0.0"
 <
-
-Notes:
-- Requires git to be installed and in PATH
-- Annotated tags include a message and store metadata
-- Lightweight tags are just pointers to commits
 
 **make**                                                        *chat-tool-make*
 
@@ -1330,57 +1650,6 @@ Usage:
     @make directory="./subproject"  -- Run in subdirectory
 <
 
-Notes:
-- Requires `make` to be installed and in PATH
-- Returns make command output with exit code and status
-
-Stage file changes for commit.
-
-Usage:
->
-    @git_add path="file.lua"
-    @git_add path=["a.lua", "b.lua"]
-    @git_add all=true
-<
-
-**git_commit**                                            *chat-tool-git_commit*
-
-Create a git commit with staged changes.
-
-Usage:
->
-    @git_commit message="feat: add new feature"
-    @git_commit message="fix: bug fix" allow_empty=true
-    @git_commit message="update" amend=true
-<
-
-**lsp_diagnostics**                                    *chat-tool-lsp_diagnostics*
-
-Get LSP diagnostics (errors, warnings, hints) for the current file.
-
-This tool uses Neovim's built-in LSP diagnostic system to retrieve
-diagnostic messages from attached language servers.
-
-Usage:
->
-    @lsp_diagnostics                                    - Get all diagnostics
-    @lsp_diagnostics severity=Error                     - Get only errors
-    @lsp_diagnostics severity=Warn                      - Get only warnings
-    @lsp_diagnostics line_start=10 line_to=20           - Get diagnostics for lines 10-20
-    @lsp_diagnostics severity=Error line_start=1 line_to=50
-<
-
-Parameters:
-- `severity` - Filter by severity level: Error, Warn, Info, Hint, or All (default: All)
-- `line_start` - Starting line number (1-indexed, inclusive)
-- `line_to` - Ending line number (1-indexed, inclusive)
-
-Notes:
-- Requires an LSP client to be attached to the buffer
-- Line numbers are 1-indexed
-- Severities: Error, Warn, Info, Hint, All (default: All)
-
-
 **get_history**                                          *chat-tool-get_history*
 
 Get conversation history messages from the current session.
@@ -1390,7 +1659,14 @@ Usage:
     @get_history
     @get_history offset=0 limit=20
     @get_history offset=20 limit=20
+    @get_history search="error"
+    @get_history search="config" offset=0 limit=10
 <
+
+Parameters:
+- `offset` - Starting index (0 = oldest, default: 0)
+- `limit` - Number of messages to retrieve (default: 20, max: 50)
+- `search` - Filter messages by keyword (case-insensitive)
 
 **plan**                                                        *chat-tool-plan*
 
@@ -1399,20 +1675,76 @@ Plan mode for creating, managing, and reviewing task plans.
 Actions:
 - `create` - Create new plan with title and optional steps
 - `show` - Show plan details by ID
-- `list` - List all plans (optional status filter)
+- `list` - List plans (optional status filter, `include_project` for same-dir)
 - `add` - Add step to existing plan
 - `next` - Start next pending step
 - `done` - Mark current/completed step as done
-- `review` - Review completed plan with summary
+- `cancel_step` - Cancel a step (mark as cancelled)
+- `delete_step` - Delete a step from plan
+- `update_step` - Update step content
+- `reorder_steps` - Reorder steps by providing ordered step IDs
+- `pause` - Pause an in-progress plan
+- `resume` - Resume a paused plan
+- `review` - Review completed or abandoned plan with summary
+- `update_title` - Update plan title
+- `cancel` - Abandon a plan (mark as abandoned)
+- `reopen` - Reopen a completed or abandoned plan
 - `delete` - Delete a plan
 
 Usage:
 >
     @plan action="create" title="Implement feature X" steps=["Design API", "Write code", "Test"]
-    @plan action="list" status="in_progress"
+    @plan action="list"
+    @plan action="list" include_project=true
     @plan action="next" plan_id="plan-20250110-xxxx"
-    @plan action="done" plan_id="plan-20250110-xxxx" notes="Completed successfully"
+    @plan action="done" plan_id="plan-20250110-xxxx" step_id=1 notes="Done"
+    @plan action="cancel_step" plan_id="plan-xxxx" step_id=2 notes="No longer needed"
+    @plan action="reorder_steps" plan_id="plan-xxxx" step_ids=[3, 1, 2]
+    @plan action="pause" plan_id="plan-xxxx" pause_reason="Waiting for API"
+    @plan action="cancel" plan_id="plan-xxxx" notes="Requirements changed"
+    @plan action="reopen" plan_id="plan-xxxx"
+    @plan action="review" plan_id="plan-xxxx" summary="Done" lessons=["L1"]
 <
+
+**user_profile**                                        *chat-tool-user_profile*
+
+Manage user profiles (人物画像) for personalized assistance.
+
+Actions: `get` (default), `update`, `list`, `delete`.
+
+Usage:
+>
+    @user_profile action="get"
+    @user_profile action="get" user_id="alice"
+    @user_profile action="update" user_id="alice" content="# Profile..."
+    @user_profile action="list"
+    @user_profile action="delete" user_id="temp-user"
+<
+
+Can look up ANY user's profile by passing their `user_id`.
+
+**schedule_task**                                    *chat-tool-schedule_task*
+
+Schedule a task to be executed at a future time. Tasks persist across Neovim
+restarts.
+
+Actions: `create` (default), `list`, `cancel`.
+
+Usage:
+>
+    @schedule_task action="create" message="Check server" delay_seconds=3600
+    @schedule_task action="create" message="Daily summary" interval=86400 repeat_count=7
+    @schedule_task action="create" message="定期检查" interval=1800 skip_if_busy=true
+    @schedule_task action="list"
+    @schedule_task action="cancel" task_id="1717200000-12345"
+<
+
+Parameters:
+- `delay_seconds` - Delay in seconds (one-time, max 2592000/30 days)
+- `trigger_at` - Unix timestamp (one-time, alternative to delay)
+- `interval` - Interval in seconds for periodic tasks
+- `repeat_count` - Max repetitions for periodic (nil = unlimited)
+- `skip_if_busy` - Skip if session in progress (periodic only, default: false)
 
 ------------------------------------------------------------------------------
  7.3 Third-party Tools                                |chat-third-party-tools*
@@ -1433,6 +1765,19 @@ Retrieve zettelkasten notes by tags, provided by zettelkasten.nvim.
 Usage:
 >
     @zettelkasten_get tags=["programming", "vim"]
+<
+
+**zettelkasten_update**                          *chat-tool-zettelkasten_update*
+
+Update an existing zettelkasten note.
+
+Actions: `update_title`, `add_tags`, `remove_tags`, `replace_text`.
+
+Usage:
+>
+    @zk update id="2024-01-15-10-30-00" action="update_title" title="New Title"
+    @zk update id="2024-01-15-10-30-00" action="add_tags" tags=["python", "web"]
+    @zk update id="2024-01-15-10-30-00" action="replace_text" old_text="old" new_text="new"
 <
 
 ------------------------------------------------------------------------------
@@ -1605,36 +1950,35 @@ is set to a non-empty value:
 ------------------------------------------------------------------------------
  8.2 API Endpoints                                       *chat-api-endpoints*
 
-| Endpoint    | Method | Description                                             |
-| ----------- | ------ | ------------------------------------------------------- |
-| `/`         | POST   | Send messages to a specified chat session               |
-| `/sessions` | GET    | Get a list of all active session IDs                    |
-| `/session`  | GET    | Get HTML preview of a session (requires `id` parameter) |
-
 **Base URL**: `http://{host}:{port}/` (default: `127.0.0.1:7777`)
 
 **Authentication**: All requests require the `X-API-Key` header containing your
-configured API key.
+configured API key (except `GET /session` HTML preview).
 
-| Endpoint                 | Method | Description                                             |
-| ------------------------ | ------ | ------------------------------------------------------- |
-| `/`                      | POST   | Send messages to a specified chat session               |
-| `/sessions`              | GET    | Get a list of all sessions with details                 |
-| `/providers`             | GET    | Get a list of all supported AI providers                |
-| `/session/new`           | POST   | Create a new session                                    |
-| `/session/:id`           | DELETE | Delete a session                                        |
-| `/session/:id/provider`  | PUT    | Set provider for a session                              |
-| `/session/:id/model`     | PUT    | Set model for a session                                 |
-| `/session/:id/pin`       | PUT    | Toggle pin status for a session                         |
-| `/session/:id/stop`      | POST   | Stop generation for a session                           |
-| `/session/:id/clear`     | POST   | Clear all messages in a session                         |
-| `/messages`              | GET    | Get message list for a session (requires `session` param, optional `since` param)|
+| Endpoint                  | Method | Description                                         |
+| ------------------------- | ------ | --------------------------------------------------- |
+| `/`                       | POST   | Send messages to a specified chat session           |
+| `/sessions`               | GET    | Get a list of all sessions with details             |
+| `/sessions/:id`           | GET    | Get details for a single session                    |
+| `/sessions/:id/raw`       | GET    | Get raw cache JSON for a session                    |
+| `/providers`              | GET    | Get a list of all supported AI providers and models |
+| `/messages`               | GET    | Get messages for a session (requires `session`, optional `since`) |
+| `/session/new`            | POST   | Create a new session                                |
+| `/session/:id`            | DELETE | Delete a session                                    |
+| `/session/:id/stop`       | POST   | Stop generation for a session                       |
+| `/session/:id/clear`      | POST   | Clear all messages in a session                     |
+| `/session/:id/retry`      | POST   | Retry the last message in a session                 |
+| `/session/:id/provider`   | PUT    | Set provider for a session                          |
+| `/session/:id/model`      | PUT    | Set model for a session                             |
+| `/session/:id/cwd`        | PUT    | Set working directory for a session                 |
+| `/session/:id/pin`        | PUT    | Set pin status for a session                        |
+| `/session/:id/title`      | PUT    | Set title for a session                             |
+| `/session`                | GET    | Get HTML preview of a session (no auth required)    |
+
 Query Parameters for `/messages`:
 - `session` (required): Session ID
 - `since` (optional): 1-indexed message index, returns messages[index..end]
-  - `since=1` returns all messages
-  - `since=5` returns messages from index 5 onwards
-  - `since > #messages` returns empty array
+
 GET `/sessions`:
 - **Success**: HTTP 200 OK, returns a JSON array of session objects
 >
@@ -1645,26 +1989,13 @@ GET `/sessions`:
         "cwd": "/home/user/project",
         "provider": "openai",
         "model": "gpt-4o",
+        "pin": false,
         "in_progress": false,
         "message_count": 15,
         "last_message": {
           "role": "assistant",
           "content": "Here's the code you requested...",
           "created": "2024-01-15T10:35:00"
-        }
-      },
-      {
-        "id": "2024-01-15-11-45-00",
-        "title": "Explain this error message...",
-        "cwd": "/home/user/another-project",
-        "provider": "anthropic",
-        "model": "claude-3-5-sonnet-20241022",
-        "in_progress": true,
-        "message_count": 3,
-        "last_message": {
-          "role": "user",
-          "content": "Why is this not working?",
-          "created": "2024-01-15T11:45:30"
         }
       }
     ]
@@ -1689,34 +2020,55 @@ PUT `/session/:id/provider`:
 - Set the provider for a session
 - **Request Body**: `{"provider": "anthropic"}`
 - **Success**: HTTP 204 No Content
-- **Session Not Found**: HTTP 404 Not Found
-- **Invalid Request**: HTTP 400 Bad Request
 
 PUT `/session/:id/model`:
 - Set the model for a session
 - **Request Body**: `{"model": "gpt-4o"}`
 - **Success**: HTTP 204 No Content
-- **Session Not Found**: HTTP 404 Not Found
-- **Invalid Request**: HTTP 400 Bad Request
+
+PUT `/session/:id/cwd`:
+- Set the working directory for a session
+- **Request Body**: `{"cwd": "/path/to/project"}`
+- **Success**: HTTP 204 No Content
 
 PUT `/session/:id/pin`:
 - Set the pin status for a session
 - **Request Body**: `{"pin": true}` or `{"pin": false}`
 - **Success**: HTTP 204 No Content
-- **Session Not Found**: HTTP 404 Not Found
-- **Invalid Request**: HTTP 400 Bad Request (missing or invalid pin value)
 
-------------------------------------------------------------------------------
-<
-------------------------------------------------------------------------------
-<
+PUT `/session/:id/title`:
+- Set a custom title for a session
+- **Request Body**: `{"title": "My custom title"}`
+- **Success**: HTTP 204 No Content
+
+POST `/session/:id/stop`:
+- Stop generation for a session
+- **Success**: HTTP 204 No Content
+
+POST `/session/:id/clear`:
+- Clear all messages in a session (session preserved)
+- **Success**: HTTP 204 No Content
+- **In Progress**: HTTP 409 Conflict
+
+POST `/session/:id/retry`:
+- Retry the last user message
+- Only works if the last message is not from the assistant
+- **Success**: HTTP 204 No Content
+- **No Message**: HTTP 400 Bad Request
+
+DELETE `/session/:id`:
+- Delete a session
+- **Success**: HTTP 204 No Content
+- **In Progress**: HTTP 409 Conflict
 
 GET `/session`:
+- Returns HTML preview (no authentication required)
 - **Success**: HTTP 200 OK, returns HTML content
 - **Missing ID**: HTTP 400 Bad Request
 - **Session Not Found**: HTTP 404 Not Found
+
 ------------------------------------------------------------------------------
- 8.5 Message Queue System                         *chat-message-queue-system*
+ 8.3 Message Queue System                         *chat-message-queue-system*
 
 Incoming messages are processed through an intelligent queue system:
 
@@ -1729,7 +2081,7 @@ Incoming messages are processed through an intelligent queue system:
 6. If delivery fails, the message is retried up to 3 times before being dropped
 
 ------------------------------------------------------------------------------
- 8.6 Usage Examples                                     *chat-usage-examples*
+ 8.4 Usage Examples                                     *chat-usage-examples*
 
 Using curl:
 >
@@ -1739,8 +2091,26 @@ Using curl:
       -H "Content-Type: application/json" \
       -d '{"session": "my-session", "content": "Hello from curl!"}'
 
-    # Get all session IDs
+    # Get all sessions
     curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions
+
+    # Get session details
+    curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/sessions/2024-01-15-10-30-00
+
+    # List providers
+    curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
+
+    # Create new session
+    curl -X POST http://127.0.0.1:7777/session/new \
+      -H "X-API-Key: your-secret-key" \
+      -H "Content-Type: application/json" \
+      -d '{"provider": "openai", "model": "gpt-4o"}'
+
+    # Set title
+    curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
+      -H "X-API-Key: your-secret-key" \
+      -H "Content-Type: application/json" \
+      -d '{"title": "My custom title"}'
 <
 
 Using Python:
@@ -1762,7 +2132,7 @@ Using Python:
 <
 
 ------------------------------------------------------------------------------
- 8.7 Security Considerations                   *chat-security-considerations*
+ 8.5 Security Considerations                   *chat-security-considerations*
 
 1. **API Key Protection**: Keep your API key secure and never commit it to
    version control
@@ -1781,9 +2151,9 @@ sessions, providers, and models.
 Available Sources:
 
 1. `chat` - Search through your chat history sessions
-   - Uses the **first message** of each session as the search string
+   - Displays the project name (cwd tail) and first message of each session
    - Quickly resume previous conversations
-   - Supports filtering and session management
+   - Quickly locate sessions by project
 
    Keyboard Shortcuts in chat picker:
    - `<CR>` (Enter): Open selected session
@@ -1922,6 +2292,10 @@ Setup Guide (Webhook Mode):
     integrations = {
       wecom = {
         webhook_key = 'YOUR_WEBHOOK_KEY',
+      },
+    }
+<
+
 ------------------------------------------------------------------------------
  10.5 Weixin (Personal WeChat)                               *chat-weixin*
 
@@ -1968,9 +2342,6 @@ Technical Details:
 - **Message Limit**: 2,048 characters (auto-chunking)
 - **State Persistence**: `stdpath('data')/chat-weixin-state.json`
 - **Polling**: Long-poll every 3 seconds
-      },
-    }
-<
 
 ------------------------------------------------------------------------------
 10.6 Telegram                                               *chat-telegram*
