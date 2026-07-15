@@ -51,13 +51,17 @@ function TestHTTP:setUp()
     },
   }
 
+  -- Use a temp directory to avoid polluting real session cache
+  self.test_cache_dir = vim.fn.tempname() .. '/'
+  sessions.set_cache_dir(self.test_cache_dir)
+
   -- Create a test session
-  sessions._sessions = {}
   self.test_session_id = sessions.new()
 end
 
 function TestHTTP:tearDown()
-  sessions._sessions = {}
+  -- Clean up temp cache directory
+  vim.fn.delete(self.test_cache_dir, 'rf')
   config._config = nil
 end
 

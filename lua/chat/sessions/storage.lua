@@ -62,6 +62,14 @@ end
 --- @type table<string, ChatSession>
 M.sessions = {}
 
+--- Sets a custom cache directory (for testing)
+--- Resets in-memory sessions to avoid mixing with previous cache
+--- @param dir string The directory path to use for cache
+function M.set_cache_dir(dir)
+  M.cache_dir = dir
+  M.sessions = {}
+end
+
 --- Writes session data to cache file in JSON format
 --- Creates cache directory if it doesn't exist
 --- @param session_id string The session identifier to write

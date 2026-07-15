@@ -77,6 +77,7 @@ M.reset_retry_count = retry.reset_retry_count
 M.write_cache = storage.write_cache
 M.get_cache_path = storage.get_cache_path
 M.iter_sessions = storage.iter_sessions
+M.set_cache_dir = storage.set_cache_dir
 
 -- ─── Share / Import / Export ───────────────────────────────────
 M.save_to_file = share.save_to_file

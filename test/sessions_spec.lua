@@ -11,6 +11,14 @@ function TestSessions:setUp()
     provider = 'test-provider',
     model = 'test-model',
   })
+  -- Use a temp directory to avoid polluting real session cache
+  self.test_cache_dir = vim.fn.tempname() .. '/'
+  sessions.set_cache_dir(self.test_cache_dir)
+end
+
+function TestSessions:tearDown()
+  -- Clean up temp cache directory
+  vim.fn.delete(self.test_cache_dir, 'rf')
 end
 
 function TestSessions:testNewSession()
@@ -127,13 +135,9 @@ function TestSessions:testWriteCache()
   local success = sessions.write_cache(session_id)
   lu.assertTrue(success)
 
-  -- Verify file exists
-  local cache_dir = vim.fn.stdpath('data') .. '/chat.nvim/sessions/'
-  local cache_file = cache_dir .. session_id .. '.json'
+  -- Verify file exists in the test cache directory
+  local cache_file = self.test_cache_dir .. session_id .. '.json'
   lu.assertEquals(vim.fn.filereadable(cache_file), 1)
-
-  -- Clean up
-  vim.fn.delete(cache_file)
 end
 
 function TestSessions:testSaveLoadSession()
@@ -163,3 +167,4 @@ function TestSessions:testSaveLoadSession()
 end
 
 return TestSessions
+

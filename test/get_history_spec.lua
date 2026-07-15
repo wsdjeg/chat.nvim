@@ -11,6 +11,14 @@ function TestGetHistory:setUp()
     provider = 'test-provider',
     model = 'test-model',
   })
+  -- Use a temp directory to avoid polluting real session cache
+  self.test_cache_dir = vim.fn.tempname() .. '/'
+  sessions.set_cache_dir(self.test_cache_dir)
+end
+
+function TestGetHistory:tearDown()
+  -- Clean up temp cache directory
+  vim.fn.delete(self.test_cache_dir, 'rf')
 end
 
 -- ─── scheme() tests ─────────────────────────────────────────────
