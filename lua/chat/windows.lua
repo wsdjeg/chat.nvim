@@ -352,6 +352,12 @@ function M.current_session()
   return current_session
 end
 
+--- Check if TUI windows are open
+--- @return boolean
+function M.is_open()
+  return vim.api.nvim_win_is_valid(result.get_win())
+end
+
 -- Send a message programmatically
 function M.send_message(session, content)
   if not content or not sessions.exists(session) then

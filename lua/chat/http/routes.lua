@@ -244,7 +244,17 @@ local function handle_delete_session(client, path)
     return
   end
 
-  sessions.delete(session_id)
+  local next_session = sessions.delete(session_id)
+
+  -- If the deleted session was the current TUI session, switch to next
+  -- (mirrors :Chat delete behavior)
+  if next_session then
+    local windows = require('chat.windows')
+    if windows.is_open() then
+      windows.open({ session = next_session })
+    end
+  end
+
   response.send_response(client, 204)
 end
 
