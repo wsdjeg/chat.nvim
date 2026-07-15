@@ -34,9 +34,10 @@ function TestToolsPlan:setUp()
   vim.fn.mkdir(test_storage_dir, 'p')
 
   config.setup({
+    storage_dir = test_storage_dir,
     memory = {
       enable = true,
-      storage_dir = test_storage_dir,
+      storage_dir = test_storage_dir .. 'memory/',
       working = { enable = true },
     },
     allowed_path = vim.fs.normalize(vim.fn.getcwd()),

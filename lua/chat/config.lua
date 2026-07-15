@@ -17,6 +17,7 @@ local M = {}
 ---@field strftime? string
 ---@field system_prompt? string | function
 ---@field context? table
+---@field storage_dir? string Base storage directory for all persistent data
 ---@field memory? table
 ---@field user? table
 ---@field integrations? table
@@ -58,6 +59,9 @@ local default = {
     trigger_threshold = 50, -- 触发截断的消息数
     keep_recent = 10, -- 最近 N 条不参与截断搜索
   },
+  -- Base storage directory for all persistent data (plans, sessions, scheduler, etc.)
+  -- Individual sub-modules use sub-directories under this path.
+  storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/',
   memory = {
     enable = true,
     long_term = {
@@ -77,15 +81,18 @@ local default = {
       max_memories = 20,
       priority_weight = 2.0,
     },
-    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/memory/',
+    -- Override for memory storage directory.
+    -- If not set, defaults to storage_dir .. 'memory/'
+    storage_dir = nil,
   },
   -- User profile (人物画像) configuration
   user = {
     enable = true,
     -- User ID, auto-detected from system username if empty
     id = '',
-    -- Storage directory for user profile markdown files
-    storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/users/',
+    -- Override for user profile storage directory.
+    -- If not set, defaults to storage_dir .. 'users/'
+    storage_dir = nil,
   },
   -- Auto-retry configuration for LLM requests on connection errors and timeouts
   retry = {
@@ -100,6 +107,20 @@ local default = {
 
 ---@type ChatConfig
 M.config = vim.tbl_deep_extend('force', default, {})
+
+---Get the effective memory storage directory
+---@return string
+function M.get_memory_storage_dir()
+  return M.config.memory.storage_dir
+    or (M.config.storage_dir .. 'memory/')
+end
+
+---Get the effective user storage directory
+---@return string
+function M.get_user_storage_dir()
+  return M.config.user.storage_dir
+    or (M.config.storage_dir .. 'users/')
+end
 
 ---@param opt ChatConfig
 function M.setup(opt)

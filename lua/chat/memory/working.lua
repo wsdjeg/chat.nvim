@@ -323,13 +323,12 @@ end
 
 -- Load working memories
 function M.load()
-  if not config.config.memory.storage_dir then
+  local storage_dir = config.get_memory_storage_dir()
+  if not storage_dir then
     return
   end
 
-  local path = vim.fs.normalize(
-    config.config.memory.storage_dir .. '/working_memories.json'
-  )
+  local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
   local file = io.open(path, 'r')
 
   if not file then
@@ -353,18 +352,17 @@ end
 
 -- Save working memories
 function M.save()
-  if not config.config.memory.storage_dir then
+  local storage_dir = config.get_memory_storage_dir()
+  if not storage_dir then
     return
   end
 
   -- Ensure directory exists
-  if vim.fn.isdirectory(config.config.memory.storage_dir) == 0 then
-    vim.fn.mkdir(config.config.memory.storage_dir, 'p')
+  if vim.fn.isdirectory(storage_dir) == 0 then
+    vim.fn.mkdir(storage_dir, 'p')
   end
 
-  local path = vim.fs.normalize(
-    config.config.memory.storage_dir .. '/working_memories.json'
-  )
+  local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
   local file = io.open(path, 'w')
 
   if file then

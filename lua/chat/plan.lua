@@ -660,8 +660,31 @@ end
 
 ---Load plans from storage with validation and migration
 function M.load()
-  local path = config.config.memory.storage_dir .. 'plans.json'
+  local path = config.config.storage_dir .. 'plans.json'
   local file = io.open(path, 'r')
+
+  -- Migration: if new file doesn't exist, try old location (memory.storage_dir/plans.json)
+  if not file then
+    local old_path = config.get_memory_storage_dir() .. 'plans.json'
+    local old_file = io.open(old_path, 'r')
+    if old_file then
+      local content = old_file:read('*a')
+      old_file:close()
+      -- Ensure storage_dir exists
+      if vim.fn.isdirectory(config.config.storage_dir) == 0 then
+        vim.fn.mkdir(config.config.storage_dir, 'p')
+      end
+      -- Write to new path
+      local new_file = io.open(path, 'w')
+      if new_file then
+        new_file:write(content)
+        new_file:close()
+      end
+      -- Reopen new file for reading
+      file = io.open(path, 'r')
+    end
+  end
+
   if file then
     local ok, data = pcall(vim.json.decode, file:read('*a'))
     file:close()
@@ -696,7 +719,11 @@ end
 
 ---Save plans to storage
 function M.save()
-  local path = config.config.memory.storage_dir .. 'plans.json'
+  local path = config.config.storage_dir .. 'plans.json'
+  -- Ensure storage_dir exists
+  if vim.fn.isdirectory(config.config.storage_dir) == 0 then
+    vim.fn.mkdir(config.config.storage_dir, 'p')
+  end
   local file = io.open(path, 'w')
   if file then
     file:write(vim.json.encode(plans))

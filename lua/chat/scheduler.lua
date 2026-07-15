@@ -7,6 +7,7 @@ local M = {}
 
 local uv = vim.uv
 local log = require('chat.log')
+local config = require('chat.config')
 
 ---@class ScheduledTask
 ---@field id string
@@ -27,7 +28,7 @@ M.tasks = {}
 -- ── 持久化 ────────────────────────────────────────────────
 
 local function get_storage_path()
-  local dir = vim.fn.stdpath('data') .. '/chat.nvim/'
+  local dir = config.config.storage_dir
   if vim.fn.isdirectory(dir) == 0 then
     vim.fn.mkdir(dir, 'p')
   end

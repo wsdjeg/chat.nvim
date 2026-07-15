@@ -16,19 +16,12 @@ end
 
 -- 获取存储路径
 local function get_storage_path()
-  return vim.fs.normalize(
-    (
-      config.config.memory.storage_dir
-      or vim.fn.stdpath('data') .. '/chat.nvim/memory/'
-    ) .. '/long_term_memories.json'
-  )
+  return vim.fs.normalize(config.get_memory_storage_dir() .. '/long_term_memories.json')
 end
 
 -- 初始化存储目录
 local function init_storage()
-  local storage_dir = config.config.memory.storage_dir
-    or vim.fn.stdpath('data') .. '/chat.nvim/memory/'
-
+  local storage_dir = config.get_memory_storage_dir()
   if vim.fn.isdirectory(storage_dir) == 0 then
     vim.fn.mkdir(storage_dir, 'p')
   end

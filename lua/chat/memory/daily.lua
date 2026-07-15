@@ -85,8 +85,7 @@ end
 
 -- 加载/保存
 function M.load()
-  local path = (config.config.memory.storage_dir or '')
-    .. 'daily_memories.json'
+  local path = config.get_memory_storage_dir() .. 'daily_memories.json'
   local file = io.open(path, 'r')
   if file then
     local ok, data = pcall(vim.json.decode, file:read('*a'))
@@ -98,8 +97,7 @@ function M.load()
 end
 
 function M.save()
-  local path = (config.config.memory.storage_dir or '')
-    .. 'daily_memories.json'
+  local path = config.get_memory_storage_dir() .. 'daily_memories.json'
   local file = io.open(path, 'w')
   if file then
     file:write(vim.json.encode(daily_memories))

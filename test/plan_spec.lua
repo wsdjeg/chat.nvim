@@ -34,9 +34,10 @@ function TestPlan:setUp()
 
   -- Setup test config
   config.setup({
+    storage_dir = test_storage_dir,
     memory = {
       enable = true,
-      storage_dir = test_storage_dir,
+      storage_dir = test_storage_dir .. 'memory/',
       working = {
         enable = true,
       },
@@ -834,7 +835,7 @@ function TestPlan:testLoadValidation()
   local p = plan.create('Validation Test', { 'Step 1' })
 
   -- Manually write a minimal/old-format JSON to test migration
-  local path = config.config.memory.storage_dir .. 'plans.json'
+  local path = config.config.storage_dir .. 'plans.json'
   local minimal_data = {
     {
       id = 'plan-old-0001',

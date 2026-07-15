@@ -9,9 +9,7 @@ local log = require('chat.log')
 --- Get the storage directory for user profiles
 --- @return string
 local function get_storage_dir()
-  local cfg = config.config.user or {}
-  return cfg.storage_dir
-    or (vim.fn.stdpath('data') .. '/chat.nvim/users/')
+  return config.get_user_storage_dir()
 end
 
 --- Ensure the storage directory exists
