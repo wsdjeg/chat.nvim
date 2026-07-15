@@ -10,7 +10,7 @@ local uv = vim.uv
 --------------------------------------------------
 -- constants
 --------------------------------------------------
-local STATE_FILE = vim.fn.stdpath('data') .. '/chat.nvim/integration/slack.json'
+local STATE_FILE = config.config.storage_dir .. 'integration/slack.json'
 local API_BASE = 'https://slack.com/api'
 
 --------------------------------------------------

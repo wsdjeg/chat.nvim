@@ -10,7 +10,7 @@ local uv = vim.uv
 --------------------------------------------------
 -- constants
 --------------------------------------------------
-local STATE_FILE = vim.fn.stdpath('data') .. '/chat.nvim/integration/lark.json'
+local STATE_FILE = config.config.storage_dir .. 'integration/lark.json'
 local API_BASE = 'https://open.feishu.cn/open-apis'
 
 --------------------------------------------------

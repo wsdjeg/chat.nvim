@@ -10,7 +10,7 @@ local uv = vim.uv
 --------------------------------------------------
 -- constants
 --------------------------------------------------
-local STATE_FILE = vim.fn.stdpath('data') .. '/chat.nvim/integration/dingtalk.json'
+local STATE_FILE = config.config.storage_dir .. 'integration/dingtalk.json'
 local API_BASE = 'https://api.dingtalk.com'
 
 --------------------------------------------------
