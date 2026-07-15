@@ -130,6 +130,57 @@ function TestPlan:testListPlans()
   lu.assertTrue(#pending >= 1, 'Should have at least 1 pending plan')
 end
 
+function TestPlan:testListBySession()
+  package.loaded['chat.plan'] = nil
+  local plan = require('chat.plan')
+
+  -- Create plans with different sessions (same project)
+  plan.create('Session A Plan', {}, { working_dir = '/project1', session = 'session-a' })
+  plan.create('Session B Plan', {}, { working_dir = '/project1', session = 'session-b' })
+
+  -- List by session A only
+  local result = plan.list(nil, '/project1', 'session-a')
+  lu.assertEquals(#result, 1, 'Should only show session A plans')
+  lu.assertEquals(result[1].title, 'Session A Plan')
+
+  -- List by session B only
+  result = plan.list(nil, '/project1', 'session-b')
+  lu.assertEquals(#result, 1, 'Should only show session B plans')
+  lu.assertEquals(result[1].title, 'Session B Plan')
+end
+
+function TestPlan:testListIncludeProject()
+  package.loaded['chat.plan'] = nil
+  local plan = require('chat.plan')
+
+  -- Create plans with different sessions but same project
+  plan.create('Session A Plan', {}, { working_dir = '/project1', session = 'session-a' })
+  plan.create('Session B Plan', {}, { working_dir = '/project1', session = 'session-b' })
+
+  -- List with include_project=true should show both plans from same project
+  local result = plan.list(nil, '/project1', 'session-a', true)
+  lu.assertEquals(#result, 2, 'Should show both plans from same project')
+
+  -- List without include_project should only show current session
+  result = plan.list(nil, '/project1', 'session-a')
+  lu.assertEquals(#result, 1, 'Should only show current session plan')
+  lu.assertEquals(result[1].title, 'Session A Plan')
+end
+
+function TestPlan:testListDifferentSessionAndDir()
+  package.loaded['chat.plan'] = nil
+  local plan = require('chat.plan')
+
+  -- Plan from different session AND different dir
+  plan.create('Other Plan', {}, { working_dir = '/other-project', session = 'other-session' })
+  plan.create('My Plan', {}, { working_dir = '/my-project', session = 'my-session' })
+
+  -- Even with include_project, should NOT show plans from different dir AND session
+  local result = plan.list(nil, '/my-project', 'my-session', true)
+  lu.assertEquals(#result, 1, 'Should not mix different session AND different dir')
+  lu.assertEquals(result[1].title, 'My Plan')
+end
+
 function TestPlan:testAddStep()
   package.loaded['chat.plan'] = nil
   local plan = require('chat.plan')

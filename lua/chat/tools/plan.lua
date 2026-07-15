@@ -68,21 +68,26 @@ function M.plan(arguments, ctx)
     }
   end
 
-  -- List all plans (filtered by current project) - no plan_id needed
+  -- List plans (filtered by current session, optionally include same project)
   if action == 'list' then
     local status = arguments.status
     local cwd = ctx.cwd or vim.fn.getcwd()
-    local plans = plan_module.list(status, cwd)
+    local session = ctx.session
+    local include_project = arguments.include_project
+
+    local plans = plan_module.list(status, cwd, session, include_project)
 
     if #plans == 0 then
+      local scope = include_project and 'project' or 'session'
       return {
         content = status
-            and string.format('No %s plans found in current project.', status)
-          or 'No plans found in current project.',
+            and string.format('No %s plans found in current %s.', status, scope)
+          or string.format('No plans found in current %s.', scope),
       }
     end
 
-    local output = { '# 📚 Plans (Current Project)\n' }
+    local title_scope = include_project and 'Current Project' or 'Current Session'
+    local output = { '# 📚 Plans (' .. title_scope .. ')\n' }
     for _, plan in ipairs(plans) do
       local completed = #vim.tbl_filter(function(s)
         return s.status == 'completed'
@@ -326,7 +331,7 @@ Plan mode for creating, managing, and reviewing task plans.
 Actions:
 - create: Create new plan with title and optional steps
 - show: Show plan details by ID
-- list: List all plans in current project (optional status filter)
+- list: List plans in current session (optional status filter, use include_project for same-dir plans)
 - add: Add step to existing plan
 - next: Start next pending step
 - done: Mark current/completed step as done
@@ -382,6 +387,10 @@ Examples:
           status = {
             type = 'string',
             description = 'Filter by status (for list)',
+          },
+          include_project = {
+            type = 'boolean',
+            description = 'Include plans from same project (working_dir) when listing (default: false, session only)',
           },
           summary = {
             type = 'string',

@@ -295,6 +295,112 @@ function TestToolsPlan:testListWithStatusFilter()
   lu.assertStrContains(result2.content, 'No completed plans')
 end
 
+function TestToolsPlan:testListSessionIsolation()
+  local plan_tool, _ = reload_modules()
+  local ctx_a = {
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    session = 'session-a',
+  }
+  local ctx_b = {
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    session = 'session-b',
+  }
+
+  -- Create plans in different sessions (same project)
+  plan_tool.plan({
+    action = 'create',
+    title = 'Plan A',
+    steps = { 'A1' },
+  }, ctx_a)
+
+  plan_tool.plan({
+    action = 'create',
+    title = 'Plan B',
+    steps = { 'B1' },
+  }, ctx_b)
+
+  -- List in session A should only show Plan A
+  local result_a = plan_tool.plan({ action = 'list' }, ctx_a)
+  lu.assertNil(result_a.error)
+  lu.assertStrContains(result_a.content, 'Plan A')
+  lu.assertNotStrContains(result_a.content, 'Plan B')
+
+  -- List in session B should only show Plan B
+  local result_b = plan_tool.plan({ action = 'list' }, ctx_b)
+  lu.assertNil(result_b.error)
+  lu.assertStrContains(result_b.content, 'Plan B')
+  lu.assertNotStrContains(result_b.content, 'Plan A')
+end
+
+function TestToolsPlan:testListIncludeProject()
+  local plan_tool, _ = reload_modules()
+  local ctx_a = {
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    session = 'session-a',
+  }
+  local ctx_b = {
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    session = 'session-b',
+  }
+
+  -- Create plans in different sessions (same project)
+  plan_tool.plan({
+    action = 'create',
+    title = 'Plan A',
+    steps = { 'A1' },
+  }, ctx_a)
+
+  plan_tool.plan({
+    action = 'create',
+    title = 'Plan B',
+    steps = { 'B1' },
+  }, ctx_b)
+
+  -- List with include_project in session A should show both
+  local result = plan_tool.plan({
+    action = 'list',
+    include_project = true,
+  }, ctx_a)
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'Plan A')
+  lu.assertStrContains(result.content, 'Plan B')
+  lu.assertStrContains(result.content, 'Current Project')
+end
+
+function TestToolsPlan:testListDifferentSessionAndDir()
+  local plan_tool, _ = reload_modules()
+  local ctx_a = {
+    cwd = '/different-project',
+    session = 'session-a',
+  }
+  local ctx_b = {
+    cwd = vim.fs.normalize(vim.fn.getcwd()),
+    session = 'session-b',
+  }
+
+  -- Create plan in different session AND different dir
+  plan_tool.plan({
+    action = 'create',
+    title = 'Other Project Plan',
+    steps = { 'X1' },
+  }, ctx_a)
+
+  plan_tool.plan({
+    action = 'create',
+    title = 'My Project Plan',
+    steps = { 'M1' },
+  }, ctx_b)
+
+  -- List with include_project in session B should NOT show Other Project Plan
+  local result = plan_tool.plan({
+    action = 'list',
+    include_project = true,
+  }, ctx_b)
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'My Project Plan')
+  lu.assertNotStrContains(result.content, 'Other Project Plan')
+end
+
 -- ── Show ───────────────────────────────────────────────────
 
 function TestToolsPlan:testShowPlan()

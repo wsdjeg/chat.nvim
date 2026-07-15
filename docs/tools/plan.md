@@ -21,10 +21,12 @@ Plan mode for creating, managing, and reviewing task plans with step-by-step tra
 | -------- | --------------------------------------------- |
 | `create` | Create new plan with title and optional steps |
 | `show`   | Show plan details by ID                       |
-| `list`   | List all plans (optional status filter)       |
+| `list`   | List plans in current session (optional status filter, use `include_project` for same-dir plans) |
 | `add`    | Add step to existing plan                     |
 | `next`   | Start next pending step                       |
 | `done`   | Mark current/completed step as done           |
+| `pause`  | Pause an in-progress plan                     |
+| `resume` | Resume a paused plan                          |
 | `review` | Review completed plan with summary            |
 | `delete` | Delete a plan                                 |
 
@@ -66,6 +68,7 @@ Plan mode for creating, managing, and reviewing task plans with step-by-step tra
 | `step_id`      | integer | Step ID (required for done action, auto-detected if not provided)                          |
 | `notes`        | string  | Notes for step completion (optional for done action)                                       |
 | `status`       | string  | Filter by status for list action (pending, in_progress, completed)                         |
+| `include_project` | boolean | Include plans from same project dir when listing (default: false, session only)       |
 | `summary`      | string  | Plan summary (for review action)                                                           |
 | `lessons`      | array   | Lessons learned (for review action)                                                        |
 

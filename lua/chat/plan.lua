@@ -120,11 +120,13 @@ function M.get(plan_id)
   return nil
 end
 
----List plans, optionally filtered by status and/or working_dir
+---List plans, optionally filtered by status, session, and/or working_dir
 ---@param status? string Filter by status (optional)
 ---@param working_dir? string Filter by working directory (project isolation)
+---@param session? string Filter by session (session isolation, default when provided)
+---@param include_project? boolean When true, also include plans from same working_dir
 ---@return ChatPlan[] List of plans
-function M.list(status, working_dir)
+function M.list(status, working_dir, session, include_project)
   local filtered = plans
 
   if status then
@@ -133,7 +135,27 @@ function M.list(status, working_dir)
     end, filtered)
   end
 
-  if working_dir then
+  if session then
+    -- Session isolation (default): only show plans from current session
+    -- When include_project is true, also include plans from same working_dir
+    filtered = vim.tbl_filter(function(p)
+      -- Same session: always include
+      if p.context and p.context.session == session then
+        return true
+      end
+      -- Different session but same project: include only if requested
+      if
+        include_project
+        and working_dir
+        and p.context
+        and p.context.working_dir == working_dir
+      then
+        return true
+      end
+      return false
+    end, filtered)
+  elseif working_dir then
+    -- Backward compat: if no session, filter by working_dir only
     filtered = vim.tbl_filter(function(p)
       return p.context and p.context.working_dir == working_dir
     end, filtered)
