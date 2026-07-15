@@ -1,14 +1,17 @@
 -- lua/chat/tools/plan.lua
 
 ---@class ChatToolPlanAction
----@field action '"create"'|'"show"'|'"list"'|'"add"'|'"next"'|'"done"'|'"review"'|'"delete"'|'"pause"'|'"resume"' Plan action to perform
----@field title? string Plan title (for create)
+---@field action '"create"'|'"show"'|'"list"'|'"add"'|'"next"'|'"done"'|'"cancel_step"'|'"delete_step"'|'"update_step"'|'"reorder_steps"'|'"pause"'|'"resume"'|'"review"'|'"update_title"'|'"cancel"'|'"reopen"'|'"delete"' Plan action to perform
+---@field title? string Plan title (for create, update_title)
 ---@field steps? string[] Initial steps (for create)
 ---@field plan_id? string Plan ID
----@field step_content? string Step content (for add)
----@field step_id? integer Step ID (for done)
----@field notes? string Notes for step completion
+---@field step_content? string Step content (for add, update_step)
+---@field step_id? integer Step ID (for done, cancel_step, delete_step, update_step)
+---@field step_ids? integer[] Ordered step IDs (for reorder_steps)
+---@field notes? string Notes for step completion or cancel reason
+---@param pause_reason? string Reason for pausing a plan
 ---@field status? string Filter by status (for list)
+---@field include_project? boolean Include same-dir plans when listing
 ---@field summary? string Plan summary (for review)
 ---@field lessons? string[] Lessons learned (for review)
 ---@field issues? string[] Issues encountered (for review)
@@ -154,10 +157,25 @@ function M.plan(arguments, ctx)
       table.insert(output, step_line)
     end
 
-    if plan.status == 'completed' and plan.review.summary then
+    -- Show review details if available
+    if plan.review and plan.review.summary and plan.review.summary ~= '' then
       table.insert(output, '')
       table.insert(output, '## Review:')
       table.insert(output, plan.review.summary)
+      if plan.review.lessons_learned and #plan.review.lessons_learned > 0 then
+        table.insert(output, '')
+        table.insert(output, '**Lessons:**')
+        for _, lesson in ipairs(plan.review.lessons_learned) do
+          table.insert(output, '  - ' .. lesson)
+        end
+      end
+      if plan.review.issues_encountered and #plan.review.issues_encountered > 0 then
+        table.insert(output, '')
+        table.insert(output, '**Issues:**')
+        for _, issue in ipairs(plan.review.issues_encountered) do
+          table.insert(output, '  - ' .. issue)
+        end
+      end
     end
 
     return { content = table.concat(output, '\n') }
@@ -247,9 +265,97 @@ function M.plan(arguments, ctx)
     return { content = content }
   end
 
+  -- Cancel step
+  if action == 'cancel_step' then
+    local step_id = arguments.step_id
+    if not step_id then
+      return { error = 'step_id is required for cancel_step action.' }
+    end
+
+    local step, err = plan_module.cancel_step(plan_id, step_id, arguments.notes)
+    if not step then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '❌ **Cancelled Step %d:** %s',
+        step.id,
+        step.content
+      ),
+    }
+  end
+
+  -- Delete step
+  if action == 'delete_step' then
+    local step_id = arguments.step_id
+    if not step_id then
+      return { error = 'step_id is required for delete_step action.' }
+    end
+
+    local plan, err = plan_module.delete_step(plan_id, step_id)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '🗑️ Step %d deleted from plan: **%s**',
+        step_id,
+        plan.title
+      ),
+    }
+  end
+
+  -- Update step content
+  if action == 'update_step' then
+    local step_id = arguments.step_id
+    if not step_id then
+      return { error = 'step_id is required for update_step action.' }
+    end
+
+    local step_content = arguments.step_content
+    if not step_content or step_content == '' then
+      return { error = 'step_content is required for update_step action.' }
+    end
+
+    local step, err = plan_module.update_step(plan_id, step_id, step_content)
+    if not step then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '✏️ **Updated Step %d:** %s',
+        step.id,
+        step.content
+      ),
+    }
+  end
+
+  -- Reorder steps
+  if action == 'reorder_steps' then
+    local step_ids = arguments.step_ids
+    if not step_ids or type(step_ids) ~= 'table' or #step_ids == 0 then
+      return { error = 'step_ids is required for reorder_steps action.' }
+    end
+
+    local plan, err = plan_module.reorder_steps(plan_id, step_ids)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '🔄 Steps reordered for plan: **%s**',
+        plan.title
+      ),
+    }
+  end
+
   -- Pause plan
   if action == 'pause' then
-    local reason = arguments.notes or arguments.pause_reason
+    local reason = arguments.pause_reason or arguments.notes
     local plan, err = plan_module.pause(plan_id, reason)
     if not plan then
       return { error = err }
@@ -281,7 +387,7 @@ function M.plan(arguments, ctx)
     }
   end
 
-  -- Review completed plan
+  -- Review completed or abandoned plan
   if action == 'review' then
     local summary = arguments.summary
     -- Defensive: normalize string->array
@@ -309,6 +415,58 @@ function M.plan(arguments, ctx)
     }
   end
 
+  -- Update plan title
+  if action == 'update_title' then
+    local title = arguments.title
+    if not title or title == '' then
+      return { error = 'title is required for update_title action.' }
+    end
+
+    local plan, err = plan_module.update_title(plan_id, title)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format('✏️ **Plan title updated:** %s', plan.title),
+    }
+  end
+
+  -- Cancel (abandon) plan
+  if action == 'cancel' then
+    local reason = arguments.notes
+    local plan, err = plan_module.cancel(plan_id, reason)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '🚫 **Plan abandoned:** %s\nReason: %s',
+        plan.title,
+        reason or 'N/A'
+      ),
+    }
+  end
+
+  -- Reopen plan
+  if action == 'reopen' then
+    local plan, err = plan_module.reopen(plan_id)
+    if not plan then
+      return { error = err }
+    end
+
+    return {
+      content = string.format(
+        '🔓 **Plan reopened:** %s (status: %s)\n\n'
+          .. 'Use `@plan action="next" plan_id="%s"` to continue.',
+        plan.title,
+        plan.status,
+        plan_id
+      ),
+    }
+  end
+
   -- Delete plan
   if action == 'delete' then
     plan_module.delete(plan_id)
@@ -330,23 +488,34 @@ Plan mode for creating, managing, and reviewing task plans.
 
 Actions:
 - create: Create new plan with title and optional steps
-- show: Show plan details by ID
+- show: Show plan details by ID (includes review info)
 - list: List plans in current session (optional status filter, use include_project for same-dir plans)
 - add: Add step to existing plan
 - next: Start next pending step
 - done: Mark current/completed step as done
+- cancel_step: Cancel a step (mark as cancelled)
+- delete_step: Delete a step from plan
+- update_step: Update step content
+- reorder_steps: Reorder steps by providing ordered step IDs
 - pause: Pause an in-progress plan
 - resume: Resume a paused plan
-- review: Review completed plan with summary
+- review: Review a completed or abandoned plan with summary
+- update_title: Update plan title
+- cancel: Abandon a plan (mark as abandoned)
+- reopen: Reopen a completed or abandoned plan
 - delete: Delete a plan
 
 Examples:
 @plan action="create" title="Implement feature X" steps=["Design API", "Write code", "Test"]
 @plan action="list" status="in_progress"
+@plan action="list" include_project=true
 @plan action="next" plan_id="plan-20250110-xxxx"
 @plan action="done" plan_id="plan-20250110-xxxx" notes="Completed successfully"
-@plan action="pause" plan_id="plan-20250110-xxxx"
-@plan action="resume" plan_id="plan-20250110-xxxx"
+@plan action="cancel_step" plan_id="plan-20250110-xxxx" step_id=2 notes="No longer needed"
+@plan action="reorder_steps" plan_id="plan-20250110-xxxx" step_ids=[3, 1, 2]
+@plan action="pause" plan_id="plan-20250110-xxxx" pause_reason="Waiting for API"
+@plan action="cancel" plan_id="plan-20250110-xxxx" notes="Requirements changed"
+@plan action="reopen" plan_id="plan-20250110-xxxx"
 @plan action="review" plan_id="plan-20250110-xxxx" summary="Feature implemented" lessons=["Lesson 1"]
       ]],
       parameters = {
@@ -361,14 +530,24 @@ Examples:
               'add',
               'next',
               'done',
+              'cancel_step',
+              'delete_step',
+              'update_step',
+              'reorder_steps',
               'pause',
               'resume',
               'review',
+              'update_title',
+              'cancel',
+              'reopen',
               'delete',
             },
             description = 'Plan action to perform',
           },
-          title = { type = 'string', description = 'Plan title (for create)' },
+          title = {
+            type = 'string',
+            description = 'Plan title (for create, update_title)',
+          },
           steps = {
             type = 'array',
             items = { type = 'string' },
@@ -377,12 +556,24 @@ Examples:
           plan_id = { type = 'string', description = 'Plan ID' },
           step_content = {
             type = 'string',
-            description = 'Step content (for add)',
+            description = 'Step content (for add, update_step)',
           },
-          step_id = { type = 'integer', description = 'Step ID (for done)' },
+          step_id = {
+            type = 'integer',
+            description = 'Step ID (for done, cancel_step, delete_step, update_step)',
+          },
+          step_ids = {
+            type = 'array',
+            items = { type = 'integer' },
+            description = 'Ordered list of step IDs (for reorder_steps)',
+          },
           notes = {
             type = 'string',
-            description = 'Notes for step completion or pause reason',
+            description = 'Notes for step completion, or reason for cancel/cancel_step',
+          },
+          pause_reason = {
+            type = 'string',
+            description = 'Reason for pausing a plan (for pause action)',
           },
           status = {
             type = 'string',
@@ -426,6 +617,9 @@ function M.info(action, ctx)
     end
     if arguments.plan_id then
       table.insert(parts, '`' .. arguments.plan_id .. '`')
+    end
+    if arguments.step_id then
+      table.insert(parts, 'step ' .. tostring(arguments.step_id))
     end
     return table.concat(parts, ' ')
   end

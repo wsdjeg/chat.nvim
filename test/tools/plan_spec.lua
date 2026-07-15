@@ -84,6 +84,14 @@ function TestToolsPlan:testScheme()
   lu.assertTrue(vim.tbl_contains(actions, 'resume'))
   lu.assertTrue(vim.tbl_contains(actions, 'review'))
   lu.assertTrue(vim.tbl_contains(actions, 'delete'))
+  -- New actions
+  lu.assertTrue(vim.tbl_contains(actions, 'cancel_step'))
+  lu.assertTrue(vim.tbl_contains(actions, 'delete_step'))
+  lu.assertTrue(vim.tbl_contains(actions, 'update_step'))
+  lu.assertTrue(vim.tbl_contains(actions, 'reorder_steps'))
+  lu.assertTrue(vim.tbl_contains(actions, 'update_title'))
+  lu.assertTrue(vim.tbl_contains(actions, 'cancel'))
+  lu.assertTrue(vim.tbl_contains(actions, 'reopen'))
 
   -- Check key properties exist
   lu.assertNotNil(scheme['function'].parameters.properties.title)
@@ -96,6 +104,10 @@ function TestToolsPlan:testScheme()
   lu.assertNotNil(scheme['function'].parameters.properties.summary)
   lu.assertNotNil(scheme['function'].parameters.properties.lessons)
   lu.assertNotNil(scheme['function'].parameters.properties.issues)
+  -- New properties
+  lu.assertNotNil(scheme['function'].parameters.properties.include_project)
+  lu.assertNotNil(scheme['function'].parameters.properties.pause_reason)
+  lu.assertNotNil(scheme['function'].parameters.properties.step_ids)
 end
 
 -- ── Info ───────────────────────────────────────────────────
@@ -558,14 +570,15 @@ function TestToolsPlan:testNextStepNoPending()
     step_id = 1,
   }, ctx)
 
-  -- Now no pending steps left
+  -- Plan is completed after all steps done, next should fail
   local result = plan_tool.plan({
     action = 'next',
     plan_id = plan_id,
   }, ctx)
 
   lu.assertNotNil(result.error)
-  lu.assertStrContains(result.error, 'No pending')
+  -- After completing all steps, plan is completed
+  lu.assertStrContains(result.error, 'completed')
 end
 
 -- ── Done ───────────────────────────────────────────────────
@@ -888,8 +901,14 @@ function TestToolsPlan:testMissingPlanId()
     session = 'test-session',
   }
 
-  -- Actions that require plan_id: show, add, next, done, pause, resume, review, delete
-  local actions = { 'show', 'add', 'next', 'done', 'pause', 'resume', 'review', 'delete' }
+  -- Actions that require plan_id (including new ones)
+  local actions = {
+    'show', 'add', 'next', 'done',
+    'cancel_step', 'delete_step', 'update_step', 'reorder_steps',
+    'pause', 'resume', 'review',
+    'update_title', 'cancel', 'reopen',
+    'delete',
+  }
   for _, action in ipairs(actions) do
     local result = plan_tool.plan({
       action = action,
@@ -980,6 +999,327 @@ function TestToolsPlan:testFullLifecycle()
   }, ctx)
   lu.assertStrContains(show.content, 'completed')
   lu.assertStrContains(show.content, 'All done')
+end
+
+-- ── New Step Operations ────────────────────────────────────
+
+function TestToolsPlan:testCancelStep()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Cancel Step', steps = { 'A', 'B' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'cancel_step', plan_id = pid, step_id = 1, notes = 'Skipped',
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'Cancelled Step')
+  lu.assertStrContains(result.content, 'A')
+end
+
+function TestToolsPlan:testCancelStepMissingStepId()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Test', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'cancel_step', plan_id = pid,
+  }, ctx)
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'step_id is required')
+end
+
+function TestToolsPlan:testDeleteStep()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Delete Step', steps = { 'A', 'B', 'C' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'delete_step', plan_id = pid, step_id = 2,
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'deleted')
+
+  -- Verify step 2 is gone
+  local show = plan_tool.plan({ action = 'show', plan_id = pid }, ctx)
+  lu.assertNotStrContains(show.content, 'B')
+  lu.assertStrContains(show.content, 'A')
+  lu.assertStrContains(show.content, 'C')
+end
+
+function TestToolsPlan:testUpdateStep()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Update Step', steps = { 'Old content' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'update_step', plan_id = pid, step_id = 1, step_content = 'New content',
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'Updated Step')
+  lu.assertStrContains(result.content, 'New content')
+end
+
+function TestToolsPlan:testReorderSteps()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Reorder', steps = { 'A', 'B', 'C' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'reorder_steps', plan_id = pid, step_ids = { 3, 1, 2 },
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'reordered')
+
+  -- Verify order via show
+  local show = plan_tool.plan({ action = 'show', plan_id = pid }, ctx)
+  -- C should appear before A before B
+  local pos_c = show.content:find('C')
+  local pos_a = show.content:find('A')
+  local pos_b = show.content:find('B')
+  lu.assertTrue(pos_c < pos_a, 'C should come before A')
+  lu.assertTrue(pos_a < pos_b, 'A should come before B')
+end
+
+-- ── New Plan Operations ────────────────────────────────────
+
+function TestToolsPlan:testUpdateTitle()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Old Title',
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'update_title', plan_id = pid, title = 'New Title',
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'New Title')
+end
+
+function TestToolsPlan:testCancelPlan()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Cancel Me', steps = { 'Step 1' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'cancel', plan_id = pid, notes = 'Requirements changed',
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'abandoned')
+  lu.assertStrContains(result.content, 'Requirements changed')
+end
+
+function TestToolsPlan:testCancelCompletedPlanFails()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Done Plan', steps = { 'Step 1' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 1 }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'cancel', plan_id = pid,
+  }, ctx)
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'completed')
+end
+
+function TestToolsPlan:testReopenPlan()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Reopen Me', steps = { 'A', 'B' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  -- Complete the plan
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 1 }, ctx)
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 2 }, ctx)
+
+  -- Reopen
+  local result = plan_tool.plan({
+    action = 'reopen', plan_id = pid,
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'reopened')
+  lu.assertStrContains(result.content, 'pending')
+end
+
+-- ── pause_reason parameter ─────────────────────────────────
+
+function TestToolsPlan:testPauseWithPauseReason()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Pause Test', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'pause', plan_id = pid, pause_reason = 'Waiting for API',
+  }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'paused')
+  lu.assertStrContains(result.content, 'Waiting for API')
+end
+
+-- ── Review on non-completed plan fails ─────────────────────
+
+function TestToolsPlan:testReviewNonCompletedFails()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Pending', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  local result = plan_tool.plan({
+    action = 'review', plan_id = pid, summary = 'Summary',
+  }, ctx)
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'completed')
+end
+
+-- ── add_step to completed plan fails ───────────────────────
+
+function TestToolsPlan:testAddStepToCompletedFails()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Completed', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 1 }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'add', plan_id = pid, step_content = 'New step',
+  }, ctx)
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'completed')
+end
+
+-- ── start_next on completed plan fails ─────────────────────
+
+function TestToolsPlan:testNextOnCompletedFails()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Done', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 1 }, ctx)
+
+  local result = plan_tool.plan({
+    action = 'next', plan_id = pid,
+  }, ctx)
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'completed')
+end
+
+-- ── show with review details ───────────────────────────────
+
+function TestToolsPlan:testShowWithReviewDetails()
+  local plan_tool, _ = reload_modules()
+  local ctx = { cwd = vim.fs.normalize(vim.fn.getcwd()), session = 's1' }
+
+  local cr = plan_tool.plan({
+    action = 'create', title = 'Reviewed Plan', steps = { 'A' },
+  }, ctx)
+  local pid = cr.content:match('`plan-[^`]+`'):gsub('`', '')
+
+  -- Complete and review
+  plan_tool.plan({ action = 'next', plan_id = pid }, ctx)
+  plan_tool.plan({ action = 'done', plan_id = pid, step_id = 1 }, ctx)
+  plan_tool.plan({
+    action = 'review', plan_id = pid,
+    summary = 'Great success',
+    lessons = { 'Plan early', 'Test often' },
+    issues = { 'API was down' },
+  }, ctx)
+
+  -- Show should include review details
+  local result = plan_tool.plan({ action = 'show', plan_id = pid }, ctx)
+
+  lu.assertNil(result.error)
+  lu.assertStrContains(result.content, 'Review:')
+  lu.assertStrContains(result.content, 'Great success')
+  lu.assertStrContains(result.content, 'Lessons:')
+  lu.assertStrContains(result.content, 'Plan early')
+  lu.assertStrContains(result.content, 'Issues:')
+  lu.assertStrContains(result.content, 'API was down')
+end
+
+-- ── info with step_id ─────────────────────────────────────
+
+function TestToolsPlan:testInfoWithStepId()
+  local plan_tool = require('chat.tools.plan')
+  local info = plan_tool.info(
+    vim.json.encode({ action = 'done', plan_id = 'plan-12345', step_id = 3 }),
+    { cwd = vim.fn.getcwd() }
+  )
+  lu.assertStrContains(info, 'done')
+  lu.assertStrContains(info, 'plan-12345')
+  lu.assertStrContains(info, 'step 3')
 end
 
 return TestToolsPlan
