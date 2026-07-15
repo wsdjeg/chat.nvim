@@ -36,9 +36,16 @@ local function make_request(method, path, headers, body)
   return req_method, req_path, parsed_headers, req_body
 end
 
+local test_storage_dir
+
 function TestHTTP:setUp()
-  -- Setup test config
-  config._config = {
+  -- Create temporary storage directory
+  test_storage_dir = vim.fn.tempname() .. '_http_test/'
+  vim.fn.mkdir(test_storage_dir, 'p')
+
+  -- Setup test config with independent storage_dir
+  config.setup({
+    storage_dir = test_storage_dir,
     http = {
       enabled = true,
       host = '127.0.0.1',
@@ -46,10 +53,10 @@ function TestHTTP:setUp()
       api_key = 'test-api-key',
     },
     memory = {
-      enabled = true,
-      db_path = vim.fn.stdpath('data') .. '/chat_test_memories.db',
+      enable = true,
+      storage_dir = test_storage_dir .. 'memory/',
     },
-  }
+  })
 
   -- Use a temp directory to avoid polluting real session cache
   self.test_cache_dir = vim.fn.tempname() .. '/'
@@ -62,7 +69,10 @@ end
 function TestHTTP:tearDown()
   -- Clean up temp cache directory
   vim.fn.delete(self.test_cache_dir, 'rf')
-  config._config = nil
+  -- Clean up test storage directory
+  if test_storage_dir and vim.fn.isdirectory(test_storage_dir) == 1 then
+    vim.fn.delete(test_storage_dir, 'rf')
+  end
 end
 
 -- Test parse_headers functionality

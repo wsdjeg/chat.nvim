@@ -28,6 +28,7 @@ local ok, err = pcall(function()
     api_key = {
       test_provider = 'test-key',
     },
+    storage_dir = test_dir .. '/',
     memory = {
       enable = true,
       storage_dir = test_dir .. '/memory/',
