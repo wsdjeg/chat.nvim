@@ -57,6 +57,24 @@ function M.store(session, role, content, metadata)
     return nil
   end
 
+  -- 去重检查：相似度 >0.85 则更新已有记忆
+  local DEDUP_THRESHOLD = 0.85
+  for _, existing in ipairs(long_term_memories) do
+    if existing.session == session then
+      local sim = similarity.text_similarity(content, existing.content)
+      if sim >= DEDUP_THRESHOLD then
+        -- 更新已有记忆
+        existing.content = content
+        existing.timestamp = os.time()
+        existing.hit_count = (existing.hit_count or 0) + 1
+        existing.updated_at = os.time()
+        existing.last_accessed = os.time()
+        M.save()
+        return existing.id
+      end
+    end
+  end
+
   local memory = {
     id = generate_id(),
     session = session,
@@ -64,7 +82,9 @@ function M.store(session, role, content, metadata)
     content = content,
     timestamp = os.time(),
     access_count = 0,
+    hit_count = 1,
     last_accessed = os.time(),
+    updated_at = os.time(),
     metadata = metadata or {
       memory_type = 'long_term',
       category = 'fact',
@@ -217,6 +237,8 @@ function M.get_all()
       session = m.session,
       timestamp = m.timestamp,
       access_count = m.access_count,
+      hit_count = m.hit_count,
+      updated_at = m.updated_at,
       category = m.metadata and m.metadata.category,
       confidence = m.metadata and m.metadata.confidence,
     }

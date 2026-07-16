@@ -158,4 +158,118 @@ function TestMemory:testGetStats()
   lu.assertNotNil(stats.working)
 end
 
+-- === Dedup tests ===
+
+function TestMemory:testLongTermDedupUpdate()
+  local session = 'test-dedup-lt'
+  local long_term = require('chat.memory.long_term')
+
+  -- Store first memory
+  local id1 = long_term.store(session, 'user', 'Python的GIL是全局解释器锁')
+
+  -- Store near-identical memory (should update, not duplicate)
+  local id2 = long_term.store(session, 'user', 'Python的GIL是全局解释器锁')
+
+  -- Should return same ID (dedup)
+  lu.assertEquals(id1, id2)
+
+  -- Verify only one memory exists for this session
+  local all = long_term.get_all()
+  local count = 0
+  for _, mem in ipairs(all) do
+    if mem.session == session then
+      count = count + 1
+    end
+  end
+  lu.assertEquals(count, 1)
+end
+
+function TestMemory:testDailyDedupUpdate()
+  local session = 'test-dedup-daily'
+  local daily = require('chat.memory.daily')
+
+  -- Store first memory
+  local id1 = daily.store(session, 'user', '今天要完成用户登录功能')
+
+  -- Store identical memory (should update)
+  local id2 = daily.store(session, 'user', '今天要完成用户登录功能')
+
+  lu.assertEquals(id1, id2)
+
+  local all = daily.get_all()
+  local count = 0
+  for _, mem in ipairs(all) do
+    if mem.session == session then
+      count = count + 1
+    end
+  end
+  lu.assertEquals(count, 1)
+end
+
+function TestMemory:testWorkingDedupUpdate()
+  local session = 'test-dedup-work'
+  local working = require('chat.memory.working')
+
+  -- Store first memory
+  local id1 = working.store(session, 'user', '当前正在修复登录bug')
+
+  -- Store identical memory (should update)
+  local id2 = working.store(session, 'user', '当前正在修复登录bug')
+
+  lu.assertEquals(id1, id2)
+
+  local all = working.get_all()
+  local count = 0
+  for _, mem in ipairs(all) do
+    if mem.session == session then
+      count = count + 1
+    end
+  end
+  lu.assertEquals(count, 1)
+end
+
+function TestMemory:testDedupDoesNotMergeDifferentContent()
+  local session = 'test-dedup-diff'
+  local long_term = require('chat.memory.long_term')
+
+  -- Store two very different memories
+  local id1 = long_term.store(session, 'user', 'Python的GIL是全局解释器锁')
+  local id2 = long_term.store(session, 'user', '今天天气很好适合出门散步')
+
+  -- Should be different IDs
+  lu.assertNotEquals(id1, id2)
+
+  -- Both should exist
+  local all = long_term.get_all()
+  local count = 0
+  for _, mem in ipairs(all) do
+    if mem.session == session then
+      count = count + 1
+    end
+  end
+  lu.assertEquals(count, 2)
+end
+
+function TestMemory:testDedupHitCount()
+  local session = 'test-dedup-hit'
+  local long_term = require('chat.memory.long_term')
+
+  -- Store same content multiple times
+  local content = 'Vim是最好的编辑器'
+  long_term.store(session, 'user', content)
+  long_term.store(session, 'user', content)
+  local id3 = long_term.store(session, 'user', content)
+
+  -- Find the memory and check hit_count
+  local all = long_term.get_all()
+  for _, mem in ipairs(all) do
+    if mem.id == id3 then
+      lu.assertTrue(mem.hit_count >= 3,
+        'hit_count should be at least 3 after 3 stores of same content')
+      return
+    end
+  end
+  lu.fail('Memory not found after dedup store')
+end
+
 return TestMemory

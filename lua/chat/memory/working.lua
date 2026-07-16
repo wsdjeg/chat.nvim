@@ -28,6 +28,22 @@ function M.store(session, role, content, metadata)
   -- Use current session if not specified
   session = session or get_current_session()
 
+  -- 去重检查：相似度 >0.85 则更新已有记忆
+  local DEDUP_THRESHOLD = 0.85
+  for _, existing in ipairs(working_memories) do
+    if existing.session == session and not existing.expired then
+      local sim = similarity.text_similarity(content, existing.content)
+      if sim >= DEDUP_THRESHOLD then
+        existing.content = content
+        existing.timestamp = os.time()
+        existing.hit_count = (existing.hit_count or 0) + 1
+        existing.updated_at = os.time()
+        M.save()
+        return existing.id
+      end
+    end
+  end
+
   local memory = {
     id = generate_id(),
     session = session,
@@ -41,6 +57,8 @@ function M.store(session, role, content, metadata)
     },
     ttl = 3600, -- Default 1 hour TTL (time-to-live)
     created_at = os.time(),
+    hit_count = 1,
+    updated_at = os.time(),
   }
 
   table.insert(working_memories, memory)

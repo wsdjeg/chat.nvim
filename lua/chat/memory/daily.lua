@@ -16,6 +16,23 @@ function M.store(session, role, content)
     return nil
   end
   local timestamp = os.time()
+
+  -- 去重检查：相似度 >0.85 则更新已有记忆
+  local DEDUP_THRESHOLD = 0.85
+  for _, existing in ipairs(daily_memories) do
+    if existing.session == session then
+      local sim = similarity.text_similarity(content, existing.content)
+      if sim >= DEDUP_THRESHOLD then
+        existing.content = content
+        existing.timestamp = timestamp
+        existing.hit_count = (existing.hit_count or 0) + 1
+        existing.updated_at = timestamp
+        M.save()
+        return existing.id
+      end
+    end
+  end
+
   local memory = {
     id = string.format(
       'daily-%s-%s',
@@ -28,6 +45,8 @@ function M.store(session, role, content)
     timestamp = timestamp,
     date_key = get_date_key(),
     expiry_days = config.config.memory.daily.retention_days,
+    hit_count = 1,
+    updated_at = timestamp,
     metadata = {},
   }
   table.insert(daily_memories, memory)
