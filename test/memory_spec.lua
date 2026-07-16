@@ -272,4 +272,100 @@ function TestMemory:testDedupHitCount()
   lu.fail('Memory not found after dedup store')
 end
 
+-- === Atomic write tests ===
+
+function TestMemory:testLongTermAtomicWritePreservesData()
+  local session = 'test-atomic-lt'
+  local long_term = require('chat.memory.long_term')
+
+  -- Store a memory and save
+  long_term.store(session, 'user', '原子写入测试数据')
+
+  -- Verify file exists and is valid JSON
+  local config = require('chat.config')
+  local path = vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/long_term_memories.json'
+  )
+  local file = io.open(path, 'r')
+  lu.assertNotNil(file, 'long_term memory file should exist after save')
+  if file then
+    local content = file:read('*a')
+    file:close()
+    local ok, data = pcall(vim.json.decode, content)
+    lu.assertTrue(ok, 'long_term memory file should be valid JSON')
+    lu.assertTrue(type(data) == 'table')
+  end
+
+  -- No .tmp file should remain
+  lu.assertNil(io.open(path .. '.tmp', 'r'),
+    'no .tmp file should remain after atomic write')
+end
+
+function TestMemory:testDailyAtomicWritePreservesData()
+  local session = 'test-atomic-daily'
+  local daily = require('chat.memory.daily')
+
+  daily.store(session, 'user', '原子写入日常测试')
+
+  local config = require('chat.config')
+  local path = config.get_memory_storage_dir() .. 'daily_memories.json'
+  local file = io.open(path, 'r')
+  lu.assertNotNil(file, 'daily memory file should exist after save')
+  if file then
+    local content = file:read('*a')
+    file:close()
+    local ok, data = pcall(vim.json.decode, content)
+    lu.assertTrue(ok, 'daily memory file should be valid JSON')
+    lu.assertTrue(type(data) == 'table')
+  end
+
+  lu.assertNil(io.open(path .. '.tmp', 'r'),
+    'no .tmp file should remain after atomic write')
+end
+
+function TestMemory:testWorkingAtomicWritePreservesData()
+  local session = 'test-atomic-work'
+  local working = require('chat.memory.working')
+
+  working.store(session, 'user', '原子写入工作测试')
+
+  local config = require('chat.config')
+  local path = vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/working_memories.json'
+  )
+  local file = io.open(path, 'r')
+  lu.assertNotNil(file, 'working memory file should exist after save')
+  if file then
+    local content = file:read('*a')
+    file:close()
+    local ok, data = pcall(vim.json.decode, content)
+    lu.assertTrue(ok, 'working memory file should be valid JSON')
+    lu.assertTrue(type(data) == 'table')
+  end
+
+  lu.assertNil(io.open(path .. '.tmp', 'r'),
+    'no .tmp file should remain after atomic write')
+end
+
+function TestMemory:testAtomicWriteReloadConsistency()
+  local session = 'test-atomic-reload'
+  local long_term = require('chat.memory.long_term')
+
+  -- Store and save
+  local id = long_term.store(session, 'user', '重新加载一致性测试')
+
+  -- Reload from disk
+  long_term.load()
+
+  -- Verify data is still there
+  local found = false
+  for _, mem in ipairs(long_term.get_all()) do
+    if mem.id == id then
+      found = true
+      break
+    end
+  end
+  lu.assertTrue(found, 'memory should survive save+reload cycle')
+end
+
 return TestMemory

@@ -461,11 +461,14 @@ function M.save()
   init_storage()
 
   local path = get_storage_path()
-  local file = io.open(path, 'w')
+  local tmp_path = path .. '.tmp'
 
+  -- 原子写入：先写临时文件，再 rename
+  local file = io.open(tmp_path, 'w')
   if file then
     file:write(vim.json.encode(long_term_memories))
     io.close(file)
+    os.rename(tmp_path, path)
   end
 end
 

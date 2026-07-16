@@ -327,11 +327,14 @@ function M.save()
   end
 
   local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
-  local file = io.open(path, 'w')
+  local tmp_path = path .. '.tmp'
 
+  -- 原子写入：先写临时文件，再 rename
+  local file = io.open(tmp_path, 'w')
   if file then
     file:write(vim.json.encode(working_memories))
     io.close(file)
+    os.rename(tmp_path, path)
   end
 end
 
