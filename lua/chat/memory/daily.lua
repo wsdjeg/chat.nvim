@@ -156,5 +156,13 @@ function M.get_stats()
 end
 
 M.load()
+
+-- 定时清理过期记忆（每小时执行一次）
+vim.loop.new_timer():start(3600000, 3600000, function()
+  vim.schedule(function()
+    M.cleanup_expired()
+  end)
+end)
+
 return M
 

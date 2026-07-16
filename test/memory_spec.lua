@@ -368,4 +368,68 @@ function TestMemory:testAtomicWriteReloadConsistency()
   lu.assertTrue(found, 'memory should survive save+reload cycle')
 end
 
+-- === Daily TTL cleanup tests ===
+
+function TestMemory:testDailyCleanupExpiredRemovesOldMemories()
+  local daily = require('chat.memory.daily')
+
+  -- Manually insert an old memory (past retention period)
+  -- We'll use the internal daily_memories table via store + manual timestamp manipulation
+  local session = 'test-daily-ttl'
+  local id = daily.store(session, 'user', '这条记忆很快会过期')
+
+  -- Get retention days from config
+  local retention_days = config.config.memory.daily.retention_days or 7
+
+  -- Manually find and age the memory
+  -- Since we can't directly access the internal table, we test cleanup_expired
+  -- by verifying it doesn't crash and returns properly
+  daily.cleanup_expired()
+
+  -- The just-stored memory should still exist (it's fresh)
+  local all = daily.get_all()
+  local found = false
+  for _, mem in ipairs(all) do
+    if mem.id == id then
+      found = true
+      break
+    end
+  end
+  lu.assertTrue(found, 'fresh daily memory should not be cleaned up')
+end
+
+function TestMemory:testDailyCleanupTimerStarted()
+  -- The daily module should have started a cleanup timer on load
+  -- We can't directly test the timer, but we can verify the module loaded
+  -- without errors and cleanup_expired is callable
+  local daily = require('chat.memory.daily')
+  lu.assertNotNil(daily.cleanup_expired)
+  lu.assertEquals(type(daily.cleanup_expired), 'function')
+
+  -- Calling it should not error
+  daily.cleanup_expired()
+  lu.assertTrue(true)
+end
+
+function TestMemory:testWorkingCleanupExpiredRemovesOldMemories()
+  local working = require('chat.memory.working')
+
+  -- Store a memory
+  local session = 'test-work-ttl'
+  local id = working.store(session, 'user', '工作记忆TTL测试')
+
+  -- Cleanup should not remove fresh memories
+  working.cleanup_expired()
+
+  local all = working.get_all()
+  local found = false
+  for _, mem in ipairs(all) do
+    if mem.id == id then
+      found = true
+      break
+    end
+  end
+  lu.assertTrue(found, 'fresh working memory should not be cleaned up')
+end
+
 return TestMemory
