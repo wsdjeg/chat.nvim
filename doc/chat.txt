@@ -52,20 +52,20 @@ CONTENTS                                                                *chat*
       Request Format                                     |chat-request-format|
       Response Format                                   |chat-response-format|
       Message Queue System                         |chat-message-queue-system|
-      Usage Examples                                     *chat-usage-examples|
-      Security Considerations                   *chat-security-considerations|
-  9. Picker Integration                              *chat-picker-integration|
-10. IM Integration                                         *chat-im-integration|
-      Discord                                                 *chat-discord|
-      Lark (Feishu)                                         *chat-lark|
-      DingTalk                                               *chat-dingtalk|
-      WeCom                                                     *chat-wecom|
-      Weixin (Personal WeChat)                               *chat-weixin|
-      Telegram                                               *chat-telegram|
-      Slack                                                     *chat-slack|
-  11. Self-Promotion                                      *chat-self-promotion|
-  12. Feedback                                                  *chat-feedback|
-  13. License                                                   *chat-license*
+      Usage Examples                                     |chat-usage-examples|
+      Security Considerations                   |chat-security-considerations|
+  9. Picker Integration                              |chat-picker-integration|
+10. IM Integration                                         |chat-im-integration|
+      Discord                                                 |chat-discord|
+      Lark (Feishu)                                         |chat-lark|
+      DingTalk                                               |chat-dingtalk|
+      WeCom                                                     |chat-wecom|
+      Weixin (Personal WeChat)                               |chat-weixin|
+      Telegram                                               |chat-telegram|
+      Slack                                                     |chat-slack|
+  11. Self-Promotion                                      |chat-self-promotion|
+  12. Feedback                                                  |chat-feedback|
+  13. License                                                   |chat-license|
 
 ==============================================================================
  1. INTRODUCTION                                           *chat-introduction*
