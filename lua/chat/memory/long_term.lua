@@ -1,6 +1,7 @@
 -- lua/chat/memory/long_term.lua
 local M = {}
 local config = require('chat.config')
+local similarity = require('chat.memory.similarity')
 
 local long_term_memories = {}
 
@@ -27,64 +28,9 @@ local function init_storage()
   end
 end
 
--- 文本相似度计算
+-- 文本相似度计算（委托给公共模块）
 function M.text_similarity(query, content)
-  if not query or not content then
-    return 0
-  end
-
-  local query_lower = query:lower()
-  local content_lower = content:lower()
-
-  -- 完全匹配
-  if query_lower == content_lower then
-    return 1.0
-  end
-
-  -- 子串匹配
-  if content_lower:find(query_lower, 1, true) then
-    return 0.8
-  end
-
-  -- 分词匹配
-  local function split_words(text)
-    local words = {}
-    -- 英文单词
-    for word in text:gmatch('%w+') do
-      words[word:lower()] = true
-    end
-    -- 中文字符（简单的字符匹配）
-    local i = 1
-    while i <= #text do
-      local byte = text:byte(i)
-      if byte >= 0xE4 and byte <= 0xE9 then
-        local gram = text:sub(i, i + 2)
-        words[gram] = true
-        i = i + 3
-      else
-        i = i + 1
-      end
-    end
-    return words
-  end
-
-  local query_words = split_words(query_lower)
-  local content_words = split_words(content_lower)
-
-  local matches = 0
-  local total = 0
-  for word in pairs(query_words) do
-    total = total + 1
-    if content_words[word] then
-      matches = matches + 1
-    end
-  end
-
-  if total == 0 then
-    return 0
-  end
-
-  return matches / total
+  return similarity.text_similarity(query, content)
 end
 
 -- 解析记忆内容（提取类型和分类）
@@ -166,7 +112,7 @@ function M.retrieve(query, session, limit)
   for _, memory in ipairs(long_term_memories) do
     -- 会话过滤（可选）
     if not session or memory.session == session then
-      local similarity = M.text_similarity(query, memory.content)
+      local sim = similarity.text_similarity(query, memory.content)
 
       -- 访问频率加成
       local access_bonus = math.min((memory.access_count or 0) * 0.05, 0.2)
@@ -178,7 +124,7 @@ function M.retrieve(query, session, limit)
       local age_days = (os.time() - memory.timestamp) / 86400
       local recency_bonus = math.max(0, (30 - age_days) / 30) * 0.1
 
-      local total_score = similarity
+      local total_score = sim
         + access_bonus
         + confidence_bonus
         + recency_bonus
@@ -186,7 +132,7 @@ function M.retrieve(query, session, limit)
       if total_score >= threshold then
         table.insert(scored, {
           memory = memory,
-          similarity = similarity,
+          similarity = sim,
           priority = total_score,
         })
       end
@@ -555,11 +501,11 @@ function M.advanced_search(options)
 
     -- 文本搜索
     if options.query then
-      local similarity = M.text_similarity(options.query, mem.content)
-      if similarity < (options.threshold or 0.3) then
+      local sim = similarity.text_similarity(options.query, mem.content)
+      if sim < (options.threshold or 0.3) then
         match = false
       end
-      mem.search_score = similarity
+      mem.search_score = sim
     end
 
     if match then
@@ -601,3 +547,4 @@ vim.loop.new_timer():start(604800000, 604800000, function()
 end)
 
 return M
+

@@ -1,6 +1,8 @@
 -- lua/chat/memory/daily.lua
 local M = {}
 local config = require('chat.config')
+local similarity = require('chat.memory.similarity')
+
 local daily_memories = {}
 
 -- 获取当天日期键
@@ -37,13 +39,13 @@ end
 function M.retrieve(query, limit)
   local scored = {}
   for _, memory in ipairs(daily_memories) do
-    local similarity = M.text_similarity(query, memory.content)
-    if similarity >= config.config.memory.daily.similarity_threshold then
+    local sim = similarity.text_similarity(query, memory.content)
+    if sim >= config.config.memory.daily.similarity_threshold then
       local age_days = (os.time() - memory.timestamp) / 86400
       local recency_bonus = math.max(0, (7 - age_days) / 7) * 0.2
       table.insert(scored, {
         memory = memory,
-        priority = similarity + recency_bonus,
+        priority = sim + recency_bonus,
       })
     end
   end
@@ -68,19 +70,9 @@ function M.cleanup_expired()
   M.save()
 end
 
--- 文本相似度（示意实现；可复用现有实现）
+-- 文本相似度（委托给公共模块，保持向后兼容）
 function M.text_similarity(query, content)
-  if not query or not content then
-    return 0
-  end
-  local q, c = query:lower(), content:lower()
-  if q == c then
-    return 1.0
-  end
-  if c:find(q, 1, true) then
-    return 0.8
-  end
-  return 0.4 -- 简化示意，实际可复用 memory.lua 的算法
+  return similarity.text_similarity(query, content)
 end
 
 -- 加载/保存
@@ -142,3 +134,4 @@ end
 
 M.load()
 return M
+

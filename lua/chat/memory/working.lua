@@ -1,5 +1,6 @@
 local M = {}
 local config = require('chat.config')
+local similarity = require('chat.memory.similarity')
 
 local working_memories = {}
 
@@ -81,7 +82,7 @@ function M.retrieve(query, limit)
     end
 
     -- Calculate similarity
-    local similarity = M.text_similarity(query, memory.content)
+    local sim = similarity.text_similarity(query, memory.content)
 
     -- Session relevance bonus
     local session_bonus = 0
@@ -106,7 +107,7 @@ function M.retrieve(query, limit)
     local recency_bonus = math.max(0, (60 - age_minutes) / 60) * 0.2
 
     -- Total priority
-    local total_priority = similarity
+    local total_priority = sim
       + session_bonus
       + importance_bonus
       + recency_bonus
@@ -261,64 +262,9 @@ function M.get_stats(session)
   return stats
 end
 
--- Text similarity calculation (reuse existing implementation)
+-- Text similarity (delegated to shared module, kept for backward compat)
 function M.text_similarity(query, content)
-  if not query or not content then
-    return 0
-  end
-
-  local query_lower = query:lower()
-  local content_lower = content:lower()
-
-  -- Exact match
-  if query_lower == content_lower then
-    return 1.0
-  end
-
-  -- Substring match
-  if content_lower:find(query_lower, 1, true) then
-    return 0.8
-  end
-
-  -- Tokenization match
-  local function split_words(text)
-    local words = {}
-    -- English words
-    for word in text:gmatch('%w+') do
-      words[word:lower()] = true
-    end
-    -- Chinese characters (simple bigram)
-    local i = 1
-    while i <= #text do
-      local byte = text:byte(i)
-      if byte >= 0xE4 and byte <= 0xE9 then
-        local gram = text:sub(i, i + 2)
-        words[gram] = true
-        i = i + 3
-      else
-        i = i + 1
-      end
-    end
-    return words
-  end
-
-  local query_words = split_words(query_lower)
-  local content_words = split_words(content_lower)
-
-  local matches = 0
-  local total = 0
-  for word in pairs(query_words) do
-    total = total + 1
-    if content_words[word] then
-      matches = matches + 1
-    end
-  end
-
-  if total == 0 then
-    return 0
-  end
-
-  return matches / total
+  return similarity.text_similarity(query, content)
 end
 
 -- Load working memories
@@ -433,3 +379,4 @@ vim.loop.new_timer():start(300000, 300000, function()
 end)
 
 return M
+
