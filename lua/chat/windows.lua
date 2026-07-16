@@ -18,21 +18,28 @@ local services_started = false
 
 --- Ensure current_session is valid.
 --- If it was deleted (e.g. via HTTP API), find an available session or create one.
+--- On first open (current_session is nil), always create a new session.
 --- @return string session_id
 local function ensure_session()
   if current_session and sessions.exists(current_session) then
     return current_session
   end
-  -- Session was deleted externally, find an available one
-  local all = sessions.get()
-  local s = {}
-  for id, _ in pairs(all) do
-    table.insert(s, id)
-  end
-  table.sort(s)
-  if #s > 0 then
-    current_session = s[1]
+
+  if current_session then
+    -- Session was deleted externally, find an available one
+    local all = sessions.get()
+    local s = {}
+    for id, _ in pairs(all) do
+      table.insert(s, id)
+    end
+    table.sort(s)
+    if #s > 0 then
+      current_session = s[1]
+    else
+      current_session = sessions.new()
+    end
   else
+    -- First open: always create a new session
     current_session = sessions.new()
   end
   return current_session
