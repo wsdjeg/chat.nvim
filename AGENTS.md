@@ -51,6 +51,8 @@ Modify -> Verify -> make test -> git_add -> git_commit -> git_push -> Done
 
 **Never:** skip verification, skip tests, read only partial file, modify without commit, commit without push.
 
+**Always:** after code changes, check if corresponding docs (e.g., `docs/api/http.md`, `docs/usage/`) need updating to reflect the changes.
+
 ---
 
 ## Documentation Principles

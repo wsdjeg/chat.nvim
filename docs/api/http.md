@@ -129,7 +129,8 @@ Get a list of all sessions with details.
       "role": "assistant",
       "content": "I'd be happy to help you write a Lua plugin for Neovim. Let's start by...",
       "created": 1705315800
-    }
+    },
+    "cleared_at": null
   }
 ]
 ```
@@ -147,6 +148,7 @@ Get a list of all sessions with details.
 | `in_progress` | boolean | Whether generation is in progress |
 | `message_count` | number | Total number of messages |
 | `last_message` | object\|null | Last message object (null if no messages) |
+| `cleared_at` | number\|null | Unix timestamp when session was last cleared (null if never cleared) |
 
 **`last_message` Object:**
 
