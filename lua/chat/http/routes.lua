@@ -55,6 +55,7 @@ local function build_session_info(id, data)
     in_progress = sessions.is_in_progress(id) or queue.has_pending(id),
     message_count = message_count,
     last_message = last_message,
+    cleared_at = data.cleared_at,
   }
 end
 

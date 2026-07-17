@@ -25,6 +25,7 @@
 ---@field usage? ChatMessageUsage
 ---@field pin? boolean session pin status
 ---@field last_user_message_time? integer timestamp of the last user message
+---@field cleared_at? integer timestamp when session was cleared
 
 -- Session storage: cache read/write and iteration
 local M = {}

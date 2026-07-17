@@ -191,6 +191,7 @@ function M.clear(session_id)
         prompt_tokens = 0,
         completion_tokens = 0,
       }
+      storage.sessions[session_id].cleared_at = os.time()
       require('chat.sessions.storage').write_cache(session_id)
       if session_id == windows.current_session() then
         windows.render_result_buf()
