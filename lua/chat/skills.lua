@@ -137,6 +137,10 @@ M._builtin_clear = {
   handler = function(_, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
     if sessions.clear(ctx.session) then
       windows.render_result_buf()
       windows.set_result_win_title(' chat.nvim ')
@@ -167,6 +171,10 @@ M._builtin_delete = {
   handler = function(_, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
     local next_id = sessions.delete(ctx.session)
     if next_id then
       windows.open({ session = next_id })
@@ -182,6 +190,11 @@ M._builtin_model = {
   builtin = true,
   handler = function(args, ctx)
     local sessions = require('chat.sessions')
+
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
 
     if args and #args > 0 then
       sessions.set_session_model(ctx.session, args)
@@ -221,6 +234,11 @@ M._builtin_provider = {
   handler = function(args, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
+
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
 
     if args and #args > 0 then
       sessions.set_session_provider(ctx.session, args)
@@ -266,6 +284,11 @@ M._builtin_cwd = {
   handler = function(args, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
+
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
 
     if args and #args > 0 then
       local dir = vim.fs.normalize(vim.fn.fnamemodify(args, ':p'))
@@ -338,6 +361,10 @@ M._builtin_retry = {
   builtin = true,
   handler = function(_, ctx)
     local sessions = require('chat.sessions')
+    if sessions.is_in_progress(ctx.session) then
+      log.notify('Request in progress.', 'WarningMsg')
+      return
+    end
     local jobid = sessions.retry(ctx.session)
     if jobid and jobid > 0 then
       require('chat.spinners').start()
