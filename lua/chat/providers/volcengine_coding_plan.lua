@@ -36,6 +36,10 @@ function M.request(opt)
   local cmd = {
     'curl',
     '-s',
+    '-N',
+    '--tcp-nodelay',
+    '--connect-timeout', '10',
+    '--max-time', '300',
     'https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions',
     '-H',
     'Content-Type: application/json',
