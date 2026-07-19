@@ -37,7 +37,7 @@ function M.search_text(action, ctx)
     }
   end
 
-  -- Validate array-type parameters: normalize string→array for robustness
+  -- Validate array-type parameters: normalize string->array for robustness
   -- (some LLMs pass a single string instead of an array)
   if action.file_types ~= nil then
     if type(action.file_types) == 'string' then
@@ -65,8 +65,9 @@ function M.search_text(action, ctx)
     end
   end
 
-  -- Security check
-  local search_directory = vim.fs.normalize(action.directory or ctx.cwd)
+  -- Resolve search directory: use util.resolve to handle relative paths
+  -- like "." or "./src" against ctx.cwd, producing an absolute path
+  local search_directory = util.resolve(action.directory, ctx.cwd) or ctx.cwd
 
   -- Verify search directory exists
   if vim.fn.isdirectory(search_directory) == 0 then
@@ -307,8 +308,8 @@ require('chat').setup({
 ```
 
 IMPORTANT: 
-- file_types MUST be an array of strings. Example: ["*.py", "*.md"] — NOT a single string!
-- exclude_patterns MUST be an array of strings. Example: ["*.log", "tmp/*"] — NOT a single string!
+- file_types MUST be an array of strings. Example: ["*.py", "*.md"] - NOT a single string!
+- exclude_patterns MUST be an array of strings. Example: ["*.log", "tmp/*"] - NOT a single string!
 ]],
       parameters = {
         type = 'object',
@@ -373,7 +374,7 @@ function M.info(action, ctx)
       string.format('search_text "%s"', arguments.pattern),
       string.format(
         'directory: %s',
-        vim.fs.normalize(arguments.directory or ctx.cwd)
+        util.resolve(arguments.directory, ctx.cwd) or ctx.cwd
       ),
     }
 
