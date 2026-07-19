@@ -160,7 +160,9 @@ function M.rename_title()
 end
 
 --- Start backend services without opening UI windows.
---- Initializes session and starts queue, http, integrations, mcp.
+--- Starts queue, http, integrations, mcp.
+--- Does NOT create a session — in headless mode, sessions are created
+--- on demand via HTTP API (POST /session/new).
 --- @param opt? table optional config, supports `cwd`
 --- @return string|nil session_id
 function M.start(opt)
@@ -168,15 +170,17 @@ function M.start(opt)
     return
   end
 
-  -- Initialize or restore session (handles externally deleted sessions)
-  ensure_session()
-
-  -- Handle cwd option
-  if opt and opt.cwd then
-    if sessions.is_in_progress(current_session) then
-      log.notify('session is in progress, can not change cwd.', 'WarningMsg')
-    else
-      sessions.change_cwd(current_session, opt.cwd)
+  -- In headless mode, don't auto-create a session.
+  -- Sessions are created on demand via HTTP API.
+  -- Only restore existing session if available.
+  if current_session and sessions.exists(current_session) then
+    -- Handle cwd option for existing session
+    if opt and opt.cwd then
+      if sessions.is_in_progress(current_session) then
+        log.notify('session is in progress, can not change cwd.', 'WarningMsg')
+      else
+        sessions.change_cwd(current_session, opt.cwd)
+      end
     end
   end
 
