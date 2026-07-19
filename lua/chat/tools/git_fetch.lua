@@ -18,6 +18,7 @@ end
 ---@field all? boolean Fetch all remotes (--all)
 ---@field prune? boolean Remove local branches that no longer exist on remote (--prune)
 ---@field tags? boolean Fetch all tags (--tags)
+---@field unshallow? boolean Convert a shallow clone to a complete one (--unshallow)
 
 ---@param action ChatToolsGitFetchAction
 ---@param ctx ChatToolContext
@@ -69,6 +70,10 @@ function M.git_fetch(action, ctx)
 
   if action.tags then
     table.insert(cmd, '--tags')
+  end
+
+  if action.unshallow then
+    table.insert(cmd, '--unshallow')
   end
 
   if not action.all then
@@ -153,18 +158,21 @@ USAGE:
 - @git_fetch all=true                  # Fetch all remotes
 - @git_fetch prune=true                # Remove deleted remote branches
 - @git_fetch tags=true                 # Fetch all tags
+- @git_fetch unshallow=true            # Convert shallow clone to complete clone
 
 EXAMPLES:
 - @git_fetch
 - @git_fetch remote="upstream" branch="main"
 - @git_fetch all=true prune=true
 - @git_fetch tags=true
+- @git_fetch unshallow=true             # Unshallow a shallow clone (e.g. GitHub Actions checkout)
 
 NOTES:
 - Requires git to be installed and in PATH.
 - Default remote is "origin" if not specified.
 - Unlike git_pull, this does not merge changes into your current branch.
 - Use prune=true to clean up local branches that were deleted on remote.
+- Use unshallow=true to fetch full history for a shallow clone (e.g. CI checkouts with fetch-depth=1).
       ]],
       parameters = {
         type = 'object',
@@ -188,6 +196,10 @@ NOTES:
           tags = {
             type = 'boolean',
             description = 'Fetch all tags (--tags)',
+          },
+          unshallow = {
+            type = 'boolean',
+            description = 'Convert a shallow clone to a complete one (--unshallow)',
           },
         },
         required = {},
@@ -214,6 +226,9 @@ function M.info(action, ctx)
     end
     if args.tags then
       table.insert(parts, 'tags=true')
+    end
+    if args.unshallow then
+      table.insert(parts, 'unshallow=true')
     end
     return table.concat(parts, ' ')
   end

@@ -247,3 +247,52 @@ function TestGitFetch:testGitFetchTags()
 
   vim.fn.delete(git_repo, 'rf')
 end
+
+function TestGitFetch:testGitFetchUnshallow()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitFetchUnshallow: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('unshallow')
+  set_allowed_path(git_repo)
+
+  local test_file = git_repo .. '/test.lua'
+  vim.fn.writefile({ 'print("test")' }, test_file)
+  vim.fn.system('git -C "' .. git_repo .. '" add ' .. test_file)
+  vim.fn.system('git -C "' .. git_repo .. '" commit -m "Initial commit"')
+
+  local result = call_async_tool('git_fetch', {
+    unshallow = true,
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.content or result.error,
+    'Expected content or error, got nil'
+  )
+
+  -- The error message includes the command, verify --unshallow was passed
+  if result.error then
+    lu.assertStrContains(result.error, '--unshallow')
+  end
+
+  vim.fn.delete(git_repo, 'rf')
+end
+
+function TestGitFetch:testGitFetchUnshallowScheme()
+  local scheme = require('chat.tools.git_fetch').scheme()
+  lu.assertStrContains(
+    scheme['function'].description,
+    'unshallow'
+  )
+  lu.assertNotNil(
+    scheme['function'].parameters.properties.unshallow,
+    'unshallow should be in scheme parameters'
+  )
+  lu.assertEquals(
+    scheme['function'].parameters.properties.unshallow.type,
+    'boolean'
+  )
+end
+
