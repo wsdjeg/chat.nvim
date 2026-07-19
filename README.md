@@ -221,10 +221,10 @@ See the [Integrations Guide](https://nvim.chat/integrations/) for setup instruct
 The built-in HTTP server allows external applications to send messages to chat.nvim:
 
 ```bash
-curl -X POST http://127.0.0.1:7777/chat \
+curl -X POST http://127.0.0.1:7777/ \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-secret-api-key" \
-  -d '{"message":"Hello","session":"default"}'
+  -d '{"content":"Hello","session":"default"}'
 ```
 
 See the [API Guide](https://nvim.chat/api/) for all endpoints.
