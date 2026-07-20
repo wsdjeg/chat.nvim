@@ -199,6 +199,58 @@ function M.sanitize_utf8(str)
   return table.concat(result), had_invalid
 end
 
+--- Truncate a string to at most max_bytes bytes, without breaking UTF-8 characters.
+--- If max_bytes falls in the middle of a multi-byte character, the cut is moved
+--- back to the nearest valid character boundary.
+---@param str string Input string (should be valid UTF-8)
+---@param max_bytes integer Maximum number of bytes to keep
+---@return string truncated
+function M.utf8_truncate(str, max_bytes)
+  if not str or str == '' or max_bytes <= 0 then
+    return ''
+  end
+  if #str <= max_bytes then
+    return str
+  end
+
+  -- Find the last valid UTF-8 boundary at or before max_bytes.
+  -- Walk backwards from max_bytes to skip any trailing continuation bytes
+  -- (0x80-0xBF) that belong to a multi-byte character started before max_bytes
+  -- but not completed by max_bytes.
+  local pos = max_bytes
+  local end_pos = 0
+  while pos >= 1 do
+    local b = str:byte(pos)
+    if b < 0x80 or b >= 0xC0 then
+      -- ASCII byte or leading byte of a multi-byte sequence.
+      -- Check if the full sequence fits within max_bytes.
+      local seq_len
+      if b < 0x80 then
+        seq_len = 1
+      elseif b <= 0xDF then
+        seq_len = 2
+      elseif b <= 0xEF then
+        seq_len = 3
+      else
+        seq_len = 4
+      end
+      if pos + seq_len - 1 <= max_bytes then
+        -- Complete sequence, end after it
+        end_pos = pos + seq_len - 1
+        break
+      else
+        -- Sequence extends past max_bytes, trim it entirely
+        pos = pos - 1
+      end
+    else
+      -- Continuation byte (0x80-0xBF), keep walking back
+      pos = pos - 1
+    end
+  end
+
+  return str:sub(1, end_pos)
+end
+
 function M.format_number(num)
   if num == nil then
     return '0'

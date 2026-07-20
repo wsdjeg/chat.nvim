@@ -261,7 +261,7 @@ function M.fetch_web(action, ctx)
           local truncation_note = ''
 
           if #result > max_content_length then
-            display_result = result:sub(1, max_content_length)
+            display_result = util.utf8_truncate(result, max_content_length)
             truncation_note = string.format(
               '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
               #result,

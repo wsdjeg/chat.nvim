@@ -167,5 +167,90 @@ function TestUtil:testSanitizeUtf8ValidMultibytePreserved()
   lu.assertFalse(had_invalid)
 end
 
+-- ========== utf8_truncate tests ==========
+
+function TestUtil:testUtf8TruncateAsciiExact()
+  local s = 'Hello World'
+  lu.assertEquals(util.utf8_truncate(s, 5), 'Hello')
+  lu.assertEquals(util.utf8_truncate(s, 11), 'Hello World')
+  lu.assertEquals(util.utf8_truncate(s, 100), 'Hello World')
+end
+
+function TestUtil:testUtf8TruncateEmpty()
+  lu.assertEquals(util.utf8_truncate('', 10), '')
+  lu.assertEquals(util.utf8_truncate(nil, 10), '')
+  lu.assertEquals(util.utf8_truncate('abc', 0), '')
+end
+
+function TestUtil:testUtf8TruncateChineseNoBreak()
+  -- 3 Chinese characters, each 3 bytes = 9 bytes total
+  -- 你好世界 = \xE4\xBD\xA0 \xE5\xA5\xBD \xE4\xB8\x96 \xE7\x95\x8C
+  local s = '你好世界'
+  lu.assertEquals(#s, 12) -- 4 chars * 3 bytes
+
+  -- Truncate at 10 bytes: would split 4th char (bytes 10-12)
+  -- Should cut back to byte 9 (end of 3rd char)
+  local truncated = util.utf8_truncate(s, 10)
+  lu.assertEquals(truncated, '你好世')
+  lu.assertEquals(#truncated, 9)
+
+  -- Truncate at 9 bytes: exactly end of 3rd char
+  lu.assertEquals(util.utf8_truncate(s, 9), '你好世')
+
+  -- Truncate at 8 bytes: would split 3rd char (bytes 7-9)
+  -- Should cut back to byte 6 (end of 2nd char)
+  lu.assertEquals(util.utf8_truncate(s, 8), '你好')
+end
+
+function TestUtil:testUtf8TruncateMixedContent()
+  -- ASCII + Chinese mix
+  local s = 'AB你好'
+  -- A(1) B(1) 你(3) 好(3) = 8 bytes total
+  lu.assertEquals(#s, 8)
+
+  -- Truncate at 4: would split 你 (bytes 3-5), cut to 2
+  lu.assertEquals(util.utf8_truncate(s, 4), 'AB')
+  -- Truncate at 5: end of 你
+  lu.assertEquals(util.utf8_truncate(s, 5), 'AB你')
+  -- Truncate at 6: would split 好 (bytes 6-8), cut to 5
+  lu.assertEquals(util.utf8_truncate(s, 6), 'AB你')
+  -- Truncate at 8: full string
+  lu.assertEquals(util.utf8_truncate(s, 8), 'AB你好')
+end
+
+function TestUtil:testUtf8Truncate4ByteEmoji()
+  -- 😀 = \xF0\x9F\x98\x80 (4 bytes)
+  local s = 'A😀B'
+  -- A(1) 😀(4) B(1) = 6 bytes
+  lu.assertEquals(#s, 6)
+
+  -- Truncate at 3: inside emoji (bytes 2-5), cut to 1
+  lu.assertEquals(util.utf8_truncate(s, 3), 'A')
+  -- Truncate at 4: inside emoji (bytes 2-5), cut to 1
+  lu.assertEquals(util.utf8_truncate(s, 4), 'A')
+  -- Truncate at 5: end of emoji
+  lu.assertEquals(util.utf8_truncate(s, 5), 'A😀')
+  -- Truncate at 6: full string
+  lu.assertEquals(util.utf8_truncate(s, 6), 'A😀B')
+end
+
+function TestUtil:testUtf8TruncateAllMultibyte()
+  -- All 3-byte characters, truncate in the middle of each
+  local s = '你好世界你好世界'
+  -- 8 chars * 3 bytes = 24 bytes
+  lu.assertEquals(#s, 24)
+
+  -- Cut at 7 (mid 3rd char): should get 2 chars (6 bytes)
+  lu.assertEquals(util.utf8_truncate(s, 7), '你好')
+  -- Cut at 10 (mid 4th char): should get 3 chars (9 bytes)
+  lu.assertEquals(util.utf8_truncate(s, 10), '你好世')
+  -- Cut at 1 (mid 1st char): should get empty
+  lu.assertEquals(util.utf8_truncate(s, 1), '')
+  -- Cut at 2 (mid 1st char): should get empty
+  lu.assertEquals(util.utf8_truncate(s, 2), '')
+  -- Cut at 3 (end of 1st char): should get 1 char
+  lu.assertEquals(util.utf8_truncate(s, 3), '你')
+end
+
 return TestUtil
 
