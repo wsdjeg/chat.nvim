@@ -119,6 +119,86 @@ function M.is_allowed_path(path)
 end
 
 
+--- Sanitize a string to ensure it contains only valid UTF-8.
+--- Invalid byte sequences are replaced with the Unicode replacement character (U+FFFD).
+---@param str string Input string that may contain invalid UTF-8
+---@return string sanitized, boolean had_invalid
+function M.sanitize_utf8(str)
+  if not str or str == '' then
+    return str, false
+  end
+
+  local result = {}
+  local i = 1
+  local len = #str
+  local had_invalid = false
+  local REPL = '\xEF\xBF\xBD' -- U+FFFD in UTF-8
+
+  while i <= len do
+    local b = str:byte(i)
+
+    if b < 0x80 then
+      -- ASCII: 0xxxxxxx
+      result[#result + 1] = str:sub(i, i)
+      i = i + 1
+    elseif b >= 0xC2 and b <= 0xDF then
+      -- 2-byte: 110xxxxx 10xxxxxx
+      local b2 = str:byte(i + 1)
+      if b2 and b2 >= 0x80 and b2 <= 0xBF then
+        result[#result + 1] = str:sub(i, i + 1)
+        i = i + 2
+      else
+        result[#result + 1] = REPL
+        had_invalid = true
+        i = i + 1
+      end
+    elseif b >= 0xE0 and b <= 0xEF then
+      -- 3-byte: 1110xxxx 10xxxxxx 10xxxxxx
+      local b2 = str:byte(i + 1)
+      local b3 = str:byte(i + 2)
+      local valid = b2 and b3
+        and b2 >= 0x80 and b2 <= 0xBF
+        and b3 >= 0x80 and b3 <= 0xBF
+      if valid and b == 0xE0 and b2 < 0xA0 then valid = false end
+      if valid and b == 0xED and b2 > 0x9F then valid = false end -- surrogates
+      if valid then
+        result[#result + 1] = str:sub(i, i + 2)
+        i = i + 3
+      else
+        result[#result + 1] = REPL
+        had_invalid = true
+        i = i + 1
+      end
+    elseif b >= 0xF0 and b <= 0xF4 then
+      -- 4-byte: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+      local b2 = str:byte(i + 1)
+      local b3 = str:byte(i + 2)
+      local b4 = str:byte(i + 3)
+      local valid = b2 and b3 and b4
+        and b2 >= 0x80 and b2 <= 0xBF
+        and b3 >= 0x80 and b3 <= 0xBF
+        and b4 >= 0x80 and b4 <= 0xBF
+      if valid and b == 0xF0 and b2 < 0x90 then valid = false end
+      if valid and b == 0xF4 and b2 > 0x8F then valid = false end
+      if valid then
+        result[#result + 1] = str:sub(i, i + 3)
+        i = i + 4
+      else
+        result[#result + 1] = REPL
+        had_invalid = true
+        i = i + 1
+      end
+    else
+      -- Invalid leading byte (0x80-0xBF, 0xC0-0xC1, 0xF5-0xFF)
+      result[#result + 1] = REPL
+      had_invalid = true
+      i = i + 1
+    end
+  end
+
+  return table.concat(result), had_invalid
+end
+
 function M.format_number(num)
   if num == nil then
     return '0'

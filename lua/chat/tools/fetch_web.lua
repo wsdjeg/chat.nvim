@@ -225,6 +225,9 @@ function M.fetch_web(action, ctx)
         else
           -- Display mode: show content
           local result = table.concat(stdout, '\n')
+          -- Sanitize to ensure valid UTF-8 (prevents NonUTF8Body API errors)
+          local had_invalid
+          result, had_invalid = util.sanitize_utf8(result)
           -- Try to detect content type
           local content_type = 'text/plain'
           if result:match('<!DOCTYPE') or result:match('<html') then
@@ -245,6 +248,12 @@ function M.fetch_web(action, ctx)
             content_type,
             #result
           )
+
+          if had_invalid then
+            summary = summary
+              .. '[Warning: Non-UTF-8 bytes detected and replaced with U+FFFD. '
+              .. 'The original content may use a different encoding (e.g., GBK, Big5).]\n\n'
+          end
 
           -- Truncate very large responses
           local max_content_length = 10000
@@ -267,11 +276,12 @@ function M.fetch_web(action, ctx)
         end
       else
         -- Error handling
-        local result = table.concat(stdout, '\n')
+        local result = util.sanitize_utf8(table.concat(stdout, '\n'))
+        local err_result = util.sanitize_utf8(table.concat(stderr, '\n'))
         if result ~= '' then
-          result = result .. '\n\n' .. table.concat(stderr, '\n')
+          result = result .. '\n\n' .. err_result
         else
-          result = table.concat(stderr, '\n')
+          result = err_result
         end
         local error_msg = string.format(
           'Failed to fetch URL (exit code: %d): %s\n\n'
