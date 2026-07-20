@@ -22,6 +22,7 @@ end
 ---@field method? string
 ---@field data? string
 ---@field max_redirects? integer
+---@field max_length? integer
 ---@field insecure? boolean
 ---@field output? string
 
@@ -89,7 +90,7 @@ function M.fetch_web(action, ctx)
   end
 
   -- Custom headers
-  -- Custom headers (defensive: handle string→array)
+  -- Custom headers (defensive: handle string->array)
   if action.headers then
     if type(action.headers) == 'string' then
       action.headers = { action.headers }
@@ -256,11 +257,12 @@ function M.fetch_web(action, ctx)
           end
 
           -- Truncate very large responses
-          local max_content_length = 10000
+          -- max_length: 0 or negative means no truncation; default 10000
+          local max_content_length = action.max_length or 10000
           local display_result = result
           local truncation_note = ''
 
-          if #result > max_content_length then
+          if max_content_length > 0 and #result > max_content_length then
             display_result = util.utf8_truncate(result, max_content_length)
             truncation_note = string.format(
               '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
@@ -355,6 +357,12 @@ function M.scheme()
          6. Limit redirects:
             @fetch_web url="https://example.com/redirect" max_redirects=2
          
+         7. No truncation (full content):
+            @fetch_web url="https://example.com" max_length=0
+         
+         8. Custom truncation limit:
+            @fetch_web url="https://example.com" max_length=50000
+         
          SECURITY NOTES:
          - Only HTTP/HTTPS URLs are allowed (no file://, ftp://, etc.)
          - SSL verification is enabled by default
@@ -362,7 +370,8 @@ function M.scheme()
          - User agent identifies as chat.nvim by default
          
          PERFORMANCE NOTES:
-         - Responses are limited to 10,000 characters for display
+         - Responses are limited to 10,000 characters for display by default
+         - Use max_length=0 to disable truncation and get full content
          - For large responses, consider using output parameter to save to file
          - Compression is automatically requested (--compressed)
          
@@ -413,6 +422,10 @@ function M.scheme()
             minimum = 0,
             maximum = 20,
           },
+          max_length = {
+            type = 'integer',
+            description = 'Maximum characters to display (default: 10000, set to 0 or -1 to disable truncation)',
+          },
           insecure = {
             type = 'boolean',
             description = 'Disable SSL certificate verification (use with caution, for testing only)',
@@ -443,6 +456,10 @@ function M.info(action, ctx)
       table.insert(info_parts, string.format('timeout=%d', arguments.timeout))
     end
 
+    if arguments.max_length ~= nil then
+      table.insert(info_parts, string.format('max_length=%d', arguments.max_length))
+    end
+
     if arguments.output then
       table.insert(info_parts, string.format('output=%s', arguments.output))
     end
@@ -454,3 +471,4 @@ function M.info(action, ctx)
 end
 
 return M
+

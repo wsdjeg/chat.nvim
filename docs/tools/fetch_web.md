@@ -19,6 +19,8 @@ Fetch content from web URLs using curl with comprehensive HTTP support.
 
 - `@fetch_web url="https://example.com"` - Fetch content from a URL
 - `@fetch_web url="https://api.github.com/repos/neovim/neovim" timeout=60` - Fetch with custom timeout
+- `@fetch_web url="https://example.com" max_length=0` - Fetch full content without truncation
+- `@fetch_web url="https://example.com" max_length=50000` - Fetch with custom truncation limit
 
 ## Parameters
 
@@ -32,6 +34,7 @@ Fetch content from web URLs using curl with comprehensive HTTP support.
 | `user_agent`    | string  | Custom User-Agent header string (default: "Mozilla/5.0 (compatible; chat.nvim)") |
 | `insecure`      | boolean | Disable SSL certificate verification (use with caution, for testing only)        |
 | `max_redirects` | integer | Maximum number of redirects to follow (default: 5, set to 0 to disable)          |
+| `max_length`    | integer | Maximum characters to display (default: 10000, set to 0 or -1 to disable truncation) |
 | `output`        | string  | Save response to file instead of displaying (e.g., "./response.html")            |
 
 ## Notes
@@ -40,6 +43,7 @@ Fetch content from web URLs using curl with comprehensive HTTP support.
 
 > - Requires curl to be installed and available in PATH
 > - SSL verification is enabled by default (disable with `insecure=true` for testing)
-> - Responses are limited to 10,000 characters for display
+> - Responses are limited to 10,000 characters for display by default
+> - Use `max_length=0` to disable truncation and get full content
 > - For large responses, use the `output` parameter to save to a file
 
