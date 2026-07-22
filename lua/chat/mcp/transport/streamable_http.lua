@@ -2,6 +2,7 @@ local M = {}
 
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 ---@class StreamableHttpTransport
 ---@field url string
@@ -106,27 +107,26 @@ function M.send(transport, message)
     end
   end
 
-  -- 使用 -i 来获取 response headers
-  local cmd = { 'curl', '-s', '-i', '-X', 'POST' }
-
   -- 本地地址不走代理
+  local no_proxy = false
   if
     transport.url:match('^https?://127%.0%.0%.1')
     or transport.url:match('^https?://localhost')
     or transport.url:match('^https?://[::1]')
   then
-    table.insert(cmd, '--noproxy')
-    table.insert(cmd, '*')
+    no_proxy = true
   end
 
-  for _, h in ipairs(headers) do
-    table.insert(cmd, '-H')
-    table.insert(cmd, h)
-  end
-
-  table.insert(cmd, '-d')
-  table.insert(cmd, message)
-  table.insert(cmd, transport.url)
+  -- 使用 -i 来获取 response headers
+  local cmd = curl.build_request({
+    url = transport.url,
+    method = 'POST',
+    include_headers = true,
+    no_proxy = no_proxy,
+    headers = headers,
+    body = message,
+    body_inline = true,
+  })
 
   job.start(cmd, {
     on_stdout = function(_, data)
@@ -276,10 +276,13 @@ function M.close(transport)
 
   -- Remote MCP: send DELETE to terminate session
   if transport.session_id then
-    local cmd = { 'curl', '-s', '-X', 'DELETE' }
-    table.insert(cmd, '-H')
-    table.insert(cmd, 'Mcp-Session-Id: ' .. transport.session_id)
-    table.insert(cmd, transport.url)
+    local cmd = curl.build_request({
+      url = transport.url,
+      method = 'DELETE',
+      headers = {
+        'Mcp-Session-Id: ' .. transport.session_id,
+      },
+    })
 
     job.start(cmd, {
       on_exit = function()
