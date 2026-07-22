@@ -3,6 +3,7 @@ local M = {}
 
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 local storage = require('chat.sessions.storage')
 
 local function get_config_system_prompt()
@@ -142,15 +143,14 @@ function M.share(session_id)
   local stdout = {}
   local stderr = {}
 
-  local jobid = job.start({
-    'curl',
-    '-s',
-    '-w',
-    '\n%{http_code}',
-    '--data-binary',
-    '@-',
-    url,
-  }, {
+  local cmd = curl.build_request({
+    url = url,
+    method = 'POST',
+    write_out = '\n%{http_code}',
+    body = content,
+    body_binary = true,
+  })
+  local jobid = job.start(cmd, {
     on_stdout = function(id, data)
       for _, v in ipairs(data) do
         table.insert(stdout, v)
@@ -220,13 +220,12 @@ function M.load_from_url(url)
   local ok, err
 
   if vim.fn.has('nvim-0.10') == 1 then
+    local cmd = curl.build_request({
+      url = url,
+      follow_redirects = true,
+    })
     local obj = vim
-      .system({
-        'curl',
-        '-s',
-        '-L',
-        url,
-      }, { text = true })
+      .system(cmd, { text = true })
       :wait()
 
     ok = obj.code == 0
@@ -236,7 +235,10 @@ function M.load_from_url(url)
       err = obj.stderr
     end
   else
-    local cmd = string.format('curl -s -L %s', vim.fn.shellescape(url))
+    local cmd = curl.build_request({
+      url = url,
+      follow_redirects = true,
+    })
     result = vim.fn.system(cmd)
     ok = vim.v.shell_error == 0
     err = result
