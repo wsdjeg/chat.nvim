@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -110,20 +111,15 @@ local function api_request(method, data, callback)
     return nil
   end
 
-  local cmd = {
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. bot_token .. '/' .. method,
-    '-H',
-    'Content-Type: application/json',
-  }
-
-  if data then
-    table.insert(cmd, '-d')
-    table.insert(cmd, json.encode(data))
-  end
+  local cmd = curl.build_request({
+    url = API_BASE .. bot_token .. '/' .. method,
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = data and json.encode(data) or nil,
+    body_inline = true,
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
@@ -384,17 +380,20 @@ local function send_message(content)
     return
   end
 
-  send_message_jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. bot_token .. '/sendMessage',
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    '@-',
-  }, {
+  local body = json.encode({
+    chat_id = chat_id,
+    text = content,
+    parse_mode = 'Markdown',
+  })
+  local cmd = curl.build_request({
+    url = API_BASE .. bot_token .. '/sendMessage',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
+  })
+  send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
@@ -413,14 +412,7 @@ local function send_message(content)
     end,
   })
 
-  job.send(
-    send_message_jobid,
-    json.encode({
-      chat_id = chat_id,
-      text = content,
-      parse_mode = 'Markdown',
-    })
-  )
+  job.send(send_message_jobid, body)
   job.send(send_message_jobid, nil)
 end
 
@@ -469,22 +461,22 @@ function M.reply(chat_id, message_id, text)
     return nil
   end
 
-  return job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. bot_token .. '/sendMessage',
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    json.encode({
-      chat_id = chat_id,
-      text = text,
-      reply_to_message_id = message_id,
-      parse_mode = 'Markdown',
-    }),
-  }, {
+  local body = json.encode({
+    chat_id = chat_id,
+    text = text,
+    reply_to_message_id = message_id,
+    parse_mode = 'Markdown',
+  })
+  local cmd = curl.build_request({
+    url = API_BASE .. bot_token .. '/sendMessage',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
+    body_inline = true,
+  })
+  return job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
         log.debug(

@@ -7,6 +7,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local Types = require('chat.integrations.weixin.types')
@@ -99,30 +100,21 @@ function M.request(endpoint, data, callback, opts)
   local url = M.BASE_URL .. '/' .. endpoint
   local headers = build_headers(cfg.token)
 
-  local cmd = {
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    url,
-    '--connect-timeout',
-    '10',
-    '--max-time',
-    tostring(opts.timeout or Types.Timeout.API_REQUEST),
-  }
-
-  for _, h in ipairs(headers) do
-    table.insert(cmd, '-H')
-    table.insert(cmd, h)
-  end
-
+  local body_data
   if data then
     -- Add base_info to all business requests
     data.base_info = data.base_info or build_base_info()
-
-    table.insert(cmd, '-d')
-    table.insert(cmd, '@-')
+    body_data = json.encode(data)
   end
+
+  local cmd = curl.build_request({
+    url = url,
+    method = 'POST',
+    connect_timeout = 10,
+    max_time = opts.timeout or Types.Timeout.API_REQUEST,
+    headers = headers,
+    body = body_data,
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
@@ -155,8 +147,8 @@ function M.request(endpoint, data, callback, opts)
     end,
   })
 
-  if data and jobid then
-    job.send(jobid, json.encode(data))
+  if body_data and jobid then
+    job.send(jobid, body_data)
     job.send(jobid, nil)
   end
 

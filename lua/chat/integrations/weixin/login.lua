@@ -6,6 +6,7 @@ local M = {}
 local log = require('chat.log')
 local Api = require('chat.integrations.weixin.api')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -91,17 +92,13 @@ function M.start_qr_login(opts)
 
   -- Fetch QR code (GET request)
   local result = {}
-  local jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'GET',
-    url,
-    '--connect-timeout',
-    '10',
-    '--max-time',
-    '30',
-  }, {
+  local cmd = curl.build_request({
+    url = url,
+    method = 'GET',
+    connect_timeout = 10,
+    max_time = 30,
+  })
+  local jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
         if line and line ~= '' then
@@ -176,19 +173,16 @@ local function poll_qr_status(callback)
     .. login_state.qrcode
 
   local result = {}
-  job.start({
-    'curl',
-    '-s',
-    '-X',
-    'GET',
-    url,
-    '-H',
-    'iLink-App-ClientVersion: 1',
-    '--connect-timeout',
-    '10',
-    '--max-time',
-    tostring(math.floor(QR_LONG_POLL_TIMEOUT / 1000)),
-  }, {
+  local cmd = curl.build_request({
+    url = url,
+    method = 'GET',
+    headers = {
+      'iLink-App-ClientVersion: 1',
+    },
+    connect_timeout = 10,
+    max_time = math.floor(QR_LONG_POLL_TIMEOUT / 1000),
+  })
+  job.start(cmd, {
     on_stdout = function(_, data)
       for _, line in ipairs(data) do
         if line and line ~= '' then

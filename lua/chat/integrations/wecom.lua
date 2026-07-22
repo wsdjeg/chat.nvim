@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -100,17 +101,15 @@ local function get_access_token(callback)
     return
   end
 
-  job.start({
-    'curl',
-    '-s',
-    '-X',
-    'GET',
-    API_BASE
+  local cmd = curl.build_request({
+    url = API_BASE
       .. '/gettoken?corpid='
       .. corp_id
       .. '&corpsecret='
       .. corp_secret,
-  }, {
+    method = 'GET',
+  })
+  job.start(cmd, {
     on_stdout = function(_, lines)
       local output = table.concat(lines, '\n')
       local ok, result = pcall(json.decode, output)
@@ -225,17 +224,21 @@ local function send_message_via_webhook(content)
     return
   end
 
-  send_message_jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=' .. webhook_key,
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    '@-',
-  }, {
+  local body = json.encode({
+    msgtype = 'text',
+    text = {
+      content = content,
+    },
+  })
+  local cmd = curl.build_request({
+    url = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=' .. webhook_key,
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
+  })
+  send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
@@ -254,15 +257,7 @@ local function send_message_via_webhook(content)
     end,
   })
 
-  job.send(
-    send_message_jobid,
-    json.encode({
-      msgtype = 'text',
-      text = {
-        content = content,
-      },
-    })
-  )
+  job.send(send_message_jobid, body)
   job.send(send_message_jobid, nil)
 end
 
@@ -284,17 +279,23 @@ local function send_message_via_api(content)
   end
 
   ensure_token(function(token)
-    send_message_jobid = job.start({
-      'curl',
-      '-s',
-      '-X',
-      'POST',
-      API_BASE .. '/message/send?access_token=' .. token,
-      '-H',
-      'Content-Type: application/json',
-      '-d',
-      '@-',
-    }, {
+    local body = json.encode({
+      touser = user_id,
+      msgtype = 'text',
+      agentid = agent_id,
+      text = {
+        content = content,
+      },
+    })
+    local cmd = curl.build_request({
+      url = API_BASE .. '/message/send?access_token=' .. token,
+      method = 'POST',
+      headers = {
+        'Content-Type: application/json',
+      },
+      body = body,
+    })
+    send_message_jobid = job.start(cmd, {
       on_stdout = function(_, data)
         for _, v in ipairs(data) do
           log.debug(v)
@@ -308,17 +309,7 @@ local function send_message_via_api(content)
       end,
     })
 
-    job.send(
-      send_message_jobid,
-      json.encode({
-        touser = user_id,
-        msgtype = 'text',
-        agentid = agent_id,
-        text = {
-          content = content,
-        },
-      })
-    )
+    job.send(send_message_jobid, body)
     job.send(send_message_jobid, nil)
   end)
 end
