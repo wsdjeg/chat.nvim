@@ -113,7 +113,7 @@ function M.request(endpoint, data, callback, opts)
     connect_timeout = 10,
     max_time = opts.timeout or Types.Timeout.API_REQUEST,
     headers = headers,
-    body = body_data,
+    stdin_body = true,
   })
 
   local jobid = job.start(cmd, {

@@ -135,7 +135,6 @@ local function get_tenant_access_token(callback)
       'Content-Type: application/json',
     },
     body = body,
-    body_inline = true,
   })
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
@@ -537,7 +536,7 @@ local function send_message(content)
         'Authorization: Bearer ' .. token,
         'Content-Type: application/json',
       },
-      body = body,
+      stdin_body = true,
     })
     send_message_jobid = job.start(cmd, {
       on_stdout = function(_, data)

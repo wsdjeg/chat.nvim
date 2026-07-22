@@ -126,7 +126,7 @@ local function api_request(method, endpoint, data, callback)
       'Authorization: Bot ' .. token,
       'Content-Type: application/json',
     },
-    body = data,
+    stdin_body = true,
   })
 
   local stdout = {}
@@ -454,7 +454,7 @@ local function process_queue()
       'Authorization: Bot ' .. token,
       'Content-Type: application/json',
     },
-    body = body,
+    stdin_body = true,
   })
   send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
@@ -553,7 +553,6 @@ function M.reply(channel, message_id, text)
       'Content-Type: application/json',
     },
     body = body,
-    body_inline = true,
   })
   local jobid = job.start(cmd, {
     on_exit = function(id, code, signal)

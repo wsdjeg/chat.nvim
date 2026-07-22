@@ -130,7 +130,6 @@ local function api_request(method, params, callback)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body_data,
-    body_inline = true,
   })
 
   local jobid = job.start(cmd, {
@@ -430,7 +429,6 @@ local function send_message(content)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body,
-    body_inline = true,
   })
   send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
@@ -519,7 +517,6 @@ function M.reply(channel, thread_ts, text)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body,
-    body_inline = true,
   })
   return job.start(cmd, {
     on_exit = function(id, code, signal)

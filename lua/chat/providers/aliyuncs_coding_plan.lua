@@ -37,7 +37,7 @@ function M.request(opt)
       'Content-Type: application/json',
       'Authorization: Bearer ' .. config.config.api_key.aliyuncs_coding_plan,
     },
-    body = body,
+    stdin_body = true,
   })
 
   local jobid = job.start(cmd, {

@@ -125,7 +125,6 @@ function M.send(transport, message)
     no_proxy = no_proxy,
     headers = headers,
     body = message,
-    body_inline = true,
   })
 
   job.start(cmd, {

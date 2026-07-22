@@ -147,7 +147,7 @@ function M.share(session_id)
     url = url,
     method = 'POST',
     write_out = '\n%{http_code}',
-    body = content,
+    stdin_body = true,
     body_binary = true,
   })
   local jobid = job.start(cmd, {

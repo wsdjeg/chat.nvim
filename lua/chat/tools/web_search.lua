@@ -134,7 +134,6 @@ function M.web_search(action, _)
         'Content-Type: application/json',
       },
       body = payload_json,
-      body_inline = true,
       follow_redirects = true,
       compressed = true,
       max_time = timeout,

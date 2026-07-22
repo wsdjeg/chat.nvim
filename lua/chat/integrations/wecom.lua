@@ -236,7 +236,7 @@ local function send_message_via_webhook(content)
     headers = {
       'Content-Type: application/json',
     },
-    body = body,
+    stdin_body = true,
   })
   send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
@@ -293,7 +293,7 @@ local function send_message_via_api(content)
       headers = {
         'Content-Type: application/json',
       },
-      body = body,
+      stdin_body = true,
     })
     send_message_jobid = job.start(cmd, {
       on_stdout = function(_, data)

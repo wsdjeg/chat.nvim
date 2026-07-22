@@ -54,8 +54,8 @@ end
 ---   url              string   (required) target URL
 ---   method           string   HTTP method (GET, POST, DELETE, ...)
 ---   headers          string[] array of "Key: Value" strings
----   body             string   request body (sent via stdin with -d @-)
----   body_inline      boolean  if true, embed body in command (-d body) instead of stdin
+---   body             string   request body (inline, embedded in command via -d)
+---   stdin_body       boolean  if true, read body from stdin (-d @-), caller sends via job.send()
 ---   body_binary      boolean  use --data-binary instead of -d
 ---   silent           boolean  default true, add -s
 ---   no_buffer        boolean  add -N (disable output buffering for streaming)
@@ -72,7 +72,6 @@ end
 ---   output           string   add -o file
 ---   write_out        string   add -w format
 --- @return table cmd Command array for job.start()
---- @return string|nil body_to_send Body to send via job.send() (nil if no stdin body)
 function M.build_request(opts)
   if not M.is_available() then
     error('curl is not installed or not in PATH')
@@ -153,24 +152,23 @@ function M.build_request(opts)
     table.insert(cmd, opts.write_out)
   end
 
-  local body_to_send
-  if opts.body then
+  -- Body: inline (body=) or stdin (stdin_body=true)
+  if opts.body or opts.stdin_body then
     if opts.body_binary then
       table.insert(cmd, '--data-binary')
     else
       table.insert(cmd, '-d')
     end
-    if opts.body_inline then
-      table.insert(cmd, opts.body)
-    else
+    if opts.stdin_body then
       table.insert(cmd, '@-')
-      body_to_send = opts.body
+    else
+      table.insert(cmd, opts.body)
     end
   end
 
   table.insert(cmd, opts.url)
 
-  return cmd, body_to_send
+  return cmd
 end
 
 return M

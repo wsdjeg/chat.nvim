@@ -54,7 +54,7 @@ function M.request(opt)
       'x-api-key: ' .. config.config.api_key.aliyuncs_coding_plan,
       'anthropic-version: 2023-06-01',
     },
-    body = body_json,
+    stdin_body = true,
   })
 
   local jobid = job.start(cmd, {

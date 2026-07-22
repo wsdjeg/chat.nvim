@@ -50,7 +50,7 @@ function M.request(opt)
     headers = {
       'Content-Type: application/json',
     },
-    body = body,
+    stdin_body = true,
   })
 
   local jobid = job.start(cmd, {

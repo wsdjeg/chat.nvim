@@ -123,7 +123,6 @@ function M.fetch_web(action, ctx)
     method = method ~= 'GET' and method or nil,
     headers = headers_list,
     body = action.data,
-    body_inline = true,
     follow_redirects = true,
     max_redirects = max_redirects,
     compressed = true,

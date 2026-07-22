@@ -118,7 +118,6 @@ local function api_request(method, data, callback)
       'Content-Type: application/json',
     },
     body = data and json.encode(data) or nil,
-    body_inline = true,
   })
 
   local jobid = job.start(cmd, {
@@ -474,7 +473,6 @@ function M.reply(chat_id, message_id, text)
       'Content-Type: application/json',
     },
     body = body,
-    body_inline = true,
   })
   return job.start(cmd, {
     on_exit = function(id, code, signal)
