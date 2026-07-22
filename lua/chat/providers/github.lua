@@ -5,21 +5,20 @@ local available_models = {}
 local systemObj
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
   if #available_models == 0 and not systemObj then
     if config.config.api_key.github then
-      local cmd = {
-        'curl',
-        '-s',
-        '-H',
-        'Content-Type: application/json',
-        '-H',
-        'Authorization: Bearer ' .. config.config.api_key.github,
-        'https://models.github.ai/catalog/models',
-      }
+      local cmd = curl.build_request({
+        url = 'https://models.github.ai/catalog/models',
+        headers = {
+          'Content-Type: application/json',
+          'Authorization: Bearer ' .. config.config.api_key.github,
+        },
+      })
       systemObj = vim.system(cmd, { text = true }, function(out)
         if out.code == 0 then
           local ok, result = pcall(vim.json.decode, out.stdout)
@@ -36,26 +35,22 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local cmd = {
-    'curl',
-    '-s',
-    'https://models.github.ai/inference/v1/chat/completions',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'Authorization: Bearer ' .. config.config.api_key.github,
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  local cmd = curl.build_request({
+    url = 'https://models.github.ai/inference/v1/chat/completions',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+      'Authorization: Bearer ' .. config.config.api_key.github,
+    },
+    body = body,
   })
 
   local jobid = job.start(cmd, {
@@ -71,3 +66,4 @@ function M.request(opt)
 end
 
 return M
+

@@ -1,6 +1,7 @@
 local M = {}
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -43,28 +44,25 @@ function M.request(opt)
     body.tools = M._convert_tools(tools)
   end
 
-  local cmd = {
-    'curl',
-    '-s',
-    'https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'x-api-key: ' .. config.config.api_key.aliyuncs_coding_plan,
-    '-H',
-    'anthropic-version: 2023-06-01',
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
+  local body_json = vim.json.encode(body)
+
+  local cmd = curl.build_request({
+    url = 'https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+      'x-api-key: ' .. config.config.api_key.aliyuncs_coding_plan,
+      'anthropic-version: 2023-06-01',
+    },
+    body = body_json,
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = opt.on_stdout,
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
-  job.send(jobid, vim.json.encode(body))
+  job.send(jobid, body_json)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
 
@@ -87,5 +85,4 @@ function M._convert_tools(tools)
 end
 
 return M
-
 

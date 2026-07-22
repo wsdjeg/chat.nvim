@@ -5,6 +5,7 @@ local available_models = {}
 local systemObj
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -14,14 +15,12 @@ M.protocol = 'gemini'
 function M.available_models()
   if #available_models == 0 and not systemObj then
     if config.config.api_key.gemini then
-      local cmd = {
-        'curl',
-        '-s',
-        string.format(
+      local cmd = curl.build_request({
+        url = string.format(
           'https://generativelanguage.googleapis.com/v1beta/models?key=%s',
           config.config.api_key.gemini
         ),
-      }
+      })
       systemObj = vim.system(cmd, { text = true }, function(out)
         if out.code == 0 then
           local ok, result = pcall(vim.json.decode, out.stdout)
@@ -106,29 +105,27 @@ function M.request(opt)
 
   local model = sessions.get_session_model(opt.session)
   local api_key = config.config.api_key.gemini
+  local body_json = vim.json.encode(body)
 
-  local cmd = {
-    'curl',
-    '-s',
-    string.format(
+  local cmd = curl.build_request({
+    url = string.format(
       'https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?key=%s&alt=sse',
       model,
       api_key
     ),
-    '-H',
-    'Content-Type: application/json',
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body_json,
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = opt.on_stdout,
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
-  job.send(jobid, vim.json.encode(body))
+  job.send(jobid, body_json)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
 
@@ -155,3 +152,4 @@ function M._convert_tools(tools)
 end
 
 return M
+
