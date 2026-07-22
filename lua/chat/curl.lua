@@ -13,6 +13,7 @@ M.ERRORS = {
   [35] = 'SSL/TLS handshake failure. Check your certificates.',
   [52] = 'Empty reply from server. The server returned no data.',
   [56] = 'Failure with receiving network data. Connection interrupted.',
+  [60] = 'SSL certificate problem. Verify the certificate or use --insecure for testing.',
 }
 
 --- Retryable curl exit codes (connection failures, timeouts)

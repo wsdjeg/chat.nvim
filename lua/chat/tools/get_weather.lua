@@ -2,17 +2,10 @@
 local M = {}
 
 local job = require('job')
+local curl = require('chat.curl')
 
 local WEATHER_API = 'http://aider.meizu.com/app/weather/listWeather'
 local DEFAULT_CITY_ID = '101240101'
-
-local curl_available = nil
-local function is_curl_available()
-  if curl_available == nil then
-    curl_available = vim.fn.executable('curl') == 1
-  end
-  return curl_available
-end
 
 local function normalize_city_id(value)
   if type(value) == 'number' then
@@ -34,7 +27,7 @@ local function normalize_city_ids(action)
   local city_ids = {}
 
   if action.city_ids ~= nil then
-    -- Defensive: handle string→array (some LLMs pass a single string instead of array)
+    -- Defensive: handle string->array (some LLMs pass a single string instead of array)
     if type(action.city_ids) == 'string' then
       action.city_ids = { action.city_ids }
     end
@@ -76,7 +69,7 @@ end
 function M.get_weather(action, ctx)
   action = action or {}
 
-  if not is_curl_available() then
+  if not curl.is_available() then
     return {
       error = 'curl is not installed or not in PATH. Please install curl first.',
     }
@@ -95,17 +88,13 @@ function M.get_weather(action, ctx)
   end
 
   local url = WEATHER_API .. '?cityIds=' .. table.concat(city_ids, ',')
-  local cmd = {
-    'curl',
-    '-s',
-    '-L',
-    '--compressed',
-    '--max-time',
-    tostring(timeout),
-    '--user-agent',
-    'Mozilla/5.0 (compatible; chat.nvim)',
-    url,
-  }
+  local cmd = curl.build_request({
+    url = url,
+    follow_redirects = true,
+    compressed = true,
+    max_time = timeout,
+    user_agent = 'Mozilla/5.0 (compatible; chat.nvim)',
+  })
 
   local stdout = {}
   local stderr = {}
@@ -169,15 +158,9 @@ function M.get_weather(action, ctx)
         error_output
       )
 
-      if code == 6 then
-        error_msg = error_msg
-          .. '\n\nTroubleshooting: Could not resolve host. Check network connection.'
-      elseif code == 7 then
-        error_msg = error_msg
-          .. '\n\nTroubleshooting: Failed to connect to weather API.'
-      elseif code == 28 then
-        error_msg = error_msg
-          .. '\n\nTroubleshooting: Request timed out. Try increasing timeout.'
+      local curl_hint = curl.get_error_message(code)
+      if curl_hint then
+        error_msg = error_msg .. '\n\nTroubleshooting: ' .. curl_hint
       end
 
       ctx.callback({

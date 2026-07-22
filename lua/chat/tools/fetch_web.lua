@@ -4,15 +4,7 @@ local M = {}
 local job = require('job')
 local util = require('chat.util')
 local config = require('chat.config')
-
--- Cache curl availability check
-local curl_available = nil
-local function is_curl_available()
-  if curl_available == nil then
-    curl_available = vim.fn.executable('curl') == 1
-  end
-  return curl_available
-end
+local curl = require('chat.curl')
 
 ---@class ChatToolsFetchWebAction
 ---@field url string
@@ -44,19 +36,11 @@ function M.fetch_web(action, ctx)
   end
 
   -- Check if curl is available
-  if not is_curl_available() then
+  if not curl.is_available() then
     return {
       error = 'curl is not installed or not in PATH. Please install curl first.',
     }
   end
-
-  -- Build curl command
-  local cmd = { 'curl' }
-
-  -- Basic options
-  table.insert(cmd, '-s') -- Silent mode
-  table.insert(cmd, '-L') -- Follow redirects
-  table.insert(cmd, '--compressed') -- Request compressed response
 
   -- Timeout (validate range: 1-300)
   local timeout = action.timeout or 30
@@ -65,14 +49,6 @@ function M.fetch_web(action, ctx)
       error = 'Timeout must be between 1 and 300 seconds.',
     }
   end
-  table.insert(cmd, '--max-time')
-  table.insert(cmd, tostring(timeout))
-
-  -- User agent
-  local user_agent = action.user_agent
-    or 'Mozilla/5.0 (compatible; chat.nvim)'
-  table.insert(cmd, '--user-agent')
-  table.insert(cmd, user_agent)
 
   -- Max redirects (validate range: 0-20)
   local max_redirects = action.max_redirects or 5
@@ -81,16 +57,13 @@ function M.fetch_web(action, ctx)
       error = 'Max redirects must be between 0 and 20.',
     }
   end
-  table.insert(cmd, '--max-redirs')
-  table.insert(cmd, tostring(max_redirects))
 
-  -- SSL verification
-  if action.insecure then
-    table.insert(cmd, '--insecure')
-  end
+  -- User agent
+  local user_agent = action.user_agent
+    or 'Mozilla/5.0 (compatible; chat.nvim)'
 
-  -- Custom headers
-  -- Custom headers (defensive: handle string->array)
+  -- Normalize headers (defensive: handle string->array)
+  local headers_list = {}
   if action.headers then
     if type(action.headers) == 'string' then
       action.headers = { action.headers }
@@ -98,12 +71,12 @@ function M.fetch_web(action, ctx)
     if type(action.headers) == 'table' then
       for _, header in ipairs(action.headers) do
         if type(header) == 'string' and header ~= '' then
-          table.insert(cmd, '-H')
-          table.insert(cmd, header)
+          table.insert(headers_list, header)
         end
       end
     end
   end
+
   -- HTTP method (validate allowed methods)
   local allowed_methods = { GET = true, POST = true, PUT = true, DELETE = true, PATCH = true, HEAD = true }
   local method = (action.method or 'GET'):upper()
@@ -112,19 +85,6 @@ function M.fetch_web(action, ctx)
       error = string.format('Invalid HTTP method: %s. Allowed methods: GET, POST, PUT, DELETE, PATCH, HEAD', method),
     }
   end
-  if method ~= 'GET' then
-    table.insert(cmd, '-X')
-    table.insert(cmd, method)
-  end
-
-  -- POST data
-  if action.data and type(action.data) == 'string' then
-    table.insert(cmd, '--data')
-    table.insert(cmd, action.data)
-  end
-
-  -- Add URL at the end
-  table.insert(cmd, action.url)
 
   -- Output file path validation
   local output_path = nil
@@ -154,11 +114,24 @@ function M.fetch_web(action, ctx)
       return {
         error = 'output file path is not allowed path',
       }
-    else
-      table.insert(cmd, '-o')
-      table.insert(cmd, output_path)
     end
   end
+
+  -- Build curl command via unified module
+  local cmd = curl.build_request({
+    url = action.url,
+    method = method ~= 'GET' and method or nil,
+    headers = headers_list,
+    body = action.data,
+    body_inline = true,
+    follow_redirects = true,
+    max_redirects = max_redirects,
+    compressed = true,
+    max_time = timeout,
+    insecure = action.insecure,
+    user_agent = user_agent,
+    output = output_path,
+  })
 
   local stdout = {}
   local stderr = {}
@@ -295,19 +268,11 @@ function M.fetch_web(action, ctx)
           result
         )
 
-        -- Provide troubleshooting tips
-        if code == 6 then
+        -- Provide troubleshooting tips via unified curl error messages
+        local curl_hint = curl.get_error_message(code)
+        if curl_hint then
           error_msg = error_msg
-            .. '\n\nTroubleshooting: Could not resolve host. Check URL and network connection.'
-        elseif code == 7 then
-          error_msg = error_msg
-            .. '\n\nTroubleshooting: Failed to connect to host. Check if the server is accessible.'
-        elseif code == 28 then
-          error_msg = error_msg
-            .. '\n\nTroubleshooting: Operation timeout. Try increasing timeout value.'
-        elseif code == 60 then
-          error_msg = error_msg
-            .. '\n\nTroubleshooting: SSL certificate problem. Try using insecure=true for testing.'
+            .. '\n\nTroubleshooting: ' .. curl_hint
         end
 
         ctx.callback({

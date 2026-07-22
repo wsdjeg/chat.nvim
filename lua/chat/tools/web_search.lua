@@ -1,5 +1,6 @@
 local M = {}
 
+local curl = require('chat.curl')
 
 -- URL encode helper function
 local function url_encode(str)
@@ -16,15 +17,6 @@ local function url_encode(str)
 end
 
 local config = require('chat.config')
-
--- Cache curl availability check
-local curl_available = nil
-local function is_curl_available()
-  if curl_available == nil then
-    curl_available = vim.fn.executable('curl') == 1
-  end
-  return curl_available
-end
 
 ---@class ChatToolsWebSearchAction
 ---@field query string
@@ -58,7 +50,7 @@ function M.web_search(action, _)
   end
 
   -- Check if curl is available
-  if not is_curl_available() then
+  if not curl.is_available() then
     return {
       error = 'curl is not installed or not in PATH. Please install curl first.',
     }
@@ -116,16 +108,11 @@ function M.web_search(action, _)
     end
   end
 
-  -- Build request based on engine
-  local cmd = { 'curl' }
-  table.insert(cmd, '-s')
-  table.insert(cmd, '-L')
-  table.insert(cmd, '--compressed')
-
   -- Timeout
   local timeout = action.timeout or 30
-  table.insert(cmd, '--max-time')
-  table.insert(cmd, tostring(timeout))
+
+  -- Build curl command based on engine
+  local cmd
 
   if engine == 'firecrawl' then
     -- Build Firecrawl request payload
@@ -139,15 +126,19 @@ function M.web_search(action, _)
 
     local payload_json = vim.json.encode(payload)
 
-    table.insert(cmd, '-X')
-    table.insert(cmd, 'POST')
-    table.insert(cmd, '-H')
-    table.insert(cmd, 'Authorization: Bearer ' .. api_key)
-    table.insert(cmd, '-H')
-    table.insert(cmd, 'Content-Type: application/json')
-    table.insert(cmd, '--data')
-    table.insert(cmd, payload_json)
-    table.insert(cmd, 'https://api.firecrawl.dev/v2/search')
+    cmd = curl.build_request({
+      url = 'https://api.firecrawl.dev/v2/search',
+      method = 'POST',
+      headers = {
+        'Authorization: Bearer ' .. api_key,
+        'Content-Type: application/json',
+      },
+      body = payload_json,
+      body_inline = true,
+      follow_redirects = true,
+      compressed = true,
+      max_time = timeout,
+    })
   elseif engine == 'google' then
     -- Build Google Custom Search request
     local limit = action.limit or 10
@@ -166,10 +157,14 @@ function M.web_search(action, _)
       limit
     )
 
-    table.insert(cmd, '-X')
-    table.insert(cmd, 'GET')
-    table.insert(cmd, url)
-  elseif engine == 'serpapi' then
+    cmd = curl.build_request({
+      url = url,
+      method = 'GET',
+      follow_redirects = true,
+      compressed = true,
+      max_time = timeout,
+    })
+  else -- serpapi
     -- Build SerpAPI request
     local limit = action.limit or 10
 
@@ -188,9 +183,13 @@ function M.web_search(action, _)
       url = url .. '&engine=' .. action.serpapi_engine
     end
 
-    table.insert(cmd, '-X')
-    table.insert(cmd, 'GET')
-    table.insert(cmd, url)
+    cmd = curl.build_request({
+      url = url,
+      method = 'GET',
+      follow_redirects = true,
+      compressed = true,
+      max_time = timeout,
+    })
   end
 
   -- Execute curl (with security masking for error messages)
@@ -573,3 +572,4 @@ function M.info(action, _)
 end
 
 return M
+
