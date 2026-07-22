@@ -1,6 +1,7 @@
 local M = {}
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -20,20 +21,6 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local cmd = {
-    'curl',
-    '-s',
-    'https://api.hunyuan.cloud.tencent.com/v1/chat/completions',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'Authorization: Bearer ' .. config.config.api_key.tencent,
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
@@ -41,6 +28,16 @@ function M.request(opt)
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  local cmd = curl.build_request({
+    url = 'https://api.hunyuan.cloud.tencent.com/v1/chat/completions',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+      'Authorization: Bearer ' .. config.config.api_key.tencent,
+    },
+    body = body,
   })
 
   local jobid = job.start(cmd, {
@@ -56,3 +53,4 @@ function M.request(opt)
 end
 
 return M
+

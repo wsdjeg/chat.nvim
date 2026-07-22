@@ -1,6 +1,7 @@
 local M = {}
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -14,11 +15,9 @@ end
 
 function M.available_models()
   -- Fetch available models from Ollama
-  local cmd = {
-    'curl',
-    '-s',
-    get_ollama_host() .. '/api/tags',
-  }
+  local cmd = curl.build_request({
+    url = get_ollama_host() .. '/api/tags',
+  })
 
   local models = {}
   local result = vim.system(cmd, { text = true }):wait()
@@ -36,25 +35,22 @@ function M.available_models()
 end
 
 function M.request(opt)
-  -- Use OpenAI-compatible endpoint: /v1/chat/completions
-  local cmd = {
-    'curl',
-    '-s',
-    get_ollama_host() .. '/v1/chat/completions', -- OpenAI compatible endpoint
-    '-H',
-    'Content-Type: application/json',
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  -- Use OpenAI-compatible endpoint: /v1/chat/completions
+  local cmd = curl.build_request({
+    url = get_ollama_host() .. '/v1/chat/completions',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
   })
 
   local jobid = job.start(cmd, {
@@ -70,3 +66,4 @@ function M.request(opt)
 end
 
 return M
+

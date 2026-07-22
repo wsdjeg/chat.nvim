@@ -5,21 +5,20 @@ local available_models = {}
 local systemObj
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
 function M.available_models()
   if #available_models == 0 and not systemObj then
     if config.config.api_key.openrouter then
-      local cmd = {
-        'curl',
-        '-s',
-        '-H',
-        'Content-Type: application/json',
-        '-H',
-        'Authorization: Bearer ' .. config.config.api_key.openrouter,
-        'https://openrouter.ai/api/v1/models',
-      }
+      local cmd = curl.build_request({
+        url = 'https://openrouter.ai/api/v1/models',
+        headers = {
+          'Content-Type: application/json',
+          'Authorization: Bearer ' .. config.config.api_key.openrouter,
+        },
+      })
       systemObj = vim.system(cmd, { text = true }, function(out)
         if out.code == 0 then
           local ok, result = pcall(vim.json.decode, out.stdout)
@@ -36,26 +35,22 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local cmd = {
-    'curl',
-    '-s',
-    'https://openrouter.ai/api/v1/chat/completions',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'Authorization: Bearer ' .. config.config.api_key.openrouter,
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  local cmd = curl.build_request({
+    url = 'https://openrouter.ai/api/v1/chat/completions',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+      'Authorization: Bearer ' .. config.config.api_key.openrouter,
+    },
+    body = body,
   })
 
   local jobid = job.start(cmd, {
@@ -71,3 +66,4 @@ function M.request(opt)
 end
 
 return M
+

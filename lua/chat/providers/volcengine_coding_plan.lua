@@ -1,6 +1,7 @@
 local M = {}
 
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -33,24 +34,6 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local cmd = {
-    'curl',
-    '-s',
-    '-N',
-    '--tcp-nodelay',
-    '--connect-timeout', '10',
-    '--max-time', '300',
-    'https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'Authorization: Bearer ' .. config.config.api_key.volcengine_coding_plan,
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local model = sessions.get_session_model(opt.session)
 
   local body = vim.json.encode({
@@ -64,6 +47,20 @@ function M.request(opt)
     max_tokens = get_max_tokens(model),
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  local cmd = curl.build_request({
+    url = 'https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions',
+    method = 'POST',
+    no_buffer = true,
+    tcp_nodelay = true,
+    connect_timeout = 10,
+    max_time = 300,
+    headers = {
+      'Content-Type: application/json',
+      'Authorization: Bearer ' .. config.config.api_key.volcengine_coding_plan,
+    },
+    body = body,
   })
 
   local jobid = job.start(cmd, {

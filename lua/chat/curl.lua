@@ -58,6 +58,9 @@ end
 ---   body_inline      boolean  if true, embed body in command (-d body) instead of stdin
 ---   body_binary      boolean  use --data-binary instead of -d
 ---   silent           boolean  default true, add -s
+---   no_buffer        boolean  add -N (disable output buffering for streaming)
+---   tcp_nodelay      boolean  add --tcp-nodelay
+---   connect_timeout  integer  add --connect-timeout N
 ---   follow_redirects boolean  add -L
 ---   max_redirects    integer  add -L --max-redirs N
 ---   compressed       boolean  add --compressed
@@ -79,6 +82,19 @@ function M.build_request(opts)
 
   if opts.silent ~= false then
     table.insert(cmd, '-s')
+  end
+
+  if opts.no_buffer then
+    table.insert(cmd, '-N')
+  end
+
+  if opts.tcp_nodelay then
+    table.insert(cmd, '--tcp-nodelay')
+  end
+
+  if opts.connect_timeout then
+    table.insert(cmd, '--connect-timeout')
+    table.insert(cmd, tostring(opts.connect_timeout))
   end
 
   if opts.include_headers then
