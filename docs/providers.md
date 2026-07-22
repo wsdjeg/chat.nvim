@@ -480,6 +480,7 @@ Create a file at `~/.config/nvim/lua/chat/providers/<provider_name>.lua`:
 -- ~/.config/nvim/lua/chat/providers/my_provider.lua
 local M = {}
 local job = require('job')
+local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
 
@@ -492,26 +493,22 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local cmd = {
-    'curl',
-    '-s',
-    'https://api.example.com/v1/chat/completions',
-    '-H',
-    'Content-Type: application/json',
-    '-H',
-    'Authorization: Bearer ' .. config.config.api_key.my_provider,
-    '-X',
-    'POST',
-    '-d',
-    '@-',
-  }
-
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
     stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').available_tools(),
+  })
+
+  local cmd = curl.build_request({
+    url = 'https://api.example.com/v1/chat/completions',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+      'Authorization: Bearer ' .. config.config.api_key.my_provider,
+    },
+    stdin_body = true,
   })
 
   local jobid = job.start(cmd, {
