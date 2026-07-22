@@ -1,16 +1,6 @@
 local M = {}
 
--- Define curl error codes and messages
-local CURL_ERRORS = {
-  [6] = "Couldn't resolve host. Check your network connection.",
-  [7] = 'Failed to connect to host. Check if the server is reachable.',
-  [22] = 'HTTP request failed with error response (>= 400).',
-  [28] = 'Operation timeout. The server took too long to respond.',
-  [35] = 'SSL/TLS handshake failure. Check your certificates.',
-  [52] = 'Empty reply from server. The server returned no data.',
-  [56] = 'Failure with receiving network data. Connection interrupted.',
-}
-
+local curl = require('chat.curl')
 local log = require('chat.log')
 local sessions = require('chat.sessions')
 
@@ -180,7 +170,7 @@ function M.on_exit(id, code, signal)
       local retry_hint = retry.handle_exit_error(session, code)
 
       -- Always append error message (with retry hint if available)
-      local error_msg = CURL_ERRORS[code]
+      local error_msg = curl.get_error_message(code)
         or string.format(
           'Curl failed with exit code %d. Run `curl --help` for details.',
           code

@@ -2,6 +2,7 @@
 -- Tracks retry state per session and schedules delayed retries
 local M = {}
 
+local curl = require('chat.curl')
 local log = require('chat.log')
 
 -- Per-session retry state
@@ -15,21 +16,11 @@ local retrying_sessions = {}
 -- Pending retry timers per session
 local timers = {}
 
--- Curl exit codes that are retryable (connection failures and timeouts)
-local RETRYABLE_ERRORS = {
-  [6] = true, -- Couldn't resolve host
-  [7] = true, -- Failed to connect to host
-  [28] = true, -- Operation timeout
-  [35] = true, -- SSL/TLS handshake failure
-  [52] = true, -- Empty reply from server
-  [56] = true, -- Failure with receiving network data
-}
-
 --- Check if a curl exit code is retryable
 --- @param code integer The curl exit code
 --- @return boolean True if the error is retryable
 function M.is_retryable_error(code)
-  return RETRYABLE_ERRORS[code] == true
+  return curl.is_retryable_error(code)
 end
 
 --- Check if a session is currently waiting for auto-retry
