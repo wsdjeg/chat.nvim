@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -100,16 +101,14 @@ local function get_access_token(callback)
     return
   end
 
-  job.start({
-    'curl',
-    '-s',
-    '-X',
-    'GET',
-    'https://oapi.dingtalk.com/gettoken?appkey='
+  local cmd = curl.build_request({
+    url = 'https://oapi.dingtalk.com/gettoken?appkey='
       .. app_key
       .. '&appsecret='
       .. app_secret,
-  }, {
+    method = 'GET',
+  })
+  job.start(cmd, {
     on_stdout = function(_, lines)
       local output = table.concat(lines, '\n')
       local ok, result = pcall(json.decode, output)
@@ -234,17 +233,21 @@ local function send_message_via_webhook(content)
     return
   end
 
-  send_message_jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    webhook,
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    '@-',
-  }, {
+  local body = json.encode({
+    msgtype = 'text',
+    text = {
+      content = content,
+    },
+  })
+  local cmd = curl.build_request({
+    url = webhook,
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
+  })
+  send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
@@ -263,15 +266,7 @@ local function send_message_via_webhook(content)
     end,
   })
 
-  job.send(
-    send_message_jobid,
-    json.encode({
-      msgtype = 'text',
-      text = {
-        content = content,
-      },
-    })
-  )
+  job.send(send_message_jobid, body)
   job.send(send_message_jobid, nil)
 end
 
@@ -290,19 +285,22 @@ local function send_message_via_api(content)
   end
 
   ensure_token(function(token)
-    send_message_jobid = job.start({
-      'curl',
-      '-s',
-      '-X',
-      'POST',
-      API_BASE .. '/v1.0/robot/oToMessages/batchSend',
-      '-H',
-      'x-acs-dingtalk-access-token: ' .. token,
-      '-H',
-      'Content-Type: application/json',
-      '-d',
-      '@-',
-    }, {
+    local body = json.encode({
+      robotCode = config.config.integrations.dingtalk.app_key,
+      userIds = { config.config.integrations.dingtalk.user_id },
+      msgKey = 'sampleText',
+      msgParam = json.encode({ content = content }),
+    })
+    local cmd = curl.build_request({
+      url = API_BASE .. '/v1.0/robot/oToMessages/batchSend',
+      method = 'POST',
+      headers = {
+        'x-acs-dingtalk-access-token: ' .. token,
+        'Content-Type: application/json',
+      },
+      body = body,
+    })
+    send_message_jobid = job.start(cmd, {
       on_stdout = function(_, data)
         for _, v in ipairs(data) do
           log.debug(v)
@@ -316,15 +314,7 @@ local function send_message_via_api(content)
       end,
     })
 
-    job.send(
-      send_message_jobid,
-      json.encode({
-        robotCode = config.config.integrations.dingtalk.app_key,
-        userIds = { config.config.integrations.dingtalk.user_id },
-        msgKey = 'sampleText',
-        msgParam = json.encode({ content = content }),
-      })
-    )
+    job.send(send_message_jobid, body)
     job.send(send_message_jobid, nil)
   end)
 end

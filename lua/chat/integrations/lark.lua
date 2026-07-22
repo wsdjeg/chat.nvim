@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -123,20 +124,20 @@ local function get_tenant_access_token(callback)
     return
   end
 
-  local jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. '/auth/v3/tenant_access_token/internal',
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    json.encode({
-      app_id = app_id,
-      app_secret = app_secret,
-    }),
-  }, {
+  local body = json.encode({
+    app_id = app_id,
+    app_secret = app_secret,
+  })
+  local cmd = curl.build_request({
+    url = API_BASE .. '/auth/v3/tenant_access_token/internal',
+    method = 'POST',
+    headers = {
+      'Content-Type: application/json',
+    },
+    body = body,
+    body_inline = true,
+  })
+  local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
       local output = table.concat(lines, '\n')
       if output and output ~= '' then
@@ -172,15 +173,14 @@ end
 --------------------------------------------------
 local function get_bot_info()
   ensure_token(function(token)
-    job.start({
-      'curl',
-      '-s',
-      '-X',
-      'GET',
-      API_BASE .. '/bot/v3/info',
-      '-H',
-      'Authorization: Bearer ' .. token,
-    }, {
+    local cmd = curl.build_request({
+      url = API_BASE .. '/bot/v3/info',
+      method = 'GET',
+      headers = {
+        'Authorization: Bearer ' .. token,
+      },
+    })
+    job.start(cmd, {
       on_stdout = function(_, lines)
         local output = table.concat(lines, '\n')
         if output and output ~= '' then
@@ -303,16 +303,15 @@ local function fetch_messages()
     -- FIX: Accumulate response data
     local response_chunks = {}
 
-    job.start({
-      'curl',
-      '-sS',
-      '--compressed',
-      '-X',
-      'GET',
-      endpoint,
-      '-H',
-      'Authorization: Bearer ' .. token,
-    }, {
+    local cmd = curl.build_request({
+      url = endpoint,
+      method = 'GET',
+      compressed = true,
+      headers = {
+        'Authorization: Bearer ' .. token,
+      },
+    })
+    job.start(cmd, {
       raw = true,
 
       on_stdout = function(_, data)
@@ -526,19 +525,21 @@ local function send_message(content)
   end
 
   ensure_token(function(token)
-    send_message_jobid = job.start({
-      'curl',
-      '-s',
-      '-X',
-      'POST',
-      API_BASE .. '/im/v1/messages?receive_id_type=chat_id',
-      '-H',
-      'Authorization: Bearer ' .. token,
-      '-H',
-      'Content-Type: application/json',
-      '-d',
-      '@-',
-    }, {
+    local body = json.encode({
+      receive_id = chat_id,
+      msg_type = 'text',
+      content = json.encode({ text = content }),
+    })
+    local cmd = curl.build_request({
+      url = API_BASE .. '/im/v1/messages?receive_id_type=chat_id',
+      method = 'POST',
+      headers = {
+        'Authorization: Bearer ' .. token,
+        'Content-Type: application/json',
+      },
+      body = body,
+    })
+    send_message_jobid = job.start(cmd, {
       on_stdout = function(_, data)
         for _, v in ipairs(data) do
           log.debug(v)
@@ -557,14 +558,7 @@ local function send_message(content)
       end,
     })
 
-    job.send(
-      send_message_jobid,
-      json.encode({
-        receive_id = chat_id,
-        msg_type = 'text',
-        content = json.encode({ text = content }),
-      })
-    )
+    job.send(send_message_jobid, body)
     job.send(send_message_jobid, nil)
   end)
 end

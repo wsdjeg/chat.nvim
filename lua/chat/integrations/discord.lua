@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -118,22 +119,15 @@ local function api_request(method, endpoint, data, callback)
     return nil
   end
 
-  local cmd = {
-    'curl',
-    '-s',
-    '-X',
-    method,
-    'https://discord.com/api/v10' .. endpoint,
-    '-H',
-    'Authorization: Bot ' .. token,
-    '-H',
-    'Content-Type: application/json',
-  }
-
-  if data then
-    table.insert(cmd, '-d')
-    table.insert(cmd, '@-')
-  end
+  local cmd = curl.build_request({
+    url = 'https://discord.com/api/v10' .. endpoint,
+    method = method,
+    headers = {
+      'Authorization: Bot ' .. token,
+      'Content-Type: application/json',
+    },
+    body = data,
+  })
 
   local stdout = {}
 
@@ -168,8 +162,10 @@ local function api_request(method, endpoint, data, callback)
     end,
   })
 
-  job.send(jobid, json.encode(data))
-  job.send(jobid, nil)
+  if data then
+    job.send(jobid, json.encode(data))
+    job.send(jobid, nil)
+  end
 end
 
 --------------------------------------------------
@@ -450,19 +446,17 @@ local function process_queue()
     return
   end
 
-  send_message_jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    'https://discord.com/api/v10/channels/' .. channel .. '/messages',
-    '-H',
-    'Authorization: Bot ' .. token,
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    '@-',
-  }, {
+  local body = json.encode({ content = content })
+  local cmd = curl.build_request({
+    url = 'https://discord.com/api/v10/channels/' .. channel .. '/messages',
+    method = 'POST',
+    headers = {
+      'Authorization: Bot ' .. token,
+      'Content-Type: application/json',
+    },
+    body = body,
+  })
+  send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
@@ -484,7 +478,7 @@ local function process_queue()
     end,
   })
 
-  job.send(send_message_jobid, json.encode({ content = content }))
+  job.send(send_message_jobid, body)
   job.send(send_message_jobid, nil)
 end
 
@@ -545,24 +539,23 @@ function M.reply(channel, message_id, text)
     return nil
   end
 
-  local jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    'https://discord.com/api/v10/channels/' .. channel .. '/messages',
-    '-H',
-    'Authorization: Bot ' .. token,
-    '-H',
-    'Content-Type: application/json',
-    '-d',
-    json.encode({
-      content = text,
-      message_reference = {
-        message_id = message_id,
-      },
-    }),
-  }, {
+  local body = json.encode({
+    content = text,
+    message_reference = {
+      message_id = message_id,
+    },
+  })
+  local cmd = curl.build_request({
+    url = 'https://discord.com/api/v10/channels/' .. channel .. '/messages',
+    method = 'POST',
+    headers = {
+      'Authorization: Bot ' .. token,
+      'Content-Type: application/json',
+    },
+    body = body,
+    body_inline = true,
+  })
+  local jobid = job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
         log.debug(
@@ -647,15 +640,14 @@ function M.send_typing(is_typing)
     return
   end
 
-  job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    'https://discord.com/api/v10/channels/' .. channel .. '/typing',
-    '-H',
-    'Authorization: Bot ' .. token,
-  }, {
+  local cmd = curl.build_request({
+    url = 'https://discord.com/api/v10/channels/' .. channel .. '/typing',
+    method = 'POST',
+    headers = {
+      'Authorization: Bot ' .. token,
+    },
+  })
+  job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
         log.debug(

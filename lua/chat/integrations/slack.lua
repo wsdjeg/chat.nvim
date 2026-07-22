@@ -3,6 +3,7 @@ local M = {}
 local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
+local curl = require('chat.curl')
 
 local json = vim.json
 local uv = vim.uv
@@ -110,29 +111,27 @@ local function api_request(method, params, callback)
     return nil
   end
 
-  local cmd = {
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. '/' .. method,
-    '-H',
-    'Authorization: Bearer ' .. bot_token,
-    '-H',
-    'Content-Type: application/x-www-form-urlencoded',
-  }
-
-  -- Build query string from params
+  local body_data
   if params then
     local query_parts = {}
     for k, v in pairs(params) do
       table.insert(query_parts, k .. '=' .. vim.uri_encode(v))
     end
     if #query_parts > 0 then
-      table.insert(cmd, '-d')
-      table.insert(cmd, table.concat(query_parts, '&'))
+      body_data = table.concat(query_parts, '&')
     end
   end
+
+  local cmd = curl.build_request({
+    url = API_BASE .. '/' .. method,
+    method = 'POST',
+    headers = {
+      'Authorization: Bearer ' .. bot_token,
+      'Content-Type: application/x-www-form-urlencoded',
+    },
+    body = body_data,
+    body_inline = true,
+  })
 
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
@@ -421,20 +420,19 @@ local function send_message(content)
   for k, v in pairs(params) do
     table.insert(query_parts, k .. '=' .. vim.uri_encode(v))
   end
+  local body = table.concat(query_parts, '&')
 
-  send_message_jobid = job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. '/chat.postMessage',
-    '-H',
-    'Authorization: Bearer ' .. bot_token,
-    '-H',
-    'Content-Type: application/x-www-form-urlencoded',
-    '-d',
-    table.concat(query_parts, '&'),
-  }, {
+  local cmd = curl.build_request({
+    url = API_BASE .. '/chat.postMessage',
+    method = 'POST',
+    headers = {
+      'Authorization: Bearer ' .. bot_token,
+      'Content-Type: application/x-www-form-urlencoded',
+    },
+    body = body,
+    body_inline = true,
+  })
+  send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
@@ -511,20 +509,19 @@ function M.reply(channel, thread_ts, text)
   for k, v in pairs(params) do
     table.insert(query_parts, k .. '=' .. vim.uri_encode(v))
   end
+  local body = table.concat(query_parts, '&')
 
-  return job.start({
-    'curl',
-    '-s',
-    '-X',
-    'POST',
-    API_BASE .. '/chat.postMessage',
-    '-H',
-    'Authorization: Bearer ' .. bot_token,
-    '-H',
-    'Content-Type: application/x-www-form-urlencoded',
-    '-d',
-    table.concat(query_parts, '&'),
-  }, {
+  local cmd = curl.build_request({
+    url = API_BASE .. '/chat.postMessage',
+    method = 'POST',
+    headers = {
+      'Authorization: Bearer ' .. bot_token,
+      'Content-Type: application/x-www-form-urlencoded',
+    },
+    body = body,
+    body_inline = true,
+  })
+  return job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
         log.debug(
