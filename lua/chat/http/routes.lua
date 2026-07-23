@@ -478,6 +478,36 @@ local function handle_retry_session(client, path)
   response.send_response(client, 204)
 end
 
+--- DELETE /session/:id/messages/:index: delete a specific message
+local function handle_delete_message(client, path)
+  local session_id, index_str = path:match('^/session/([^/]+)/messages/(%d+)$')
+  if not session_id then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  if sessions.is_in_progress(session_id) then
+    response.send_json(client, 409, { error = 'Session is in progress' })
+    return
+  end
+
+  local index = tonumber(index_str)
+  local success = sessions.delete_message(session_id, index)
+  if not success then
+    response.send_json(client, 400, { error = 'Message index out of range' })
+    return
+  end
+
+  require('chat.sessions.storage').write_cache(session_id)
+  response.send_response(client, 204)
+end
+
 --- GET /messages?session=session_id&since=index: return message list
 local function handle_get_messages(client, path)
   local session_id = path:match('session=([^&]+)')
@@ -576,6 +606,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_set_title(client, path, body, content_length)
   elseif method == 'POST' and path:match('^/session/[^/]+/retry$') then
     handle_retry_session(client, path)
+  elseif method == 'DELETE' and path:match('^/session/[^/]+/messages/%d+$') then
+    handle_delete_message(client, path)
   elseif method == 'GET' and path:match('^/messages%?') then
     handle_get_messages(client, path)
   elseif method == 'POST' and path == '/' then

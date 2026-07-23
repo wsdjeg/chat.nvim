@@ -58,6 +58,7 @@ require('chat').setup({
 | `/session/{id}/stop` | POST | Stop generation |
 | `/session/{id}/clear` | POST | Clear all messages in a session |
 | `/session/{id}/retry` | POST | Retry the last message |
+| `/session/{id}/messages/{index}` | DELETE | Delete a specific message |
 | `/session/{id}/provider` | PUT | Set the provider for a session |
 | `/session/{id}/model` | PUT | Set the model for a session |
 | `/session/{id}/cwd` | PUT | Set the working directory for a session |
@@ -483,6 +484,35 @@ curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
 
 ---
 
+### DELETE `/session/{id}/messages/{index}`
+
+Delete a specific message from a session by its 1-based index.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+| `index` | Message index (1-based) |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - message deleted |
+| 400 | Invalid or out-of-range message index |
+| 404 | Session not found |
+| 409 | Session is in progress, cannot delete message |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/messages/3 \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
 ### PUT `/session/{id}/provider`
 
 Set the provider for a session.
@@ -793,6 +823,10 @@ curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/clear \
 
 # Retry last message
 curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/retry \
+  -H "X-API-Key: your-secret-key"
+
+# Delete a specific message (index 3)
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/messages/3 \
   -H "X-API-Key: your-secret-key"
 
 # Get messages (with pagination)
