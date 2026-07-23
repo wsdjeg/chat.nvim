@@ -232,10 +232,6 @@ function M.open(opt)
         if not current_session or not sessions.exists(current_session) then
           return
         end
-        if sessions.is_in_progress(current_session) then
-          log.notify('session is in progress', 'WarningMsg')
-          return
-        end
         result.delete_message_at_cursor(current_session)
       end,
     })

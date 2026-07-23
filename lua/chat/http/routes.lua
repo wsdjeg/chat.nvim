@@ -505,6 +505,16 @@ local function handle_delete_message(client, path)
   end
 
   require('chat.sessions.storage').write_cache(session_id)
+
+  -- Update UI if this is the current window session
+  local windows = require('chat.windows')
+  if session_id == windows.current_session() then
+    local result_win = require('chat.windows.result')
+    if result_win.is_buf_valid() then
+      result_win.render(session_id)
+    end
+  end
+
   response.send_response(client, 204)
 end
 

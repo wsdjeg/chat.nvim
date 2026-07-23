@@ -360,6 +360,21 @@ function M.delete_message_at_cursor(session)
   local cursor = vim.api.nvim_win_get_cursor(result_win)
   local line = cursor[1]
 
+  -- When streaming is in progress, the last displayed block is the SSE
+  -- streaming content, which is not a stored message (not in message_line_map).
+  -- Skip it - only allow deleting stored messages above the streaming content.
+  if sessions.is_in_progress(session) then
+    local last_end = 0
+    for _, range in pairs(message_line_map) do
+      if range.end_line > last_end then
+        last_end = range.end_line
+      end
+    end
+    if line > last_end then
+      return false
+    end
+  end
+
   -- Find which message this line belongs to
   local msg_index = nil
   for i, range in ipairs(message_line_map) do
