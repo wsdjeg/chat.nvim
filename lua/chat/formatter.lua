@@ -175,5 +175,23 @@ function M.generate_buffer(messages, session)
   return lines
 end
 
+--- Like generate_buffer, but also returns a line-to-message mapping.
+--- @param messages table Array of message objects
+--- @param session string Session ID
+--- @return table lines, table line_map { [msg_index] = { start_line, end_line } }
+function M.generate_buffer_with_map(messages, session)
+  local lines = {}
+  local line_map = {}
+  for i, m in ipairs(messages) do
+    local start_line = #lines + 1
+    local msg_lines = M.generate_message(m, session)
+    for _, l in ipairs(msg_lines) do
+      table.insert(lines, l)
+    end
+    line_map[i] = { start_line = start_line, end_line = #lines }
+  end
+  return lines, line_map
+end
+
 return M
 

@@ -228,6 +228,16 @@ function M.open(opt)
     keymaps.setup_result_keymaps(result.get_buf(), {
       close_fn = M.close,
       focus_prompt_fn = prompt.focus,
+      delete_message_fn = function()
+        if not current_session or not sessions.exists(current_session) then
+          return
+        end
+        if sessions.is_in_progress(current_session) then
+          log.notify('session is in progress', 'WarningMsg')
+          return
+        end
+        result.delete_message_at_cursor(current_session)
+      end,
     })
   end
 

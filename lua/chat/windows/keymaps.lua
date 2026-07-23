@@ -4,6 +4,7 @@ local M = {}
 function M.setup_result_keymaps(buf, opts)
   local close_fn = opts.close_fn
   local focus_prompt_fn = opts.focus_prompt_fn
+  local delete_message_fn = opts.delete_message_fn
 
   vim.api.nvim_buf_set_keymap(buf, 'n', 'q', '', {
     callback = close_fn,
@@ -11,6 +12,14 @@ function M.setup_result_keymaps(buf, opts)
   })
 
   vim.api.nvim_buf_set_keymap(buf, 'n', '<C-o>', '<Nop>', {})
+
+  -- Delete message at cursor position
+  if delete_message_fn then
+    vim.api.nvim_buf_set_keymap(buf, 'n', 'dd', '', {
+      callback = delete_message_fn,
+      silent = true,
+    })
+  end
 
   -- Picker keymaps (if available)
   if vim.fn.exists(':Picker') == 2 then

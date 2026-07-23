@@ -77,6 +77,22 @@ function M.get_messages(session_id)
   return message
 end
 
+--- Deletes a message at the given index from a session's history
+--- Forces usage statistics recalculation on next access
+--- @param session_id string The session identifier
+--- @param index integer The 1-based index of the message to delete
+--- @return boolean True if deleted successfully, false if index is out of range
+function M.delete_message(session_id, index)
+  local messages = storage.sessions[session_id].messages
+  if index < 1 or index > #messages then
+    return false
+  end
+  table.remove(messages, index)
+  -- Force usage recalculation on next access
+  storage.sessions[session_id].usage = nil
+  return true
+end
+
 --- Gets messages formatted for LLM API request
 --- Prepends system prompt and user profile if configured, applies context truncation
 --- @param session_id string The session identifier

@@ -39,6 +39,7 @@ M.get_total_tokens = core.get_total_tokens
 M.append_message = messages.append_message
 M.get_messages = messages.get_messages
 M.get_request_messages = messages.get_request_messages
+M.delete_message = messages.delete_message
 
 -- ─── Progress / Streaming ──────────────────────────────────────
 M.on_progress = progress.on_progress

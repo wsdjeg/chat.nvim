@@ -9,6 +9,10 @@ local util = require('chat.util')
 local result_win = -1
 local result_buf = -1
 
+-- Line-to-message mapping: { [msg_index] = { start_line, end_line } }
+-- Updated on every render, used by delete_message_at_cursor
+local message_line_map = {}
+
 function M.get_win()
   return result_win
 end
@@ -242,12 +246,12 @@ function M.create_buffer(session)
 
   local messages = sessions.get_messages(session)
   if #messages > 0 then
-    util.buf_set_lines(
-      result_buf,
-      0,
-      -1,
-      formatter.generate_buffer(messages, session)
-    )
+    local lines, line_map =
+      formatter.generate_buffer_with_map(messages, session)
+    message_line_map = line_map
+    util.buf_set_lines(result_buf, 0, -1, lines)
+  else
+    message_line_map = {}
   end
 
   if sessions.is_in_progress(session) then
@@ -316,18 +320,16 @@ function M.render(session)
     return
   end
 
-  util.buf_set_lines(
-    result_buf,
-    0,
-    -1,
-    formatter.generate_buffer(sessions.get_messages(session), session)
-  )
+  local lines, line_map =
+    formatter.generate_buffer_with_map(sessions.get_messages(session), session)
+  message_line_map = line_map
+  util.buf_set_lines(result_buf, 0, -1, lines)
 
   if sessions.is_in_progress(session) then
     local reasoning_content = sessions.get_progress_reasoning_content(session)
     local message = sessions.get_progress_message(session)
     if message or reasoning_content then
-      local lines = { '' }
+      local lines_progress = { '' }
       for _, l in
         ipairs(formatter.generate_message({
           role = 'assistant',
@@ -335,14 +337,50 @@ function M.render(session)
           reasoning_content = reasoning_content,
         }, session))
       do
-        table.insert(lines, l)
+        table.insert(lines_progress, l)
       end
-      util.buf_set_lines(result_buf, -1, -1, lines)
+      util.buf_set_lines(result_buf, -1, -1, lines_progress)
     end
   end
 
   -- Scroll to bottom after rendering new session content
   M.scroll_to_bottom()
+end
+
+--- Delete the message at the current cursor position in the result window.
+--- Looks up the message index from the line-to-message mapping,
+--- removes it from the session, and re-renders.
+--- @param session string Session ID
+--- @return boolean True if a message was deleted
+function M.delete_message_at_cursor(session)
+  if not vim.api.nvim_win_is_valid(result_win) then
+    return false
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(result_win)
+  local line = cursor[1]
+
+  -- Find which message this line belongs to
+  local msg_index = nil
+  for i, range in ipairs(message_line_map) do
+    if line >= range.start_line and line <= range.end_line then
+      msg_index = i
+      break
+    end
+  end
+
+  if not msg_index then
+    return false
+  end
+
+  -- Delete from session data
+  sessions.delete_message(session, msg_index)
+  require('chat.sessions.storage').write_cache(session)
+
+  -- Re-render
+  M.render(session)
+
+  return true
 end
 
 return M

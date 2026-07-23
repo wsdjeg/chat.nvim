@@ -247,6 +247,7 @@ The following key bindings are available in the **Result** window:
 | Mode     | Key Binding  | Description                             |
 | -------- | ------------ | --------------------------------------- |
 | `Normal` | `q`          | Close chat window                       |
+| `Normal` | `dd`         | Delete message at cursor position       |
 | `Normal` | `<Tab>`      | Switch between input and result windows |
 | `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
 
