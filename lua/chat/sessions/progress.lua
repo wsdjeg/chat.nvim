@@ -155,8 +155,10 @@ function M.on_progress_done(jobid, opts)
     message.tool_calls = opts.tool_calls
   end
 
-  -- Only append if we have content or tool_calls
-  if has_content or (opts and opts.tool_calls) then
+  -- Append if we have content, tool_calls, or reasoning_content
+  -- DeepSeek thinking mode requires reasoning_content to be preserved
+  -- even if the content happens to be empty
+  if has_content or reasoning_content or (opts and opts.tool_calls) then
     require('chat.sessions.messages').append_message(session_id, message)
   end
 
