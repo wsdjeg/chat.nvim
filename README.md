@@ -1,8 +1,4 @@
-<h1 align="center">
-<a href="https://nvim.chat">
-  <img src="https://wsdjeg.net/images/chat-nvim-intro.png" width="440" alt="chat.nvim"/>
-  </a>
-</h1>
+# chat.nvim
 
 [![Run Tests](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml)
 [![GitHub License](https://img.shields.io/github/license/wsdjeg/chat.nvim)](LICENSE)
