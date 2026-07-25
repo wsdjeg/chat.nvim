@@ -1,5 +1,11 @@
 # chat.nvim
 
+`chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI integration.
+Chat with AI assistants directly in your editor using a clean, floating window interface.
+It supports 19+ AI providers, a three-tier memory system, 40+ built-in tools,
+MCP protocol, IM integrations, and an HTTP API for external access.
+Full documentation is available at [nvim.chat](https://nvim.chat).
+
 [![Run Tests](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml/badge.svg)](https://github.com/wsdjeg/chat.nvim/actions/workflows/test.yml)
 [![GitHub License](https://img.shields.io/github/license/wsdjeg/chat.nvim)](LICENSE)
 [![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/issues)
@@ -7,17 +13,10 @@
 [![GitHub Release](https://img.shields.io/github/v/release/wsdjeg/chat.nvim)](https://github.com/wsdjeg/chat.nvim/releases)
 [![luarocks](https://img.shields.io/luarocks/v/wsdjeg/chat.nvim)](https://luarocks.org/modules/wsdjeg/chat.nvim)
 
-`chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI integration.
-Chat with AI assistants directly in your editor using a clean, floating window interface.
-It supports 19+ AI providers, a three-tier memory system, 40+ built-in tools,
-MCP protocol, IM integrations, and an HTTP API for external access.
-Full documentation is available at [nvim.chat](https://nvim.chat).
-
 ![chat-nvim](https://github.com/user-attachments/assets/42ea71b2-7b0f-497e-b236-d9ae5a207a8a)
 
 <!-- vim-markdown-toc GFM -->
 
-- [📘 Intro](#-intro)
 - [✨ Features](#-features)
 - [📦 Installation](#-installation)
 - [🔧 Configuration](#-configuration)
@@ -29,14 +28,9 @@ Full documentation is available at [nvim.chat](https://nvim.chat).
 - [🌐 HTTP API](#-http-api)
 - [📣 Self-Promotion](#-self-promotion)
 - [💬 Feedback](#-feedback)
+- [📄 License](#-license)
 
 <!-- vim-markdown-toc -->
-
-## 📘 Intro
-
-`chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI integration.
-Chat with AI assistants directly in your editor using a clean, floating window interface.
-Full documentation is available at [nvim.chat](https://nvim.chat).
 
 ## ✨ Features
 
@@ -54,37 +48,39 @@ Full documentation is available at [nvim.chat](https://nvim.chat).
 
 ## 📦 Installation
 
-Using [lazy.nvim](https://github.com/folke/lazy.nvim):
+chat.nvim works with all major Neovim plugin managers.
 
-```lua
-{
-  'wsdjeg/chat.nvim',
-  dependencies = {
-    'wsdjeg/job.nvim', -- Required
-    'wsdjeg/picker.nvim', -- Optional but recommended
-  },
-}
-```
+- **Using [lazy.nvim](https://github.com/folke/lazy.nvim)**
 
-Using [nvim-plug](https://github.com/wsdjeg/nvim-plug):
-
-```lua
-require('plug').add({
+  ```lua
   {
     'wsdjeg/chat.nvim',
-    depends = {
-      'wsdjeg/job.nvim',
-      'wsdjeg/picker.nvim',
+    dependencies = {
+      'wsdjeg/job.nvim', -- Required
+      'wsdjeg/picker.nvim', -- Optional but recommended
     },
-  },
-})
-```
+  }
+  ```
 
-Using [LuaRocks](https://luarocks.org/):
+- **Using [nvim-plug](https://github.com/wsdjeg/nvim-plug)**
 
-```sh
-luarocks install chat.nvim
-```
+  ```lua
+  require('plug').add({
+    {
+      'wsdjeg/chat.nvim',
+      depends = {
+        'wsdjeg/job.nvim',
+        'wsdjeg/picker.nvim',
+      },
+    },
+  })
+  ```
+
+- **Using [luarocks](https://luarocks.org/)**
+
+  ```
+  luarocks install chat.nvim
+  ```
 
 ## 🔧 Configuration
 
@@ -245,12 +241,9 @@ Also check out my other Neovim plugins:
 
 ## 💬 Feedback
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/wsdjeg/chat.nvim/issues)
-- **Author**: [wsdjeg](https://wsdjeg.net/)
+If you encounter any bugs or have suggestions, please file an issue in the [issue tracker](https://github.com/wsdjeg/chat.nvim/issues)
 
-## License
+## 📄 License
 
-chat.nvim is released under the [GPL-3.0 License](LICENSE).
-
-<!-- vim:set nowrap: -->
+Licensed under GPL-3.0.
 
