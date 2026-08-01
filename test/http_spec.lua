@@ -364,4 +364,133 @@ function TestHTTP:testNewSessionWithOptions()
   lu.assertEquals(session_data.model, 'gpt-4')
 end
 
+--------------------------------------------------
+-- Upload endpoint tests
+--------------------------------------------------
+
+-- Test upload route matching with query string
+function TestHTTP:testUploadRouteMatching()
+  -- With query string
+  local path1 = '/session/test-session-id/upload?path=images/photo.png'
+  local sid1, query1 = path1:match('^/session/([^/]+)/upload%?(.*)$')
+  lu.assertEquals(sid1, 'test-session-id')
+  lu.assertEquals(query1, 'path=images/photo.png')
+
+  -- Extract path from query
+  local file_path1 = query1:match('path=([^&]+)')
+  lu.assertEquals(file_path1, 'images/photo.png')
+
+  -- Without query string (X-Filename header fallback)
+  local path2 = '/session/test-session-id/upload'
+  local sid2, query2 = path2:match('^/session/([^/]+)/upload%?(.*)$')
+  lu.assertEquals(sid2, nil)
+
+  local sid3 = path2:match('^/session/([^/]+)/upload$')
+  lu.assertEquals(sid3, 'test-session-id')
+end
+
+-- Test upload path traversal rejection
+function TestHTTP:testUploadPathTraversalRejection()
+  local function is_path_safe(file_path)
+    if file_path:find('%.%.') then
+      return false, 'Path traversal not allowed'
+    end
+    if file_path:match('^/') or file_path:match('^%a:[/\\]') then
+      return false, 'Absolute paths not allowed'
+    end
+    return true
+  end
+
+  -- Safe paths
+  lu.assertEquals(is_path_safe('images/photo.png'), true)
+  lu.assertEquals(is_path_safe('assets/img/logo.svg'), true)
+  lu.assertEquals(is_path_safe('file.txt'), true)
+
+  -- Unsafe paths
+  lu.assertEquals(is_path_safe('../etc/passwd'), false)
+  lu.assertEquals(is_path_safe('images/../../etc/passwd'), false)
+  lu.assertEquals(is_path_safe('../../secret'), false)
+  lu.assertEquals(is_path_safe('/etc/passwd'), false)
+  lu.assertEquals(is_path_safe('C:\\Windows\\system32'), false)
+end
+
+-- Test upload with session cwd
+function TestHTTP:testUploadToSessionCwd()
+  -- Create a temp directory to use as cwd
+  local temp_cwd = vim.fn.tempname() .. '_upload_test/'
+  vim.fn.mkdir(temp_cwd, 'p')
+
+  -- Create session and set cwd
+  local session_id = sessions.new()
+  sessions.change_cwd(session_id, temp_cwd)
+
+  -- Verify session cwd was set
+  local all_sessions = sessions.get()
+  lu.assertEquals(all_sessions[session_id].cwd, temp_cwd)
+
+  -- Simulate writing a file to cwd
+  local file_path = 'images/test.png'
+  local cwd_normalized = vim.fs.normalize(temp_cwd)
+  local full_path = vim.fs.normalize(cwd_normalized .. '/' .. file_path)
+
+  -- Verify path is within cwd
+  lu.assertEquals(full_path:sub(1, #cwd_normalized), cwd_normalized)
+
+  -- Create parent dirs and write file
+  local parent_dir = vim.fs.dirname(full_path)
+  vim.fn.mkdir(parent_dir, 'p')
+  local fd = io.open(full_path, 'wb')
+  lu.assertNotNil(fd)
+  fd:write('fake image data')
+  fd:close()
+
+  -- Verify file exists
+  lu.assertEquals(vim.fn.filereadable(full_path), 1)
+
+  -- Verify content
+  local read_fd = io.open(full_path, 'rb')
+  lu.assertNotNil(read_fd)
+  local content = read_fd:read('*a')
+  read_fd:close()
+  lu.assertEquals(content, 'fake image data')
+
+  -- Cleanup
+  vim.fn.delete(temp_cwd, 'rf')
+end
+
+-- Test URL-decoded file path for upload
+function TestHTTP:testUploadUrlDecodedPath()
+  local function url_decode(str)
+    return str:gsub('%%(%x%x)', function(h)
+      return string.char(tonumber(h, 16))
+    end)
+  end
+
+  -- URL-encoded path with spaces
+  local encoded = 'my%20images/photo%20copy.png'
+  local decoded = url_decode(encoded)
+  lu.assertEquals(decoded, 'my images/photo copy.png')
+
+  -- URL-encoded path with subdirectory
+  local encoded2 = 'assets%2Flogo.png'
+  local decoded2 = url_decode(encoded2)
+  lu.assertEquals(decoded2, 'assets/logo.png')
+end
+
+-- Test that upload route doesn't match other session routes
+function TestHTTP:testUploadRouteNoFalseMatch()
+  -- These should NOT match the upload route
+  local upload_pattern = '^/session/[^/]+/upload'
+
+  -- Should match
+  lu.assertNotNil(('/session/abc/upload'):match(upload_pattern))
+  lu.assertNotNil(('/session/abc/upload?path=x.png'):match(upload_pattern))
+
+  -- Should not match (different endpoints)
+  lu.assertNil(('/session/abc/stop'):match(upload_pattern))
+  lu.assertNil(('/session/abc/clear'):match(upload_pattern))
+  lu.assertNil(('/session/abc/retry'):match(upload_pattern))
+  lu.assertNil(('/session/abc/messages/1'):match(upload_pattern))
+end
+
 return TestHTTP

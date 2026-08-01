@@ -64,6 +64,7 @@ require('chat').setup({
 | `/session/{id}/cwd` | PUT | Set the working directory for a session |
 | `/session/{id}/pin` | PUT | Set the pin status for a session |
 | `/session/{id}/title` | PUT | Set the title for a session |
+| `/session/{id}/upload` | POST | Upload a file to the session's working directory |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
 
 ---
@@ -681,6 +682,87 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
 
 ---
 
+### POST `/session/{id}/upload`
+
+Upload a file to the session's working directory (`cwd`). The raw request body is written directly to the file — **binary-safe**, no base64 encoding required.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | string | Yes* | Relative path within `cwd` (e.g., `images/photo.png`) |
+
+*Alternatively, the path can be specified via the `X-Filename` header.
+
+**Request:**
+
+The request body is the raw file content. Set `Content-Type` appropriately (e.g., `image/png`), though it is not validated — the body is written as-is.
+
+**Security:**
+
+- Path must be **relative** (no absolute paths like `/etc/passwd` or `C:\...`)
+- Path traversal (`..`) is **rejected**
+- The resolved full path must be within `session.cwd`
+- Parent directories are created automatically
+
+**Response (200 OK):**
+
+```json
+{
+  "path": "images/photo.png",
+  "full_path": "/home/user/project/images/photo.png",
+  "size": 102400
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `path` | string | Relative path as provided |
+| `full_path` | string | Absolute path where the file was written |
+| `size` | number | File size in bytes |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success - file uploaded |
+| 400 | Missing file path |
+| 403 | Path traversal or absolute path rejected |
+| 404 | Session not found |
+| 500 | Failed to write file |
+
+**Examples:**
+
+```bash
+# Upload with ?path= query parameter
+curl -X POST "http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload?path=images/photo.png" \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: image/png" \
+  --data-binary @photo.png
+
+# Upload with X-Filename header
+curl -X POST http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload \
+  -H "X-API-Key: your-secret-key" \
+  -H "X-Filename: assets/logo.svg" \
+  -H "Content-Type: image/svg+xml" \
+  --data-binary @logo.svg
+
+# Upload to nested directory (auto-created)
+curl -X POST "http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload?path=docs/img/diagram.png" \
+  -H "X-API-Key: your-secret-key" \
+  --data-binary @diagram.png
+```
+
+---
+
 ### GET `/session`
 
 Get an HTML preview of a session (**no authentication required**, accessible directly from a browser).
@@ -837,6 +919,11 @@ curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
 curl "http://127.0.0.1:7777/sessions/2024-01-15-10-30-00/raw" \
   -H "X-API-Key: your-secret-key"
 
+# Upload a file to session's working directory
+curl -X POST "http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload?path=images/screenshot.png" \
+  -H "X-API-Key: your-secret-key" \
+  --data-binary @screenshot.png
+
 # Get HTML preview (no API key needed)
 curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 ```
@@ -900,6 +987,18 @@ def get_messages(session_id: str, since: int = None) -> list:
 def delete_session(session_id: str) -> bool:
     resp = requests.delete(f"{BASE_URL}/session/{session_id}", headers=HEADERS)
     return resp.status_code == 204
+
+
+# Upload a file to session's working directory
+def upload_file(session_id: str, file_path: str, relative_path: str) -> dict:
+    with open(file_path, "rb") as f:
+        resp = requests.post(
+            f"{BASE_URL}/session/{session_id}/upload",
+            params={"path": relative_path},
+            headers=HEADERS,
+            data=f,
+        )
+    return resp.json() if resp.status_code == 200 else None
 
 
 # Usage example
@@ -966,6 +1065,17 @@ async function getMessages(sessionId, since) {
 
   const resp = await fetch(`${BASE_URL}/messages?${params}`, { headers: HEADERS });
   return resp.ok ? resp.json() : [];
+}
+
+// Upload a file to session's working directory
+async function uploadFile(sessionId, file, relativePath) {
+  const params = new URLSearchParams({ path: relativePath });
+  const resp = await fetch(`${BASE_URL}/session/${sessionId}/upload?${params}`, {
+    method: "POST",
+    headers: HEADERS,
+    body: file,
+  });
+  return resp.ok ? resp.json() : null;
 }
 
 // Usage example

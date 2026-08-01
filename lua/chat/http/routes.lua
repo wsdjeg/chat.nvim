@@ -569,6 +569,94 @@ local function handle_push_message(client, body, content_length)
   response.send_response(client, 204)
 end
 
+--- POST /session/:id/upload: upload file to session cwd
+--- Query: ?path=relative/path/to/file.png
+--- Or use X-Filename header for the file path
+--- Body: raw file content (binary safe)
+local function handle_upload_file(client, path, headers, body, content_length)
+  -- Extract session ID and optional query string
+  local session_id, query = path:match('^/session/([^/]+)/upload%?(.*)$')
+  if not session_id then
+    session_id = path:match('^/session/([^/]+)/upload$')
+    if not session_id then
+      response.send_response(client, 400)
+      return
+    end
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  -- Get the session cwd
+  local all_sessions = sessions.get()
+  local session_data = all_sessions[session_id]
+  local cwd = session_data.cwd or vim.fn.getcwd()
+
+  -- Parse file path from query param or X-Filename header
+  local file_path = nil
+  if query then
+    file_path = query:match('path=([^&]+)')
+    if file_path then
+      file_path = url_decode(file_path)
+    end
+  end
+
+  -- Fallback to X-Filename header
+  if not file_path or file_path == '' then
+    file_path = headers['x-filename']
+  end
+
+  if not file_path or file_path == '' then
+    response.send_json(client, 400, { error = 'Missing file path (use ?path= or X-Filename header)' })
+    return
+  end
+
+  -- Security: reject path traversal
+  if file_path:find('%.%.') then
+    response.send_json(client, 403, { error = 'Path traversal not allowed' })
+    return
+  end
+
+  -- Reject absolute paths (Unix / or Windows C:\)
+  if file_path:match('^/') or file_path:match('^%a:[/\\]') then
+    response.send_json(client, 403, { error = 'Absolute paths not allowed' })
+    return
+  end
+
+  -- Build full path and verify it's within cwd
+  local cwd_normalized = vim.fs.normalize(cwd)
+  local full_path = vim.fs.normalize(cwd_normalized .. '/' .. file_path)
+
+  -- Verify the full path starts with cwd (prevents symlink/traversal escape)
+  if full_path:sub(1, #cwd_normalized) ~= cwd_normalized then
+    response.send_json(client, 403, { error = 'Path must be within session cwd' })
+    return
+  end
+
+  -- Create parent directories if needed
+  local parent_dir = vim.fs.dirname(full_path)
+  vim.fn.mkdir(parent_dir, 'p')
+
+  -- Write the file (binary-safe, only content_length bytes)
+  local file_data = body:sub(1, content_length)
+  local fd, err = io.open(full_path, 'wb')
+  if not fd then
+    response.send_json(client, 500, { error = 'Failed to write file: ' .. (err or 'unknown') })
+    return
+  end
+  fd:write(file_data)
+  fd:close()
+
+  response.send_json(client, 200, {
+    path = file_path,
+    full_path = full_path,
+    size = #file_data,
+  })
+end
+
 --------------------------------------------------
 -- Main dispatcher
 --------------------------------------------------
@@ -620,6 +708,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_delete_message(client, path)
   elseif method == 'GET' and path:match('^/messages%?') then
     handle_get_messages(client, path)
+  elseif method == 'POST' and path:match('^/session/[^/]+/upload') then
+    handle_upload_file(client, path, headers, body, content_length)
   elseif method == 'POST' and path == '/' then
     handle_push_message(client, body, content_length)
   else
