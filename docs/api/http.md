@@ -62,9 +62,11 @@ require('chat').setup({
 | `/session/{id}/provider` | PUT | Set the provider for a session |
 | `/session/{id}/model` | PUT | Set the model for a session |
 | `/session/{id}/cwd` | PUT | Set the working directory for a session |
+| `/session/{id}/upload-dir` | GET | Get the upload directory for a session |
+| `/session/{id}/upload-dir` | PUT | Set the upload directory for a session |
 | `/session/{id}/pin` | PUT | Set the pin status for a session |
 | `/session/{id}/title` | PUT | Set the title for a session |
-| `/session/{id}/upload` | POST | Upload a file to the session's working directory |
+| `/session/{id}/upload` | POST | Upload a file to the session's upload directory (or cwd) |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
 
 ---
@@ -682,9 +684,104 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/title \
 
 ---
 
+### GET `/session/{id}/upload-dir`
+
+Get the upload directory for a session. When set, file uploads via `POST /session/{id}/upload` will be written to this directory instead of the session's `cwd`. Returns `null` if not set (uploads use `cwd`).
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+
+**Response (200 OK):**
+
+```json
+{
+  "upload_dir": "/home/user/uploads"
+}
+```
+
+When not set:
+
+```json
+{
+  "upload_dir": null
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### PUT `/session/{id}/upload-dir`
+
+Set the upload directory for a session. Subsequent uploads will write files to this directory. Pass `null` or empty string to reset (uploads will use `cwd`).
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+
+**Request Body:**
+
+```json
+{
+  "upload_dir": "/home/user/uploads"
+}
+```
+
+To reset to default (use `cwd`):
+
+```json
+{
+  "upload_dir": null
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - no content |
+| 400 | Invalid upload_dir or directory does not exist |
+| 404 | Session not found |
+
+**Examples:**
+
+```bash
+# Set upload directory
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"upload_dir": "/home/user/uploads"}'
+
+# Reset to use cwd
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"upload_dir": null}'
+```
+
+---
+
+
 ### POST `/session/{id}/upload`
 
-Upload a file to the session's working directory (`cwd`). The raw request body is written directly to the file — **binary-safe**, no base64 encoding required.
+Upload a file to the session's upload directory (`cwd`). The raw request body is written directly to the file — **binary-safe**, no base64 encoding required.
 
 **Path Parameters:**
 
@@ -696,7 +793,7 @@ Upload a file to the session's working directory (`cwd`). The raw request body i
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `path` | string | Yes* | Relative path within `cwd` (e.g., `images/photo.png`) |
+| `path` | string | Yes* | Relative path within upload directory or `cwd` (e.g., `images/photo.png`) |
 
 *Alternatively, the path can be specified via the `X-Filename` header.
 
@@ -708,7 +805,7 @@ The request body is the raw file content. Set `Content-Type` appropriately (e.g.
 
 - Path must be **relative** (no absolute paths like `/etc/passwd` or `C:\...`)
 - Path traversal (`..`) is **rejected**
-- The resolved full path must be within `session.cwd`
+- The resolved full path must be within the session's upload directory (or `cwd` if not set)
 - Parent directories are created automatically
 
 **Response (200 OK):**
@@ -919,10 +1016,20 @@ curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
 curl "http://127.0.0.1:7777/sessions/2024-01-15-10-30-00/raw" \
   -H "X-API-Key: your-secret-key"
 
-# Upload a file to session's working directory
+# Upload a file to session's upload directory (or cwd)
 curl -X POST "http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload?path=images/screenshot.png" \
   -H "X-API-Key: your-secret-key" \
   --data-binary @screenshot.png
+
+# Set upload directory
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"upload_dir": "/home/user/uploads"}'
+
+# Get upload directory
+curl http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key"
 
 # Get HTML preview (no API key needed)
 curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"

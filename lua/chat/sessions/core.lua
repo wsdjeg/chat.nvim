@@ -295,6 +295,33 @@ function M.change_cwd(session_id, cwd)
   end
 end
 
+--- Gets the upload directory for a session
+--- Returns nil if not set (falls back to cwd)
+--- @param session_id string The session identifier
+--- @return string|nil The upload directory path, or nil if not set
+function M.get_upload_dir(session_id)
+  if not storage.sessions[session_id] then
+    return nil
+  end
+  return storage.sessions[session_id].upload_dir
+end
+
+--- Sets the upload directory for a session
+--- Pass nil or empty string to reset (use cwd)
+--- @param session_id string The session identifier
+--- @param upload_dir string|nil The upload directory path, or nil to reset
+function M.set_upload_dir(session_id, upload_dir)
+  if not storage.sessions[session_id] then
+    return
+  end
+  if upload_dir and upload_dir ~= '' then
+    storage.sessions[session_id].upload_dir = vim.fs.normalize(upload_dir)
+  else
+    storage.sessions[session_id].upload_dir = nil
+  end
+  storage.write_cache(session_id)
+end
+
 --- Gets the pin status for a session
 --- @param session_id string The session identifier
 --- @return boolean|nil The pin status if session exists, nil otherwise

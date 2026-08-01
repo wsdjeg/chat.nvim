@@ -392,6 +392,68 @@ local function handle_set_cwd(client, path, body, content_length)
   response.send_response(client, 204)
 end
 
+--- GET /session/:id/upload-dir: get upload directory for session
+local function handle_get_upload_dir(client, path)
+  local session_id = path:match('^/session/([^/]+)/upload%-dir$')
+  if not session_id then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local upload_dir = sessions.get_upload_dir(session_id)
+  response.send_json(client, 200, { upload_dir = upload_dir })
+end
+
+--- PUT /session/:id/upload-dir: set upload directory for session
+--- Body: { "upload_dir": "/path/to/dir" } or { "upload_dir": null } to reset
+local function handle_set_upload_dir(client, path, body, content_length)
+  local session_id = path:match('^/session/([^/]+)/upload%-dir$')
+  if not session_id then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local ok, obj = parse_json_body(client, body, content_length)
+  if not ok then
+    return
+  end
+
+  local upload_dir = obj.upload_dir
+  if upload_dir == nil or (type(upload_dir) == 'string' and upload_dir == '') then
+    -- Reset to default (use cwd)
+    sessions.set_upload_dir(session_id, nil)
+    response.send_response(client, 204)
+    return
+  end
+
+  if type(upload_dir) ~= 'string' then
+    response.send_json(client, 400, { error = 'Invalid upload_dir (must be string or null)' })
+    return
+  end
+
+  -- Validate directory exists
+  local normalized = vim.fs.normalize(upload_dir)
+  if vim.fn.isdirectory(normalized) ~= 1 then
+    response.send_json(client, 400, { error = 'Directory does not exist: ' .. normalized })
+    return
+  end
+
+  sessions.set_upload_dir(session_id, normalized)
+  response.send_response(client, 204)
+end
+
 --- PUT /session/:id/pin: set pin status for session
 local function handle_set_pin(client, path, body, content_length)
   local session_id = path:match('^/session/([^/]+)/pin$')
@@ -569,7 +631,7 @@ local function handle_push_message(client, body, content_length)
   response.send_response(client, 204)
 end
 
---- POST /session/:id/upload: upload file to session cwd
+--- POST /session/:id/upload: upload file to session upload_dir (or cwd as fallback)
 --- Query: ?path=relative/path/to/file.png
 --- Or use X-Filename header for the file path
 --- Body: raw file content (binary safe)
@@ -590,10 +652,11 @@ local function handle_upload_file(client, path, headers, body, content_length)
     return
   end
 
-  -- Get the session cwd
+  -- Get the upload directory: use upload_dir if set, otherwise cwd
+  local upload_dir = sessions.get_upload_dir(session_id)
   local all_sessions = sessions.get()
   local session_data = all_sessions[session_id]
-  local cwd = session_data.cwd or vim.fn.getcwd()
+  local base_dir = upload_dir or session_data.cwd or vim.fn.getcwd()
 
   -- Parse file path from query param or X-Filename header
   local file_path = nil
@@ -626,13 +689,13 @@ local function handle_upload_file(client, path, headers, body, content_length)
     return
   end
 
-  -- Build full path and verify it's within cwd
-  local cwd_normalized = vim.fs.normalize(cwd)
-  local full_path = vim.fs.normalize(cwd_normalized .. '/' .. file_path)
+  -- Build full path and verify it's within base_dir
+  local base_normalized = vim.fs.normalize(base_dir)
+  local full_path = vim.fs.normalize(base_normalized .. '/' .. file_path)
 
-  -- Verify the full path starts with cwd (prevents symlink/traversal escape)
-  if full_path:sub(1, #cwd_normalized) ~= cwd_normalized then
-    response.send_json(client, 403, { error = 'Path must be within session cwd' })
+  -- Verify the full path starts with base_dir (prevents symlink/traversal escape)
+  if full_path:sub(1, #base_normalized) ~= base_normalized then
+    response.send_json(client, 403, { error = 'Path must be within session upload directory' })
     return
   end
 
@@ -698,6 +761,10 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_set_model(client, path, body, content_length)
   elseif method == 'PUT' and path:match('^/session/[^/]+/cwd$') then
     handle_set_cwd(client, path, body, content_length)
+  elseif method == 'GET' and path:match('^/session/[^/]+/upload%-dir$') then
+    handle_get_upload_dir(client, path)
+  elseif method == 'PUT' and path:match('^/session/[^/]+/upload%-dir$') then
+    handle_set_upload_dir(client, path, body, content_length)
   elseif method == 'PUT' and path:match('^/session/[^/]+/pin$') then
     handle_set_pin(client, path, body, content_length)
   elseif method == 'PUT' and path:match('^/session/[^/]+/title$') then

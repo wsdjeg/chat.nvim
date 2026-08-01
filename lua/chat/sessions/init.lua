@@ -33,6 +33,8 @@ M.get_session_title = core.get_session_title
 M.set_session_title = core.set_session_title
 M.getcwd = core.getcwd
 M.change_cwd = core.change_cwd
+M.get_upload_dir = core.get_upload_dir
+M.set_upload_dir = core.set_upload_dir
 M.get_total_tokens = core.get_total_tokens
 
 -- ─── Messages ──────────────────────────────────────────────────

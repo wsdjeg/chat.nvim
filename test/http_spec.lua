@@ -493,4 +493,115 @@ function TestHTTP:testUploadRouteNoFalseMatch()
   lu.assertNil(('/session/abc/messages/1'):match(upload_pattern))
 end
 
+-- Test upload-dir route matching
+function TestHTTP:testUploadDirRouteMatching()
+  -- GET route
+  local get_pattern = '^/session/([^/]+)/upload%-dir$'
+  lu.assertNotNil(('/session/abc/upload-dir'):match(get_pattern))
+  lu.assertNil(('/session/abc/upload'):match(get_pattern))
+  lu.assertNil(('/session/abc/cwd'):match(get_pattern))
+
+  -- PUT route (same pattern, different method)
+  lu.assertEquals(('/session/abc/upload-dir'):match(get_pattern), 'abc')
+end
+
+-- Test get/set upload_dir on session
+function TestHTTP:testGetSetUploadDir()
+  -- Initially nil (uses cwd)
+  lu.assertNil(sessions.get_upload_dir(self.test_session_id))
+
+  -- Set upload_dir
+  local temp_dir = vim.fn.tempname() .. '_uploaddir_test/'
+  vim.fn.mkdir(temp_dir, 'p')
+  sessions.set_upload_dir(self.test_session_id, temp_dir)
+
+  -- Verify it was set (normalized)
+  local got = sessions.get_upload_dir(self.test_session_id)
+  lu.assertNotNil(got)
+  lu.assertEquals(got, vim.fs.normalize(temp_dir))
+
+  -- Reset to nil
+  sessions.set_upload_dir(self.test_session_id, nil)
+  lu.assertNil(sessions.get_upload_dir(self.test_session_id))
+
+  -- Reset with empty string also works
+  sessions.set_upload_dir(self.test_session_id, temp_dir)
+  lu.assertNotNil(sessions.get_upload_dir(self.test_session_id))
+  sessions.set_upload_dir(self.test_session_id, '')
+  lu.assertNil(sessions.get_upload_dir(self.test_session_id))
+
+  -- Cleanup
+  vim.fn.delete(temp_dir, 'rf')
+end
+
+-- Test upload uses upload_dir when set
+function TestHTTP:testUploadUsesUploadDir()
+  -- Create temp directories
+  local temp_cwd = vim.fn.tempname() .. '_cwd_test/'
+  local temp_upload_dir = vim.fn.tempname() .. '_uploaddir_test/'
+  vim.fn.mkdir(temp_cwd, 'p')
+  vim.fn.mkdir(temp_upload_dir, 'p')
+
+  -- Create session with cwd
+  local session_id = sessions.new()
+  sessions.change_cwd(session_id, temp_cwd)
+
+  -- Set upload_dir to a different directory
+  sessions.set_upload_dir(session_id, temp_upload_dir)
+
+  -- Simulate upload logic: use upload_dir as base
+  local upload_dir = sessions.get_upload_dir(session_id)
+  lu.assertNotNil(upload_dir)
+  lu.assertNotEquals(upload_dir, temp_cwd)
+
+  local base_dir = upload_dir or temp_cwd
+  lu.assertEquals(base_dir, vim.fs.normalize(temp_upload_dir))
+
+  -- Write file to upload_dir
+  local file_path = 'images/test.png'
+  local base_normalized = vim.fs.normalize(base_dir)
+  local full_path = vim.fs.normalize(base_normalized .. '/' .. file_path)
+
+  -- Verify path is within upload_dir, NOT cwd
+  lu.assertEquals(full_path:sub(1, #base_normalized), base_normalized)
+
+  -- Create parent dirs and write file
+  local parent_dir = vim.fs.dirname(full_path)
+  vim.fn.mkdir(parent_dir, 'p')
+  local fd = io.open(full_path, 'wb')
+  lu.assertNotNil(fd)
+  fd:write('test data')
+  fd:close()
+
+  -- Verify file is in upload_dir, not cwd
+  lu.assertEquals(vim.fn.filereadable(full_path), 1)
+  local cwd_file = vim.fs.normalize(temp_cwd .. '/' .. file_path)
+  lu.assertEquals(vim.fn.filereadable(cwd_file), 0)
+
+  -- Cleanup
+  vim.fn.delete(temp_cwd, 'rf')
+  vim.fn.delete(temp_upload_dir, 'rf')
+end
+
+-- Test upload falls back to cwd when upload_dir not set
+function TestHTTP:testUploadFallsBackToCwd()
+  local temp_cwd = vim.fn.tempname() .. '_fallback_cwd/'
+  vim.fn.mkdir(temp_cwd, 'p')
+
+  local session_id = sessions.new()
+  sessions.change_cwd(session_id, temp_cwd)
+
+  -- upload_dir not set
+  lu.assertNil(sessions.get_upload_dir(session_id))
+
+  -- Simulate upload logic: falls back to cwd
+  local all_sessions = sessions.get()
+  local session_data = all_sessions[session_id]
+  local base_dir = sessions.get_upload_dir(session_id) or session_data.cwd
+  lu.assertEquals(base_dir, temp_cwd)
+
+  -- Cleanup
+  vim.fn.delete(temp_cwd, 'rf')
+end
+
 return TestHTTP
