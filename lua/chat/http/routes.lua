@@ -2,6 +2,7 @@ local sessions = require('chat.sessions')
 local queue = require('chat.queue')
 local response = require('chat.http.response')
 local config = require('chat.config')
+local util = require('chat.util')
 local uv = vim.loop
 
 local M = {}
@@ -443,8 +444,47 @@ local function handle_set_upload_dir(client, path, body, content_length)
     return
   end
 
-  -- Validate directory exists
+  -- 1. Must be absolute path
+  local is_abs = upload_dir:sub(1, 1) == '/'
+    or upload_dir:match('^%a:[/\\]')
+    or upload_dir:match('^[/\\][/\\]')
+  if not is_abs then
+    response.send_json(client, 400, {
+      error = 'upload_dir must be an absolute path: ' .. upload_dir,
+    })
+    return
+  end
+
   local normalized = vim.fs.normalize(upload_dir)
+
+  -- 2. Must be within allowed_path
+  if not util.is_allowed_path(normalized) then
+    response.send_json(client, 400, {
+      error = 'upload_dir is not in allowed_path: ' .. normalized,
+    })
+    return
+  end
+
+  -- 3. Must be within session cwd
+  local session_cwd = sessions.getcwd(session_id)
+  if session_cwd then
+    local norm_cwd = vim.fs.normalize(session_cwd)
+    if not norm_cwd:match('[/\\]$') then
+      norm_cwd = norm_cwd .. '/'
+    end
+    local norm_dir = normalized
+    if not norm_dir:match('[/\\]$') then
+      norm_dir = norm_dir .. '/'
+    end
+    if not vim.startswith(norm_dir, norm_cwd) then
+      response.send_json(client, 400, {
+        error = 'upload_dir must be within session cwd: ' .. norm_cwd,
+      })
+      return
+    end
+  end
+
+  -- Validate directory exists
   if vim.fn.isdirectory(normalized) ~= 1 then
     response.send_json(client, 400, { error = 'Directory does not exist: ' .. normalized })
     return

@@ -604,4 +604,55 @@ function TestHTTP:testUploadFallsBackToCwd()
   vim.fn.delete(temp_cwd, 'rf')
 end
 
+-- Test upload-dir absolute path validation
+function TestHTTP:testUploadDirMustBeAbsolute()
+  local function is_absolute(path)
+    return path:sub(1, 1) == '/'
+      or path:match('^%a:[/\\]') ~= nil
+      or path:match('^[/\\][/\\]') ~= nil
+  end
+
+  -- Absolute paths (valid)
+  lu.assertTrue(is_absolute('/tmp/foo'))
+  lu.assertTrue(is_absolute('/home/user/images'))
+  lu.assertTrue(is_absolute('C:\\Users\\test'))
+  lu.assertTrue(is_absolute('C:/Users/test'))
+  lu.assertTrue(is_absolute('\\\\server\\share'))
+
+  -- Relative paths (invalid)
+  lu.assertFalse(is_absolute('foo/bar'))
+  lu.assertFalse(is_absolute('./images'))
+  lu.assertFalse(is_absolute('../images'))
+  lu.assertFalse(is_absolute('images/'))
+  lu.assertFalse(is_absolute('relative/path/to/dir'))
+end
+
+-- Test upload-dir must be within session cwd
+function TestHTTP:testUploadDirWithinCwd()
+  local function is_within(dir, cwd)
+    local norm_cwd = vim.fs.normalize(cwd)
+    if not norm_cwd:match('[/\\]$') then
+      norm_cwd = norm_cwd .. '/'
+    end
+    local norm_dir = vim.fs.normalize(dir)
+    if not norm_dir:match('[/\\]$') then
+      norm_dir = norm_dir .. '/'
+    end
+    return vim.startswith(norm_dir, norm_cwd)
+  end
+
+  local cwd = '/home/user/project'
+
+  -- Within cwd (valid)
+  lu.assertTrue(is_within('/home/user/project', cwd))
+  lu.assertTrue(is_within('/home/user/project/images', cwd))
+  lu.assertTrue(is_within('/home/user/project/sub/deep', cwd))
+
+  -- Outside cwd (invalid)
+  lu.assertFalse(is_within('/home/user/other', cwd))
+  lu.assertFalse(is_within('/tmp', cwd))
+  lu.assertFalse(is_within('/etc', cwd))
+  lu.assertFalse(is_within('/home/user', cwd))  -- parent, not within
+end
+
 return TestHTTP
