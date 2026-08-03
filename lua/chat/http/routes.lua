@@ -747,6 +747,12 @@ local function handle_upload_file(client, path, headers, body, content_length)
     return
   end
 
+  -- Security: verify final path passes allowed_path checks (e.g. .git protection)
+  if not util.is_allowed_path(full_path) then
+    response.send_json(client, 403, { error = 'Upload path is not allowed: ' .. full_path })
+    return
+  end
+
   -- Create parent directories if needed
   local parent_dir = vim.fs.dirname(full_path)
   vim.fn.mkdir(parent_dir, 'p')
