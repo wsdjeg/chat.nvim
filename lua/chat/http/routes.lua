@@ -698,6 +698,15 @@ local function handle_upload_file(client, path, headers, body, content_length)
   local session_data = all_sessions[session_id]
   local base_dir = upload_dir or session_data.cwd or vim.fn.getcwd()
 
+  -- Security: verify base_dir is within allowed_path
+  local base_normalized = vim.fs.normalize(base_dir)
+  if not util.is_allowed_path(base_normalized) then
+    response.send_json(client, 403, {
+      error = 'Upload directory is not in allowed_path: ' .. base_normalized,
+    })
+    return
+  end
+
   -- Parse file path from query param or X-Filename header
   local file_path = nil
   if query then
@@ -730,7 +739,6 @@ local function handle_upload_file(client, path, headers, body, content_length)
   end
 
   -- Build full path and verify it's within base_dir
-  local base_normalized = vim.fs.normalize(base_dir)
   local full_path = vim.fs.normalize(base_normalized .. '/' .. file_path)
 
   -- Verify the full path starts with base_dir (prevents symlink/traversal escape)
