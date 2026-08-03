@@ -85,11 +85,34 @@ function M.resolve(path, cwd)
 
   return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
+
+--- Check if a path is inside a .git directory.
+--- Blocks access to .git itself and anything beneath it.
+--- e.g. /project/.git, /project/.git/config, /project/.git/refs/heads/main
+--- Does NOT block /project/.github/workflows/ci.yml
+---@param path string The path to check (should be normalized absolute path)
+---@return boolean true if path is inside .git
+function M.is_git_path(path)
+  if type(path) ~= 'string' or path == '' then
+    return false
+  end
+  local normalized = vim.fs.normalize(path)
+  -- Match /.git at end, or /.git/ anywhere in the path
+  return normalized:match('/%.git$') ~= nil
+    or normalized:match('/%.git/') ~= nil
+end
+
 --- Check if a path is within allowed_path configuration
 --- Ensures directory boundary to prevent path escape (e.g., /home/user/foo should not match /home/user/foobar)
+--- Also blocks access to .git directories for security
 ---@param path string The path to check (should be normalized absolute path)
 ---@return boolean
 function M.is_allowed_path(path)
+  -- Block all access to .git directories
+  if M.is_git_path(path) then
+    return false
+  end
+
   local config = require('chat.config')
   local normalized_path = vim.fs.normalize(path)
 
@@ -267,3 +290,4 @@ function M.format_number(num)
 end
 
 return M
+

@@ -252,5 +252,91 @@ function TestUtil:testUtf8TruncateAllMultibyte()
   lu.assertEquals(util.utf8_truncate(s, 3), '你')
 end
 
+-- ========== is_git_path tests ==========
+
+function TestUtil:testIsGitPathExactGitDir()
+  lu.assertTrue(util.is_git_path('/project/.git'))
+end
+
+function TestUtil:testIsGitPathInsideGitDir()
+  lu.assertTrue(util.is_git_path('/project/.git/config'))
+  lu.assertTrue(util.is_git_path('/project/.git/refs/heads/main'))
+  lu.assertTrue(util.is_git_path('/project/.git/objects/ab/cdef123'))
+end
+
+function TestUtil:testIsGitPathGithubNotBlocked()
+  lu.assertFalse(util.is_git_path('/project/.github/workflows/ci.yml'))
+  lu.assertFalse(util.is_git_path('/project/.github/ISSUE_TEMPLATE'))
+end
+
+function TestUtil:testIsGitPathNormalPath()
+  lu.assertFalse(util.is_git_path('/project/src/main.lua'))
+  lu.assertFalse(util.is_git_path('/project/README.md'))
+  lu.assertFalse(util.is_git_path('/project'))
+end
+
+function TestUtil:testIsGitPathEmpty()
+  lu.assertFalse(util.is_git_path(''))
+  lu.assertFalse(util.is_git_path(nil))
+end
+
+function TestUtil:testIsGitPathNotFooledBySuffix()
+  -- Paths that contain ".git" but are not the .git directory
+  lu.assertFalse(util.is_git_path('/project/my.git.repo/file.lua'))
+  lu.assertFalse(util.is_git_path('/project/.gitignore'))
+  lu.assertFalse(util.is_git_path('/project/.gitattributes'))
+  lu.assertFalse(util.is_git_path('/project/.gitconfig'))
+end
+
+function TestUtil:testIsGitPathNotFooledByPrefix()
+  -- Paths where .git is a prefix of a directory name
+  lu.assertFalse(util.is_git_path('/project/.github/file.lua'))
+  lu.assertFalse(util.is_git_path('/project/.gitsomething/file.lua'))
+end
+
+-- ========== is_allowed_path .git protection tests ==========
+
+local config = require('chat.config')
+local test_storage_dir
+
+function TestUtil:setUpIsAllowedPath()
+  test_storage_dir = vim.fn.tempname() .. '_test/'
+  vim.fn.mkdir(test_storage_dir, 'p')
+  config.setup({
+    storage_dir = test_storage_dir,
+    allowed_path = '/project',
+  })
+end
+
+function TestUtil:tearDownIsAllowedPath()
+  if test_storage_dir and vim.fn.isdirectory(test_storage_dir) == 1 then
+    vim.fn.delete(test_storage_dir, 'rf')
+  end
+end
+
+function TestUtil:testIsAllowedPathBlocksGitDir()
+  TestUtil:setUpIsAllowedPath()
+  lu.assertFalse(util.is_allowed_path('/project/.git'))
+  lu.assertFalse(util.is_allowed_path('/project/.git/config'))
+  lu.assertFalse(util.is_allowed_path('/project/.git/refs/heads/main'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testIsAllowedPathAllowsGithub()
+  TestUtil:setUpIsAllowedPath()
+  lu.assertTrue(util.is_allowed_path('/project/.github/workflows/ci.yml'))
+  lu.assertTrue(util.is_allowed_path('/project/.gitignore'))
+  lu.assertTrue(util.is_allowed_path('/project/src/main.lua'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testIsAllowedPathBlocksGitWithRelativePath()
+  TestUtil:setUpIsAllowedPath()
+  -- Even if the path resolves into .git, it should be blocked
+  local resolved = util.resolve('.git/config', '/project')
+  lu.assertFalse(util.is_allowed_path(resolved))
+  TestUtil:tearDownIsAllowedPath()
+end
+
 return TestUtil
 
