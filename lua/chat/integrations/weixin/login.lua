@@ -152,7 +152,6 @@ function M.start_qr_login(opts)
           qrcode_url = resp.qrcode_img_content,
           qrcode = resp.qrcode,
           session_key = login_state.session_key,
-          message = '请使用微信扫描二维码',
         }, nil)
       end
     end,
