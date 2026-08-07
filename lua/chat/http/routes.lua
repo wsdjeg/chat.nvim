@@ -775,6 +775,79 @@ local function handle_upload_file(client, path, headers, body, content_length)
 end
 
 --------------------------------------------------
+-- WeChat (Weixin) routes
+--------------------------------------------------
+
+--- GET /weixin/qrcode: get WeChat login QR code URL
+--- Returns: { qrcode_url, qrcode, session_key, message }
+--- The QR code is not displayed in terminal; client renders it.
+local function handle_weixin_qrcode(client)
+  local Login = require('chat.integrations.weixin.login')
+
+  local jobid = Login.start_qr_login({
+    skip_display = true,
+    callback = function(result, err)
+      if err then
+        response.send_json(client, 500, { error = err })
+        return
+      end
+      response.send_json(client, 200, result)
+    end,
+  })
+
+  -- If job failed to start, send error immediately
+  -- (callback won't fire in this case)
+  if not jobid or jobid <= 0 then
+    response.send_json(client, 500, { error = 'Failed to start QR login' })
+  end
+end
+
+--- POST /weixin/credentials: write WeChat credentials to cache
+--- Body: { id: "account_id", key: "bot_token" }
+--- Optional: { base_url: "...", user_id: "..." }
+local function handle_weixin_credentials(client, body, content_length)
+  local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+  if not ok or type(obj) ~= 'table' then
+    response.send_json(client, 400, { error = 'Invalid JSON body' })
+    return
+  end
+
+  local account_id = obj.id
+  local bot_token = obj.key
+
+  if type(account_id) ~= 'string' or account_id == '' then
+    response.send_json(client, 400, { error = 'Missing or invalid "id" field' })
+    return
+  end
+
+  if type(bot_token) ~= 'string' or bot_token == '' then
+    response.send_json(client, 400, { error = 'Missing or invalid "key" field' })
+    return
+  end
+
+  local State = require('chat.integrations.weixin.state')
+  local Api = require('chat.integrations.weixin.api')
+
+  -- Write to state cache (persists to disk)
+  State.set_credentials({
+    bot_token = bot_token,
+    account_id = account_id,
+    base_url = obj.base_url,
+    user_id = obj.user_id,
+  })
+  State.save()
+
+  -- Update live API config so polling can start immediately
+  Api.set_credentials(bot_token, account_id, obj.base_url)
+
+  response.send_json(client, 200, {
+    success = true,
+    message = 'Credentials saved',
+    account_id = account_id,
+  })
+end
+
+--------------------------------------------------
 -- Main dispatcher
 --------------------------------------------------
 
@@ -833,6 +906,10 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_upload_file(client, path, headers, body, content_length)
   elseif method == 'POST' and path == '/' then
     handle_push_message(client, body, content_length)
+  elseif method == 'GET' and path == '/weixin/qrcode' then
+    handle_weixin_qrcode(client)
+  elseif method == 'POST' and path == '/weixin/credentials' then
+    handle_weixin_credentials(client, body, content_length)
   else
     response.send_response(client, 404)
   end

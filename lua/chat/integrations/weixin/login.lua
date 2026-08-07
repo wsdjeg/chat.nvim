@@ -142,8 +142,10 @@ function M.start_qr_login(opts)
 
       log.info('[Weixin] QR code obtained')
 
-      -- Display QR code as ASCII art
-      display_qrcode(resp.qrcode_img_content)
+      -- Display QR code as ASCII art (unless skipped for HTTP API)
+      if not opts.skip_display then
+        display_qrcode(resp.qrcode_img_content)
+      end
 
       if opts.callback then
         opts.callback({
