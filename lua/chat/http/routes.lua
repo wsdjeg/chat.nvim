@@ -847,6 +847,55 @@ local function handle_weixin_credentials(client, body, content_length)
   })
 end
 
+--- GET /weixin/login/status: poll WeChat login status
+--- First call auto-starts the login flow (get QR + poll).
+--- Subsequent calls return current state.
+--- States: nil/init -> wait -> scaned -> confirmed (or expired)
+--- When confirmed, response includes bot_token, account_id, etc.
+local function handle_weixin_login_status(client)
+  local Login = require('chat.integrations.weixin.login')
+  local state = Login.get_state()
+
+  -- No active login flow, or previous one expired -> start new one
+  if not state.status or not state.is_fresh then
+    local State = require('chat.integrations.weixin.state')
+    local Api = require('chat.integrations.weixin.api')
+
+    local jobid = Login.start_login_flow({
+      skip_display = true,
+      on_success = function(result)
+        -- Persist credentials to state file
+        State.set_credentials(result)
+        State.save()
+        -- Update live API config
+        Api.set_credentials(
+          result.bot_token,
+          result.account_id,
+          result.base_url
+        )
+        log.info('[Weixin] Login flow completed, credentials saved')
+      end,
+    })
+
+    if not jobid or jobid <= 0 then
+      response.send_json(client, 500, {
+        error = 'Failed to start login flow',
+      })
+      return
+    end
+
+    -- Return init status, client should poll again
+    response.send_json(client, 200, {
+      status = 'init',
+      message = 'Login flow started, poll again for QR code',
+    })
+    return
+  end
+
+  -- Return current login state
+  response.send_json(client, 200, state)
+end
+
 --------------------------------------------------
 -- Main dispatcher
 --------------------------------------------------
@@ -908,6 +957,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_push_message(client, body, content_length)
   elseif method == 'GET' and path == '/weixin/qrcode' then
     handle_weixin_qrcode(client)
+  elseif method == 'GET' and path == '/weixin/login/status' then
+    handle_weixin_login_status(client)
   elseif method == 'POST' and path == '/weixin/credentials' then
     handle_weixin_credentials(client, body, content_length)
   else

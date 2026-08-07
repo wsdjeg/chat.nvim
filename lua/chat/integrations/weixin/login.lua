@@ -26,7 +26,9 @@ local login_state = {
   qrcode = nil,
   qrcode_url = nil,
   started_at = nil,
-  status = nil, -- wait, scaned, confirmed, expired
+  status = nil, -- wait, scaned, confirmed, expired, nil
+  -- Login result (populated when status == 'confirmed')
+  login_result = nil,
 }
 
 --------------------------------------------------
@@ -234,7 +236,7 @@ function M.wait_for_login(opts)
   local function poll()
     if uv.now() > deadline then
       log.warn('[Weixin] Login timeout')
-      login_state.status = nil
+      login_state.status = 'expired'
       if opts.callback then
         opts.callback(nil, 'Login timeout')
       end
@@ -243,7 +245,7 @@ function M.wait_for_login(opts)
 
     if not is_login_fresh() then
       log.warn('[Weixin] QR code expired')
-      login_state.status = nil
+      login_state.status = 'expired'
       if opts.callback then
         opts.callback(nil, 'QR code expired')
       end
@@ -276,7 +278,7 @@ function M.wait_for_login(opts)
 
         if qr_refresh_count > max_qr_refresh then
           log.warn('[Weixin] QR code expired too many times')
-          login_state.status = nil
+          login_state.status = 'expired'
           if opts.callback then
             opts.callback(nil, 'QR code expired too many times')
           end
@@ -290,7 +292,7 @@ function M.wait_for_login(opts)
           session_key = login_state.session_key,
           callback = function(result, refresh_err)
             if refresh_err then
-              login_state.status = nil
+              login_state.status = 'expired'
               if opts.callback then
                 opts.callback(
                   nil,
@@ -314,7 +316,7 @@ function M.wait_for_login(opts)
         -- Login confirmed!
         if not resp.ilink_bot_id then
           log.error('[Weixin] Login confirmed but missing ilink_bot_id')
-          login_state.status = nil
+          login_state.status = 'expired'
           if opts.callback then
             opts.callback(nil, 'Login failed: missing bot ID')
           end
@@ -325,17 +327,24 @@ function M.wait_for_login(opts)
 
         login_state.status = 'confirmed'
 
+        -- Store login result in login_state for get_state() to return
+        login_state.login_result = {
+          connected = true,
+          bot_token = resp.bot_token,
+          account_id = resp.ilink_bot_id,
+          base_url = resp.baseurl,
+          user_id = resp.ilink_user_id,
+          message = '✅ 微信登录成功！',
+        }
+
         M.close_qrcode()
 
+        if opts.on_success then
+          opts.on_success(login_state.login_result)
+        end
+
         if opts.callback then
-          opts.callback({
-            connected = true,
-            bot_token = resp.bot_token,
-            account_id = resp.ilink_bot_id,
-            base_url = resp.baseurl,
-            user_id = resp.ilink_user_id,
-            message = '✅ 微信登录成功！',
-          }, nil)
+          opts.callback(login_state.login_result, nil)
         end
       end
     end)
@@ -348,16 +357,78 @@ function M.wait_for_login(opts)
 end
 
 --------------------------------------------------
+-- Start complete login flow (HTTP API entry point)
+-- Combines start_qr_login + wait_for_login into one call.
+-- Client polls get_state() for status updates.
+--------------------------------------------------
+function M.start_login_flow(opts)
+  opts = opts or {}
+
+  -- Reset previous login state
+  login_state.login_result = nil
+  login_state.status = nil
+
+  local jobid = M.start_qr_login({
+    skip_display = opts.skip_display ~= false, -- default true for HTTP
+    bot_type = opts.bot_type,
+    callback = function(result, err)
+      if err then
+        log.error('[Weixin] Login flow failed to get QR code: ' .. err)
+        login_state.status = 'expired'
+        if opts.on_error then
+          opts.on_error(err)
+        end
+        return
+      end
+
+      -- QR code obtained, start polling
+      M.wait_for_login({
+        timeout_ms = opts.timeout_ms or 480000,
+        on_qr_refresh = opts.on_qr_refresh,
+        on_success = opts.on_success,
+        callback = function(login_result, login_err)
+          if login_err then
+            log.error('[Weixin] ' .. login_err)
+            if opts.on_error then
+              opts.on_error(login_err)
+            end
+            return
+          end
+
+          -- login_result already stored in login_state by wait_for_login
+          if opts.callback then
+            opts.callback(login_result, nil)
+          end
+        end,
+      })
+    end,
+  })
+
+  return jobid
+end
+
+--------------------------------------------------
 -- Get current login state
 --------------------------------------------------
 function M.get_state()
-  return {
+  local state = {
     session_key = login_state.session_key,
     qrcode_url = login_state.qrcode_url,
     started_at = login_state.started_at,
     status = login_state.status,
     is_fresh = is_login_fresh(),
   }
+
+  -- Include login result when confirmed
+  if login_state.login_result then
+    state.bot_token = login_state.login_result.bot_token
+    state.account_id = login_state.login_result.account_id
+    state.base_url = login_state.login_result.base_url
+    state.user_id = login_state.login_result.user_id
+    state.message = login_state.login_result.message
+  end
+
+  return state
 end
 
 --------------------------------------------------
@@ -370,6 +441,7 @@ function M.clear()
     qrcode_url = nil,
     started_at = nil,
     status = nil,
+    login_result = nil,
   }
 end
 
@@ -387,3 +459,4 @@ M.close_qrcode = function()
 end
 
 return M
+
