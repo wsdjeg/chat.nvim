@@ -68,7 +68,6 @@ require('chat').setup({
 | `/session/{id}/title` | PUT | Set the title for a session |
 | `/session/{id}/upload` | POST | Upload a file to the session's upload directory (or cwd) |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
-| `/weixin/qrcode` | GET | Get WeChat login QR code URL |
 | `/weixin/login/status` | GET | Poll WeChat login status (auto-starts login flow) |
 | `/weixin/credentials` | POST | Write WeChat credentials to cache |
 
@@ -889,36 +888,6 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 
 # Browser
 # http://127.0.0.1:7777/session?id=2024-01-15-10-30-00
-```
-
----
-
-### GET `/weixin/qrcode`
-
-Get a WeChat login QR code URL. The QR code is not displayed in terminal; the client renders it.
-
-**Response (200 OK):**
-
-```json
-{
-  "qrcode_url": "https://...",
-  "qrcode": "abc123",
-  "session_key": "12345678901234"
-}
-```
-
-**Response Status Codes:**
-
-| Status Code | Description |
-|---|---|
-| 200 | Success - returns QR code info |
-| 500 | Failed to fetch QR code from gateway |
-
-**Example:**
-
-```bash
-curl http://127.0.0.1:7777/weixin/qrcode \
-  -H "X-API-Key: your-secret-key"
 ```
 
 ---

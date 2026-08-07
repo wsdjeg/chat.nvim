@@ -778,30 +778,6 @@ end
 -- WeChat (Weixin) routes
 --------------------------------------------------
 
---- GET /weixin/qrcode: get WeChat login QR code URL
---- Returns: { qrcode_url, qrcode, session_key, message }
---- The QR code is not displayed in terminal; client renders it.
-local function handle_weixin_qrcode(client)
-  local Login = require('chat.integrations.weixin.login')
-
-  local jobid = Login.start_qr_login({
-    skip_display = true,
-    callback = function(result, err)
-      if err then
-        response.send_json(client, 500, { error = err })
-        return
-      end
-      response.send_json(client, 200, result)
-    end,
-  })
-
-  -- If job failed to start, send error immediately
-  -- (callback won't fire in this case)
-  if not jobid or jobid <= 0 then
-    response.send_json(client, 500, { error = 'Failed to start QR login' })
-  end
-end
-
 --- POST /weixin/credentials: write WeChat credentials to cache
 --- Body: { id: "account_id", key: "bot_token" }
 --- Optional: { base_url: "...", user_id: "..." }
@@ -955,8 +931,6 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_upload_file(client, path, headers, body, content_length)
   elseif method == 'POST' and path == '/' then
     handle_push_message(client, body, content_length)
-  elseif method == 'GET' and path == '/weixin/qrcode' then
-    handle_weixin_qrcode(client)
   elseif method == 'GET' and path == '/weixin/login/status' then
     handle_weixin_login_status(client)
   elseif method == 'POST' and path == '/weixin/credentials' then
