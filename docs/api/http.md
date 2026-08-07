@@ -68,6 +68,9 @@ require('chat').setup({
 | `/session/{id}/title` | PUT | Set the title for a session |
 | `/session/{id}/upload` | POST | Upload a file to the session's upload directory (or cwd) |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
+| `/weixin/qrcode` | GET | Get WeChat login QR code URL |
+| `/weixin/login/status` | GET | Poll WeChat login status (auto-starts login flow) |
+| `/weixin/credentials` | POST | Write WeChat credentials to cache |
 
 ---
 
@@ -886,6 +889,192 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 
 # Browser
 # http://127.0.0.1:7777/session?id=2024-01-15-10-30-00
+```
+
+---
+
+### GET `/weixin/qrcode`
+
+Get a WeChat login QR code URL. The QR code is not displayed in terminal; the client renders it.
+
+**Response (200 OK):**
+
+```json
+{
+  "qrcode_url": "https://...",
+  "qrcode": "abc123",
+  "session_key": "12345678901234"
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success - returns QR code info |
+| 500 | Failed to fetch QR code from gateway |
+
+**Example:**
+
+```bash
+curl http://127.0.0.1:7777/weixin/qrcode \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### GET `/weixin/login/status`
+
+Poll WeChat login status. The first call auto-starts the login flow (fetches QR code + begins polling). Subsequent calls return the current login state.
+
+**Login Flow States:**
+
+```
+init → wait → scaned → confirmed (success)
+                  ↘ expired (auto-refresh, up to 3 times)
+```
+
+**Response - Initial call (auto-starts login):**
+
+```json
+{
+  "status": "init",
+  "message": "Login flow started, poll again for QR code"
+}
+```
+
+**Response - Waiting for scan:**
+
+```json
+{
+  "status": "wait",
+  "qrcode_url": "https://...",
+  "session_key": "12345678901234",
+  "started_at": 1691500000000,
+  "is_fresh": true
+}
+```
+
+**Response - Scanned, awaiting confirmation:**
+
+```json
+{
+  "status": "scaned",
+  "qrcode_url": "https://...",
+  "is_fresh": true
+}
+```
+
+**Response - Login confirmed (credentials auto-saved):**
+
+```json
+{
+  "status": "confirmed",
+  "qrcode_url": "https://...",
+  "is_fresh": true,
+  "bot_token": "token_here",
+  "account_id": "bot_id_here",
+  "base_url": "https://...",
+  "user_id": "user_id_here",
+  "message": "✅ 微信登录成功！"
+}
+```
+
+**Response - Expired/timeout:**
+
+```json
+{
+  "status": "expired",
+  "is_fresh": false
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success - returns current login state |
+| 500 | Failed to start login flow |
+
+**Client Integration Example:**
+
+```bash
+# Poll login status (auto-starts on first call)
+while true; do
+  resp=$(curl -s http://127.0.0.1:7777/weixin/login/status \
+    -H "X-API-Key: your-secret-key")
+  status=$(echo "$resp" | jq -r '.status')
+
+  case "$status" in
+    init)    echo "Login starting..." ;;
+    wait)    echo "Waiting for scan..."; echo "$resp" | jq -r '.qrcode_url' ;;
+    scaned)  echo "Scanned, awaiting confirmation..." ;;
+    confirmed)
+      echo "Login confirmed!"
+      echo "$resp" | jq '.bot_token, .account_id'
+      break ;;
+    expired) echo "Login expired, retrying..." ;;
+  esac
+
+  sleep 2
+done
+```
+
+---
+
+### POST `/weixin/credentials`
+
+Manually write WeChat credentials to the cache file and update the live API configuration. Useful when credentials are obtained through other means.
+
+**Request Body:**
+
+```json
+{
+  "id": "account_id_here",
+  "key": "bot_token_here",
+  "base_url": "https://...",
+  "user_id": "user_id_here"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Account ID (bot ID) |
+| `key` | string | Bot token |
+
+**Optional Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `base_url` | string | API base URL |
+| `user_id` | string | User ID |
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Credentials saved",
+  "account_id": "account_id_here"
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success - credentials saved |
+| 400 | Invalid JSON or missing required fields |
+
+**Example:**
+
+```bash
+curl -X POST http://127.0.0.1:7777/weixin/credentials \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "bot123", "key": "token456"}'
 ```
 
 ---
