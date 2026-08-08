@@ -1015,11 +1015,26 @@ curl "http://127.0.0.1:7777/session?id=2024-01-15-10-30-00"
 
 Poll WeChat login status. The first call auto-starts the login flow (fetches QR code + begins polling). Subsequent calls return the current login state.
 
+If valid credentials already exist (user is logged in), returns `connected` immediately without starting a new login flow.
+
 **Login Flow States:**
 
 ```
 init → wait → scaned → confirmed (success)
                   ↘ expired (auto-refresh, up to 3 times)
+
+connected (credentials valid, no login flow needed)
+```
+
+**Response - Already logged in (connected):**
+
+```json
+{
+  "status": "connected",
+  "message": "✅ 微信已登录",
+  "account_id": "bot_id_here",
+  "is_running": true
+}
 ```
 
 **Response - Initial call (auto-starts login):**
@@ -1100,6 +1115,10 @@ while true; do
     confirmed)
       echo "Login confirmed!"
       echo "$resp" | jq '.bot_token, .account_id'
+      break ;;
+    connected)
+      echo "Already logged in!"
+      echo "$resp" | jq '.account_id'
       break ;;
     expired) echo "Login expired, retrying..." ;;
   esac
