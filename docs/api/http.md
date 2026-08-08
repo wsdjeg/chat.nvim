@@ -67,6 +67,10 @@ require('chat').setup({
 | `/session/{id}/pin` | PUT | Set the pin status for a session |
 | `/session/{id}/title` | PUT | Set the title for a session |
 | `/session/{id}/upload` | POST | Upload a file to the session's upload directory (or cwd) |
+| `/session/{id}/bridge` | GET | List all bridged integrations for a session |
+| `/session/{id}/bridge/{platform}` | PUT | Bridge an integration to a session |
+| `/session/{id}/bridge/{platform}` | DELETE | Unbridge a specific integration from a session |
+| `/session/{id}/bridge` | DELETE | Unbridge all integrations from a session |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
 | `/weixin/login/status` | GET | Poll WeChat login status (auto-starts login flow) |
 
@@ -861,6 +865,122 @@ curl -X POST "http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload?path=docs
 
 ---
 
+### GET `/session/{id}/bridge`
+
+List all integrations bridged to a session.
+
+**Response (200 OK):**
+
+```json
+{
+  "bridges": ["discord", "lark"]
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### PUT `/session/{id}/bridge/{platform}`
+
+Bridge an integration platform to a session. Once bridged, the integration will receive AI responses for this session.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+| `platform` | Integration platform name |
+
+**Available Platforms:** `discord`, `dingtalk`, `lark`, `slack`, `telegram`, `wecom`, `weixin`
+
+**Response (200 OK):**
+
+```json
+{
+  "session": "2024-01-15-10-30-00",
+  "bridge": "discord"
+}
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success - integration bridged |
+| 400 | Unknown integration platform (response includes `available` list) |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### DELETE `/session/{id}/bridge/{platform}`
+
+Unbridge a specific integration from a session.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `id` | Session ID |
+| `platform` | Integration platform name |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - integration unbridged |
+| 400 | Unknown integration platform (response includes `available` list) |
+| 404 | Session not found, or integration not bound to this session |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### DELETE `/session/{id}/bridge`
+
+Unbridge **all** integrations from a session.
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - all integrations unbridged |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
 ### GET `/session`
 
 Get an HTML preview of a session (**no authentication required**, accessible directly from a browser).
@@ -1129,6 +1249,22 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
 
 # Get upload directory
 curl http://127.0.0.1:7777/session/2024-01-15-10-30-00/upload-dir \
+  -H "X-API-Key: your-secret-key"
+
+# Bridge Discord to a session
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord \
+  -H "X-API-Key: your-secret-key"
+
+# List bridged integrations
+curl http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge \
+  -H "X-API-Key: your-secret-key"
+
+# Unbridge a specific integration
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord \
+  -H "X-API-Key: your-secret-key"
+
+# Unbridge all integrations
+curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge \
   -H "X-API-Key: your-secret-key"
 
 # Get HTML preview (no API key needed)

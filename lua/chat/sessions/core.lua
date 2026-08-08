@@ -58,6 +58,7 @@ function M.new()
     model = config.config.model,
     prompt = get_config_system_prompt(),
     cwd = vim.fs.normalize(vim.uv.cwd() or vim.fn.getcwd()),
+    upload_dir = nil,
   }
   return id
 end

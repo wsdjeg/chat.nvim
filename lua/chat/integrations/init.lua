@@ -323,7 +323,9 @@ function M.set_session(bridge, session)
   local integration = integrations[bridge]
   if integration then
     integration.set_session(session)
+    return true
   end
+  return false
 end
 
 function M.unbridge(name)
@@ -357,6 +359,46 @@ function M.unbridge(name)
     end
     return true
   end
+end
+
+--- Unbridge integrations by session_id (for HTTP API use)
+--- @param session_id string session ID
+--- @param name? string optional integration name, nil to unbridge all
+--- @return boolean|nil true if unbridged, false if integration not found, nil if not bound
+function M.unbridge_session(session_id, name)
+  if name then
+    local integration = integrations[name]
+    if not integration then
+      return false
+    end
+    if integration.current_session() ~= session_id then
+      return nil
+    end
+    stop_typing_timer(name)
+    integration.disconnect()
+    integration.set_session(nil)
+    return true
+  else
+    for integration_name, integration in pairs(integrations) do
+      if integration.current_session() == session_id then
+        stop_typing_timer(integration_name)
+        integration.disconnect()
+        integration.set_session(nil)
+      end
+    end
+    return true
+  end
+end
+
+--- List all available integration platform names
+--- @return string[] sorted list of platform names
+function M.list_platforms()
+  local names = {}
+  for name in pairs(integrations) do
+    table.insert(names, name)
+  end
+  table.sort(names)
+  return names
 end
 
 function M.on_session_deleted(session)

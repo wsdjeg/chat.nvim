@@ -655,4 +655,104 @@ function TestHTTP:testUploadDirWithinCwd()
   lu.assertFalse(is_within('/home/user', cwd))  -- parent, not within
 end
 
+--------------------------------------------------
+-- Bridge (integrations) endpoint tests
+--------------------------------------------------
+
+-- Test bridge route matching
+function TestHTTP:testBridgeRouteMatching()
+  -- PUT /session/:id/bridge/:platform
+  local put_pattern = '^/session/([^/]+)/bridge/([^/]+)$'
+  local sid, platform = ('/session/abc/bridge/discord'):match(put_pattern)
+  lu.assertEquals(sid, 'abc')
+  lu.assertEquals(platform, 'discord')
+
+  -- DELETE /session/:id/bridge/:platform
+  local del_pattern = '^/session/([^/]+)/bridge/([^/]+)$'
+  local did, dplatform = ('/session/xyz/bridge/lark'):match(del_pattern)
+  lu.assertEquals(did, 'xyz')
+  lu.assertEquals(dplatform, 'lark')
+
+  -- DELETE /session/:id/bridge (unbridge all)
+  local del_all_pattern = '^/session/([^/]+)/bridge$'
+  local all_sid = ('/session/abc/bridge'):match(del_all_pattern)
+  lu.assertEquals(all_sid, 'abc')
+
+  -- GET /session/:id/bridge (list bridges)
+  local get_pattern = '^/session/([^/]+)/bridge$'
+  local get_sid = ('/session/test-id/bridge'):match(get_pattern)
+  lu.assertEquals(get_sid, 'test-id')
+end
+
+-- Test bridge route doesn't false-match other session routes
+function TestHTTP:testBridgeRouteNoFalseMatch()
+  -- These should NOT match bridge routes
+  local bridge_specific = '^/session/[^/]+/bridge/[^/]+$'
+  local bridge_all = '^/session/[^/]+/bridge$'
+
+  -- Should not match regular session routes
+  lu.assertNil(('/session/abc/stop'):match(bridge_specific))
+  lu.assertNil(('/session/abc/clear'):match(bridge_all))
+  lu.assertNil(('/session/abc/provider'):match(bridge_all))
+
+  -- DELETE /session/:id should NOT match bridge routes
+  local delete_session = '^/session/[^/]+$'
+  lu.assertNil(('/session/abc/bridge'):match(delete_session))
+  lu.assertNil(('/session/abc/bridge/discord'):match(delete_session))
+end
+
+-- Test set_session returns boolean for valid/invalid platform
+function TestHTTP:testSetSessionReturnsBoolean()
+  local ims = require('chat.integrations')
+
+  -- Invalid platform should return false
+  local ok = ims.set_session('nonexistent-platform', self.test_session_id)
+  lu.assertEquals(ok, false)
+end
+
+-- Test list_platforms returns known integrations
+function TestHTTP:testListPlatforms()
+  local ims = require('chat.integrations')
+  local platforms = ims.list_platforms()
+
+  lu.assertEquals(type(platforms), 'table')
+  lu.assertTrue(#platforms > 0)
+
+  -- Should include well-known platforms
+  local has_discord = false
+  for _, p in ipairs(platforms) do
+    if p == 'discord' then
+      has_discord = true
+    end
+  end
+  lu.assertTrue(has_discord)
+end
+
+-- Test unbridge_session returns false for unknown integration
+function TestHTTP:testUnbridgeSessionUnknownIntegration()
+  local ims = require('chat.integrations')
+
+  -- Unknown integration should return false
+  local result = ims.unbridge_session(self.test_session_id, 'nonexistent-platform')
+  lu.assertEquals(result, false)
+end
+
+-- Test unbridge_session returns nil when integration not bound
+function TestHTTP:testUnbridgeSessionNotBound()
+  local ims = require('chat.integrations')
+
+  -- Valid integration but not bound to this session -> nil
+  local result = ims.unbridge_session(self.test_session_id, 'discord')
+  lu.assertEquals(result, nil)
+end
+
+-- Test get_integrations returns empty for session with no bridges
+function TestHTTP:testGetIntegrationsEmpty()
+  local ims = require('chat.integrations')
+  local bridges = ims.get_integrations(self.test_session_id)
+
+  lu.assertEquals(type(bridges), 'table')
+  lu.assertEquals(#bridges, 0)
+end
+
 return TestHTTP

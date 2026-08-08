@@ -828,6 +828,97 @@ local function handle_weixin_login_status(client)
 end
 
 --------------------------------------------------
+-- Bridge (integrations) routes
+--------------------------------------------------
+
+--- PUT /session/:id/bridge/:platform: bridge an integration to a session
+local function handle_bridge_session(client, path)
+  local session_id, platform = path:match('^/session/([^/]+)/bridge/([^/]+)$')
+  if not session_id or not platform then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local ims = require('chat.integrations')
+  local ok = ims.set_session(platform, session_id)
+  if not ok then
+    response.send_json(client, 400, {
+      error = 'Unknown integration: ' .. platform,
+      available = ims.list_platforms(),
+    })
+    return
+  end
+
+  response.send_json(client, 200, { session = session_id, bridge = platform })
+end
+
+--- DELETE /session/:id/bridge/:platform: unbridge a specific integration from a session
+--- DELETE /session/:id/bridge: unbridge all integrations from a session
+local function handle_unbridge_session(client, path)
+  local session_id, platform = path:match('^/session/([^/]+)/bridge/([^/]+)$')
+  if not session_id then
+    session_id = path:match('^/session/([^/]+)/bridge$')
+    if not session_id then
+      response.send_response(client, 400)
+      return
+    end
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local ims = require('chat.integrations')
+
+  if platform then
+    local result = ims.unbridge_session(session_id, platform)
+    if result == false then
+      response.send_json(client, 400, {
+        error = 'Unknown integration: ' .. platform,
+        available = ims.list_platforms(),
+      })
+      return
+    elseif result == nil then
+      response.send_json(client, 404, {
+        error = 'Integration not bound to this session: ' .. platform,
+      })
+      return
+    end
+  else
+    ims.unbridge_session(session_id)
+  end
+
+  response.send_response(client, 204)
+end
+
+--- GET /session/:id/bridge: list bridged integrations for a session
+local function handle_get_bridges(client, path)
+  local session_id = path:match('^/session/([^/]+)/bridge$')
+  if not session_id then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local ims = require('chat.integrations')
+  local bridges = ims.get_integrations(session_id)
+  response.send_json(client, 200, { bridges = bridges })
+end
+
+--------------------------------------------------
 -- Main dispatcher
 --------------------------------------------------
 
@@ -884,6 +975,14 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_get_messages(client, path)
   elseif method == 'POST' and path:match('^/session/[^/]+/upload') then
     handle_upload_file(client, path, headers, body, content_length)
+  elseif method == 'GET' and path:match('^/session/[^/]+/bridge$') then
+    handle_get_bridges(client, path)
+  elseif method == 'PUT' and path:match('^/session/[^/]+/bridge/[^/]+$') then
+    handle_bridge_session(client, path)
+  elseif method == 'DELETE' and path:match('^/session/[^/]+/bridge/[^/]+$') then
+    handle_unbridge_session(client, path)
+  elseif method == 'DELETE' and path:match('^/session/[^/]+/bridge$') then
+    handle_unbridge_session(client, path)
   elseif method == 'POST' and path == '/' then
     handle_push_message(client, body, content_length)
   elseif method == 'GET' and path == '/weixin/login/status' then
