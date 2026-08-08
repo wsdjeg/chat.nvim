@@ -782,21 +782,34 @@ end
 --- GET /weixin/login/status: poll WeChat login status
 --- First call auto-starts the login flow (get QR + poll).
 --- Subsequent calls return current state.
---- States: nil/init -> wait -> scaned -> confirmed (or expired)
+--- States: nil/init -> wait -> scaned -> confirmed -> connected
 --- When confirmed, response includes bot_token, account_id, etc.
+--- When connected, credentials are valid and polling is active.
 local function handle_weixin_login_status(client)
   local Login = require('chat.integrations.weixin.login')
   local State = require('chat.integrations.weixin.state')
-  local state = Login.get_state()
 
-  -- If login was confirmed but credentials are gone (session expired),
-  -- clear login state to trigger re-login flow
-  if state.status == 'confirmed' and not State.has_credentials() then
+  -- 1. Already logged in with valid credentials
+  if State.has_credentials() then
+    local creds = State.get_credentials()
+    response.send_json(client, 200, {
+      status = 'connected',
+      message = '✅ 微信已登录',
+      account_id = creds.account_id,
+      is_running = State.is_running(),
+    })
+    return
+  end
+
+  -- 2. Login was confirmed but credentials are gone (session expired),
+  --    clear stale login state
+  local state = Login.get_state()
+  if state.status == 'confirmed' then
     Login.clear()
     state = Login.get_state()
   end
 
-  -- No active login flow, or previous one expired -> start new one
+  -- 3. No active login flow, or previous one expired -> start new one
   if not state.status or not state.is_fresh then
     local Api = require('chat.integrations.weixin.api')
 
@@ -835,7 +848,7 @@ local function handle_weixin_login_status(client)
     return
   end
 
-  -- Return current login state
+  -- 4. Return current login state (wait / scaned)
   response.send_json(client, 200, state)
 end
 
