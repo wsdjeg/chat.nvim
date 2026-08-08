@@ -20,6 +20,49 @@ local typing_timers = {} -- { [name] = uv_timer }
 ---@field content string message content
 ---@field session string session ID
 
+-- Helper: build a human-readable session summary
+local function format_session_summary(session_id)
+  local sessions = require('chat.sessions')
+  local data = sessions.get()[session_id]
+  if not data then
+    return session_id
+  end
+
+  -- Title: stored title > first user message > untitled
+  local title = sessions.get_session_title(session_id) or ''
+  if title == '' then
+    local messages = data.messages or {}
+    for _, msg in ipairs(messages) do
+      if msg.role == 'user' then
+        title = vim.split(msg.content or '', '\n')[1]
+        break
+      end
+    end
+  end
+  if title == '' then
+    title = '(untitled)'
+  end
+  if #title > 50 then
+    title = vim.fn.strcharpart(title, 0, 47) .. '...'
+  end
+
+  local provider = data.provider or 'default'
+  local model = data.model or 'default'
+  local message_count = #(data.messages or {})
+  local pin = sessions.get_session_pin(session_id)
+  local pin_marker = pin and '📌 ' or ''
+
+  return string.format(
+    '%s%s\n  ID: %s\n  Provider: %s\n  Model: %s\n  Messages: %d',
+    pin_marker,
+    title,
+    session_id,
+    provider,
+    model,
+    message_count
+  )
+end
+
 -- Helper: parse and execute /session command
 local function handle_session_command(integration, message)
   local arg = message.content:match('^/session%s+(.+)$')
@@ -30,8 +73,9 @@ local function handle_session_command(integration, message)
     if not windows.current_session() then
       integration.send_message('No window session.')
     else
-      integration.set_session(windows.current_session())
-      integration.send_message('Session bound: ' .. windows.current_session())
+      local sid = windows.current_session()
+      integration.set_session(sid)
+      integration.send_message('Session bound:\n  ' .. format_session_summary(sid))
     end
     return
   end
@@ -45,7 +89,11 @@ local function handle_session_command(integration, message)
       local session_id = session_list[num]
       integration.set_session(session_id)
       integration.send_message(
-        string.format('Session bound: %d) %s', num, session_id)
+        string.format(
+          'Session bound: %d)\n  %s',
+          num,
+          format_session_summary(session_id)
+        )
       )
     else
       integration.send_message(
@@ -57,7 +105,9 @@ local function handle_session_command(integration, message)
     local sessions = require('chat.sessions')
     if sessions.exists(arg) then
       integration.set_session(arg)
-      integration.send_message('Session bound: ' .. arg)
+      integration.send_message(
+        'Session bound:\n  ' .. format_session_summary(arg)
+      )
     else
       integration.send_message('Session not found: ' .. arg)
     end
