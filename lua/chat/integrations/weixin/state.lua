@@ -260,6 +260,16 @@ function M.clear_credentials()
   log.info('[Weixin] Credentials cleared (session expired)')
 end
 
+-- Reset sync data (get_updates_buf, context_tokens, typing_tickets)
+-- Called on session expiry: old sync cursor is invalid for new session.
+function M.reset_sync_data()
+  state.get_updates_buf = ''
+  state.context_tokens = {}
+  state.typing_tickets = {}
+  M.save()
+  log.info('[Weixin] Sync data reset (stale cursor cleared)')
+end
+
 -- 最后发送者 ID 相关 getter/setter
 function M.get_last_from_user_id()
   return state.last_from_user_id

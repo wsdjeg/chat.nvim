@@ -39,24 +39,32 @@ local function stop_poll_safety_timer()
 end
 
 --------------------------------------------------
--- Clear credentials on session expiry
--- Stops polling, clears credentials, and resets login state
--- so the frontend knows to re-login.
--- Preserves callback and sync cursor for seamless reconnect.
+-- Stop the polling timer and safety timer
+-- Internal helper used by handle_session_expired and reconnect
 --------------------------------------------------
-local function handle_session_expired()
-  log.error('[Weixin] Session expired, please re-login')
-
-  -- Stop polling timer
+local function stop_all_timers()
   local timer = State.get_timer()
   if timer then
     timer:stop()
     timer:close()
     State.set_timer(nil)
   end
-
-  -- Stop safety timer
   stop_poll_safety_timer()
+end
+
+--------------------------------------------------
+-- Clear credentials on session expiry
+-- Stops polling, clears credentials, and resets login state
+-- so the frontend knows to re-login.
+-- Preserves callback for seamless reconnect.
+-- Resets sync cursor (get_updates_buf) since it's invalid for
+-- a new session.
+--------------------------------------------------
+local function handle_session_expired()
+  log.error('[Weixin] Session expired, please re-login')
+
+  -- Stop all timers
+  stop_all_timers()
 
   State.set_running(false)
   State.set_polling(false)
@@ -64,6 +72,9 @@ local function handle_session_expired()
   -- Clear credentials (both State and API)
   State.clear_credentials()
   Api.clear_credentials()
+
+  -- Reset sync data: old get_updates_buf is invalid for new session
+  State.reset_sync_data()
 
   -- Clear login state so frontend knows to re-login
   local Login = require('chat.integrations.weixin.login')
@@ -299,6 +310,10 @@ end
 -- Public API: Connect
 --------------------------------------------------
 function M.connect(callback)
+  -- Always store callback (even if not yet configured) so that
+  -- reconnect() after login can use it.
+  State.set_callback(callback)
+
   if State.is_running() then
     return
   end
@@ -322,7 +337,6 @@ function M.connect(callback)
     return
   end
 
-  State.set_callback(callback)
   State.set_running(true)
 
   log.info('[Weixin] Starting long-polling...')
@@ -348,12 +362,13 @@ end
 -- Public API: Reconnect after re-login
 -- Restarts long-polling with stored callback.
 -- Called after re-login via HTTP API when session had expired.
+-- Force-stops any lingering timer to ensure clean restart.
 --------------------------------------------------
 function M.reconnect()
-  if State.is_running() then
-    log.debug('[Weixin] Already running, skip reconnect')
-    return true
-  end
+  -- Force-stop any lingering timer (in case is_running is stale)
+  stop_all_timers()
+  State.set_running(false)
+  State.set_polling(false)
 
   local callback = State.get_callback()
   if not callback then
@@ -548,6 +563,9 @@ function M.login(callback)
             login_result.account_id,
             login_result.base_url
           )
+
+          -- 重连（启动 long-polling）
+          M.reconnect()
 
           if callback then
             callback(login_result, nil)
