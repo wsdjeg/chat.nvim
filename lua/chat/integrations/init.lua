@@ -95,16 +95,18 @@ local function handle_list_command(integration, message)
     if not pattern then
       table.insert(filtered, item)
     else
-      -- Get first message content for search
+      -- Get title for search
+      local title = sessions.get_session_title(item.id) or ''
       local first_msg = ''
       if item.session.messages and #item.session.messages > 0 then
         first_msg = item.session.messages[1].content or ''
       end
 
-      -- Match against id, provider, model, and first message
+      -- Match against id, title, provider, model, and first message
       local search_str = string.format(
-        '%s %s %s %s',
+        '%s %s %s %s %s',
         item.id,
+        title,
         item.session.provider or '',
         item.session.model or '',
         first_msg
@@ -140,31 +142,31 @@ local function handle_list_command(integration, message)
       local provider = item.session.provider or 'default'
       local model = item.session.model or 'default'
 
-      -- Get first line of first message
-      local title = ''
-      if item.session.messages and #item.session.messages > 0 then
+      -- Get title: prefer session title, fallback to first message
+      local title = sessions.get_session_title(item.id) or ''
+      if title == '' and item.session.messages and #item.session.messages > 0 then
         local first_msg = item.session.messages[1].content or ''
         title = vim.split(first_msg, '\n')[1]
-        -- Truncate if too long
-        if #title > 50 then
-          title = vim.fn.strcharpart(title, 0, 47) .. '...'
-        end
+      end
+      if title == '' then
+        title = '(untitled)'
+      end
+      -- Truncate if too long
+      if #title > 40 then
+        title = vim.fn.strcharpart(title, 0, 37) .. '...'
       end
 
       table.insert(
         lines,
         string.format(
-          '  %d) %s (%s/%s)%s',
+          '  %d) %s | %s/%s%s',
           i,
-          item.id,
+          title,
           provider,
           model,
           marker
         )
       )
-      if title ~= '' then
-        table.insert(lines, string.format('     %s', title))
-      end
     end
 
     -- Show total count and hidden count
