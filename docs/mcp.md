@@ -404,5 +404,5 @@ Start with simple MCP tools to verify integration:
 ## Next Steps
 
 - [Tools Documentation](./tools/) - Learn about all available tools
-- [IM Integration](./integrations/im/) - Instant messaging integrations
+- [IM Integration](./integrations/) - Instant messaging integrations
 - [HTTP API](./api/http/) - HTTP API integration

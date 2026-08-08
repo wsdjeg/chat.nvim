@@ -38,7 +38,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 41 built-in tools:
+Here is a list of 43 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -46,6 +46,7 @@ Here is a list of 41 built-in tools:
 | [write_file](./write_file.md)                | Write, modify, or delete file content (includes str_replace)      |
 | [copy_file](./copy_file.md)                  | Copy a file or directory (recursive)                               |
 | [create_directory](./create_directory.md)    | Create a directory (including parent directories)                  |
+| [delete_directory](./delete_directory.md)    | Delete a directory (recursive)                                    |
 | [file_info](./file_info.md)                  | Get file or directory metadata                                     |
 | [list_directory](./list_directory.md)        | List directory contents with file metadata                         |
 | [move_file](./move_file.md)                  | Move or rename a file/directory                                    |
@@ -60,6 +61,7 @@ Here is a list of 41 built-in tools:
 | [get_weather](./get_weather.md)              | Get weather data from Meizu weather API                            |
 | [lsp_diagnostics](./lsp_diagnostics.md)      | Get LSP diagnostics for a file                                     |
 | [officecli](./officecli.md)                  | View office documents (Excel .xlsx)                                |
+| [ffmpeg](./ffmpeg.md)                        | Convert images to WebP format using ffmpeg                         |
 | [make](./make.md)                            | Run make targets                                                   |
 | [git_add](./git_add.md)                      | Stage file changes for commit                                      |
 | [git_branch](./git_branch.md)                | Manage git branches                                                |
@@ -306,5 +308,5 @@ return M
 
 - [Memory System](../memory/) - Learn about the memory system
 - [HTTP API](../api/http/) - HTTP API integration
-- [IM Integration](../integrations/im/) - Instant messaging integrations
+- [IM Integration](../integrations/) - Instant messaging integrations
 

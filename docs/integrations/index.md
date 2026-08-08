@@ -42,11 +42,10 @@ All IM integrations share these common features:
 
 ### Commands
 
-### Commands
-
 - `:Chat bridge <platform>` - Bind current session to platform
 - `:Chat unbridge [platform]` - Unbind integration (all or specific platform)
 - `/session` - Check/update session binding
+- `/list [pattern]` - List available sessions (optional pattern filter)
 - `/clear` - Clear current session messages
 
 ### Technical Details

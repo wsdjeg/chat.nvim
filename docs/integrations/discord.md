@@ -223,4 +223,4 @@ Periodically clear old sessions to maintain performance:
 
 - [Telegram Integration](./telegram/) - Setup Telegram bot
 - [Slack Integration](./slack/) - Setup Slack bot
-- [IM Integration Overview](./im/) - All IM integrations
+- [IM Integration Overview](./) - All IM integrations

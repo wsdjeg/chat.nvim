@@ -134,4 +134,4 @@ require('chat').setup({
 
 - [Discord Integration](./discord/) - Setup Discord bot
 - [Telegram Integration](./telegram/) - Setup Telegram bot
-- [IM Integration Overview](./im/) - All IM integrations
+- [IM Integration Overview](./) - All IM integrations

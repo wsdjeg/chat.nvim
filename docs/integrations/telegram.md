@@ -233,4 +233,4 @@ Keep track of your AI provider's token usage.
 
 - [Discord Integration](./discord/) - Setup Discord bot
 - [Slack Integration](./slack/) - Setup Slack bot
-- [IM Integration Overview](./im/) - All IM integrations
+- [IM Integration Overview](./) - All IM integrations

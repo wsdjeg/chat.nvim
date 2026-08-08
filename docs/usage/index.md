@@ -35,7 +35,7 @@ chat.nvim provides several commands to manage your AI conversations. The main co
 | `:Chat load <path>`   | Load session from file path or URL                  |
 | `:Chat share`         | Share current session via pastebin                  |
 | `:Chat preview`       | Open HTML preview of current session in browser     |
-| `:Chat bridge`        | Bind current session to external platform (Discord) |
+| `:Chat bridge`        | Bind current session to external platform           |
 | `:Chat unbridge [im]` | Unbind integration (all or specific platform)       |
 
 ---
@@ -674,7 +674,7 @@ chat.nvim provides powerful features beyond basic chatting:
 
 - **Memory System**: Three-tier memory for context retention
 - **MCP Protocol**: Extended tool capabilities via external servers
-- **Tools**: 41+ built-in tools for file operations, Git, web search, etc.
+- **Tools**: 40+ built-in tools for file operations, Git, web search, etc.
 - **Skills**: Slash commands for quick actions without LLM round-trips
 
 ---

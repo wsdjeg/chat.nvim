@@ -85,4 +85,4 @@ After getting started, explore:
 - [Providers](../providers/) - Configure different AI providers
 - [Tools](../tools/) - Learn about available tools
 - [Memory System](../memory/) - Understand the memory architecture
-- [IM Integration](../integrations/im/) - Connect messaging platforms
+- [IM Integration](../integrations/) - Connect messaging platforms

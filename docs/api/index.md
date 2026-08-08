@@ -31,11 +31,20 @@ chat.nvim offers HTTP API for external applications to interact with your chat s
 ---
 ### Endpoints
 
-| Endpoint    | Method | Description                         |
-| ----------- | ------ | ----------------------------------- |
-| `/`         | POST   | Send message to a session           |
-| `/sessions` | GET    | Get session list with details       |
-| `/session`  | GET    | Get HTML preview of a session       |
+| Endpoint              | Method | Description                         |
+| --------------------- | ------ | ----------------------------------- |
+| `/`                   | POST   | Send message to a session           |
+| `/sessions`           | GET    | Get session list with details       |
+| `/sessions/{id}`      | GET    | Get a single session's details      |
+| `/session/new`        | POST   | Create a new session                |
+| `/session/{id}`       | DELETE | Delete a session                    |
+| `/session/{id}/stop`  | POST   | Stop generation                     |
+| `/session/{id}/clear` | POST   | Clear session messages              |
+| `/session/{id}/retry` | POST   | Retry last message                  |
+| `/session/{id}/upload`| POST   | Upload a file to session            |
+| `/session/{id}/bridge`| GET    | List bridged integrations           |
+| `/session/{id}/bridge/{platform}` | PUT | Bridge an integration    |
+| `/session`            | GET    | Get HTML preview (no auth required) |
 
 ### Example
 
@@ -91,5 +100,5 @@ See [HTTP API](./http/) for complete API reference.
 ## Next Steps
 
 - [HTTP API](./http/) - HTTP API integration
-- [IM Integration](../integrations/im/) - Messaging platforms
+- [IM Integration](../integrations/) - Messaging platforms
 

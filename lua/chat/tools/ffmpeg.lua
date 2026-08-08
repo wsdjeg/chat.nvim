@@ -192,6 +192,11 @@ function M.ffmpeg(action, ctx)
       vim.list_extend(stderr, data)
     end,
     on_exit = function(id, code, signal)
+      -- Guard against nil callback (e.g. test mock scenarios)
+      if not ctx or not ctx.callback then
+        return
+      end
+
       if signal ~= 0 then
         ctx.callback({
           error = string.format('ffmpeg cancelled (signal: %d)', signal),

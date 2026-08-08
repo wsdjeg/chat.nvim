@@ -1546,5 +1546,5 @@ async function updateDashboard() {
 - [Providers](../providers/) - AI provider configuration
 - [Tools](../tools/) - Tool system
 - [Memory System](../memory/) - Memory system configuration
-- [IM Integration](../integrations/im/) - Instant messaging integrations
+- [IM Integration](../integrations/) - Instant messaging integrations
 
