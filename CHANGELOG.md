@@ -1,5 +1,144 @@
 # Changelog
 
+## [1.9.0](https://github.com/wsdjeg/chat.nvim/compare/v1.8.0...v1.9.0) (2026-08-08)
+
+
+### Features
+
+* add skill system for slash commands in prompt window ([660eda0](https://github.com/wsdjeg/chat.nvim/commit/660eda0521ad224d597f94ece35ce8535b678d70))
+* delete message at cursor in result window via dd ([3a63a18](https://github.com/wsdjeg/chat.nvim/commit/3a63a181a1f404585c66648e8ac0ed3edf9ce282))
+* **fetch_web:** add max_length parameter for truncation control ([da764de](https://github.com/wsdjeg/chat.nvim/commit/da764deca2c30f51850cf75a0ab95532db91b3e3))
+* **git_fetch:** add --unshallow flag support ([1497736](https://github.com/wsdjeg/chat.nvim/commit/14977361f25fe222872673f4d872444446382aeb))
+* **http:** add bridge/unbridge endpoints for session integrations ([a26f9ef](https://github.com/wsdjeg/chat.nvim/commit/a26f9ef97d03fbd7a0215042f6154f8e0e5bb4d8))
+* **http:** add DELETE /session/{id}/messages/{index} endpoint ([50cb53a](https://github.com/wsdjeg/chat.nvim/commit/50cb53ab635f1b2ed4907ce9f7d0e8ea00c4a4a5))
+* **http:** add GET/PUT /session/:id/upload-dir API ([1fb6365](https://github.com/wsdjeg/chat.nvim/commit/1fb63654b10b1a77ae5dcf84c48044eb9b3bd3ba))
+* **http:** add POST /session/:id/upload endpoint for file uploads ([a1d300d](https://github.com/wsdjeg/chat.nvim/commit/a1d300dbdfcb49696dfbf8804563b47c63ae169d))
+* **im:** sort /list sessions by pin first then last message time ([22a5ad1](https://github.com/wsdjeg/chat.nvim/commit/22a5ad1019cc93cfc41254ee9501240989448a35))
+* **integration:** show title/provider/model in /session bind message ([d08f244](https://github.com/wsdjeg/chat.nvim/commit/d08f244fbd5de0b1bc73b7f842324d5394c10aa5))
+* **integrations:** show session title in /list command ([0e7c15e](https://github.com/wsdjeg/chat.nvim/commit/0e7c15efcf477db87ddc314cb80d6514fa232b6e))
+* **memory:** add dedup+update mechanism with hit_count tracking ([9bbc275](https://github.com/wsdjeg/chat.nvim/commit/9bbc2758d63c1ca57621db82dbdf1c60c440bc8b))
+* **memory:** add hourly cleanup timer for daily memories ([60494fe](https://github.com/wsdjeg/chat.nvim/commit/60494fe6ab57a5c5561dc5e104fddb7b8de99747))
+* **plan:** add step operations, plan lifecycle, and fix security issues ([a013a73](https://github.com/wsdjeg/chat.nvim/commit/a013a733af2c3bdd46ede90e8ae4e150f8e368a3))
+* **plan:** session-isolated list with optional include_project ([2f83bb4](https://github.com/wsdjeg/chat.nvim/commit/2f83bb43886ba02aa0f29c8fa47d9488a7661425))
+* **security:** block all tool access to .git directories ([9e2df5e](https://github.com/wsdjeg/chat.nvim/commit/9e2df5ed4fdc3b1472b680c0b3120dc1b753ff27))
+* **skill:** add badge update step to setup-nvim-plugin-test skill ([0c34fd3](https://github.com/wsdjeg/chat.nvim/commit/0c34fd347d48c1e1ab39dfbcbdb3f84a44212bb2))
+* **skill:** add version verification step to setup-nvim-plugin-test ([7f70a9b](https://github.com/wsdjeg/chat.nvim/commit/7f70a9bec8546487bcc6e98e23f45a724ce0bbd2))
+* **skills:** add .gitignore update step for test/.deps in setup-nvim-plugin-test ([92e156a](https://github.com/wsdjeg/chat.nvim/commit/92e156a1b0fcd5ac476d8a269a3baffde4e49b6f))
+* **skills:** add /setup-nvim-plugin-test skill ([453344a](https://github.com/wsdjeg/chat.nvim/commit/453344a42b784a16fe42d3df4ae85f5d9eec7b08))
+* **skills:** add luarocks, release-please, AGENTS.md to setup-nvim-plugin-test ([f6d532d](https://github.com/wsdjeg/chat.nvim/commit/f6d532dc4798e7b845b62aa25ee51b73665f13cf))
+* **skills:** add setup-nvim-plugin-test skill ([1688b73](https://github.com/wsdjeg/chat.nvim/commit/1688b730a3e16b0c57e3446fa06341132af74cf2))
+* **skills:** add test.yml GitHub Actions reference to setup-nvim-plugin-test ([3dc83b3](https://github.com/wsdjeg/chat.nvim/commit/3dc83b3238bb8a5231cd6a6a5910a435970f0e93))
+* **skills:** auto-load user skills from lua/chat/skills/*.lua ([78d5c17](https://github.com/wsdjeg/chat.nvim/commit/78d5c170851eac9a159b3fd6d373e40fb04abd4e))
+* **skills:** intercept skill commands from HTTP/integration messages ([ced473b](https://github.com/wsdjeg/chat.nvim/commit/ced473bd1b2c031b20e05982a9933e7d5cccea5a))
+* **skills:** return output text from skill handlers for HTTP feedback ([78a3cff](https://github.com/wsdjeg/chat.nvim/commit/78a3cfff219b42c2739c3b6ffbfd4e8c350b7de2))
+* **skills:** support table return for handler with role and request control ([850f116](https://github.com/wsdjeg/chat.nvim/commit/850f116a1bb0c8c7d06d1e7c0dd0f1047a12c5aa))
+* **skill:** verify existing files against requirements before skipping ([9c53c1d](https://github.com/wsdjeg/chat.nvim/commit/9c53c1de435ca34792afc0bd16e56239d0d173db))
+* **tools:** add delete_directory tool with security checks ([629d081](https://github.com/wsdjeg/chat.nvim/commit/629d081f7a81999039c0ee03cbd56725837a7851))
+* **tools:** add ffmpeg tool for image to webp conversion ([f0556ea](https://github.com/wsdjeg/chat.nvim/commit/f0556ead132458846e19b9dee516b65df9a91c25))
+* **tools:** add git_rebase tool ([6588b9b](https://github.com/wsdjeg/chat.nvim/commit/6588b9b8577a1f11ba051a07e443cf7a3a8a5411))
+* track cleared_at timestamp when session is cleared ([968872a](https://github.com/wsdjeg/chat.nvim/commit/968872a9a181d49074ad70e84d464250deda8e81))
+* **weixin:** add DELETE /weixin/credentials endpoint for logout ([e010320](https://github.com/wsdjeg/chat.nvim/commit/e010320308cdb1c3562e8f18f1a7eecdef7f3127))
+* **weixin:** add HTTP API for QR code login and credential caching ([6f6537b](https://github.com/wsdjeg/chat.nvim/commit/6f6537bd1ecacd346847482924eafdf648270b2a))
+* **weixin:** add start_login_flow and GET /weixin/login/status endpoint ([0b1925f](https://github.com/wsdjeg/chat.nvim/commit/0b1925f481e6bcc1c356b362622e3e55b6864474))
+* **weixin:** return connected status when credentials are valid ([f04ac99](https://github.com/wsdjeg/chat.nvim/commit/f04ac99bd9c4479c33faf7dd8066d991988d42cb))
+
+
+### Bug Fixes
+
+* add -u test/minimal_init.lua to install-deps target ([7720ff2](https://github.com/wsdjeg/chat.nvim/commit/7720ff29806c5fb84e922b78a688b6f01a4125c0))
+* add missing log import in routes.lua ([7255307](https://github.com/wsdjeg/chat.nvim/commit/72553079b9cbb37e7cb69d211bed2ddff9280aa7))
+* block clear/delete/model/provider/cwd/retry skills when session in progress ([b9a17cf](https://github.com/wsdjeg/chat.nvim/commit/b9a17cf28f25f34a8228060c8160d7de7d2118ef))
+* **docs:** use double pipe for TOC tag links in chat.txt ([1acb8dc](https://github.com/wsdjeg/chat.nvim/commit/1acb8dcbdb8d9d7bf98cc8a5169bd5810733ca44))
+* **fetch_web:** sanitize non-UTF-8 response to prevent NonUTF8Body API error ([14ec9b0](https://github.com/wsdjeg/chat.nvim/commit/14ec9b0a616b9f5573d1767bf326abd3911cba35))
+* first :Chat open enters old session instead of creating new one ([082ce8e](https://github.com/wsdjeg/chat.nvim/commit/082ce8e8c1216da7ed3a303537ba1c6a990f45a3))
+* **http:** add connection timeout and prevent high-concurrency timeouts ([254aa7f](https://github.com/wsdjeg/chat.nvim/commit/254aa7f4c731f21a07809b053aee70ed08c43389))
+* **http:** check is_allowed_path on full upload path to block .git bypass ([b86d7d7](https://github.com/wsdjeg/chat.nvim/commit/b86d7d71617c909a28f35cabd1e1927b5b05166a))
+* **http:** improve reliability for termux background ([7f89e69](https://github.com/wsdjeg/chat.nvim/commit/7f89e69642a9792a71ab5c3244ad30003205572a))
+* **http:** validate upload destination is within allowed_path ([2e1a4af](https://github.com/wsdjeg/chat.nvim/commit/2e1a4afdb4c00387fefc40cd91d0cba2677ffb5f))
+* **http:** validate upload_dir is absolute and within session cwd ([f25c032](https://github.com/wsdjeg/chat.nvim/commit/f25c032dd62f0e8d98cda385d46412a4ef30b4e2))
+* **integration:** use config.storage_dir for all integration state files ([b34045e](https://github.com/wsdjeg/chat.nvim/commit/b34045eec81d1593a14a8c4ea63700d7b40dcc70))
+* **log:** wrap all log calls in pcall to prevent flaky CI failures ([d68b863](https://github.com/wsdjeg/chat.nvim/commit/d68b863f1acf026386d4e93b67209edd880a8f24))
+* **memory:** use atomic write (tmp+rename) for all save operations ([ce6aee3](https://github.com/wsdjeg/chat.nvim/commit/ce6aee36995407f7e317d9de3dc55cbdcab307dd))
+* move list action before plan_id requirement check ([8d37436](https://github.com/wsdjeg/chat.nvim/commit/8d3743688a1625e0d210687629d20b820a9b7db1))
+* **progress:** ensure reasoning_content message is saved even without text content ([a45de02](https://github.com/wsdjeg/chat.nvim/commit/a45de02f89eebf3adb4ff6d7a1efc35ca5ce1e30))
+* **queue:** skill commands stuck in_progress due to retry loop ([df6d55e](https://github.com/wsdjeg/chat.nvim/commit/df6d55e57f5e72b0bf23c51d13ff21f71f02cd05))
+* **search_text:** resolve relative directory against session cwd ([995a382](https://github.com/wsdjeg/chat.nvim/commit/995a382fa5769ca6116482ef0f8c4f7bcd6b93cc))
+* **skills:** /clear should not return output text ([47d5321](https://github.com/wsdjeg/chat.nvim/commit/47d5321b256f32b238da36538b0f94205827653f))
+* start() no longer auto-creates a session in headless mode ([6e32448](https://github.com/wsdjeg/chat.nvim/commit/6e32448f114c62c3b960357c08630d6f8dd81eeb))
+* switch TUI session when current session deleted via HTTP API ([fc56368](https://github.com/wsdjeg/chat.nvim/commit/fc56368a67e74d7837570d6d84799a5db6c8f383))
+* **test:** isolate session cache dir to prevent polluting real sessions ([383ab2a](https://github.com/wsdjeg/chat.nvim/commit/383ab2ae720af1bc53c8107186ae893ab101adf5))
+* update cache and UI on message deletion, skip streaming message in result window ([230afcf](https://github.com/wsdjeg/chat.nvim/commit/230afcf9efd5e62f2e3454cddd9a1f765f37fe99))
+* utf8-safe truncation in fetch_web to prevent broken Chinese chars ([fb890c2](https://github.com/wsdjeg/chat.nvim/commit/fb890c2e0927c2d32c2cd7eda9cdbe30bebc9881))
+* **weixin:** fix polling stuck forever when API callback is lost ([4d2064e](https://github.com/wsdjeg/chat.nvim/commit/4d2064e1e4d1b7ce3ff418ca1d635f3590cddda3))
+* **weixin:** fix re-login connection failure after session expiry ([52ba336](https://github.com/wsdjeg/chat.nvim/commit/52ba336b708c1a038699a9247ea6579b4f2445f6))
+* **weixin:** handle session expiry properly to avoid repeated login ([a9a4f23](https://github.com/wsdjeg/chat.nvim/commit/a9a4f23c189cae76aa92a6a5c66d562f97c2ba18))
+* **windows:** handle externally deleted current session on :Chat ([d2ec27d](https://github.com/wsdjeg/chat.nvim/commit/d2ec27d6ee23a81b8f0038ec1100a1e53b7fbd6b))
+
+
+### Code Refactoring
+
+* **curl:** add unified curl module ([26af1d5](https://github.com/wsdjeg/chat.nvim/commit/26af1d587432dba6b13283676182d2ba0365f609))
+* **curl:** migrate batch 1 providers to curl.build_request() ([806574c](https://github.com/wsdjeg/chat.nvim/commit/806574ca08825348ecb620d6d8174df36f606094))
+* **curl:** migrate batch 2 providers to curl.build_request() ([a98af2b](https://github.com/wsdjeg/chat.nvim/commit/a98af2b65ef70f94ba63782ce9efc29022129bdf))
+* **curl:** migrate integrations batch 1 to curl.build_request() ([a60988a](https://github.com/wsdjeg/chat.nvim/commit/a60988a682c2d54f3775126b48776192cdd36b40))
+* **curl:** migrate integrations batch 2 to curl.build_request() ([ef1267c](https://github.com/wsdjeg/chat.nvim/commit/ef1267c6e4ff8ab91c9486ca3b09cea303f63144))
+* **curl:** migrate MCP streamable_http transport to curl.build_request() ([a574bcb](https://github.com/wsdjeg/chat.nvim/commit/a574bcb72fd8f51e9f8290e229a6a665fecafce8))
+* **curl:** migrate sessions/share.lua to curl.build_request() ([8a1301e](https://github.com/wsdjeg/chat.nvim/commit/8a1301e2d9e67c51f17718a64f474acc143e4c22))
+* **curl:** replace body_inline with stdin_body, body= means inline ([e1d1ff3](https://github.com/wsdjeg/chat.nvim/commit/e1d1ff3a88b5f9f4a2f25985aad495bce6a18950))
+* **curl:** unify curl usage in tools via curl.is_available() and curl.build_request() ([6c25ce8](https://github.com/wsdjeg/chat.nvim/commit/6c25ce865ba8560ca33966aa53966506fe6e2979))
+* **curl:** unify error code tables in openai.lua and retry.lua ([5728a74](https://github.com/wsdjeg/chat.nvim/commit/5728a74d73305147badf33eb8aa4ca371ed056c5))
+* **memory:** extract shared similarity module with Levenshtein fallback ([7a0f239](https://github.com/wsdjeg/chat.nvim/commit/7a0f23960889ee31824c5ad4105e8d0442f37420))
+* **skills:** enforce AGENTS.md-first workflow in setup-nvim-plugin-test ([00cf904](https://github.com/wsdjeg/chat.nvim/commit/00cf904bb7eb961b4b632905393546a2c0e2c540))
+* **skills:** reference chat.nvim config file paths in release-please action ([ee62dff](https://github.com/wsdjeg/chat.nvim/commit/ee62dff20036a4b594f54951feb4a39a86f2b9b2))
+* unify storage paths under top-level storage_dir config ([d72403e](https://github.com/wsdjeg/chat.nvim/commit/d72403ef27e2f6ff4540bfc448382c555bdcace4))
+* **weixin:** remove POST /weixin/credentials endpoint ([18ef595](https://github.com/wsdjeg/chat.nvim/commit/18ef595aa8772d9346a72e43f46c39b0ebb4801b))
+* **weixin:** remove redundant /weixin/qrcode route ([d897c15](https://github.com/wsdjeg/chat.nvim/commit/d897c15011a0ed16ef83981427523f2228fb405b))
+* **weixin:** remove unused message field from start_qr_login callback ([d35f1bc](https://github.com/wsdjeg/chat.nvim/commit/d35f1bcee5b4eee78e76f870d697914008f4b9f8))
+
+
+### Performance Improvements
+
+* **volcengine:** add curl timeout and nodelay options for coding plan ([cacaa5c](https://github.com/wsdjeg/chat.nvim/commit/cacaa5c7d7273471d31f82f0e365f81594dc3982))
+
+
+### Documentation
+
+* add cleared_at field to http.md and doc-sync rule to AGENTS.md ([c5cf876](https://github.com/wsdjeg/chat.nvim/commit/c5cf87630d8fc56d69b948abb601a050a622c097))
+* add connected status to weixin login/status API docs ([278beed](https://github.com/wsdjeg/chat.nvim/commit/278beed49be673c2ae05152872ab111fa78e279d))
+* add DELETE /weixin/credentials endpoint to HTTP API docs ([b567d2e](https://github.com/wsdjeg/chat.nvim/commit/b567d2e2897fb4268147489a1b2b12c267154b91))
+* add git_rebase tool and skills system documentation ([209d3b5](https://github.com/wsdjeg/chat.nvim/commit/209d3b54eb3446e90935a91c71b2c4fe73cc3374))
+* add no manual tags rule to Release section ([2e369fa](https://github.com/wsdjeg/chat.nvim/commit/2e369fa70c78dfc19984efe45b924b7233cfcf8c))
+* add release workflow steps to AGENTS.md ([d3899e1](https://github.com/wsdjeg/chat.nvim/commit/d3899e1ecf3356e87c7b796d56cab5a04d5e314d))
+* add remote=origin to release fetch step ([29a4cc2](https://github.com/wsdjeg/chat.nvim/commit/29a4cc2cc074744aa15f4a2ca5b2b89836e06506))
+* add reset step before rebase in release workflow ([306a939](https://github.com/wsdjeg/chat.nvim/commit/306a93992d6d2928a13fbdc8ef5afbd471cee009))
+* add runtime skills documentation to usage guide ([267d5cc](https://github.com/wsdjeg/chat.nvim/commit/267d5cc09b2fb2db239178e47500cdebeba16b5d))
+* add screenshot and description to README header ([b76019d](https://github.com/wsdjeg/chat.nvim/commit/b76019da5804558b9942d90fe5a5536418f63462))
+* add test configuration guidelines to AGENTS.md ([65b2c1c](https://github.com/wsdjeg/chat.nvim/commit/65b2c1c92fd56b88c743f62e67a63467e65d8e5d))
+* add verified commands to AGENTS.md and fix README ([05ad80e](https://github.com/wsdjeg/chat.nvim/commit/05ad80e0b6bc37df4cd05a9cbce165c99ba0e88b))
+* add weixin HTTP API endpoints to http.md ([b8ea9e1](https://github.com/wsdjeg/chat.nvim/commit/b8ea9e1af87a34881c2252fcc2e870b5fa24d501))
+* **agents:** add PATTERN usage for test tool syntax ([f6a5faa](https://github.com/wsdjeg/chat.nvim/commit/f6a5faa618e5b37122c28c9c8f415263614fb145))
+* align README format with picker.nvim style ([d863c51](https://github.com/wsdjeg/chat.nvim/commit/d863c51795d41b087d37dd74c66abe85c643ca98))
+* fix broken links, missing tool docs, and stale descriptions for release ([4e4286d](https://github.com/wsdjeg/chat.nvim/commit/4e4286d5b0ea67a9f9455649db4304891ce7708b))
+* fix HTTP API example in README ([f40ad04](https://github.com/wsdjeg/chat.nvim/commit/f40ad04c0964f46b4edacefb9b80ea07c3498dec))
+* fix release step 3 from merge to rebase ([82f32da](https://github.com/wsdjeg/chat.nvim/commit/82f32da529e8740b2587da87753d9bd194448961))
+* fix release workflow step 3, use merge instead of invalid rebase ([2b13235](https://github.com/wsdjeg/chat.nvim/commit/2b13235ca480ae187219034ded3d7b2894fdc4c2))
+* remove removed weixin/credentials endpoint and fix state file path ([3f50728](https://github.com/wsdjeg/chat.nvim/commit/3f50728971d79315bec5a10d6bbb8684cab7c838))
+* rewrite README with structured sections and doc links ([37592c6](https://github.com/wsdjeg/chat.nvim/commit/37592c6a5c2057022063f3202586cc2fb93a5e41))
+* simplify AGENTS.md command section, remove duplicate LuaRocks in README ([df344bc](https://github.com/wsdjeg/chat.nvim/commit/df344bcbea1171f883bde22529b125c77fc45c07))
+* **skill:** add plan tool hint for setup-nvim-plugin-test skill ([545fe06](https://github.com/wsdjeg/chat.nvim/commit/545fe0621ff8a229d75dffbd661a30e411c141eb))
+* sync chat.txt with docs/ directory updates since 5548552 ([9bf9200](https://github.com/wsdjeg/chat.nvim/commit/9bf9200ae82e51488d30263607ad0669d6f00f57))
+* update configuration for storage_dir derivation ([86d5d90](https://github.com/wsdjeg/chat.nvim/commit/86d5d907e0097dbb5d3037767d1cf87e1ba2156e))
+* update custom provider example to use curl.build_request ([9897d74](https://github.com/wsdjeg/chat.nvim/commit/9897d749dc4742038e5080adca0e8d4b74587a92))
+* use git tool calls instead of raw commands in release steps ([1feeff4](https://github.com/wsdjeg/chat.nvim/commit/1feeff4a495ce1d32f3de4976d0e341891863b6b))
+* use plain text title instead of logo image ([30961f6](https://github.com/wsdjeg/chat.nvim/commit/30961f6677a582c6da0d76058d54d51d7eb5827d))
+
+
+### Tests
+
+* add plan tool handler tests ([978c9ae](https://github.com/wsdjeg/chat.nvim/commit/978c9ae3221f213b04db8b60d6015264db0edbd8))
+* **memory:** add comprehensive tests for session isolation, promote, TTL ([8c6db14](https://github.com/wsdjeg/chat.nvim/commit/8c6db146f2e7a97d3aa92294ebe2d0ac197ae290))
+* use independent storage_dir in http_spec and minimal_init ([6529890](https://github.com/wsdjeg/chat.nvim/commit/65298908c2847ed910327204ca4c295556161c7d))
+
 ## [1.8.0](https://github.com/wsdjeg/chat.nvim/compare/v1.7.0...v1.8.0) (2026-07-10)
 
 
