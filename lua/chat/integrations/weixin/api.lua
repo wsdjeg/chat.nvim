@@ -84,6 +84,9 @@ end
 
 --------------------------------------------------
 -- API request helper
+-- Uses a callback-already-called guard to ensure the callback
+-- is invoked exactly once, even if on_stdout fires multiple times
+-- or the job exits without producing stdout.
 --------------------------------------------------
 function M.request(endpoint, data, callback, opts)
   opts = opts or {}
@@ -116,22 +119,32 @@ function M.request(endpoint, data, callback, opts)
     stdin_body = true,
   })
 
+  -- Guard: ensure callback is called exactly once
+  local callback_called = false
+  local function safe_callback(result, cb_err)
+    if callback_called then
+      return
+    end
+    callback_called = true
+    if callback then
+      callback(result, cb_err)
+    end
+  end
+
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
-      if callback then
-        local output = table.concat(lines, '\n')
-        if output and output ~= '' then
-          local ok, result = pcall(json.decode, output)
-          if ok and result then
-            callback(result, nil)
-          else
-            log.error('[Weixin] Failed to decode: ' .. output)
-            callback(nil, 'Decode error')
-          end
+      local output = table.concat(lines, '\n')
+      if output and output ~= '' then
+        local ok, result = pcall(json.decode, output)
+        if ok and result then
+          safe_callback(result, nil)
         else
-          callback(nil, 'Empty response')
+          log.error('[Weixin] Failed to decode: ' .. output)
+          safe_callback(nil, 'Decode error')
         end
       end
+      -- If output is empty, don't call callback here;
+      -- on_exit will handle it as a fallback
     end,
     on_stderr = function(_, lines)
       for _, line in ipairs(lines) do
@@ -141,13 +154,32 @@ function M.request(endpoint, data, callback, opts)
       end
     end,
     on_exit = function(_, code, signal)
+      -- Fallback: if callback was never called (no stdout data),
+      -- call it now with an error so the caller can recover
+      if not callback_called then
+        if code == 0 then
+          safe_callback(nil, 'Empty response (exit 0)')
+        else
+          local msg = curl.get_error_message(code)
+            or string.format('curl exit code %d', code)
+          log.error('[Weixin] Request failed: ' .. msg)
+          safe_callback(nil, msg)
+        end
+      end
       if opts.on_exit then
         opts.on_exit(code, signal)
       end
     end,
   })
 
-  if body_data and jobid then
+  -- If job failed to start, call callback immediately
+  if not jobid or jobid <= 0 then
+    log.error('[Weixin] Failed to start job for ' .. endpoint)
+    safe_callback(nil, 'Failed to start job')
+    return nil
+  end
+
+  if body_data then
     job.send(jobid, body_data)
     job.send(jobid, nil)
   end
@@ -296,4 +328,15 @@ function M.set_credentials(token, account_id, base_url)
   log.info('[Weixin] Credentials updated')
 end
 
+--------------------------------------------------
+-- Clear credentials from config (for session expiry)
+--------------------------------------------------
+function M.clear_credentials()
+  if config.config.integrations and config.config.integrations.weixin then
+    config.config.integrations.weixin.token = nil
+    config.config.integrations.weixin.default_user_id = nil
+  end
+end
+
 return M
+

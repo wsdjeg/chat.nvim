@@ -12,10 +12,30 @@ local Message = require('chat.integrations.weixin.message')
 local Types = require('chat.integrations.weixin.types')
 
 --------------------------------------------------
+-- Polling safety timeout (ms)
+-- Slightly longer than LONG_POLL timeout to ensure
+-- is_polling never gets stuck forever
+--------------------------------------------------
+local POLL_SAFETY_TIMEOUT_MS = Types.Timeout.LONG_POLL + 10000 -- 45s
+
+--------------------------------------------------
 -- Message queue for sending
 --------------------------------------------------
 local message_queue = {}
 local send_jobid = -1
+
+-- Safety timer reference (prevents is_polling from getting stuck)
+local poll_safety_timer = nil
+
+--------------------------------------------------
+-- Clear credentials on session expiry
+-- Clears both State-level and API-level credentials
+--------------------------------------------------
+local function handle_session_expired()
+  log.error('[Weixin] Session expired, please re-login')
+  State.clear_credentials()
+  Api.clear_credentials()
+end
 
 --------------------------------------------------
 -- Process message queue
@@ -79,8 +99,7 @@ local function process_queue()
           result.ret == -14
           or result.errcode == Types.ErrorCode.SESSION_EXPIRED
         then
-          log.error('[Weixin] Session expired, please re-login')
-          State.clear_credentials()
+          handle_session_expired()
         end
       else
         log.debug(string.format('[Weixin] Message sent to %s', to_user_id))
@@ -129,6 +148,17 @@ local function split_message(content, max_length)
 end
 
 --------------------------------------------------
+-- Stop the polling safety timer
+--------------------------------------------------
+local function stop_poll_safety_timer()
+  if poll_safety_timer then
+    poll_safety_timer:stop()
+    poll_safety_timer:close()
+    poll_safety_timer = nil
+  end
+end
+
+--------------------------------------------------
 -- Long-poll for updates
 --------------------------------------------------
 local function poll_updates()
@@ -138,12 +168,30 @@ local function poll_updates()
 
   State.set_polling(true)
 
+  -- Start safety timer: if the API callback doesn't fire within
+  -- POLL_SAFETY_TIMEOUT_MS, force-reset is_polling so the next
+  -- timer tick can start a new poll. This prevents the polling
+  -- from getting permanently stuck if the callback is somehow lost.
+  stop_poll_safety_timer()
+  poll_safety_timer = uv.new_timer()
+  poll_safety_timer:start(POLL_SAFETY_TIMEOUT_MS, 0, function()
+    vim.schedule(function()
+      if State.is_polling() then
+        log.warn('[Weixin] Poll safety timeout fired, resetting is_polling')
+        State.set_polling(false)
+      end
+      stop_poll_safety_timer()
+    end)
+  end)
+
   Api.get_updates(State.get_updates_buf(), function(result, err)
+    -- Stop safety timer and reset polling flag
+    stop_poll_safety_timer()
     State.set_polling(false)
 
     if err then
       log.error('[Weixin] getupdates error: ' .. err)
-      -- Retry after 3 seconds
+      -- Timer will retry in 3 seconds
       return
     end
 
@@ -164,8 +212,7 @@ local function poll_updates()
         result.ret == -14
         or result.errcode == Types.ErrorCode.SESSION_EXPIRED
       then
-        log.error('[Weixin] Session expired, please re-login')
-        State.clear_credentials()
+        handle_session_expired()
       end
       return
     end
@@ -283,6 +330,8 @@ function M.disconnect()
     timer:close()
     State.set_timer(nil)
   end
+
+  stop_poll_safety_timer()
 
   State.set_running(false)
   State.set_polling(false)
@@ -451,7 +500,9 @@ end
 function M.logout()
   M.disconnect()
   State.clear()
+  Api.clear_credentials()
   log.info('[Weixin] Logged out, credentials cleared')
 end
 
 return M
+

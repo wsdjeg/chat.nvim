@@ -249,6 +249,17 @@ function M.has_credentials()
   return state.bot_token ~= nil and state.account_id ~= nil
 end
 
+-- Clear only credentials (keep get_updates_buf, context_tokens, etc.)
+-- Called on session expiry to allow re-login without losing sync state
+function M.clear_credentials()
+  state.bot_token = nil
+  state.account_id = nil
+  state.base_url = nil
+  state.user_id = nil
+  M.save()
+  log.info('[Weixin] Credentials cleared (session expired)')
+end
+
 -- 最后发送者 ID 相关 getter/setter
 function M.get_last_from_user_id()
   return state.last_from_user_id
