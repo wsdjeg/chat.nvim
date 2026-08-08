@@ -852,6 +852,32 @@ local function handle_weixin_login_status(client)
   response.send_json(client, 200, state)
 end
 
+--- DELETE /weixin/credentials: logout and clear all WeChat credentials
+--- Stops polling, clears state file, clears API config, clears login state.
+--- After this, the client must re-login via GET /weixin/login/status.
+local function handle_weixin_logout(client)
+  local Weixin = require('chat.integrations.weixin')
+  local State = require('chat.integrations.weixin.state')
+  local Login = require('chat.integrations.weixin.login')
+
+  -- Check if there was anything to logout from
+  local had_credentials = State.has_credentials()
+
+  -- Weixin.logout() does: disconnect + State.clear() + Api.clear_credentials()
+  Weixin.logout()
+
+  -- Also clear login flow state (QR polling etc.)
+  Login.clear()
+
+  log.info('[Weixin] Logout via HTTP API, credentials cleared')
+
+  response.send_json(client, 200, {
+    status = 'logged_out',
+    message = '✅ 微信已退出登录',
+    had_credentials = had_credentials,
+  })
+end
+
 --------------------------------------------------
 -- Bridge (integrations) routes
 --------------------------------------------------
@@ -1012,6 +1038,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_push_message(client, body, content_length)
   elseif method == 'GET' and path == '/weixin/login/status' then
     handle_weixin_login_status(client)
+  elseif method == 'DELETE' and path == '/weixin/credentials' then
+    handle_weixin_logout(client)
   else
     response.send_response(client, 404)
   end
