@@ -119,8 +119,8 @@ function M.dispatch(input, session)
   local ok, result = pcall(skill.handler, args, ctx)
   if not ok then
     local msg = 'Skill /' .. name .. ' failed: ' .. tostring(result)
-    log.error('[Skills] handler error for /' .. name .. ': ' .. tostring(result))
-    log.notify(msg, 'ErrorMsg')
+    pcall(log.error, '[Skills] handler error for /' .. name .. ': ' .. tostring(result))
+    pcall(log.notify, msg, 'ErrorMsg')
     return msg
   end
 

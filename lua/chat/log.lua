@@ -10,28 +10,34 @@ for _, v in ipairs({ 'info', 'warn', 'error', 'debug' }) do
     if not log then
       local ok, l = pcall(require, 'logger')
       if ok then
-        log = l.derive('chat.nvim')
+        local ok2, derived = pcall(l.derive, 'chat.nvim')
+        if ok2 then
+          log = derived
+        else
+          logger_failed = true
+          return
+        end
       else
         logger_failed = true
         return
       end
     end
-    log[v](msg)
+    pcall(log[v], msg)
   end
 end
 
 function M.set_level(l)
   if log then
-    log.set_level(l)
+    pcall(log.set_level, l)
   end
 end
 
 function M.notify(msg, color)
   local ok, nt = pcall(require, 'notify')
   if ok then
-    nt.notify(msg, color)
+    pcall(nt.notify, msg, color)
   else
-    vim.notify(msg)
+    pcall(vim.notify, msg)
   end
 end
 
