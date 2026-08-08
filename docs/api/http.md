@@ -73,6 +73,7 @@ require('chat').setup({
 | `/session/{id}/bridge` | DELETE | Unbridge all integrations from a session |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
 | `/weixin/login/status` | GET | Poll WeChat login status (auto-starts login flow) |
+| `/weixin/credentials` | DELETE | Logout WeChat (stop polling, clear all credentials) |
 
 ---
 
@@ -1129,6 +1130,43 @@ done
 
 ---
 
+### DELETE `/weixin/credentials`
+
+Logout from WeChat. Stops long-polling, clears all stored credentials, state, and login flow data. After logout, the client must re-login via `GET /weixin/login/status` to reconnect.
+
+**What this does:**
+
+1. Stops the polling timer and safety timer
+2. Clears the state file (`{storage_dir}/integration/weixin.json`) — removes bot token, sync cursor, context tokens, typing tickets
+3. Clears live API credentials from memory
+4. Clears any in-progress login flow state (QR code polling)
+
+**Response:**
+
+```json
+{
+  "status": "logged_out",
+  "message": "✅ 微信已退出登录",
+  "had_credentials": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | Always `"logged_out"` |
+| `message` | string | Human-readable message |
+| `had_credentials` | boolean | Whether credentials existed before logout |
+
+**Example:**
+
+```bash
+# Logout
+curl -X DELETE http://127.0.0.1:7777/weixin/credentials \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
 ## Message Queue System
 
 Messages pushed via `POST /` enter an internal queue with intelligent delivery:
@@ -1284,6 +1322,10 @@ curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord 
 
 # Unbridge all integrations
 curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge \
+  -H "X-API-Key: your-secret-key"
+
+# Logout WeChat
+curl -X DELETE http://127.0.0.1:7777/weixin/credentials \
   -H "X-API-Key: your-secret-key"
 
 # Get HTML preview (no API key needed)
