@@ -81,12 +81,39 @@ local function handle_list_command(integration, message)
     )
   )
 
-  -- Sort sessions by id (newest first)
+  -- Sort sessions: pinned first, then by last message time (newest first)
   local sorted = {}
   for id, session in pairs(all_sessions) do
-    table.insert(sorted, { id = id, session = session })
+    -- Determine last activity time:
+    -- 1. Last message's created timestamp
+    -- 2. last_user_message_time field
+    -- 3. Session ID (date-formatted string, as fallback)
+    local last_time = 0
+    if session.messages and #session.messages > 0 then
+      local last_msg = session.messages[#session.messages]
+      last_time = last_msg.created or session.last_user_message_time or 0
+    elseif session.last_user_message_time then
+      last_time = session.last_user_message_time
+    end
+    -- Session ID is a date string like "2025-01-10-14-30-00", use it as
+    -- fallback for last_time (lexicographic comparison works for this format)
+    local pin = sessions.get_session_pin(id) or false
+    table.insert(sorted, {
+      id = id,
+      session = session,
+      pin = pin,
+      last_time = last_time,
+    })
   end
   table.sort(sorted, function(a, b)
+    if a.pin ~= b.pin then
+      return a.pin  -- pinned first
+    end
+    -- Same pin status: sort by last_time descending (newest first)
+    if a.last_time ~= b.last_time then
+      return a.last_time > b.last_time
+    end
+    -- Fallback: sort by id descending
     return a.id > b.id
   end)
   -- Filter by pattern if provided
@@ -139,6 +166,7 @@ local function handle_list_command(integration, message)
     for i = 1, display_count do
       local item = filtered[i]
       local marker = (item.id == current) and ' ✓' or ''
+      local pin_marker = item.pin and '📌 ' or ''
       local provider = item.session.provider or 'default'
       local model = item.session.model or 'default'
 
@@ -159,8 +187,9 @@ local function handle_list_command(integration, message)
       table.insert(
         lines,
         string.format(
-          '  %d) %s | %s/%s%s',
+          '  %d) %s%s | %s/%s%s',
           i,
+          pin_marker,
           title,
           provider,
           model,
