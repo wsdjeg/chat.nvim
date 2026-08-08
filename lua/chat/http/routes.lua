@@ -778,51 +778,6 @@ end
 -- WeChat (Weixin) routes
 --------------------------------------------------
 
---- POST /weixin/credentials: write WeChat credentials to cache
---- Body: { id: "account_id", key: "bot_token" }
---- Optional: { base_url: "...", user_id: "..." }
-local function handle_weixin_credentials(client, body, content_length)
-  local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-  if not ok or type(obj) ~= 'table' then
-    response.send_json(client, 400, { error = 'Invalid JSON body' })
-    return
-  end
-
-  local account_id = obj.id
-  local bot_token = obj.key
-
-  if type(account_id) ~= 'string' or account_id == '' then
-    response.send_json(client, 400, { error = 'Missing or invalid "id" field' })
-    return
-  end
-
-  if type(bot_token) ~= 'string' or bot_token == '' then
-    response.send_json(client, 400, { error = 'Missing or invalid "key" field' })
-    return
-  end
-
-  local State = require('chat.integrations.weixin.state')
-  local Api = require('chat.integrations.weixin.api')
-
-  -- Write to state cache (persists to disk)
-  State.set_credentials({
-    bot_token = bot_token,
-    account_id = account_id,
-    base_url = obj.base_url,
-    user_id = obj.user_id,
-  })
-  State.save()
-
-  -- Update live API config so polling can start immediately
-  Api.set_credentials(bot_token, account_id, obj.base_url)
-
-  response.send_json(client, 200, {
-    success = true,
-    message = 'Credentials saved',
-    account_id = account_id,
-  })
-end
-
 --- GET /weixin/login/status: poll WeChat login status
 --- First call auto-starts the login flow (get QR + poll).
 --- Subsequent calls return current state.
@@ -933,8 +888,6 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_push_message(client, body, content_length)
   elseif method == 'GET' and path == '/weixin/login/status' then
     handle_weixin_login_status(client)
-  elseif method == 'POST' and path == '/weixin/credentials' then
-    handle_weixin_credentials(client, body, content_length)
   else
     response.send_response(client, 404)
   end
