@@ -3,6 +3,7 @@ local queue = require('chat.queue')
 local response = require('chat.http.response')
 local config = require('chat.config')
 local util = require('chat.util')
+local log = require('chat.log')
 local uv = vim.loop
 
 local M = {}
