@@ -786,11 +786,18 @@ end
 --- When confirmed, response includes bot_token, account_id, etc.
 local function handle_weixin_login_status(client)
   local Login = require('chat.integrations.weixin.login')
+  local State = require('chat.integrations.weixin.state')
   local state = Login.get_state()
+
+  -- If login was confirmed but credentials are gone (session expired),
+  -- clear login state to trigger re-login flow
+  if state.status == 'confirmed' and not State.has_credentials() then
+    Login.clear()
+    state = Login.get_state()
+  end
 
   -- No active login flow, or previous one expired -> start new one
   if not state.status or not state.is_fresh then
-    local State = require('chat.integrations.weixin.state')
     local Api = require('chat.integrations.weixin.api')
 
     local jobid = Login.start_login_flow({
@@ -806,6 +813,10 @@ local function handle_weixin_login_status(client)
           result.base_url
         )
         log.info('[Weixin] Login flow completed, credentials saved')
+
+        -- Reconnect to restart long-polling with new credentials
+        local Weixin = require('chat.integrations.weixin')
+        Weixin.reconnect()
       end,
     })
 
