@@ -60,7 +60,7 @@ A QR code will be displayed in a floating window.
 Login credentials are automatically saved to:
 
 ```
-stdpath('data')/chat-weixin-state.json
+{storage_dir}/integration/weixin.json
 ```
 
 Subsequent restarts will auto-connect using saved credentials.
@@ -86,7 +86,7 @@ Subsequent restarts will auto-connect using saved credentials.
 - **API**: OpenClaw WeChat Gateway
 - **Authentication**: QR Code Login (auto-refresh)
 - **Message Limit**: 2,048 characters (auto-chunking)
-- **State Persistence**: `stdpath('data')/chat-weixin-state.json`
+- **State Persistence**: `{storage_dir}/integration/weixin.json`
 - **Polling**: Long-poll every 3 seconds
 
 ---
@@ -130,7 +130,7 @@ Subsequent restarts will auto-connect using saved credentials.
 {: .warning }
 
 > - Never share your QR code with others
-> - Credentials are stored locally in `stdpath('data')`
+> - Credentials are stored locally in `{storage_dir}/integration/weixin.json`
 > - Logout to clear credentials when switching devices
 > - Use `:lua require('chat.integrations.weixin').logout()` to clear state
 

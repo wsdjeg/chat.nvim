@@ -69,7 +69,6 @@ require('chat').setup({
 | `/session/{id}/upload` | POST | Upload a file to the session's upload directory (or cwd) |
 | `/session` | GET | Get HTML preview of a session (no auth required) |
 | `/weixin/login/status` | GET | Poll WeChat login status (auto-starts login flow) |
-| `/weixin/credentials` | POST | Write WeChat credentials to cache |
 
 ---
 
@@ -987,63 +986,6 @@ while true; do
 
   sleep 2
 done
-```
-
----
-
-### POST `/weixin/credentials`
-
-Manually write WeChat credentials to the cache file and update the live API configuration. Useful when credentials are obtained through other means.
-
-**Request Body:**
-
-```json
-{
-  "id": "account_id_here",
-  "key": "bot_token_here",
-  "base_url": "https://...",
-  "user_id": "user_id_here"
-}
-```
-
-**Required Fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Account ID (bot ID) |
-| `key` | string | Bot token |
-
-**Optional Fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `base_url` | string | API base URL |
-| `user_id` | string | User ID |
-
-**Response (200 OK):**
-
-```json
-{
-  "success": true,
-  "message": "Credentials saved",
-  "account_id": "account_id_here"
-}
-```
-
-**Response Status Codes:**
-
-| Status Code | Description |
-|---|---|
-| 200 | Success - credentials saved |
-| 400 | Invalid JSON or missing required fields |
-
-**Example:**
-
-```bash
-curl -X POST http://127.0.0.1:7777/weixin/credentials \
-  -H "X-API-Key: your-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"id": "bot123", "key": "token456"}'
 ```
 
 ---
