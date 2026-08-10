@@ -51,3 +51,199 @@ function TestToolsGeneral:testToolCallWithInvalidArguments()
   lu.assertNotNil(result)
   lu.assertNotNil(result.error)
 end
+
+-- ===== validate_scheme tests =====
+
+TestValidateScheme = {}
+
+function TestValidateScheme:testValidScheme()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'A test tool',
+      parameters = {
+        type = 'object',
+        properties = {
+          foo = { type = 'string', description = 'foo param' },
+          bar = { type = 'integer', description = 'bar param' },
+        },
+        required = { 'foo' },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertEquals(#errors, 0)
+end
+
+function TestValidateScheme:testValidSchemeNoRequired()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'A test tool',
+      parameters = {
+        type = 'object',
+        properties = {
+          foo = { type = 'string', description = 'foo param' },
+        },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertEquals(#errors, 0)
+end
+
+function TestValidateScheme:testNonTableScheme()
+  local errors = tools.validate_scheme('not a table')
+  lu.assertEquals(#errors, 1)
+  lu.assertStrContains(errors[1], 'must be a table')
+end
+
+function TestValidateScheme:testWrongType()
+  local scheme = {
+    type = 'object',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+      parameters = { type = 'object', properties = {} },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'type must be "function"')
+end
+
+function TestValidateScheme:testMissingFunctionTable()
+  local scheme = { type = 'function' }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], '["function"] must be a table')
+end
+
+function TestValidateScheme:testEmptyName()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = '',
+      description = 'desc',
+      parameters = { type = 'object', properties = {} },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'name must be a non-empty string')
+end
+
+function TestValidateScheme:testInvalidNameChars()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test-tool!',
+      description = 'desc',
+      parameters = { type = 'object', properties = {} },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'invalid characters')
+end
+
+function TestValidateScheme:testEmptyDescription()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = '',
+      parameters = { type = 'object', properties = {} },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'description must be a non-empty string')
+end
+
+function TestValidateScheme:testMissingParameters()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'parameters must be a table')
+end
+
+function TestValidateScheme:testRequiredReferencesUnknownProperty()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+      parameters = {
+        type = 'object',
+        properties = {
+          foo = { type = 'string' },
+        },
+        required = { 'foo', 'bar' },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  local found = false
+  for _, e in ipairs(errors) do
+    if e:find('unknown property.*bar') then
+      found = true
+      break
+    end
+  end
+  lu.assertTrue(found, 'should report unknown property "bar"')
+end
+
+function TestValidateScheme:testPropertyMissingType()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+      parameters = {
+        type = 'object',
+        properties = {
+          foo = { description = 'no type' },
+        },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'missing "type" field')
+end
+
+function TestValidateScheme:testMultipleErrors()
+  local scheme = {
+    type = 'object',
+    ['function'] = {
+      name = '',
+      description = '',
+      parameters = 'not a table',
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 3, 'should have at least 3 errors')
+end
+
+function TestValidateScheme:testAllBuiltInToolsPassValidation()
+  local available = tools.available_tools()
+  lu.assertNotNil(available)
+  for _, scheme in ipairs(available) do
+    local errors = tools.validate_scheme(scheme)
+    local name = (scheme['function'] and scheme['function'].name) or 'unknown'
+    lu.assertEquals(#errors, 0,
+      string.format('Tool "%s" has validation errors:\n  %s',
+        name, table.concat(errors, '\n  ')))
+  end
+end
+

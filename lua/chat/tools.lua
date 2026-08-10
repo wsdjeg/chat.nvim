@@ -1,5 +1,7 @@
 local M = {}
 
+local log = require('chat.log')
+
 ---@class ChatToolContext
 ---@field cwd? string  -- 会话工作目录
 ---@field session? string  -- 会话ID
@@ -13,6 +15,95 @@ local function get_mcp()
     mcp = require('chat.mcp')
   end
   return mcp
+end
+
+--- Validate a tool scheme structure.
+--- Returns a list of error messages (empty if valid).
+---@param scheme table The tool scheme to validate
+---@return string[] errors List of validation error messages
+function M.validate_scheme(scheme)
+  local errors = {}
+
+  if type(scheme) ~= 'table' then
+    return { 'scheme must be a table, got: ' .. type(scheme) }
+  end
+
+  -- type must be 'function'
+  if scheme.type ~= 'function' then
+    table.insert(errors, string.format(
+      'type must be "function", got: %s', tostring(scheme.type)))
+  end
+
+  -- function table
+  local fn = scheme['function']
+  if type(fn) ~= 'table' then
+    table.insert(errors, '["function"] must be a table')
+    return errors
+  end
+
+  -- name: non-empty string, valid identifier pattern
+  local name = fn.name
+  if type(name) ~= 'string' or name == '' then
+    table.insert(errors, 'function.name must be a non-empty string')
+  elseif not name:match('^[a-zA-Z_][a-zA-Z0-9_]*$') then
+    table.insert(errors, string.format(
+      'function.name "%s" contains invalid characters (expected ^[a-zA-Z_][a-zA-Z0-9_]*$)', name))
+  end
+
+  -- description: non-empty string
+  if type(fn.description) ~= 'string' or fn.description == '' then
+    table.insert(errors, 'function.description must be a non-empty string')
+  end
+
+  -- parameters: table
+  local params = fn.parameters
+  if type(params) ~= 'table' then
+    table.insert(errors, 'function.parameters must be a table')
+    return errors
+  end
+
+  -- parameters.type should be 'object'
+  if params.type and params.type ~= 'object' then
+    table.insert(errors, string.format(
+      'parameters.type should be "object", got: %s', tostring(params.type)))
+  end
+
+  -- properties: should be a table if present
+  if params.properties ~= nil and type(params.properties) ~= 'table' then
+    table.insert(errors, 'parameters.properties must be a table')
+  end
+
+  -- required: array of strings, each must exist in properties
+  if params.required ~= nil then
+    if type(params.required) ~= 'table' then
+      table.insert(errors, 'parameters.required must be an array')
+    else
+      local props = params.properties or {}
+      for _, req in ipairs(params.required) do
+        if type(req) ~= 'string' then
+          table.insert(errors, 'parameters.required contains non-string entry')
+        elseif props[req] == nil then
+          table.insert(errors, string.format(
+            'parameters.required references unknown property: "%s"', req))
+        end
+      end
+    end
+  end
+
+  -- Each property definition should have a type field
+  if type(params.properties) == 'table' then
+    for prop_name, prop_def in pairs(params.properties) do
+      if type(prop_def) ~= 'table' then
+        table.insert(errors, string.format(
+          'parameters.properties.%s must be a table', prop_name))
+      elseif not prop_def.type then
+        table.insert(errors, string.format(
+          'parameters.properties.%s missing "type" field', prop_name))
+      end
+    end
+  end
+
+  return errors
 end
 
 function M.available_tools()
@@ -30,7 +121,14 @@ function M.available_tools()
       and type(tool) == 'table'
       and type(tool.scheme) == 'function'
     then
-      table.insert(tools, tool.scheme())
+      local scheme = tool.scheme()
+      local errors = M.validate_scheme(scheme)
+      if #errors > 0 then
+        local name = (scheme['function'] and scheme['function'].name) or t
+        log.warn(string.format('Tool scheme validation failed for %s:\n  %s',
+          name, table.concat(errors, '\n  ')))
+      end
+      table.insert(tools, scheme)
     end
   end
 
@@ -39,6 +137,14 @@ function M.available_tools()
   if ok and mcp_module then
     local mcp_tools = mcp_module.available_tools()
     if mcp_tools and #mcp_tools > 0 then
+      for _, scheme in ipairs(mcp_tools) do
+        local errors = M.validate_scheme(scheme)
+        if #errors > 0 then
+          local name = (scheme['function'] and scheme['function'].name) or 'unknown'
+          log.warn(string.format('MCP tool scheme validation failed for %s:\n  %s',
+            name, table.concat(errors, '\n  ')))
+        end
+      end
       vim.list_extend(tools, mcp_tools)
     end
   end
@@ -110,3 +216,4 @@ function M.info(tool_call, ctx)
 end
 
 return M
+
