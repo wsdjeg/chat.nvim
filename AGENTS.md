@@ -33,6 +33,7 @@ Three types, use `@extract_memory` to store and `@recall_memory` to recall:
 4. @read_file filepath="target"           # Verify: check syntax, duplicates, correctness
 5. @make test                             # Run tests - MUST pass before committing
 6. @git_add -> @git_commit -> @git_push     # One at a time, wait for each result
+7. @git_status                            # Verify workspace is clean after push
 ```
 
 ### Git tools: one at a time
@@ -46,12 +47,19 @@ Never batch git calls. Send `@git_add`, wait for result, then `@git_commit`, wai
 After any code change, auto-execute without asking:
 
 ```
-Modify -> Verify -> make test -> git_add -> git_commit -> git_push -> Done
+Modify -> Verify -> make test -> git_add -> git_commit -> git_push -> git_status -> Done
 ```
 
-**Never:** skip verification, skip tests, read only partial file, modify without commit, commit without push.
+**Never:** skip verification, skip tests, read only partial file, modify without commit, commit without push, skip final status check.
 
 **Always:** after code changes, check if corresponding docs (e.g., `docs/api/http.md`, `docs/usage/`) need updating to reflect the changes.
+
+### Post-push workspace verification
+
+After `@git_push`, **always** run `@git_status` to verify the workspace is clean:
+
+- **Clean workspace** (no uncommitted changes): task complete, report success.
+- **Dirty workspace** (uncommitted changes found): investigate and resolve — there may be forgotten files, incomplete edits, or leftover artifacts. Do not declare "Done" until `@git_status` shows clean.
 
 ---
 
