@@ -217,8 +217,6 @@ local function handle_list_command(integration, message)
       local item = filtered[i]
       local marker = (item.id == current) and ' ✓' or ''
       local pin_marker = item.pin and '📌 ' or ''
-      local provider = item.session.provider or 'default'
-      local model = item.session.model or 'default'
 
       -- Get title: prefer session title, fallback to first message
       local title = sessions.get_session_title(item.id) or ''
@@ -236,15 +234,7 @@ local function handle_list_command(integration, message)
 
       table.insert(
         lines,
-        string.format(
-          '  %d) %s%s | %s/%s%s',
-          i,
-          pin_marker,
-          title,
-          provider,
-          model,
-          marker
-        )
+        string.format('  %d) %s%s%s', i, pin_marker, title, marker)
       )
     end
 
