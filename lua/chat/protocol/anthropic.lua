@@ -271,6 +271,9 @@ function M.on_exit(id, code, signal)
           if not sessions.has_pending_async_tools(session) then
             sessions.send_tool_results(session)
           end
+        else
+          -- Turn is complete (content only, no pending tool results)
+          sessions.nudge_if_dirty(session)
         end
       end
     end

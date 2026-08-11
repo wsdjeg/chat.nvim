@@ -179,6 +179,11 @@ function M.on_exit(id, code, signal)
       require('chat.windows').on_message(session, message)
     end
 
+    -- Turn is complete (content only, no pending tool results)
+    if code == 0 and signal == 0 and reason == 'stop' then
+      sessions.nudge_if_dirty(session)
+    end
+
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil

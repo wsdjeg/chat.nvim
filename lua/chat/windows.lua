@@ -389,6 +389,7 @@ function M.send_message(session, content)
   end
 
   sessions.clear_cancelled(session)
+  sessions.nudge_reset(session)
   local msg = {
     role = 'user',
     content = content,

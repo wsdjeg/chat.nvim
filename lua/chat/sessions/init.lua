@@ -10,6 +10,7 @@ local async = require('chat.sessions.async')
 local storage = require('chat.sessions.storage')
 local share = require('chat.sessions.share')
 local retry = require('chat.sessions.retry')
+local nudge = require('chat.sessions.nudge')
 
 -- ─── Session CRUD ──────────────────────────────────────────────
 M.new = core.new
@@ -75,6 +76,10 @@ M.on_complete = tools.on_complete
 
 -- ─── Auto-Retry ────────────────────────────────────────────────
 M.reset_retry_count = retry.reset_retry_count
+
+-- ─── Auto-Nudge ────────────────────────────────────────────────
+M.nudge_if_dirty = nudge.nudge_if_dirty
+M.nudge_reset = nudge.reset
 
 -- ─── Storage ───────────────────────────────────────────────────
 M.write_cache = storage.write_cache
