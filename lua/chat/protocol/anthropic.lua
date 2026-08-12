@@ -273,7 +273,10 @@ function M.on_exit(id, code, signal)
           end
         else
           -- Turn is complete (content only, no pending tool results)
-          sessions.nudge_if_dirty(session)
+          -- Skip nudge if async tools are still running
+          if not sessions.has_pending_async_tools(session) then
+            sessions.nudge_if_dirty(session)
+          end
         end
       end
     end
