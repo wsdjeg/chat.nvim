@@ -5,6 +5,7 @@ local M = {}
 
 local log = require('chat.log')
 local uv = vim.uv
+local chunker = require('chat.utils.chunker')
 
 local State = require('chat.integrations.weixin.state')
 local Api = require('chat.integrations.weixin.api')
@@ -157,40 +158,6 @@ local function process_queue()
       end
     end
   )
-end
-
---------------------------------------------------
--- Split long messages
---------------------------------------------------
-local function split_message(content, max_length)
-  if #content <= max_length then
-    return { content }
-  end
-
-  local chunks = {}
-  local remaining = content
-
-  while #remaining > 0 do
-    local chunk
-    if #remaining <= max_length then
-      chunk = remaining
-      remaining = ''
-    else
-      -- Try to split at newline
-      local split_pos = remaining:sub(1, max_length):reverse():find('\n')
-      if split_pos then
-        split_pos = max_length - split_pos + 1
-        chunk = remaining:sub(1, split_pos)
-        remaining = remaining:sub(split_pos + 1)
-      else
-        chunk = remaining:sub(1, max_length)
-        remaining = remaining:sub(max_length + 1)
-      end
-    end
-    table.insert(chunks, chunk)
-  end
-
-  return chunks
 end
 
 --------------------------------------------------
@@ -436,8 +403,8 @@ function M.send_message(content, user_id)
     return
   end
 
-  -- Split long messages
-  local chunks = split_message(content, Types.Limits.MAX_MESSAGE_LENGTH)
+  -- Split long messages (Markdown-aware)
+  local chunks = chunker.chunk(content, Types.Limits.MAX_MESSAGE_LENGTH)
 
   for _, chunk in ipairs(chunks) do
     if #message_queue < Types.Limits.MAX_QUEUE_SIZE then

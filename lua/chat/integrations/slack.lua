@@ -4,6 +4,7 @@ local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
 local curl = require('chat.curl')
+local chunker = require('chat.utils.chunker')
 
 local json = vim.json
 local uv = vim.uv
@@ -455,28 +456,9 @@ end
 function M.send_message(content)
   local max_length = 40000 -- Slack message limit
 
-  if #content <= max_length then
-    table.insert(message_queue, content)
-  else
-    local remaining = content
-    while #remaining > 0 do
-      local chunk
-      if #remaining <= max_length then
-        chunk = remaining
-        remaining = ''
-      else
-        local split_pos = remaining:sub(1, max_length):reverse():find('\n')
-        if split_pos then
-          split_pos = max_length - split_pos + 1
-          chunk = remaining:sub(1, split_pos)
-          remaining = remaining:sub(split_pos + 1)
-        else
-          chunk = remaining:sub(1, max_length)
-          remaining = remaining:sub(max_length + 1)
-        end
-      end
-      table.insert(message_queue, chunk)
-    end
+  local chunks = chunker.chunk(content, max_length)
+  for _, chunk in ipairs(chunks) do
+    table.insert(message_queue, chunk)
   end
 
   if #message_queue > 0 then
