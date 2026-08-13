@@ -81,7 +81,19 @@ local function handle_session_expired()
   local Login = require('chat.integrations.weixin.login')
   Login.clear()
 
-  log.info('[Weixin] Polling stopped, waiting for re-login')
+  -- Session expired: clear queue so remaining messages don't
+  -- keep failing with cleared credentials (each failure would
+  -- trigger another synchronous callback, wasting resources)
+  local dropped = #message_queue
+  message_queue = {}
+  send_jobid = -1
+
+  log.info(
+    string.format(
+      '[Weixin] Polling stopped, %d queued message(s) dropped, waiting for re-login',
+      dropped
+    )
+  )
 end
 
 --------------------------------------------------
@@ -120,6 +132,14 @@ local function process_queue()
       context_token and (context_token:sub(1, 20) .. '...') or 'nil'
     )
   )
+  -- Api.send_message may return nil when:
+  --   - context_token is missing (callback called synchronously)
+  --   - job.start fails (callback called synchronously via safe_callback)
+  --   - credentials were cleared by handle_session_expired
+  -- In all these cases, the callback already set send_jobid = -1,
+  -- but the nil return value would overwrite it, causing
+  -- `nil > 0` crash on the next process_queue call.
+  -- Using `or -1` ensures send_jobid is always a valid number.
   send_jobid = Api.send_message(
     to_user_id,
     context_token,
@@ -157,7 +177,7 @@ local function process_queue()
         vim.schedule(process_queue)
       end
     end
-  )
+  ) or -1
 end
 
 --------------------------------------------------
