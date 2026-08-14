@@ -351,6 +351,35 @@ function M.set_session_pin(session_id, pin)
   return true
 end
 
+--- Gets the disable_force_push status for a session
+--- @param session_id string The session identifier
+--- @return boolean|nil The status if session exists, nil otherwise
+function M.get_session_disable_force_push(session_id)
+  if not storage.sessions[session_id] then
+    return nil
+  end
+  return storage.sessions[session_id].disable_force_push or false
+end
+
+--- Sets the disable_force_push status for a session
+--- @param session_id string The session identifier
+--- @param disable boolean The status to set
+--- @return boolean True if set successfully, false if validation fails
+function M.set_session_disable_force_push(session_id, disable)
+  if type(disable) ~= 'boolean' then
+    return false
+  end
+  if not session_id then
+    return false
+  end
+  if not storage.sessions[session_id] then
+    return false
+  end
+  storage.sessions[session_id].disable_force_push = disable
+  storage.write_cache(session_id)
+  return true
+end
+
 --- Gets the title for a session
 --- @param session_id string The session identifier
 --- @return string|nil The title if session exists, nil otherwise

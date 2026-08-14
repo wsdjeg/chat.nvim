@@ -58,6 +58,17 @@ function M.git_push(action, ctx)
     }
   end
 
+  -- Check if force push is disabled for this session
+  if action.force and ctx.session then
+    local sessions = require('chat.sessions')
+    if sessions.get_session_disable_force_push(ctx.session) then
+      return {
+        error = 'Force push is disabled for this session. '
+          .. 'Use /disable-force-push to re-enable it.',
+      }
+    end
+  end
+
   -- Build git command
   local cmd = { 'git', '-C', ctx.cwd, 'push' }
 
