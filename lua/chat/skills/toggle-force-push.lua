@@ -1,16 +1,16 @@
--- lua/chat/skills/disable-force-push.lua
--- /disable-force-push - Toggle force push protection for current session
+-- lua/chat/skills/toggle-force-push.lua
+-- /toggle-force-push - Toggle force push protection for current session
 --
 -- When enabled, git_push with force=true will be rejected.
 -- This is a session-level toggle, persisted with the session.
 --
 -- Usage:
---   /disable-force-push   # Toggle on/off
+--   /toggle-force-push   # Toggle on/off
 
 local log = require('chat.log')
 
 return {
-  name = 'disable-force-push',
+  name = 'toggle-force-push',
   description = 'Toggle force push protection for current session',
   handler = function(_, ctx)
     local sessions = require('chat.sessions')

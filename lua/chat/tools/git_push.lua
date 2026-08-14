@@ -64,7 +64,7 @@ function M.git_push(action, ctx)
     if sessions.get_session_disable_force_push(ctx.session) then
       return {
         error = 'Force push is disabled for this session. '
-          .. 'Use /disable-force-push to re-enable it.',
+          .. 'Use /toggle-force-push to re-enable it.',
       }
     end
   end
