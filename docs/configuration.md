@@ -315,7 +315,7 @@ Each skill spec contains:
 | -------------- | -------- | -------------------------------------------------------- |
 | `name`         | string   | Unique identifier (used as `/name`)                      |
 | `description`  | string   | Short description shown in `/help`                       |
-| `handler`      | function | `function(args: string, ctx: table): string|nil`        |
+| `handler`      | function | `function(args: string, ctx: table): string|ChatSkillResult|nil` |
 | `complete`     | function | Optional completion function `(args) -> string[]`        |
 
 You can also register skills at runtime via `require('chat').register_skill(spec)` and unregister with `require('chat').unregister_skill(name)`.
@@ -538,7 +538,7 @@ require('chat').setup({
 > 9. **Auto-Retry**: The `retry` option configures automatic retry of LLM requests on connection errors and timeouts. When a retryable error occurs, an error message with retry status is appended to the session (e.g., `Auto-retry 1/3 (2 remaining).`). When all retries are exhausted, the message includes `Press r to retry manually.` Retries are per-session and reset on each new user message. Only network-level errors are retried; HTTP errors (400, 429, 500, etc.) are not.
 > 10. **Storage Paths**: All persistent data is stored under `storage_dir` (defaults to `stdpath('data')/chat.nvim/`). Sub-module directories (`memory.storage_dir`, `user.storage_dir`, plans, scheduler) are automatically derived from `storage_dir` unless explicitly overridden. See [Storage Paths](#storage-paths) for the full derivation table.
 > 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir` (auto-derived from `storage_dir` if not set).
-> 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
+> 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/delete`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
 
 ---
 
