@@ -392,15 +392,162 @@ function TestHTTP:testSkillsListIncludesUserSkill()
   lu.assertNil(skills.get('http-test-skill'))
 end
 
--- Test /skills route matching
-function TestHTTP:testSkillsRouteMatching()
-  -- Exact path matches
-  lu.assertEquals('/skills', '/skills')
+--------------------------------------------------
+-- /skills dispatcher tests (real route invocation)
+--------------------------------------------------
 
-  -- Should not be confused with other routes
-  lu.assertNotEquals('/skills', '/providers')
-  lu.assertNil(('/sessions/skills'):match('^/skills$'))
-  lu.assertNil(('/skills/extra'):match('^/skills$'))
+local routes = require('chat.http.routes')
+
+--- Create a mock uv tcp client that captures written responses
+local function make_mock_client()
+  local mock = { written = nil, closed = false }
+
+  function mock:is_closing()
+    return self.closed
+  end
+
+  function mock:write(data, cb)
+    self.written = data
+    if cb then
+      cb()
+    end
+    return true
+  end
+
+  function mock:close()
+    self.closed = true
+  end
+
+  return mock
+end
+
+--- Parse captured raw response into (status, headers, body)
+local function parse_mock_response(raw)
+  local status = tonumber(raw:match('^HTTP/1%.1 (%d+)'))
+  local header_part, body = raw:match('^(.-)\r\n\r\n(.*)$')
+  return status, header_part, body
+end
+
+local AUTH_HEADERS = { ['x-api-key'] = 'test-api-key' }
+
+-- Test GET /skills dispatch: 200 + JSON body with all registered skills
+function TestHTTP:testSkillsEndpointDispatch()
+  local client = make_mock_client()
+  routes.handle_request(client, 'GET', '/skills', AUTH_HEADERS, '', 0)
+
+  lu.assertNotNil(client.written)
+  lu.assertTrue(client.closed, 'client must be closed after response')
+
+  local status, headers, body = parse_mock_response(client.written)
+  lu.assertEquals(status, 200)
+  lu.assertNotNil(headers:find('Content%-Type: application/json'))
+
+  local ok, data = pcall(vim.json.decode, body)
+  lu.assertTrue(ok)
+  lu.assertEquals(type(data), 'table')
+  lu.assertTrue(#data > 0)
+
+  local names = {}
+  for _, item in ipairs(data) do
+    lu.assertEquals(type(item.name), 'string')
+    lu.assertEquals(type(item.description), 'string')
+    lu.assertEquals(type(item.builtin), 'boolean')
+    -- handler function must not leak into JSON response
+    lu.assertNil(item.handler)
+    lu.assertNil(item.complete)
+    names[item.name] = true
+  end
+
+  -- Built-in skills must be present
+  lu.assertTrue(names['clear'] ~= nil)
+  lu.assertTrue(names['help'] ~= nil)
+
+  -- Response must be sorted by name
+  for i = 2, #data do
+    lu.assertTrue(data[i - 1].name <= data[i].name)
+  end
+end
+
+-- Test GET /skills without API key: 401
+function TestHTTP:testSkillsEndpointNoApiKey()
+  local client = make_mock_client()
+  routes.handle_request(client, 'GET', '/skills', {}, '', 0)
+
+  lu.assertNotNil(client.written)
+  local status = parse_mock_response(client.written)
+  lu.assertEquals(status, 401)
+end
+
+-- Test GET /skills with wrong API key: 401
+function TestHTTP:testSkillsEndpointWrongApiKey()
+  local client = make_mock_client()
+  routes.handle_request(client, 'GET', '/skills', { ['x-api-key'] = 'wrong-key' }, '', 0)
+
+  lu.assertNotNil(client.written)
+  local status = parse_mock_response(client.written)
+  lu.assertEquals(status, 401)
+end
+
+-- Test POST /skills: method not in routes, 404
+function TestHTTP:testSkillsEndpointPostNotAllowed()
+  local client = make_mock_client()
+  routes.handle_request(client, 'POST', '/skills', AUTH_HEADERS, '{}', 2)
+
+  lu.assertNotNil(client.written)
+  local status = parse_mock_response(client.written)
+  lu.assertEquals(status, 404)
+end
+
+-- Test GET /skills/<sub>: sub-path not routed, 404
+function TestHTTP:testSkillsEndpointSubPathNotFound()
+  local client = make_mock_client()
+  routes.handle_request(client, 'GET', '/skills/extra', AUTH_HEADERS, '', 0)
+
+  lu.assertNotNil(client.written)
+  local status = parse_mock_response(client.written)
+  lu.assertEquals(status, 404)
+end
+
+-- Test /skills reflects a user-registered skill in endpoint response
+function TestHTTP:testSkillsEndpointIncludesUserSkill()
+  local skills = require('chat.skills')
+
+  skills.register({
+    name = 'zzz-endpoint-test-skill',
+    description = 'endpoint response test',
+    handler = function() end,
+  })
+
+  local client = make_mock_client()
+  routes.handle_request(client, 'GET', '/skills', AUTH_HEADERS, '', 0)
+
+  local status, _, body = parse_mock_response(client.written)
+  lu.assertEquals(status, 200)
+
+  local data = vim.json.decode(body)
+  local found = false
+  for _, item in ipairs(data) do
+    if item.name == 'zzz-endpoint-test-skill' then
+      found = true
+      lu.assertEquals(item.description, 'endpoint response test')
+      lu.assertEquals(item.builtin, false)
+    end
+  end
+  lu.assertTrue(found)
+
+  skills.unregister('zzz-endpoint-test-skill')
+end
+
+-- Test /skills response stays consistent across repeated calls
+function TestHTTP:testSkillsEndpointStableAcrossCalls()
+  local client1 = make_mock_client()
+  routes.handle_request(client1, 'GET', '/skills', AUTH_HEADERS, '', 0)
+  local client2 = make_mock_client()
+  routes.handle_request(client2, 'GET', '/skills', AUTH_HEADERS, '', 0)
+
+  local _, _, body1 = parse_mock_response(client1.written)
+  local _, _, body2 = parse_mock_response(client2.written)
+  lu.assertEquals(body1, body2)
 end
 
 -- Test JSON encode/decode for responses
