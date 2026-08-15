@@ -52,6 +52,7 @@ require('chat').setup({
 | `/sessions/{id}` | GET | Get a single session's details |
 | `/sessions/{id}/raw` | GET | Get a session's raw cache JSON |
 | `/providers` | GET | List all available providers and their models |
+| `/skills` | GET | List all registered skills (slash commands) |
 | `/messages` | GET | Get messages for a session |
 | `/session/new` | POST | Create a new session |
 | `/session/{id}` | DELETE | Delete a session |
@@ -265,6 +266,53 @@ Get all registered providers and their available models.
 
 ```bash
 curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/providers
+```
+
+---
+
+### GET `/skills`
+
+Get all registered skills (slash commands available in the prompt window).
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "name": "clear",
+    "description": "Clear all messages in current session",
+    "builtin": true
+  },
+  {
+    "name": "help",
+    "description": "Show available skills",
+    "builtin": true
+  },
+  {
+    "name": "model",
+    "description": "Switch model (e.g. /model gpt-4o)",
+    "builtin": true
+  },
+  {
+    "name": "my-skill",
+    "description": "Custom user skill",
+    "builtin": false
+  }
+]
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | Skill name (invoke with `/name` in the prompt window) |
+| `description` | string | Short description shown in `/help` |
+| `builtin` | boolean | `true` for built-in skills, `false` for user skills |
+
+**Example:**
+
+```bash
+curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/skills
 ```
 
 ---

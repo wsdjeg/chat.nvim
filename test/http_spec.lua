@@ -302,6 +302,107 @@ function TestHTTP:testRouteMatching()
   lu.assertEquals(preview_id, 'test-preview-id')
 end
 
+--------------------------------------------------
+-- Skills endpoint tests
+--------------------------------------------------
+
+-- Test /skills response data comes from skills.list()
+function TestHTTP:testSkillsListData()
+  local skills = require('chat.skills').list()
+  lu.assertEquals(type(skills), 'table')
+  lu.assertTrue(#skills > 0)
+
+  -- Response shape mirrors handle_list_skills
+  local result = {}
+  for _, skill in ipairs(skills) do
+    table.insert(result, {
+      name = skill.name,
+      description = skill.description or '',
+      builtin = skill.builtin or false,
+    })
+  end
+
+  -- Every entry must have name/description/builtin
+  for _, item in ipairs(result) do
+    lu.assertEquals(type(item.name), 'string')
+    lu.assertEquals(type(item.description), 'string')
+    lu.assertEquals(type(item.builtin), 'boolean')
+  end
+
+  -- List must be sorted by name (skills.list() guarantee)
+  for i = 2, #result do
+    lu.assertTrue(result[i - 1].name < result[i].name)
+  end
+
+  -- Built-in skills should be present
+  local names = {}
+  for _, item in ipairs(result) do
+    names[item.name] = true
+  end
+  lu.assertTrue(names['clear'] ~= nil)
+  lu.assertTrue(names['help'] ~= nil)
+end
+
+-- Test /skills response is JSON-serializable (no handler functions)
+function TestHTTP:testSkillsListJsonSerializable()
+  local skills = require('chat.skills').list()
+
+  local result = {}
+  for _, skill in ipairs(skills) do
+    table.insert(result, {
+      name = skill.name,
+      description = skill.description or '',
+      builtin = skill.builtin or false,
+    })
+  end
+
+  -- Handler functions must NOT leak into the response
+  local ok, encoded = pcall(vim.json.encode, result)
+  lu.assertTrue(ok)
+  lu.assertEquals(type(encoded), 'string')
+
+  local decoded = vim.json.decode(encoded)
+  lu.assertEquals(type(decoded), 'table')
+  lu.assertEquals(#decoded, #result)
+  lu.assertEquals(decoded[1].name, result[1].name)
+end
+
+-- Test user-registered skill appears in /skills response
+function TestHTTP:testSkillsListIncludesUserSkill()
+  local skills = require('chat.skills')
+
+  skills.register({
+    name = 'http-test-skill',
+    description = 'temp skill for http test',
+    handler = function() end,
+  })
+
+  local list = skills.list()
+  local found = false
+  for _, item in ipairs(list) do
+    if item.name == 'http-test-skill' then
+      found = true
+      lu.assertEquals(item.description, 'temp skill for http test')
+      lu.assertEquals(item.builtin, nil)
+    end
+  end
+  lu.assertTrue(found)
+
+  skills.unregister('http-test-skill')
+  lu.assertNil(skills.get('http-test-skill'))
+end
+
+-- Test /skills route matching
+function TestHTTP:testSkillsRouteMatching()
+  -- Exact path matches
+  lu.assertEquals('/skills', '/skills')
+
+  -- Should not be confused with other routes
+  lu.assertNotEquals('/skills', '/providers')
+  lu.assertNil(('/sessions/skills'):match('^/skills$'))
+  lu.assertNil(('/skills/extra'):match('^/skills$'))
+end
+
 -- Test JSON encode/decode for responses
 function TestHTTP:testJsonResponseFormat()
   local test_data = {

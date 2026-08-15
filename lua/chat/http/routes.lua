@@ -195,6 +195,20 @@ local function handle_list_providers(client)
   response.send_json(client, 200, providers)
 end
 
+--- GET /skills: list all registered skills
+local function handle_list_skills(client)
+  local skills = require('chat.skills').list()
+  local result = {}
+  for _, skill in ipairs(skills) do
+    table.insert(result, {
+      name = skill.name,
+      description = skill.description or '',
+      builtin = skill.builtin or false,
+    })
+  end
+  response.send_json(client, 200, result)
+end
+
 --- POST /session/new: create new session
 local function handle_new_session(client, body, content_length)
   local new_id = sessions.new()
@@ -996,6 +1010,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_get_session(client, path)
   elseif method == 'GET' and path == '/providers' then
     handle_list_providers(client)
+  elseif method == 'GET' and path == '/skills' then
+    handle_list_skills(client)
   elseif method == 'POST' and path == '/session/new' then
     handle_new_session(client, body, content_length)
   elseif method == 'DELETE' and path:match('^/session/[^/]+$') then
