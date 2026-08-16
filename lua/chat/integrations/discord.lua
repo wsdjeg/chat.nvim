@@ -248,9 +248,12 @@ local function fetch_messages()
   end)
 
   api_request('GET', endpoint, nil, function(messages)
-    -- Cleanup timeout timer
+    -- Cleanup timeout timer (guard against double-close when the same
+    -- job's callback fires more than once)
     timeout:stop()
-    timeout:close()
+    if not timeout:is_closing() then
+      timeout:close()
+    end
 
     -- Release lock
     state.is_fetching = false

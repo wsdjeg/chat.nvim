@@ -216,9 +216,12 @@ local function fetch_messages()
   end
 
   api_request('conversations.history', params, function(result)
-    -- Cleanup timeout timer
+    -- Cleanup timeout timer (guard against double-close when the same
+    -- job's callback fires more than once)
     timeout:stop()
-    timeout:close()
+    if not timeout:is_closing() then
+      timeout:close()
+    end
 
     -- Release lock
     state.is_fetching = false
@@ -462,7 +465,7 @@ function M.send_message(content)
   end
 
   if #message_queue > 0 then
-    send_message()
+    send_message(table.remove(message_queue, 1))
   end
 end
 

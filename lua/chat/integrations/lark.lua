@@ -321,7 +321,9 @@ local function fetch_messages()
       end,
       on_exit = function()
         timeout:stop()
-        timeout:close()
+        if not timeout:is_closing() then
+          timeout:close()
+        end
         state.is_fetching = false
         local response = table.concat(response_chunks)
         if response == {} then
@@ -572,7 +574,7 @@ function M.send_message(content)
   end
 
   if #message_queue > 0 then
-    send_message()
+    send_message(table.remove(message_queue, 1))
   end
 end
 
