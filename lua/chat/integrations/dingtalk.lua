@@ -333,9 +333,9 @@ function M.send_message(content)
   if #message_queue > 0 then
     -- Use webhook if available, otherwise use API
     if dingtalk_config and dingtalk_config.webhook then
-      send_message_via_webhook()
+      send_message_via_webhook(table.remove(message_queue, 1))
     else
-      send_message_via_api()
+      send_message_via_api(table.remove(message_queue, 1))
     end
   end
 end

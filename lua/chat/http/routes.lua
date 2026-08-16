@@ -447,6 +447,10 @@ local function handle_set_upload_dir(client, path, body, content_length)
   end
 
   local upload_dir = obj.upload_dir
+  -- JSON null decodes to vim.NIL in Neovim; normalize to Lua nil
+  if upload_dir == vim.NIL then
+    upload_dir = nil
+  end
   if upload_dir == nil or (type(upload_dir) == 'string' and upload_dir == '') then
     -- Reset to default (use cwd)
     sessions.set_upload_dir(session_id, nil)
