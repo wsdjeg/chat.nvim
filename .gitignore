@@ -1,4 +1,7 @@
 doc/tags
 test/.deps/
+luacov.stats.out
+luacov.report.out
+coverage.log
 D:
 

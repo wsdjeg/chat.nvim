@@ -175,6 +175,22 @@ PATTERN supports shorthand - `write_file` expands to `test/**/*write_file*_spec.
 @make target="test" args=["PATTERN=test/tools/write_file_spec.lua"]
 ```
 
+### Coverage
+
+Run the test suite with line coverage (luacov, pure Lua, auto-downloaded):
+
+```
+@make target="coverage"
+```
+
+Report-only by default: prints per-file and overall line coverage for `lua/chat/**/*.lua` into `coverage.log`. Enforce a threshold with:
+
+```
+@make target="coverage" args=["COV_THRESHOLD=80"]
+```
+
+Fails (exit 1) when overall coverage is below the threshold; lists missed lines and never-executed functions.
+
 ### Writing tests
 
 ```lua

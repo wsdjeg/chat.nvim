@@ -120,6 +120,11 @@ end
 -- Run tests and exit
 local exit_code = run_tests()
 
+-- Flush luacov stats when running with coverage (make coverage)
+if _G.__luacov_runner then
+  pcall(_G.__luacov_runner.shutdown)
+end
+
 -- Clean up temporary test files
 local temp_pattern = '/tmp/chat_nvim_test_'
 local temp_files = vim.fn.glob(temp_pattern .. '*', true, true)
@@ -128,3 +133,4 @@ for _, file in ipairs(temp_files) do
 end
 
 os.exit(exit_code)
+
