@@ -267,7 +267,7 @@ function M.send_message(to_user_id, context_token, content, callback)
     return
   end
 
-  M.request(M.Endpoints.SEND_MESSAGE, {
+  return M.request(M.Endpoints.SEND_MESSAGE, {
     msg = {
       from_user_id = '',
       to_user_id = to_user_id,
