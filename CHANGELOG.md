@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.10.0](https://github.com/wsdjeg/chat.nvim/compare/v1.9.0...v1.10.0) (2026-08-17)
+
+
+### Features
+
+* add /disable-force-push skill to block force push per session ([49cebfe](https://github.com/wsdjeg/chat.nvim/commit/49cebfe82bbc9dc48c13ceea12e5ca4563d7b32a))
+* add Markdown-aware message chunker for all integrations ([cb6ac94](https://github.com/wsdjeg/chat.nvim/commit/cb6ac94d940b69533be681d0774ae0c5bb46ba9c))
+* **api:** add /skills endpoint to HTTP API ([1378176](https://github.com/wsdjeg/chat.nvim/commit/1378176a1961b3eb60dfd9a13b06a29c2038935a))
+* auto-nudge AI when workspace is dirty after content-only response ([a8ba23c](https://github.com/wsdjeg/chat.nvim/commit/a8ba23c31e496519352166422771b3180533ade3))
+* **integrations:** show available integrations in /list when none installed ([b55b0c0](https://github.com/wsdjeg/chat.nvim/commit/b55b0c0de9174ea555f5d6ba777758c78ba4d247))
+* **skills:** add /messages skill to capture Neovim errors for LLM fixing ([ebbd693](https://github.com/wsdjeg/chat.nvim/commit/ebbd6935c50a1177ff36fec4e539e7be64814fa1))
+* **tools:** add validate_scheme for tool scheme format validation ([e07c736](https://github.com/wsdjeg/chat.nvim/commit/e07c736399965c552916f9cc11b38fedab1f7a61))
+
+
+### Bug Fixes
+
+* **http:** return error body on invalid JSON request body ([68145dc](https://github.com/wsdjeg/chat.nvim/commit/68145dcfac797bddbf806b1091a7666c6caa14b7))
+* **integrations:** pass queued chunk in lark/slack send, guard fetch timers ([539f74f](https://github.com/wsdjeg/chat.nvim/commit/539f74fd54da9f742f0095774a939bd2e0741cb1))
+* **integrations:** pass queued chunk to send functions in wecom/dingtalk/telegram ([41d3951](https://github.com/wsdjeg/chat.nvim/commit/41d3951b5a3c7beb2dbca07997cf9d421de6c336))
+* **providers:** guard available_models callbacks against unexpected JSON ([80e3a86](https://github.com/wsdjeg/chat.nvim/commit/80e3a86486d9970ccd7de6234dd7725b8b662138))
+* skip nudge_if_dirty when async tools are still pending ([760c767](https://github.com/wsdjeg/chat.nvim/commit/760c767442a33762035d2eee9bd050cd3ae4b1db))
+* **test:** make job mock passthrough by default, opt-in interception ([b5ad970](https://github.com/wsdjeg/chat.nvim/commit/b5ad970d5cb2ce1bd580eb73097eea4cefb6a249))
+* **weixin:** fix send_jobid nil crash causing last message not sent to WeChat ([eee7852](https://github.com/wsdjeg/chat.nvim/commit/eee7852f7e02cfd391881ffba636fd9d31642fd7))
+* **weixin:** return jobid from send_message, isolate test config state ([909720f](https://github.com/wsdjeg/chat.nvim/commit/909720fee69238daa091109b8b47305b720c0e5b))
+
+
+### Code Refactoring
+
+* rename /disable-force-push to /toggle-force-push ([7a0c423](https://github.com/wsdjeg/chat.nvim/commit/7a0c42377e60f9e6dfc9e6f80ed6cff457ae03b0))
+* **skills:** rename /messages to /nvim-messages ([a721e8d](https://github.com/wsdjeg/chat.nvim/commit/a721e8db939ba399d8130cbb6c45f81012265486))
+
+
+### Documentation
+
+* **agents:** add post-push workspace verification step to workflow ([ea7daee](https://github.com/wsdjeg/chat.nvim/commit/ea7daee481a77291ac7f50db88cf755fa65f8451))
+* fix skills documentation - add /delete and ChatSkillResult return type ([ad74ee7](https://github.com/wsdjeg/chat.nvim/commit/ad74ee7f3ef69ba5e77bb2859c485a377a11c396))
+
+
+### Tests
+
+* add make coverage target with luacov line coverage ([d6a84e1](https://github.com/wsdjeg/chat.nvim/commit/d6a84e156aaeca16b8bd8b9b2719e5e726722268))
+* commit job mock and protocol stream spec, ignore junit output ([6f9af83](https://github.com/wsdjeg/chat.nvim/commit/6f9af8377818b8335a5d62315e3513508f26fe96))
+* fix providers_spec assertions and add junit output for readable failures ([bfe2bb2](https://github.com/wsdjeg/chat.nvim/commit/bfe2bb238e769402fe3e1ecc9a987c08e656e2b3))
+* fix ui_logic_spec assertions to match formatter/context/queue semantics ([a39b68e](https://github.com/wsdjeg/chat.nvim/commit/a39b68ebd6cf80c79c2c25b1d0c05f4ccf4c5b2b))
+* **http:** add dispatcher-level tests for /skills endpoint ([32adf01](https://github.com/wsdjeg/chat.nvim/commit/32adf012fcb23cb7b90f03d2041d251575508c91))
+* **http:** encode path bodies with vim.json.encode for Windows ([53b8b5a](https://github.com/wsdjeg/chat.nvim/commit/53b8b5a7de582b13daad624da903edc8645211dc))
+
 ## [1.9.0](https://github.com/wsdjeg/chat.nvim/compare/v1.8.0...v1.9.0) (2026-08-08)
 
 
