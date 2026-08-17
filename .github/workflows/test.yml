@@ -56,3 +56,11 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Upload junit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ runner.os }}-${{ matrix.nvim-version }}
+          path: test/junit_output.xml
+          if-no-files-found: ignore
+
