@@ -394,7 +394,7 @@ function TestHTTPRoutes:test_set_cwd()
   local _, status = req(
     'PUT',
     '/session/' .. self.sid .. '/cwd',
-    '{"cwd":"' .. target .. '"}'
+    vim.json.encode({ cwd = target })
   )
   lu.assertEquals(status, 204)
   lu.assertEquals(sessions.getcwd(self.sid), vim.fs.normalize(target))
@@ -422,7 +422,7 @@ function TestHTTPRoutes:test_set_upload_dir_ok()
   local _, status = req(
     'PUT',
     '/session/' .. self.sid .. '/upload-dir',
-    '{"upload_dir":"' .. dir .. '"}'
+    vim.json.encode({ upload_dir = dir })
   )
   lu.assertEquals(status, 204)
   lu.assertEquals(sessions.get_upload_dir(self.sid), vim.fs.normalize(dir))
@@ -462,7 +462,7 @@ function TestHTTPRoutes:test_set_upload_dir_outside_allowed()
   local _, status, body = req(
     'PUT',
     '/session/' .. self.sid .. '/upload-dir',
-    '{"upload_dir":"' .. outside .. '"}'
+    vim.json.encode({ upload_dir = outside })
   )
   lu.assertEquals(status, 400)
   lu.assertStrContains(body, 'allowed_path')
@@ -477,7 +477,7 @@ function TestHTTPRoutes:test_set_upload_dir_outside_session_cwd()
   local _, status, body = req(
     'PUT',
     '/session/' .. self.sid .. '/upload-dir',
-    '{"upload_dir":"' .. other .. '"}'
+    vim.json.encode({ upload_dir = other })
   )
   lu.assertEquals(status, 400)
   lu.assertStrContains(body, 'session cwd')
@@ -490,7 +490,7 @@ function TestHTTPRoutes:test_set_upload_dir_not_a_directory()
   local _, status, body = req(
     'PUT',
     '/session/' .. self.sid .. '/upload-dir',
-    '{"upload_dir":"' .. fake .. '"}'
+    vim.json.encode({ upload_dir = fake })
   )
   lu.assertEquals(status, 400)
   lu.assertStrContains(body, 'does not exist')
