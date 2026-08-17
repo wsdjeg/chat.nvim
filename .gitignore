@@ -3,5 +3,6 @@ test/.deps/
 luacov.stats.out
 luacov.report.out
 coverage.log
+test/junit_output.xml
 D:
 
