@@ -6,3 +6,4 @@ coverage.log
 test/junit_output.xml
 D:
 
+.junit/

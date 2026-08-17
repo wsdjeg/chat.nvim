@@ -1,4 +1,4 @@
-.PHONY: test test-all test-verbose coverage clean install-deps install-luaunit install-job help lint
+.PHONY: test test-all test-verbose coverage clean install-deps install-luaunit install-job junit help lint
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  install-deps    - Download all test dependencies"
 	@echo "  install-luaunit - Download luaunit test framework"
 	@echo "  install-job     - Download job.nvim mock module"
+	@echo "  junit           - Download junit artifact from CI (ARTIFACT_ID=<id>)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make test                               # Run all tests"
@@ -63,4 +64,23 @@ clean:
 	@rm -rf luacov.stats.out luacov.report.out coverage.log
 	@rm -rf *.swp
 	@rm -rf /tmp/chat_nvim_test_* 2>/dev/null || true
+
+# Download a junit XML artifact from GitHub Actions and print it.
+# Uses nightly.link (no auth needed for public repos); falls back to
+# GitHub API if GITHUB_TOKEN is set.
+#   make junit ARTIFACT_ID=9277505915 ARTIFACT_NAME=junit-Windows-stable
+junit:
+	@rm -rf .junit && mkdir -p .junit
+	@if curl -sfL -o .junit/junit.zip \
+		"https://nightly.link/wsdjeg/chat.nvim/actions/artifacts/$(ARTIFACT_ID)/$(ARTIFACT_NAME).zip"; then \
+		echo "downloaded via nightly.link"; \
+	else \
+		curl -sL -H "Authorization: Bearer $(GITHUB_TOKEN)" \
+			-o .junit/junit.zip \
+			"https://api.github.com/repos/wsdjeg/chat.nvim/actions/artifacts/$(ARTIFACT_ID)/zip"; \
+	fi
+	@cd .junit && { unzip -o junit.zip 2>/dev/null \
+		|| python3 -c "import zipfile; zipfile.ZipFile('junit.zip').extractall('.')" \
+		|| busybox unzip -o junit.zip; }
+	@ls -la .junit/
 
