@@ -72,12 +72,15 @@ clean:
 junit:
 	@rm -rf .junit && mkdir -p .junit
 	@if curl -sfL -o .junit/junit.zip \
-		"https://nightly.link/wsdjeg/chat.nvim/actions/artifacts/$(ARTIFACT_ID)/$(ARTIFACT_NAME).zip"; then \
+		"https://nightly.link/wsdjeg/chat.nvim/actions/artifacts/$(ARTIFACT_ID).zip"; then \
 		echo "downloaded via nightly.link"; \
-	else \
-		curl -sL -H "Authorization: Bearer $(GITHUB_TOKEN)" \
+	elif [ -n "$(GITHUB_TOKEN)" ]; then \
+		curl -sfL -H "Authorization: Bearer $(GITHUB_TOKEN)" \
 			-o .junit/junit.zip \
 			"https://api.github.com/repos/wsdjeg/chat.nvim/actions/artifacts/$(ARTIFACT_ID)/zip"; \
+	else \
+		echo "download failed: nightly.link unavailable and GITHUB_TOKEN not set" >&2; \
+		exit 1; \
 	fi
 	@cd .junit && { unzip -o junit.zip 2>/dev/null \
 		|| python3 -c "import zipfile; zipfile.ZipFile('junit.zip').extractall('.')" \
