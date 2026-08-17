@@ -62,12 +62,14 @@ local TG_INTEGRATION = {
 
 function TestTelegramIntegration:setUp()
   job.reset()
+  job.intercept()
   tg_storage = vim.fn.tempname() .. '_tg/'
   vim.fn.mkdir(tg_storage, 'p')
   self.tg = fresh_mod('telegram', TG_INTEGRATION, tg_storage)
 end
 
 function TestTelegramIntegration:tearDown()
+  job.intercept(false)
   self.tg.disconnect()
   wait(100)
   vim.fn.delete(tg_storage, 'rf')
@@ -257,11 +259,13 @@ local wecom_storage
 
 function TestWeComIntegration:setUp()
   job.reset()
+  job.intercept()
   wecom_storage = vim.fn.tempname() .. '_wecom/'
   vim.fn.mkdir(wecom_storage, 'p')
 end
 
 function TestWeComIntegration:tearDown()
+  job.intercept(false)
   vim.fn.delete(wecom_storage, 'rf')
 end
 
@@ -351,11 +355,13 @@ local ding_storage
 
 function TestDingTalkIntegration:setUp()
   job.reset()
+  job.intercept()
   ding_storage = vim.fn.tempname() .. '_ding/'
   vim.fn.mkdir(ding_storage, 'p')
 end
 
 function TestDingTalkIntegration:tearDown()
+  job.intercept(false)
   vim.fn.delete(ding_storage, 'rf')
 end
 

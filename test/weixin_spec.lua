@@ -45,6 +45,7 @@ local wx_storage
 
 function TestWeixinApi:setUp()
   job.reset()
+  job.intercept()
   wx_storage = vim.fn.tempname() .. '_wx/'
   vim.fn.mkdir(wx_storage, 'p')
   self.wx = fresh_weixin(wx_storage, {
@@ -54,6 +55,7 @@ function TestWeixinApi:setUp()
 end
 
 function TestWeixinApi:tearDown()
+  job.intercept(false)
   vim.fn.delete(wx_storage, 'rf')
 end
 
@@ -371,6 +373,7 @@ TestWeixinIntegration = {}
 
 function TestWeixinIntegration:setUp()
   job.reset()
+  job.intercept()
   self.storage = vim.fn.tempname() .. '_wxflow/'
   vim.fn.mkdir(self.storage, 'p')
   self.wx = fresh_weixin(self.storage, {
@@ -379,6 +382,7 @@ function TestWeixinIntegration:setUp()
 end
 
 function TestWeixinIntegration:tearDown()
+  job.intercept(false)
   self.wx.disconnect()
   wait(100)
   vim.fn.delete(self.storage, 'rf')

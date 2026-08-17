@@ -38,12 +38,14 @@ local DISCORD_CFG = {
 
 function TestDiscordIntegration:setUp()
   job.reset()
+  job.intercept()
   dc_storage = vim.fn.tempname() .. '_dc/'
   vim.fn.mkdir(dc_storage, 'p')
   self.dc = fresh_mod('discord', DISCORD_CFG, dc_storage)
 end
 
 function TestDiscordIntegration:tearDown()
+  job.intercept(false)
   self.dc.disconnect()
   wait(100)
   vim.fn.delete(dc_storage, 'rf')
@@ -263,12 +265,14 @@ local SLACK_CFG = {
 
 function TestSlackIntegration:setUp()
   job.reset()
+  job.intercept()
   slack_storage = vim.fn.tempname() .. '_slack/'
   vim.fn.mkdir(slack_storage, 'p')
   self.slack = fresh_mod('slack', SLACK_CFG, slack_storage)
 end
 
 function TestSlackIntegration:tearDown()
+  job.intercept(false)
   self.slack.disconnect()
   wait(100)
   vim.fn.delete(slack_storage, 'rf')

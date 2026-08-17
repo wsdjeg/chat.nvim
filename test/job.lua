@@ -1,20 +1,53 @@
---- Mock of the external `job.nvim` plugin for headless tests.
--- Found via package.path (`test/?.lua`) before any system plugin.
+--- Hybrid test double for the external `job.nvim` plugin.
 --
--- Records started jobs instead of spawning processes. Tests can inspect
--- `M.jobs[jobid]` and simulate output/exit with M.emit_stdout/emit_stderr/emit_exit.
+-- Passthrough by default: commands actually run through the real job.nvim
+-- module that test/install_deps.lua downloads to `test/.deps/job.lua`.
+-- Tool specs (git_*, find_files, make, ...) rely on this to execute real
+-- commands in temporary repos.
+--
+-- Specs that need deterministic streaming switch to interception mode by
+-- calling `job.intercept()` in setUp. In that mode `start()` records the job
+-- instead of running it, and the spec drives the callbacks via `emit_stdout`,
+-- `emit_stderr` and `emit_exit`.
+--
+-- `job.reset()` clears recorded jobs and returns to passthrough mode, so mock
+-- specs must call `job.intercept()` again after every reset.
 --
 -- Real callback contract (mirrored from job.nvim):
 --   on_stdout(jobid, data)   data: string[] lines
 --   on_stderr(jobid, data)   data: string[] lines
 --   on_exit(jobid, code, signal)
+
+-- Locate the real module next to this file (test/.deps/job.lua)
+local src = debug.getinfo(1, 'S').source
+if src:sub(1, 1) == '@' then
+  src = src:sub(2)
+end
+local here = vim.fs.dirname(vim.fn.fnamemodify(src, ':p'))
+local real = dofile(here .. '/.deps/job.lua')
+
 local M = {}
 
---- jobid -> { cmd, opts, stdin = {}, stopped = nil|signal }
+local intercepted = false
+
+--- jobid -> { cmd, opts, stdin = {}, stopped = nil|signal } (interception mode)
 M.jobs = {}
-local next_id = 0
+local next_id = 0 -- mocked ids start at 1, matching specs that hardcode ids
+
+--- Switch to interception mode (record jobs, do not run them).
+--- `job.intercept(false)` restores passthrough.
+function M.intercept(on)
+  intercepted = on ~= false
+end
+
+local function is_mocked(jobid)
+  return M.jobs[jobid] ~= nil
+end
 
 function M.start(cmd, opts)
+  if not intercepted then
+    return real.start(cmd, opts)
+  end
   next_id = next_id + 1
   local jobid = next_id
   M.jobs[jobid] = {
@@ -27,21 +60,40 @@ function M.start(cmd, opts)
 end
 
 function M.send(jobid, data)
-  local j = M.jobs[jobid]
-  if j then
-    table.insert(j.stdin, data)
+  if is_mocked(jobid) then
+    table.insert(M.jobs[jobid].stdin, data)
+  else
+    real.send(jobid, data)
   end
 end
 
 function M.stop(jobid, signal)
-  local j = M.jobs[jobid]
-  if j then
-    j.stopped = signal or 0
+  if is_mocked(jobid) then
+    M.jobs[jobid].stopped = signal or 0
+  else
+    real.stop(jobid, signal)
   end
 end
 
+-- Passthrough helpers for real jobs (used e.g. by mcp transports)
+function M.is_running(jobid)
+  return real.is_running(jobid)
+end
+
+function M.wait(jobid, timeout)
+  return real.wait(jobid, timeout)
+end
+
+function M.pid(jobid)
+  return real.pid(jobid)
+end
+
+function M.chanclose(jobid, t)
+  return real.chanclose(jobid, t)
+end
+
 -- ---------------------------------------------------------------------------
--- Test helpers
+-- Test helpers (interception mode)
 -- ---------------------------------------------------------------------------
 
 --- Simulate stdout lines for a job (calls on_stdout synchronously)
@@ -68,10 +120,11 @@ function M.emit_exit(jobid, code, signal)
   end
 end
 
---- Reset recorded jobs
+--- Reset recorded jobs and return to passthrough mode.
 function M.reset()
   M.jobs = {}
   next_id = 0
+  intercepted = false
 end
 
 return M

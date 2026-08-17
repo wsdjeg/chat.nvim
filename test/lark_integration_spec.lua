@@ -26,12 +26,14 @@ local storage_dir
 
 function TestLarkIntegration:setUp()
   job.reset()
+  job.intercept()
   storage_dir = vim.fn.tempname() .. '_lark_test/'
   vim.fn.mkdir(storage_dir, 'p')
   self.lark = fresh_lark(storage_dir)
 end
 
 function TestLarkIntegration:tearDown()
+  job.intercept(false)
   self.lark.disconnect()
   vim.wait(100, function()
     return false

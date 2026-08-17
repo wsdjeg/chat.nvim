@@ -98,6 +98,7 @@ local real_vim_system = vim.system
 
 function TestProviders:setUp()
   job.reset()
+  job.intercept()
   -- Ensure every provider has a key so header concatenation works
   for _, name in ipairs(ALL_PROVIDERS) do
     config.config.api_key[name] = name .. '-test-key'
@@ -107,6 +108,7 @@ function TestProviders:setUp()
 end
 
 function TestProviders:tearDown()
+  job.intercept(false)
   vim.system = real_vim_system
   config.config.api_key.ollama_fake = nil
 end
