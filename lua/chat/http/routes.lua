@@ -65,7 +65,7 @@ end
 local function parse_json_body(client, body, content_length)
   local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
   if not ok or type(obj) ~= 'table' then
-    response.send_response(client, 400)
+    response.send_json(client, 400, { error = 'Invalid JSON body' })
     return false, nil
   end
   return true, obj
