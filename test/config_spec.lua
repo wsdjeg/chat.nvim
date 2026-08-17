@@ -48,6 +48,11 @@ function TestConfig:testSetupWithAPIKeys()
 
   lu.assertEquals(config.config.api_key.deepseek, 'sk-test-deepseek')
   lu.assertEquals(config.config.api_key.openai, 'sk-test-openai')
+
+  -- clear keys again: a leaked openai key makes later specs' /providers
+  -- calls spawn REAL curl jobs via available_models()
+  config.config.api_key.deepseek = nil
+  config.config.api_key.openai = nil
 end
 
 function TestConfig:testSystemPromptString()

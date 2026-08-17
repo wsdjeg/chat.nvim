@@ -25,12 +25,19 @@ function M.available_models()
       systemObj = vim.system(cmd, { text = true }, function(out)
         if out.code == 0 then
           local ok, result = pcall(vim.json.decode, out.stdout)
-          if ok then
+          if
+            ok
+            and type(result) == 'table'
+            and type(result.output) == 'table'
+            and type(result.output.models) == 'table'
+          then
             for _, model in ipairs(result.output.models) do
-              table.insert(available_models, model.model)
+              if model.model then
+                table.insert(available_models, model.model)
+              end
             end
             -- {"code":null,"message":null,"success":true,"output":{"total":417,"page_no":1,"page_size":200,"models":[]}}
-            if result.output.total > page_size then
+            if type(result.output.total) == 'number' and result.output.total > page_size then
               for page = 2, math.ceil(result.output.total / page_size) do
                 cmd = curl.build_request({
                   url = 'https://dashscope.aliyuncs.com/api/v1/models?page_no='
@@ -44,10 +51,17 @@ function M.available_models()
                 })
                 vim.system(cmd, { text = true }, function(out2)
                   if out2.code == 0 then
-                    ok, result = pcall(vim.json.decode, out2.stdout)
-                    if ok then
-                      for _, model in ipairs(result.output.models) do
-                        table.insert(available_models, model.model)
+                    local ok2, result2 = pcall(vim.json.decode, out2.stdout)
+                    if
+                      ok2
+                      and type(result2) == 'table'
+                      and type(result2.output) == 'table'
+                      and type(result2.output.models) == 'table'
+                    then
+                      for _, model in ipairs(result2.output.models) do
+                        if model.model then
+                          table.insert(available_models, model.model)
+                        end
                       end
                     end
                   end

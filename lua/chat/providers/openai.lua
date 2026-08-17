@@ -22,9 +22,11 @@ function M.available_models()
       systemObj = vim.system(cmd, { text = true }, function(out)
         if out.code == 0 then
           local ok, result = pcall(vim.json.decode, out.stdout)
-          if ok then
+          if ok and type(result) == 'table' and type(result.data) == 'table' then
             for _, model in ipairs(result.data) do
-              table.insert(available_models, model.id)
+              if model.id then
+                table.insert(available_models, model.id)
+              end
             end
           end
         end
