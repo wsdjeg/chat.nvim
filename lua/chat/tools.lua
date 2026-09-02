@@ -1,6 +1,7 @@
 local M = {}
 
 local log = require('chat.log')
+local util = require('chat.util')
 
 ---@class ChatToolContext
 ---@field cwd? string  -- 会话工作目录
@@ -127,6 +128,48 @@ local function first_line(text)
   return line
 end
 
+--- Recursively sanitize all strings in a tool scheme to valid UTF-8.
+--- Tool schemes from external sources (MCP servers) may contain invalid
+--- UTF-8 bytes (e.g. Windows GBK console output). Sending them raw makes
+--- the whole request body fail with NonUTF8Body on some providers.
+---@param value any Scheme value (string, number, table, ...)
+---@param depth number Current recursion depth (guards against cycles)
+---@return any sanitized, boolean had_invalid
+local function sanitize_scheme_strings(value, depth)
+  if depth > 8 then
+    return value, false
+  end
+  if type(value) == 'string' then
+    return util.sanitize_utf8(value)
+  end
+  if type(value) == 'table' then
+    local out = {}
+    local changed = false
+    local had_invalid = false
+    for k, v in pairs(value) do
+      local sk = k
+      if type(k) == 'string' then
+        local k_invalid
+        sk, k_invalid = util.sanitize_utf8(k)
+        had_invalid = had_invalid or k_invalid
+        changed = changed or sk ~= k
+      end
+      local sv, v_invalid = sanitize_scheme_strings(v, depth + 1)
+      had_invalid = had_invalid or v_invalid
+      changed = changed or sv ~= v
+      out[sk] = sv
+    end
+    if changed then
+      return out, had_invalid
+    end
+    return value, had_invalid
+  end
+  return value, false
+end
+
+-- Internal export for tests (same convention as providers' _convert_tools).
+M._sanitize_scheme_strings = sanitize_scheme_strings
+
 --- Collect built-in tool modules with their schemes (find_tool excluded).
 ---@return table[] entries { module = table, scheme = table }
 local function collect_builtin_tools()
@@ -161,6 +204,9 @@ local function collect_builtin_tools()
 end
 
 --- Collect MCP tool schemes (if MCP is enabled).
+--- Schemes are sanitized to valid UTF-8: MCP servers are external processes
+--- whose tool descriptions may contain invalid bytes, and schemes go into
+--- both request bodies and the find_tool catalog.
 ---@return table[]
 local function collect_mcp_tools()
   local ok, mcp_module = pcall(get_mcp)
@@ -171,15 +217,24 @@ local function collect_mcp_tools()
   if not mcp_tools or #mcp_tools == 0 then
     return {}
   end
+  local tools = {}
   for _, scheme in ipairs(mcp_tools) do
-    local errors = M.validate_scheme(scheme)
+    local sanitized, had_invalid = sanitize_scheme_strings(scheme, 0)
+    if had_invalid then
+      local name = (sanitized['function'] and sanitized['function'].name) or 'unknown'
+      log.warn(string.format(
+        'MCP tool scheme for %s contained invalid UTF-8 bytes (replaced with U+FFFD)',
+        name))
+    end
+    local errors = M.validate_scheme(sanitized)
     if #errors > 0 then
-      local name = (scheme['function'] and scheme['function'].name) or 'unknown'
+      local name = (sanitized['function'] and sanitized['function'].name) or 'unknown'
       log.warn(string.format('MCP tool scheme validation failed for %s:\n  %s',
         name, table.concat(errors, '\n  ')))
     end
+    table.insert(tools, sanitized)
   end
-  return mcp_tools
+  return tools
 end
 
 function M.available_tools()

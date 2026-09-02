@@ -140,7 +140,7 @@ require('chat').setup({
 | `transport.type`    | string  | ❌ No    | Transport type: `"stdio"` or `"streamable_http"`      |
 | `transport.url`     | string  | ❌ No    | Override URL for transport                            |
 | `transport.headers` | table   | ❌ No    | Override headers for transport                        |
-| `disabled`          | boolean | ❌ No    | Set to `true` to disable this server (default: false) |
+| `disabled`          | boolean | ❌ No    | Set to `true` to disable this server (default: false)  |
 
 \*Either `command` (for stdio) or `url` (for HTTP) is required.
 
@@ -272,7 +272,6 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 {: .info }
 > - MCP servers are automatically started when opening the chat window (`:Chat`)
 > - MCP servers are automatically stopped when you exit Neovim
-> - Use the commands above for manual control if needed (e.g., after changing configuration)
 
 ---
 
@@ -319,6 +318,16 @@ Restarts all MCP servers (stops and starts with a delay for cleanup).
 2. Verify the tool parameters are correct
 3. Check if the server has proper permissions
 4. Ensure the server is not overloaded
+
+### Invalid UTF-8 in Tool Descriptions
+
+**Symptom**: Provider rejects requests with a `NonUTF8Body` error, and `:messages` shows a warning like "MCP tool scheme for ... contained invalid UTF-8 bytes".
+
+**Cause**: Some MCP servers (e.g. servers running in a Windows GBK console) emit tool descriptions that are not valid UTF-8. Since tool schemes are part of every request body, one invalid byte can break the entire request.
+
+**Solution**:
+1. Nothing to do manually - chat.nvim automatically replaces invalid bytes with the Unicode replacement character (U+FFFD `�`) and logs a warning
+2. To fix the root cause, configure the MCP server to output UTF-8 (e.g. `chcp 65001` on Windows, or set `LANG`/`LC_ALL` environment variables)
 
 ### Connection Issues
 
@@ -406,3 +415,4 @@ Start with simple MCP tools to verify integration:
 - [Tools Documentation](./tools/) - Learn about all available tools
 - [IM Integration](./integrations/) - Instant messaging integrations
 - [HTTP API](./api/http/) - HTTP API integration
+
