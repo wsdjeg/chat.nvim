@@ -136,7 +136,8 @@ function M.on_progress_tool_call_done(jobid)
     local ok, arguments =
       pcall(vim.json.decode, tool_call['function'].arguments or '')
     if ok then
-      local result = tools.call(tool_call['function'].name, arguments, {
+      local call_ok, result =
+        pcall(tools.call, tool_call['function'].name, arguments, {
         cwd = storage.sessions[session_id].cwd,
         session = session_id,
         callback = function(res)
@@ -157,16 +158,20 @@ function M.on_progress_tool_call_done(jobid)
           async.finish_async_tool(session_id, res.jobid or res.mcp_tool_call_id)
         end,
       })
-      -- Handle nil result from tools.call
-      if not result then
+      -- Handle error raised or nil result from tools.call
+      if not call_ok or not result then
         local tool_done_message = {
           role = 'tool',
-          content = 'tool_call returned no result',
+          content = not call_ok
+              and ('tool_call raised an error: ' .. tostring(result))
+            or 'tool_call returned no result',
           tool_call_id = tool_call.id,
           created = os.time(),
           tool_call_state = {
             name = tool_call['function'].name,
-            error = 'no result returned from tool',
+            error = not call_ok
+                and ('raised: ' .. tostring(result))
+              or 'no result returned from tool',
           },
         }
         messages.append_message(session_id, tool_done_message)

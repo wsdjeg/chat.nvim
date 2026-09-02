@@ -25,6 +25,7 @@ local M = {}
 ---@field winhighlight? string
 ---@field retry? table
 ---@field skills? table[] User-defined skills
+---@field tools? table Tool discovery configuration
 
 local default = {
   width = 0.8, -- 80% of screen
@@ -93,6 +94,15 @@ local default = {
     -- Override for user profile storage directory.
     -- If not set, defaults to storage_dir .. 'users/'
     storage_dir = nil,
+  },
+  -- Tool discovery configuration
+  tools = {
+    -- When true, only essential tools + find_tool are sent with each request.
+    -- Other tools are discoverable via the find_tool tool (saves prompt tokens).
+    -- When false, all available tools are sent with every request (old behavior).
+    lazy = true,
+    -- Tools always included in requests when lazy mode is on (find_tool is always included).
+    essential = { 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' },
   },
   -- Auto-retry configuration for LLM requests on connection errors and timeouts
   retry = {

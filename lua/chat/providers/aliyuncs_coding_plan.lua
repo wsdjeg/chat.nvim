@@ -27,7 +27,7 @@ function M.request(opt)
     stream = true,
     tool_stream = true,
     stream_options = { include_usage = true },
-    tools = require('chat.tools').available_tools(),
+    tools = require('chat.tools').request_tools(opt.session),
   })
 
   local cmd = curl.build_request({

@@ -39,7 +39,7 @@ function M.request(opt)
   end
 
   -- Add tools if available
-  local tools = require('chat.tools').available_tools()
+  local tools = require('chat.tools').request_tools(opt.session)
   if tools and #tools > 0 then
     body.tools = M._convert_tools(tools)
   end

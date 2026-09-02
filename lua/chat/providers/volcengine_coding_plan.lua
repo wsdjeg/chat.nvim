@@ -46,7 +46,7 @@ function M.request(opt)
     tool_stream = true,
     max_tokens = get_max_tokens(model),
     stream_options = { include_usage = true },
-    tools = require('chat.tools').available_tools(),
+    tools = require('chat.tools').request_tools(opt.session),
   })
 
   local cmd = curl.build_request({

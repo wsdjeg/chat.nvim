@@ -8,6 +8,9 @@ local log = require('chat.log')
 ---@field user? string  -- 用户信息
 ---@field callback? function async tool callback
 
+-- session_id -> set of activated tool names (via find_tool)
+local activated = {} ---@type table<string, table<string, boolean>>
+
 -- 延迟加载 MCP 模块（避免循环依赖）
 local mcp = nil
 local function get_mcp()
@@ -106,13 +109,32 @@ function M.validate_scheme(scheme)
   return errors
 end
 
-function M.available_tools()
-  -- 获取 chat.nvim 内置 tools
+--- Get the first non-empty line of a description text, truncated.
+---@param text string
+---@return string|nil
+local function first_line(text)
+  if type(text) ~= 'string' or text == '' then
+    return nil
+  end
+  local line = text:match('^[^\r\n]+') or ''
+  line = line:gsub('^%s+', ''):gsub('%s+$', '')
+  if #line > 120 then
+    line = line:sub(1, 117) .. '...'
+  end
+  if line == '' then
+    return nil
+  end
+  return line
+end
+
+--- Collect built-in tool modules with their schemes (find_tool excluded).
+---@return table[] entries { module = table, scheme = table }
+local function collect_builtin_tools()
   local tool_modules = vim.tbl_map(function(t)
     return 'chat.tools.' .. vim.fn.fnamemodify(t, ':t:r')
   end, vim.api.nvim_get_runtime_file('lua/chat/tools/*.lua', true))
 
-  local tools = {}
+  local entries = {}
   for _, t in ipairs(tool_modules) do
     local ok, tool = pcall(require, t)
     if
@@ -121,35 +143,223 @@ function M.available_tools()
       and type(tool) == 'table'
       and type(tool.scheme) == 'function'
     then
-      local scheme = tool.scheme()
-      local errors = M.validate_scheme(scheme)
-      if #errors > 0 then
-        local name = (scheme['function'] and scheme['function'].name) or t
-        log.warn(string.format('Tool scheme validation failed for %s:\n  %s',
-          name, table.concat(errors, '\n  ')))
-      end
-      table.insert(tools, scheme)
-    end
-  end
-
-  -- 合并 MCP tools（如果 MCP 已启用）
-  local ok, mcp_module = pcall(get_mcp)
-  if ok and mcp_module then
-    local mcp_tools = mcp_module.available_tools()
-    if mcp_tools and #mcp_tools > 0 then
-      for _, scheme in ipairs(mcp_tools) do
+      -- find_tool is excluded: its description embeds the catalog of other
+      -- tools, calling its scheme() here would cause infinite recursion.
+      if not tool.is_find_tool then
+        local scheme = tool.scheme()
         local errors = M.validate_scheme(scheme)
         if #errors > 0 then
-          local name = (scheme['function'] and scheme['function'].name) or 'unknown'
-          log.warn(string.format('MCP tool scheme validation failed for %s:\n  %s',
+          local name = (scheme['function'] and scheme['function'].name) or t
+          log.warn(string.format('Tool scheme validation failed for %s:\n  %s',
             name, table.concat(errors, '\n  ')))
         end
+        table.insert(entries, { module = tool, scheme = scheme })
       end
-      vim.list_extend(tools, mcp_tools)
+    end
+  end
+  return entries
+end
+
+--- Collect MCP tool schemes (if MCP is enabled).
+---@return table[]
+local function collect_mcp_tools()
+  local ok, mcp_module = pcall(get_mcp)
+  if not ok or not mcp_module then
+    return {}
+  end
+  local mcp_tools = mcp_module.available_tools()
+  if not mcp_tools or #mcp_tools == 0 then
+    return {}
+  end
+  for _, scheme in ipairs(mcp_tools) do
+    local errors = M.validate_scheme(scheme)
+    if #errors > 0 then
+      local name = (scheme['function'] and scheme['function'].name) or 'unknown'
+      log.warn(string.format('MCP tool scheme validation failed for %s:\n  %s',
+        name, table.concat(errors, '\n  ')))
+    end
+  end
+  return mcp_tools
+end
+
+function M.available_tools()
+  local tools = {}
+  for _, e in ipairs(collect_builtin_tools()) do
+    table.insert(tools, e.scheme)
+  end
+  vim.list_extend(tools, collect_mcp_tools())
+  return tools
+end
+
+--- Get the one-line introduction of a tool.
+--- Order: tool module's `introduction()` function, then the first line
+--- of the scheme description, then the tool name.
+---@param tool table Tool module
+---@param scheme table Tool scheme
+---@return string
+function M.tool_introduction(tool, scheme)
+  if tool and type(tool.introduction) == 'function' then
+    local ok, intro = pcall(tool.introduction)
+    if ok and type(intro) == 'string' and intro:match('%S') then
+      return intro
+    end
+  end
+  local desc = scheme and scheme['function'] and scheme['function'].description
+  local line = first_line(desc)
+  if line then
+    return line
+  end
+  return (scheme and scheme['function'] and scheme['function'].name) or 'unknown tool'
+end
+
+--- List all tools (built-in + MCP, excluding find_tool) with one-line introductions.
+---@return table[] Array of { name = string, introduction = string }
+function M.available_introductions()
+  local list = {}
+  for _, e in ipairs(collect_builtin_tools()) do
+    local name = e.scheme['function'].name
+    table.insert(list, {
+      name = name,
+      introduction = M.tool_introduction(e.module, e.scheme),
+    })
+  end
+  for _, scheme in ipairs(collect_mcp_tools()) do
+    local fn = scheme['function']
+    table.insert(list, {
+      name = fn.name,
+      introduction = first_line(fn.description) or fn.name,
+    })
+  end
+  table.sort(list, function(a, b)
+    return a.name < b.name
+  end)
+  return list
+end
+
+--- Build the formatted tool catalog lines (name: introduction), sorted.
+---@return string[]
+function M.catalog_lines()
+  local lines = {}
+  for _, t in ipairs(M.available_introductions()) do
+    table.insert(lines, string.format('- %s: %s', t.name, t.introduction))
+  end
+  return lines
+end
+
+--- Activate a tool for a session: it will be included in subsequent requests.
+---@param session_id string
+---@param name string Tool name
+function M.activate_tool(session_id, name)
+  if not session_id or not name then
+    return
+  end
+  activated[session_id] = activated[session_id] or {}
+  activated[session_id][name] = true
+end
+
+--- Get activated tool names for a session.
+---@param session_id string
+---@return table<string, boolean>
+function M.get_activated_tools(session_id)
+  return vim.deepcopy(activated[session_id] or {})
+end
+
+--- Clear activated tool names for a session.
+---@param session_id string
+function M.clear_activated_tools(session_id)
+  activated[session_id] = nil
+end
+
+--- Scan session history and collect tool names that were already called.
+--- This makes tool activation self-healing across session restarts.
+---@param session_id string
+---@return table<string, boolean>
+local function scan_history_tool_names(session_id)
+  local names = {}
+  if not session_id then
+    return names
+  end
+  local ok, storage = pcall(require, 'chat.sessions.storage')
+  if not ok or not storage then
+    return names
+  end
+  local s = storage.sessions and storage.sessions[session_id]
+  if not s or type(s.messages) ~= 'table' then
+    return names
+  end
+  for _, m in ipairs(s.messages) do
+    if m.role == 'assistant' and type(m.tool_calls) == 'table' then
+      for _, tc in ipairs(m.tool_calls) do
+        local n = tc['function'] and tc['function'].name
+        if n and n ~= '' then
+          names[n] = true
+        end
+      end
+    end
+  end
+  return names
+end
+
+--- Get tools to send with a request for a session.
+--- In lazy mode: essential tools + tools activated via find_tool (or already
+--- called in history) + find_tool. Otherwise all available tools.
+---@param session_id string
+---@return table
+function M.request_tools(session_id)
+  local cfg = require('chat.config').config.tools or {}
+  if cfg.lazy == false then
+    return M.available_tools()
+  end
+
+  local all = M.available_tools()
+  local by_name = {}
+  for _, scheme in ipairs(all) do
+    by_name[scheme['function'].name] = scheme
+  end
+
+  local selected = {}
+  local seen = {}
+
+  -- 1. essential tools first
+  for _, name in ipairs(cfg.essential or {}) do
+    if by_name[name] and not seen[name] then
+      seen[name] = true
+      table.insert(selected, by_name[name])
     end
   end
 
-  return tools
+  -- 2. tools already called in session history (self-healing after restart)
+  for name in pairs(scan_history_tool_names(session_id)) do
+    if by_name[name] and not seen[name] then
+      seen[name] = true
+      table.insert(selected, by_name[name])
+    end
+  end
+
+  -- 3. tools activated via find_tool in this session
+  for name in pairs(activated[session_id] or {}) do
+    if by_name[name] and not seen[name] then
+      seen[name] = true
+      table.insert(selected, by_name[name])
+    end
+  end
+
+  -- 4. find_tool itself, always last (excluded from collect_builtin_tools
+  --    to avoid recursion via its catalog-embedding description)
+  if not seen['find_tool'] then
+    local ok, ft = pcall(require, 'chat.tools.find_tool')
+    if ok and ft and type(ft.scheme) == 'function' then
+      local scheme = ft.scheme()
+      local errors = M.validate_scheme(scheme)
+      if #errors > 0 then
+        log.warn(string.format('Tool scheme validation failed for find_tool:\n  %s',
+          table.concat(errors, '\n  ')))
+      end
+      table.insert(selected, scheme)
+    end
+  end
+
+  return selected
 end
 
 ---@param ctx ChatToolContext
