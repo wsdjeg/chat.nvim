@@ -2,12 +2,63 @@
 local M = {}
 
 local storage = require('chat.sessions.storage')
+local util = require('chat.util')
+
+-- Messages already sanitized in this process, keyed weakly by table
+-- reference.
+--
+-- Tool outputs (git commands, file reads) may contain bytes that are not
+-- valid UTF-8 (e.g. GBK-encoded filenames), and vim.json.encode passes them
+-- through, so strict providers reject the request body with
+-- InvalidParameter.NonUTF8Body. Every message entering the history is
+-- sanitized once; the registry avoids re-scanning all messages on every
+-- request while still repairing caches written by older versions.
+local sanitized = setmetatable({}, { __mode = 'k' })
+
+--- Sanitize a string to valid UTF-8, replacing invalid byte sequences with
+--- U+FFFD. Non-string values pass through unchanged.
+---@param value any
+---@return any
+local function sanitize_value(value)
+  if type(value) == 'string' then
+    return util.sanitize_utf8(value)
+  end
+  return value
+end
+
+--- Sanitize a message's string fields in place: content, reasoning_content
+--- and tool_calls arguments. Runs at most once per message table.
+---@param message table
+local function ensure_sanitized(message)
+  if sanitized[message] then
+    return
+  end
+  message.content = sanitize_value(message.content)
+  message.reasoning_content = sanitize_value(message.reasoning_content)
+  if type(message.tool_calls) == 'table' then
+    for _, tool_call in ipairs(message.tool_calls) do
+      if
+        type(tool_call) == 'table'
+        and type(tool_call['function']) == 'table'
+        and type(tool_call['function'].arguments) == 'string'
+      then
+        tool_call['function'].arguments =
+          sanitize_value(tool_call['function'].arguments)
+      end
+    end
+  end
+  sanitized[message] = true
+end
 
 --- Appends a message to a session's message history
 --- Updates usage statistics if provided and notifies integrations for assistant responses
 --- @param session_id string The session identifier
 --- @param message ChatMessage The message object to append
 function M.append_message(session_id, message)
+  -- Sanitize to valid UTF-8 before storing, so invalid bytes from tool
+  -- output never enter the request history or the session cache.
+  ensure_sanitized(message)
+
   if
     message.role == 'assistant'
     and message.content
@@ -95,14 +146,22 @@ end
 
 --- Gets messages formatted for LLM API request
 --- Prepends system prompt and user profile if configured, applies context truncation
+--- All string content is sanitized to valid UTF-8, which also repairs history
+--- polluted by non-UTF-8 tool output in legacy caches
 --- @param session_id string The session identifier
 --- @return table Array of messages formatted for API request (system, user, assistant, tool roles only)
 function M.get_request_messages(session_id)
   local message = {}
-  if storage.sessions[session_id].prompt and #storage.sessions[session_id].prompt > 0 then
+  local session = storage.sessions[session_id]
+
+  if session.prompt and #session.prompt > 0 then
+    -- A prompt loaded from a non-UTF-8 encoded file would break every
+    -- request in this session; sanitize in place so the next cache write
+    -- persists valid UTF-8.
+    session.prompt = sanitize_value(session.prompt)
     table.insert(message, {
       role = 'system',
-      content = storage.sessions[session_id].prompt,
+      content = session.prompt,
     })
   end
 
@@ -111,12 +170,16 @@ function M.get_request_messages(session_id)
   if profile_msg then
     table.insert(message, {
       role = 'system',
-      content = profile_msg,
+      content = sanitize_value(profile_msg),
     })
   end
 
-  for _, m in ipairs(storage.sessions[session_id].messages) do
+  for _, m in ipairs(session.messages) do
     if vim.tbl_contains({ 'user', 'assistant', 'tool' }, m.role) then
+      -- Sanitize in place: repairs history polluted by non-UTF-8 tool
+      -- output (e.g. git output with GBK-encoded filenames), healing
+      -- legacy caches on the first request.
+      ensure_sanitized(m)
       table.insert(message, {
         role = m.role,
         content = m.content,

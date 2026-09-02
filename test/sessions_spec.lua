@@ -166,5 +166,113 @@ function TestSessions:testSaveLoadSession()
   vim.fn.delete(temp_file)
 end
 
+function TestSessions:testAppendMessageSanitizesInvalidUtf8()
+  local session_id = sessions.new()
+
+  -- "\xB4\xFA\xC2\xEB" is GBK encoding, invalid as UTF-8
+  sessions.append_message(session_id, {
+    role = 'tool',
+    content = 'git status: \xB4\xFA\xC2\xEB file.lua',
+    tool_call_id = 'call_1',
+    created = os.time(),
+  })
+
+  local messages = sessions.get_messages(session_id)
+  lu.assertStrContains(messages[1].content, '\xEF\xBF\xBD') -- U+FFFD
+  lu.assertNotStrContains(messages[1].content, '\xB4\xFA')
+end
+
+function TestSessions:testAppendMessageKeepsValidUtf8()
+  local session_id = sessions.new()
+  local content = '你好 emoji 🎉 plain ASCII'
+
+  sessions.append_message(session_id, {
+    role = 'user',
+    content = content,
+    created = os.time(),
+  })
+
+  local messages = sessions.get_messages(session_id)
+  lu.assertEquals(messages[1].content, content)
+end
+
+function TestSessions:testGetRequestMessagesRepairsLegacyHistory()
+  local session_id = sessions.new()
+
+  -- Simulate a polluted cache written by an older version: messages with
+  -- invalid UTF-8 bytes injected straight into storage
+  local storage = require('chat.sessions.storage')
+  table.insert(storage.sessions[session_id].messages, {
+    role = 'user',
+    content = 'output: \xB4\xFA\xC2\xEB',
+    created = os.time(),
+  })
+
+  local request_messages = sessions.get_request_messages(session_id)
+  lu.assertStrContains(request_messages[#request_messages].content, '\xEF\xBF\xBD')
+
+  -- Acceptance: the JSON-encoded request body must be valid UTF-8
+  -- (this is what providers reject with InvalidParameter.NonUTF8Body)
+  local ok, encoded = pcall(vim.json.encode, request_messages)
+  lu.assertTrue(ok)
+  local util = require('chat.util')
+  local _, had_invalid = util.sanitize_utf8(encoded)
+  lu.assertFalse(had_invalid)
+
+  -- Self-healing: the stored history is repaired in place, so the next
+  -- cache write persists valid UTF-8
+  local stored = storage.sessions[session_id].messages
+  lu.assertStrContains(stored[#stored].content, '\xEF\xBF\xBD')
+end
+
+function TestSessions:testGetRequestMessagesSanitizesPrompt()
+  local session_id = sessions.new()
+  sessions.set_session_prompt(session_id, 'System \xFF prompt')
+
+  local request_messages = sessions.get_request_messages(session_id)
+  lu.assertEquals(request_messages[1].role, 'system')
+  lu.assertStrContains(request_messages[1].content, '\xEF\xBF\xBD')
+  lu.assertNotStrContains(request_messages[1].content, '\xFF')
+end
+
+function TestSessions:testGetRequestMessagesSanitizesToolCallArguments()
+  local session_id = sessions.new()
+
+  local storage = require('chat.sessions.storage')
+  table.insert(storage.sessions[session_id].messages, {
+    role = 'assistant',
+    tool_calls = {
+      {
+        id = 'call_1',
+        type = 'function',
+        ['function'] = {
+          name = 'git_status',
+          arguments = '{"path": "\xC0\xAF"}', -- overlong '/', invalid UTF-8
+        },
+      },
+    },
+    created = os.time(),
+  })
+
+  local request_messages = sessions.get_request_messages(session_id)
+  local last = request_messages[#request_messages]
+  lu.assertStrContains(last.tool_calls[1]['function'].arguments, '\xEF\xBF\xBD')
+end
+
+function TestSessions:testAppendMessageWithErrorOnlyFields()
+  -- Control messages (errors, on_complete markers) have no content and
+  -- must pass through sanitization untouched
+  local session_id = sessions.new()
+
+  sessions.append_message(session_id, {
+    error = 'API Error (InvalidParameter.NonUTF8Body)',
+    created = os.time(),
+  })
+
+  local messages = sessions.get_messages(session_id)
+  lu.assertEquals(messages[1].error, 'API Error (InvalidParameter.NonUTF8Body)')
+  lu.assertNil(messages[1].content)
+end
+
 return TestSessions
 
