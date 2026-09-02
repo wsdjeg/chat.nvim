@@ -22,6 +22,25 @@ chat.nvim supports tool call functionality, allowing the AI assistant to interac
 
 ---
 
+## Lazy Tool Loading
+
+By default, chat.nvim uses lazy tool loading to save prompt tokens: only the essential tools (`tools.essential`) plus the `find_tool` discovery tool are sent with each request. `find_tool` embeds a catalog of all available tools; the AI model looks up any other tool by name or keyword and receives its full parameter schema, which then becomes callable in the next response.
+
+Tools that were already called in the session history are automatically re-included in requests (self-healing after a restart).
+
+```lua
+require('chat').setup({
+  tools = {
+    lazy = true, -- default; set false to send all tools with every request
+    essential = { 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' },
+  },
+})
+```
+
+See [find_tool](./find_tool.md) for details.
+
+---
+
 ## MCP Tools
 
 MCP (Model Context Protocol) tools are automatically discovered and integrated when MCP servers are configured. These tools follow the naming pattern `mcp_<server>_<tool>` and work seamlessly with built-in tools.
@@ -38,7 +57,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 43 built-in tools:
+Here is a list of 44 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -52,6 +71,7 @@ Here is a list of 43 built-in tools:
 | [move_file](./move_file.md)                  | Move or rename a file/directory                                    |
 | [find_files](./find_files.md)                | Finds files in the current working directory                       |
 | [search_text](./search_text.md)              | Advanced text search using ripgrep                                 |
+| [find_tool](./find_tool.md)                  | Search and discover tools by name/keyword (lazy loading)           |
 | [extract_memory](./extract_memory.md)        | Extract memories from conversation text                            |
 | [recall_memory](./recall_memory.md)          | Retrieve relevant information from memory system                   |
 | [set_prompt](./set_prompt.md)                | Set system prompt from file                                        |

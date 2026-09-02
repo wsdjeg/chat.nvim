@@ -85,6 +85,34 @@ require('chat').setup({
 
 ---
 
+## Tool Loading Configuration
+
+Control which tools are sent with each request:
+
+| Option            | Type     | Default                                                                     | Description                                                |
+| ----------------- | -------- | --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `tools.lazy`      | boolean  | `true`                                                                      | Send only essential + activated tools instead of all tools |
+| `tools.essential` | string[] | `{ 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' }` | Tools always included in requests when lazy mode is on   |
+
+### Example
+
+```lua
+require('chat').setup({
+  tools = {
+    lazy = true, -- set false to send all tools with every request
+    essential = { 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' },
+  },
+})
+```
+
+### Notes
+
+{: .info }
+> - With lazy loading the `find_tool` tool is always included; it lets the AI model discover other tools by keyword and activate them for the session
+> - Tools already called in the session history are automatically re-included
+
+---
+
 ## HTTP Server Configuration
 
 Configure the built-in HTTP server for receiving external messages:
