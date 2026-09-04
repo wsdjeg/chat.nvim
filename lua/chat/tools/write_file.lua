@@ -12,6 +12,7 @@ local util = require('chat.util')
 ---@field replace_all boolean? -- Replace all occurrences (for str_replace action)
 ---@field backup boolean? -- Create backup before modifying
 ---@field validate boolean? -- Validate syntax after modification (for code files)
+---@field fileformat string? -- Line-ending format for writing: "unix"|"dos"|"mac"
 
 
 
@@ -86,6 +87,87 @@ local function create_backup(filepath)
   local ok = vim.uv.fs_copyfile(filepath, backup_path)
   if ok then
     return backup_path
+  end
+  return nil
+end
+
+--- Write lines to a file, converting line endings for dos/mac fileformat.
+--- - dos: uses a scratch buffer (nvim_create_buf -> nvim_buf_set_lines ->
+---   nvim_set_option_value('fileformat') -> :write -> nvim_buf_delete) so
+---   Neovim itself performs the EOL conversion, exactly like a real :w.
+--- - mac: Neovim's CR-only writer swaps NL/CR bytes, which would corrupt the
+---   in-line \r chars that readfile keeps for CR-only files, so write the
+---   bytes directly instead.
+---@param lines string[]
+---@param filepath string absolute path
+---@param fileformat string? "unix"|"dos"|"mac" (nil or "unix" = plain writefile)
+---@return string? error nil on success
+local function write_lines(lines, filepath, fileformat)
+  if not fileformat or fileformat == 'unix' then
+    vim.fn.writefile(lines, filepath, 'p')
+    return nil
+  end
+
+  -- Ensure parent directories exist (matches writefile 'p' flag)
+  local parent = vim.fs.dirname(filepath)
+  if parent and parent ~= '' and vim.fn.isdirectory(parent) == 0 then
+    vim.fn.mkdir(parent, 'p')
+  end
+
+  if fileformat == 'mac' then
+    local out = {}
+    for i, line in ipairs(lines) do
+      -- CR-only files read back as one line whose content ends with \r
+      -- (readfile only splits at \n); the writer appends \r itself, so
+      -- strip it to avoid doubling
+      if i == #lines and line:sub(-1) == '\r' then
+        line = line:sub(1, -2)
+      end
+      out[#out + 1] = line
+      out[#out + 1] = '\r'
+    end
+
+    local f, open_err = io.open(filepath, 'wb')
+    if not f then
+      return string.format(
+        'failed to open file for writing: %s',
+        tostring(open_err)
+      )
+    end
+    local ok, write_err = pcall(function()
+      f:write(table.concat(out))
+    end)
+    f:close()
+    if not ok then
+      return string.format('failed to write file: %s', tostring(write_err))
+    end
+    return nil
+  end
+
+  -- dos (CRLF): scratch buffer write
+  local buf = vim.api.nvim_create_buf(false, true)
+  if not buf then
+    return 'failed to create scratch buffer for fileformat conversion'
+  end
+
+  local ok, err = pcall(function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value('fileformat', fileformat, { buf = buf })
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd(
+        ('silent noautocmd write! %s'):format(vim.fn.fnameescape(filepath))
+      )
+    end)
+  end)
+
+  pcall(vim.api.nvim_buf_delete, buf, { force = true })
+
+  if not ok then
+    return string.format(
+      'failed to write file with fileformat=%s: %s',
+      fileformat,
+      err
+    )
   end
   return nil
 end
@@ -213,6 +295,22 @@ function M.write_file(action, ctx)
     }
   end
 
+  -- Validate fileformat
+  local fileformat = action.fileformat
+  if fileformat ~= nil then
+    if
+      type(fileformat) ~= 'string'
+      or not vim.tbl_contains({ 'unix', 'dos', 'mac' }, fileformat)
+    then
+      return {
+        error = string.format(
+          'Invalid fileformat "%s". Must be one of: unix (LF), dos (CRLF), mac (CR).',
+          tostring(fileformat)
+        ),
+      }
+    end
+  end
+
   -- Handle remove (delete entire file)
   if action_type == 'remove' then
     if vim.fn.filereadable(filepath) == 0 then
@@ -229,6 +327,15 @@ function M.write_file(action, ctx)
 
   -- Check if file exists
   local file_exists = vim.fn.filereadable(filepath) == 1
+
+  -- Effective line-ending format for writes:
+  -- 1. explicit fileformat param wins
+  -- 2. otherwise preserve the existing file's EOL style (CRLF stays CRLF)
+  -- 3. new files default to unix (LF)
+  local write_fileformat = fileformat
+  if not write_fileformat and file_exists then
+    write_fileformat = util.detect_fileformat(filepath)
+  end
 
   if action_type == 'create' and file_exists then
     return { error = string.format('File already exists: %s', filepath) }
@@ -266,15 +373,26 @@ function M.write_file(action, ctx)
       end
     end
 
-    vim.fn.writefile(new_lines, filepath, 'p')
-    return {
-      content = string.format(
-        'Successfully %s file: %s\n%d lines written.',
-        action_type == 'create' and 'created' or 'overwritten',
-        filepath,
-        #new_lines
-      ),
-    }
+    local write_err = write_lines(new_lines, filepath, write_fileformat)
+    if write_err then
+      return { error = write_err }
+    end
+
+    local result = string.format(
+      'Successfully %s file: %s\n%d lines written.',
+      action_type == 'create' and 'created' or 'overwritten',
+      filepath,
+      #new_lines
+    )
+    if write_fileformat == 'dos' or write_fileformat == 'mac' then
+      result = result
+        .. string.format(
+          '\nLine endings: %s (%s)',
+          write_fileformat,
+          write_fileformat == 'dos' and 'CRLF' or 'CR'
+        )
+    end
+    return { content = result }
   elseif action_type == 'append' then
     if not action.content then
       return { error = 'content is required for append action' }
@@ -292,7 +410,10 @@ function M.write_file(action, ctx)
       end
     end
 
-    vim.fn.writefile(lines, filepath, 'p')
+    local write_err = write_lines(lines, filepath, write_fileformat)
+    if write_err then
+      return { error = write_err }
+    end
     return {
       content = string.format(
         'Successfully appended %d lines to: %s',
@@ -329,7 +450,10 @@ function M.write_file(action, ctx)
       end
     end
 
-    vim.fn.writefile(lines, filepath, 'p')
+    local write_err = write_lines(lines, filepath, write_fileformat)
+    if write_err then
+      return { error = write_err }
+    end
     return {
       content = string.format(
         'Successfully inserted %d lines at line %d in: %s',
@@ -392,7 +516,14 @@ function M.write_file(action, ctx)
       end
     end
 
-    vim.fn.writefile(lines, filepath, 'p')
+    local write_err = write_lines(lines, filepath, write_fileformat)
+    if write_err then
+      -- Restore from backup if available
+      if backup_path and vim.fn.filereadable(backup_path) == 1 then
+        vim.fn.rename(backup_path, filepath)
+      end
+      return { error = write_err }
+    end
 
     -- Clean up backup on success
     if backup_path and vim.fn.filereadable(backup_path) == 1 then
@@ -493,7 +624,14 @@ function M.write_file(action, ctx)
       end
     end
 
-    vim.fn.writefile(lines, filepath, 'p')
+    local write_err = write_lines(lines, filepath, write_fileformat)
+    if write_err then
+      -- Restore from backup if available
+      if backup_path and vim.fn.filereadable(backup_path) == 1 then
+        vim.fn.rename(backup_path, filepath)
+      end
+      return { error = write_err }
+    end
 
     -- Clean up backup on success
     if backup_path and vim.fn.filereadable(backup_path) == 1 then
@@ -641,7 +779,14 @@ function M.write_file(action, ctx)
     end
 
     local new_lines = vim.split(new_content, '\n', { plain = true })
-    vim.fn.writefile(new_lines, filepath, 'p')
+    local write_err = write_lines(new_lines, filepath, write_fileformat)
+    if write_err then
+      -- Restore from backup if available
+      if backup_path and vim.fn.filereadable(backup_path) == 1 then
+        vim.fn.rename(backup_path, filepath)
+      end
+      return { error = write_err }
+    end
 
     -- Clean up backup on success
     if backup_path and vim.fn.filereadable(backup_path) == 1 then
@@ -699,6 +844,12 @@ STR_REPLACE ACTION:
 - new_str can be empty (to delete a string)
 - Uses literal string matching (no regex/patterns)
 
+FILEFORMAT (line endings):
+- fileformat: "unix" (LF), "dos" (CRLF), or "mac" (CR)
+- If omitted, the existing file's line endings are preserved automatically
+  (modifying a CRLF file keeps CRLF); new files default to unix
+- Use @file_info to check a file's detected fileformat
+
 EXAMPLES:
 - @write_file filepath="./src/main.lua" action="create" content="print('hello')"
 - @write_file filepath="./src/main.lua" action="overwrite" content="new content"
@@ -709,6 +860,7 @@ EXAMPLES:
 - @write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines" validate=true
 - @write_file filepath="./src/main.lua" action="str_replace" old_str="local x = 1" new_str="local x = 2"
 - @write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true
+- @write_file filepath="./src/main.lua" action="overwrite" content="x=1" fileformat="dos"
 - @write_file filepath="./src/main.lua" action="remove"
 NOTES:
 - Line numbers are 1-indexed (first line is line 1)
@@ -773,6 +925,11 @@ NOTES:
             type = 'boolean',
             description = 'Validate syntax after modification for code files (default: false)',
           },
+          fileformat = {
+            type = 'string',
+            enum = { 'unix', 'dos', 'mac' },
+            description = 'Line-ending format for writing: "unix" (LF), "dos" (CRLF), "mac" (CR). If omitted, existing file line endings are preserved automatically; new files default to unix.',
+          },
         },
         required = { 'filepath' },
       },
@@ -807,6 +964,10 @@ function M.info(action, ctx)
 
     if args.validate then
       info = info .. ' [validate]'
+    end
+
+    if args.fileformat then
+      info = info .. string.format(' [ff=%s]', args.fileformat)
     end
 
     if args.backup then

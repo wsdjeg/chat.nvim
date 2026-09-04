@@ -137,6 +137,18 @@ function M.file_info(action, ctx)
     end
   end
 
+  -- For files, show detected line-ending format (unix/dos/mac)
+  if ftype == 'file' then
+    local ff = util.detect_fileformat(resolved)
+    if ff then
+      local eol = { unix = 'LF', dos = 'CRLF', mac = 'CR' }
+      table.insert(
+        lines,
+        string.format('Fileformat: %s (%s)', ff, eol[ff] or '?')
+      )
+    end
+  end
+
   return { content = table.concat(lines, '\n') }
 end
 
@@ -147,7 +159,8 @@ function M.scheme()
       name = 'file_info',
       description = [[Get file or directory metadata.
 
-Returns type, size, modification time, permissions, and line count (for text files).
+Returns type, size, modification time, permissions, line count (for text files),
+and line-ending format (unix/dos/mac).
 Lighter than read_file when you only need metadata, not content.
 
 SECURITY:

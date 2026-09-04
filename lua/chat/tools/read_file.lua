@@ -117,6 +117,22 @@ function M.read_file(action, ctx)
         )
       end
 
+      -- Warn about non-unix line endings: readfile() strips CR, so a plain
+      -- write back would silently convert the file to unix. Tell the caller
+      -- to pass fileformat to write_file to preserve the original format.
+      local ff = util.detect_fileformat(filepath)
+      if ff == 'dos' or ff == 'mac' then
+        message = message
+          .. string.format(
+            '\n\nNote: this file uses %s line endings (%s). '
+            .. 'CR characters are stripped when reading. '
+            .. 'To preserve the original format, pass fileformat="%s" to write_file.',
+            ff,
+            ff == 'dos' and 'CRLF' or 'CR',
+            ff
+          )
+      end
+
       return {
         content = message,
       }
@@ -157,6 +173,8 @@ function M.scheme()
       - If line_to is not specified, defaults to last line
       - If both line_start and line_to are specified, line_start must be <= line_to
       - Returns error if line_start or line_to exceeds file length
+      - If the file uses CRLF (dos) or CR (mac) line endings, a note is appended
+        (CR characters are stripped when reading)
       
       before using this function, you need to setup allowed_path in chat.nvim config. for example:
       ```lua

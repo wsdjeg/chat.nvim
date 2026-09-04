@@ -171,6 +171,65 @@ function TestFileInfo:testFileInfoSecurityNotAllowedPath()
 end
 
 -- ============================
+-- Fileformat Detection Tests
+-- ============================
+
+function TestFileInfo:testFileInfoDetectsUnixFileformat()
+  local file = self.test_dir .. '/unix.txt'
+  vim.fn.writefile({ 'line 1', 'line 2' }, file)
+
+  local result = tools.call('file_info', {
+    filepath = file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Fileformat: unix (LF)')
+end
+
+function TestFileInfo:testFileInfoDetectsDosFileformat()
+  local file = self.test_dir .. '/dos.txt'
+  local f = assert(io.open(file, 'wb'))
+  f:write('line 1\r\nline 2\r\n')
+  f:close()
+
+  local result = tools.call('file_info', {
+    filepath = file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Fileformat: dos (CRLF)')
+end
+
+function TestFileInfo:testFileInfoDetectsMacFileformat()
+  local file = self.test_dir .. '/mac.txt'
+  local f = assert(io.open(file, 'wb'))
+  f:write('line 1\rline 2\r')
+  f:close()
+
+  local result = tools.call('file_info', {
+    filepath = file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Fileformat: mac (CR)')
+end
+
+function TestFileInfo:testFileInfoEmptyFileNoFileformat()
+  local file = self.test_dir .. '/empty_file.txt'
+  local f = assert(io.open(file, 'wb'))
+  f:write('')
+  f:close()
+
+  local result = tools.call('file_info', {
+    filepath = file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  -- No EOL detected: Fileformat line is omitted
+  lu.assertNotStrContains(result.content, 'Fileformat:')
+end
+
+-- ============================
 -- Scheme and Info Tests
 -- ============================
 

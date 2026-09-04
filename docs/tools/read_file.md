@@ -61,3 +61,6 @@ content from lines 10 to 20
 > - Line numbers are 1-indexed (first line is line 1)
 > - The AI will receive the file content for context
 > - This is particularly useful for code review, debugging, or analyzing configuration files
+> - If the file uses CRLF (`dos`) or CR (`mac`) line endings, a note is appended to the output:
+>   CR characters are stripped when reading, so pass `fileformat="dos"`/`"mac"` to `write_file`
+>   when writing the file back to preserve the original line endings

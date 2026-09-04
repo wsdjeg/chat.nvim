@@ -87,6 +87,32 @@ function M.resolve(path, cwd)
   return vim.fs.normalize(vim.fn.fnamemodify(full, ':p'))
 end
 
+--- Detect a file's line-ending format by reading raw bytes.
+--- Checks the first line ending only (same idea as Neovim's own detection):
+--- "\r\n" -> "dos", "\n" -> "unix", only "\r" -> "mac", no EOL -> nil
+---@param path string absolute file path
+---@return string? fileformat "unix"|"dos"|"mac"|nil
+function M.detect_fileformat(path)
+  local f = io.open(path, 'rb')
+  if not f then
+    return nil
+  end
+  local chunk = f:read(8192) or ''
+  f:close()
+
+  local nl = chunk:find('\n', 1, true)
+  if nl then
+    if nl > 1 and chunk:sub(nl - 1, nl - 1) == '\r' then
+      return 'dos'
+    end
+    return 'unix'
+  end
+  if chunk:find('\r', 1, true) then
+    return 'mac'
+  end
+  return nil
+end
+
 --- Check if a path is inside a .git directory.
 --- Blocks access to .git itself and anything beneath it.
 --- e.g. /project/.git, /project/.git/config, /project/.git/refs/heads/main

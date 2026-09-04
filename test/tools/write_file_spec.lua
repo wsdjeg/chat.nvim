@@ -913,6 +913,8 @@ function TestWriteFile:testStrReplaceNotFound()
 
   lu.assertNotNil(result.error)
   lu.assertStrContains(result.error, 'not found')
+end
+
 function TestWriteFile:testStrReplaceNotFoundWithHint()
   local test_file = self.test_dir .. '/test_str_replace_not_found_hint.lua'
   vim.fn.writefile({ 'local x = 1', 'local y = 2' }, test_file)
@@ -929,6 +931,8 @@ function TestWriteFile:testStrReplaceNotFoundWithHint()
   lu.assertStrContains(result.error, 'not found')
   lu.assertStrContains(result.error, 'Similar lines found')
 end
+
+function TestWriteFile:testStrReplaceEmptyOldStr()
   local test_file = self.test_dir .. '/test_str_replace_empty_old.lua'
   vim.fn.writefile({ 'local x = 1' }, test_file)
 
@@ -1045,6 +1049,156 @@ function TestWriteFile:testStrReplaceBackupRestoredOnValidationError()
   lu.assertStrContains(result.error, 'reverted')
   local lines = vim.fn.readfile(test_file)
   lu.assertEquals(lines[1], 'local a = 1')
+end
+
+-- ============================
+-- Fileformat (line endings) Tests
+-- ============================
+
+local function read_raw(path)
+  local f = assert(io.open(path, 'rb'))
+  local data = f:read('*a')
+  f:close()
+  return data
+end
+
+local function write_raw(path, data)
+  local f = assert(io.open(path, 'wb'))
+  f:write(data)
+  f:close()
+end
+
+function TestWriteFile:testCreateWithDosFileformat()
+  local test_file = self.test_dir .. '/test_ff_create_dos.txt'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'create',
+    content = 'line 1\nline 2',
+    fileformat = 'dos',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Line endings: dos (CRLF)')
+  lu.assertEquals(read_raw(test_file), 'line 1\r\nline 2\r\n')
+end
+
+function TestWriteFile:testCreateWithMacFileformat()
+  local test_file = self.test_dir .. '/test_ff_create_mac.txt'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'create',
+    content = 'a\nb',
+    fileformat = 'mac',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'a\rb\r')
+end
+
+function TestWriteFile:testCreateDefaultIsUnix()
+  local test_file = self.test_dir .. '/test_ff_create_default.txt'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'create',
+    content = 'a\nb',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'a\nb\n')
+end
+
+function TestWriteFile:testInvalidFileformat()
+  local test_file = self.test_dir .. '/test_ff_invalid.txt'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'create',
+    content = 'a',
+    fileformat = 'windows',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'Invalid fileformat')
+  -- File should not have been created
+  lu.assertEquals(vim.fn.filereadable(test_file), 0)
+end
+
+function TestWriteFile:testExplicitUnixOverridesDos()
+  local test_file = self.test_dir .. '/test_ff_unix_over_dos.txt'
+  write_raw(test_file, 'a\r\nb\r\n')
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'overwrite',
+    content = 'a\nb',
+    fileformat = 'unix',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'a\nb\n')
+end
+
+function TestWriteFile:testPreserveDosOnStrReplace()
+  local test_file = self.test_dir .. '/test_ff_preserve_dos.txt'
+  write_raw(test_file, 'local x = 1\r\nlocal y = 2\r\n')
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'local x = 1',
+    new_str = 'local x = 2',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'local x = 2\r\nlocal y = 2\r\n')
+end
+
+function TestWriteFile:testPreserveDosOnAppend()
+  local test_file = self.test_dir .. '/test_ff_preserve_append.txt'
+  write_raw(test_file, 'line 1\r\n')
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'append',
+    content = 'line 2',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'line 1\r\nline 2\r\n')
+end
+
+function TestWriteFile:testMacRoundTrip()
+  -- CR-only file: readfile sees one line ending with \r; write must not
+  -- double the trailing \r
+  local test_file = self.test_dir .. '/test_ff_mac_roundtrip.txt'
+  write_raw(test_file, 'a\rb\r')
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'str_replace',
+    old_str = 'a\rb',
+    new_str = 'x\ry',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'x\ry\r')
+end
+
+function TestWriteFile:testDosWriteWithParentDirCreation()
+  local test_file = self.test_dir .. '/ff_new_dir/test_ff_parents.txt'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'create',
+    content = 'hello',
+    fileformat = 'dos',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(read_raw(test_file), 'hello\r\n')
 end
 
 return TestWriteFile

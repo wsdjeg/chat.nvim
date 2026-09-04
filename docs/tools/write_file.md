@@ -25,6 +25,7 @@ Write, modify, or delete file content.
 - `@write_file filepath="./src/main.lua" action="replace" line_start=5 line_to=10 content="new lines"` - Replace lines
 - `@write_file filepath="./src/main.lua" action="str_replace" old_str="local x = 1" new_str="local x = 2"` - Replace string
 - `@write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true` - Replace all occurrences
+- `@write_file filepath="./src/main.lua" action="overwrite" content="x=1" fileformat="dos"` - Overwrite with CRLF (Windows) line endings
 - `@write_file filepath="./src/main.lua" action="remove"` - Delete entire file
 
 ## Parameters
@@ -41,6 +42,7 @@ Write, modify, or delete file content.
 | `replace_all` | boolean  | Replace all occurrences of old_str (default: false, requires exactly one match) |
 | `backup`      | boolean  | Create backup before modification (default: false)               |
 | `validate`    | boolean  | Validate syntax after modification for code files (default: false) |
+| `fileformat`  | string   | Line-ending format: `unix` (LF), `dos` (CRLF), `mac` (CR)         |
 
 ## Actions
 
@@ -67,4 +69,7 @@ Write, modify, or delete file content.
 > - For str_replace: `new_str` can be empty to delete the matched text
 > - Use `validate=true` for code files to catch syntax errors (supports Lua and Python)
 > - Use `backup=true` to create backup before modification (format: `<filepath>.backup.<timestamp>`)
+> - Line endings: `fileformat` accepts `unix` (LF), `dos` (CRLF) or `mac` (CR); if omitted, the
+>   existing file's line endings are preserved automatically (modifying a CRLF file keeps CRLF),
+>   new files default to `unix`. Use `@file_info` to check a file's detected fileformat.
 

@@ -64,3 +64,41 @@ function TestReadFile:testCallReadFileWithLines()
   lu.assertStrContains(result.content, 'Line 3')
   lu.assertStrContains(result.content, 'Line 5')
 end
+
+function TestReadFile:testReadDosFileShowsNote()
+  local test_file = self.test_dir .. '/test_read_dos.lua'
+  local f = assert(io.open(test_file, 'wb'))
+  f:write('line 1\r\nline 2\r\n')
+  f:close()
+
+  local result = tools.call('read_file', {
+    filepath = test_file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  -- CR characters are stripped from the content itself
+  lu.assertStrContains(result.content, 'line 1\nline 2')
+  lu.assertNotStrContains(result.content, 'line 1\r\n')
+  -- A note about the line endings is appended
+  lu.assertStrContains(result.content, 'dos line endings (CRLF)')
+  lu.assertStrContains(result.content, 'fileformat="dos"')
+end
+
+function TestReadFile:testReadUnixFileHasNoNote()
+  local test_file = self.test_dir .. '/test_read_unix.lua'
+  vim.fn.writefile({ 'line 1', 'line 2' }, test_file)
+
+  local result = tools.call('read_file', {
+    filepath = test_file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  lu.assertNotStrContains(result.content, 'line endings')
+end
+

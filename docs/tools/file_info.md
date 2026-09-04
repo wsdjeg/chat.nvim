@@ -40,6 +40,7 @@ Returns the following metadata:
 | Modified     | Last modification timestamp              |
 | Permissions  | File permissions                         |
 | Lines        | Line count (for text files under 1MB)    |
+| Fileformat   | Detected line-ending format: `unix (LF)`, `dos (CRLF)` or `mac (CR)` |
 
 ## Notes
 
@@ -47,4 +48,6 @@ Returns the following metadata:
 > - Lighter than `read_file` when you only need metadata, not content
 > - Path must be within working directory (cwd) and allowed_path config
 > - Line count is only calculated for text files smaller than 1MB
+> - `Fileformat` is detected from the first line ending (omitted when the file has no line breaks);
+>   pass the detected value as `fileformat` to `write_file` to preserve line endings
 
