@@ -293,5 +293,47 @@ function TestFindTool:test_info_nil()
   lu.assertEquals(info, 'find_tool(query="")')
 end
 
+--------------------------------------------------------------------
+-- UTF-8 safe truncation (first_line / catalog path)
+--------------------------------------------------------------------
+
+--- 60 Chinese chars after one ASCII byte: byte 117 falls in the middle
+--- of a multi-byte character, so byte-based sub(1, 117) would produce
+--- invalid UTF-8 that ends up in the find_tool catalog / request body.
+function TestFindTool:test_tool_introduction_truncates_multibyte_at_boundary()
+  local util = require('chat.util')
+  local desc = 'a' .. string.rep('好', 60) -- 181 bytes
+  local intro = tools.tool_introduction(nil, {
+    type = 'function',
+    ['function'] = { name = 'mb_tool', description = desc },
+  })
+  lu.assertStrContains(intro, '...')
+  -- must stay valid UTF-8 after truncation
+  local _, had_invalid = util.sanitize_utf8(intro)
+  lu.assertFalse(had_invalid,
+    'introduction must not be cut mid-character: ' .. vim.inspect(intro))
+  -- truncated near the 120-byte budget, not the raw 117-byte prefix + '...'
+  lu.assertTrue(#intro <= 123)
+end
+
+function TestFindTool:test_tool_introduction_multibyte_not_truncated_when_short()
+  local desc = string.rep('好', 30) -- 90 bytes, under budget
+  local intro = tools.tool_introduction(nil, {
+    type = 'function',
+    ['function'] = { name = 'mb_tool', description = desc },
+  })
+  lu.assertEquals(intro, desc)
+end
+
+--- The embedded catalog aggregates introductions from many sources and
+--- is inserted into request bodies without further sanitization, so it
+--- must itself be valid UTF-8.
+function TestFindTool:test_scheme_catalog_is_valid_utf8()
+  local util = require('chat.util')
+  local scheme = find_tool.scheme()
+  local _, had_invalid = util.sanitize_utf8(scheme['function'].description)
+  lu.assertFalse(had_invalid, 'find_tool catalog description must be valid UTF-8')
+end
+
 return TestFindTool
 

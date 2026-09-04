@@ -111,6 +111,10 @@ function M.validate_scheme(scheme)
 end
 
 --- Get the first non-empty line of a description text, truncated.
+--- Truncation cuts at a UTF-8 character boundary: byte-based sub() would
+--- split multi-byte characters (e.g. Chinese) and produce invalid UTF-8
+--- that ends up in the find_tool catalog and request bodies
+--- (InvalidParameter.NonUTF8Body on strict providers).
 ---@param text string
 ---@return string|nil
 local function first_line(text)
@@ -120,7 +124,7 @@ local function first_line(text)
   local line = text:match('^[^\r\n]+') or ''
   line = line:gsub('^%s+', ''):gsub('%s+$', '')
   if #line > 120 then
-    line = line:sub(1, 117) .. '...'
+    line = util.utf8_truncate(line, 117) .. '...'
   end
   if line == '' then
     return nil
@@ -405,6 +409,14 @@ function M.request_tools(session_id)
     local ok, ft = pcall(require, 'chat.tools.find_tool')
     if ok and ft and type(ft.scheme) == 'function' then
       local scheme = ft.scheme()
+      -- Sanitize like MCP schemes: the embedded catalog comes from many
+      -- sources, keep the invariant that every scheme in a request body
+      -- is valid UTF-8.
+      local had_invalid
+      scheme, had_invalid = sanitize_scheme_strings(scheme, 0)
+      if had_invalid then
+        log.warn('find_tool scheme contained invalid UTF-8 bytes (replaced with U+FFFD)')
+      end
       local errors = M.validate_scheme(scheme)
       if #errors > 0 then
         log.warn(string.format('Tool scheme validation failed for find_tool:\n  %s',
