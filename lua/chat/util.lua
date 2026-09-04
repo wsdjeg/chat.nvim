@@ -1,5 +1,6 @@
 local M = {}
 local bit = require('bit')
+local log = require('chat.log')
 
 local DISCORD_EPOCH = 1420070400000
 
@@ -220,6 +221,100 @@ function M.sanitize_utf8(str)
   end
 
   return table.concat(result), had_invalid
+end
+
+--- Find the position of the first invalid UTF-8 byte in a string.
+--- Uses the same validation rules as sanitize_utf8.
+---@param str string Input string
+---@return number|nil position 1-based byte offset, nil when fully valid
+function M.find_invalid_utf8(str)
+  if not str or str == '' then
+    return nil
+  end
+  local i, len = 1, #str
+  while i <= len do
+    local b = str:byte(i)
+    if b < 0x80 then
+      i = i + 1
+    elseif b >= 0xC2 and b <= 0xDF then
+      local b2 = str:byte(i + 1)
+      if b2 and b2 >= 0x80 and b2 <= 0xBF then
+        i = i + 2
+      else
+        return i
+      end
+    elseif b >= 0xE0 and b <= 0xEF then
+      local b2, b3 = str:byte(i + 1), str:byte(i + 2)
+      local valid = b2 and b3
+        and b2 >= 0x80 and b2 <= 0xBF
+        and b3 >= 0x80 and b3 <= 0xBF
+      if valid and b == 0xE0 and b2 < 0xA0 then valid = false end
+      if valid and b == 0xED and b2 > 0x9F then valid = false end
+      if valid then
+        i = i + 3
+      else
+        return i
+      end
+    elseif b >= 0xF0 and b <= 0xF4 then
+      local b2, b3, b4 = str:byte(i + 1), str:byte(i + 2), str:byte(i + 3)
+      local valid = b2 and b3 and b4
+        and b2 >= 0x80 and b2 <= 0xBF
+        and b3 >= 0x80 and b3 <= 0xBF
+        and b4 >= 0x80 and b4 <= 0xBF
+      if valid and b == 0xF0 and b2 < 0x90 then valid = false end
+      if valid and b == 0xF4 and b2 > 0x8F then valid = false end
+      if valid then
+        i = i + 4
+      else
+        return i
+      end
+    else
+      return i
+    end
+  end
+  return nil
+end
+
+--- Render a hex-dump context around a byte position for diagnostics.
+--- Returns hex bytes and a readable preview (non-printable bytes as '.').
+local function hex_context(str, pos)
+  local from = math.max(1, pos - 32)
+  local to = math.min(#str, pos + 32)
+  local hex, txt = {}, {}
+  for i = from, to do
+    local b = str:byte(i)
+    hex[#hex + 1] = string.format('%02X', b)
+    if b >= 0x20 and b < 0x7F then
+      txt[#txt + 1] = string.char(b)
+    else
+      txt[#txt + 1] = '.'
+    end
+  end
+  return table.concat(hex, ' '), table.concat(txt)
+end
+
+--- Encode a request body to JSON, guaranteeing valid UTF-8 output.
+--- vim.json.encode passes invalid UTF-8 bytes through, and strict providers
+--- (DashScope) reject the whole request with InvalidParameter.NonUTF8Body.
+--- This is the last line of defense: whatever leaked past upstream field
+--- sanitization gets repaired here, and the first invalid byte position is
+--- logged with a hex context so the leaking source can be identified.
+---@param tbl table Body table to encode
+---@param label string|nil Provider label for log messages
+---@return string encoded JSON body, always valid UTF-8
+function M.encode_json_body(tbl, label)
+  local body = vim.json.encode(tbl)
+  local pos = M.find_invalid_utf8(body)
+  if pos then
+    local sanitized = M.sanitize_utf8(body)
+    local hex, txt = hex_context(body, pos)
+    log.warn(string.format(
+      '%s: request body contained invalid UTF-8 at byte %d (0x%02X), '
+        .. 'replaced with U+FFFD before sending. Context:\n  hex: %s\n  txt: %s',
+      label or 'provider', pos, body:byte(pos), hex, txt))
+    return sanitized
+  end
+  return body
 end
 
 --- Truncate a string to at most max_bytes bytes, without breaking UTF-8 characters.

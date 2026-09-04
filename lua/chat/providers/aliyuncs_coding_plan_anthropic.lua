@@ -4,6 +4,7 @@ local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
+local util = require('chat.util')
 
 -- Use Anthropic protocol
 M.protocol = 'anthropic'
@@ -44,7 +45,7 @@ function M.request(opt)
     body.tools = M._convert_tools(tools)
   end
 
-  local body_json = vim.json.encode(body)
+  local body_json = util.encode_json_body(body, 'aliyuncs_coding_plan_anthropic')
 
   local cmd = curl.build_request({
     url = 'https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages',

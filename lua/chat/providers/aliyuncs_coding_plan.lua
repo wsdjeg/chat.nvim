@@ -4,6 +4,7 @@ local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
 local config = require('chat.config')
+local util = require('chat.util')
 
 function M.available_models()
   return {
@@ -20,7 +21,7 @@ function M.available_models()
 end
 
 function M.request(opt)
-  local body = vim.json.encode({
+  local body = util.encode_json_body({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
     enable_thinking = true,
@@ -28,7 +29,7 @@ function M.request(opt)
     tool_stream = true,
     stream_options = { include_usage = true },
     tools = require('chat.tools').request_tools(opt.session),
-  })
+  }, 'aliyuncs_coding_plan')
 
   local cmd = curl.build_request({
     url = 'https://coding.dashscope.aliyuncs.com/v1/chat/completions',

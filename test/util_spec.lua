@@ -167,6 +167,101 @@ function TestUtil:testSanitizeUtf8ValidMultibytePreserved()
   lu.assertFalse(had_invalid)
 end
 
+-- ========== find_invalid_utf8 tests ==========
+
+function TestUtil:testFindInvalidUtf8ValidString()
+  lu.assertNil(util.find_invalid_utf8('Hello, World!'))
+  lu.assertNil(util.find_invalid_utf8('你好世界 😀'))
+  lu.assertNil(util.find_invalid_utf8('\xC3\xB1\xE5\xA5\xBD\xF0\x9F\x98\x80'))
+end
+
+function TestUtil:testFindInvalidUtf8EmptyOrNil()
+  lu.assertNil(util.find_invalid_utf8(''))
+  lu.assertNil(util.find_invalid_utf8(nil))
+end
+
+function TestUtil:testFindInvalidUtf8AtStart()
+  lu.assertEquals(util.find_invalid_utf8('\xFFabc'), 1)
+  lu.assertEquals(util.find_invalid_utf8('\x80abc'), 1)
+end
+
+function TestUtil:testFindInvalidUtf8AtMiddle()
+  lu.assertEquals(util.find_invalid_utf8('abc\xFFdef'), 4)
+  lu.assertEquals(util.find_invalid_utf8('abc\x80def'), 4)
+end
+
+function TestUtil:testFindInvalidUtf8TruncatedSequence()
+  -- 3-byte leading byte without continuation
+  lu.assertEquals(util.find_invalid_utf8('ab\xE5\xA5'), 3)
+  -- 2-byte leading byte at end of string
+  lu.assertEquals(util.find_invalid_utf8('ab\xC3'), 3)
+end
+
+function TestUtil:testFindInvalidUtf8Surrogate()
+  -- ED A0 80 is an encoded surrogate, invalid at position 1
+  lu.assertEquals(util.find_invalid_utf8('a\xED\xA0\x80b'), 2)
+end
+
+function TestUtil:testFindInvalidUtf8Overlong()
+  -- F0 80 80 80 is an overlong 4-byte sequence
+  lu.assertEquals(util.find_invalid_utf8('a\xF0\x80\x80\x80b'), 2)
+end
+
+-- ========== encode_json_body tests ==========
+
+function TestUtil:testEncodeJsonBodyCleanTable()
+  local body = util.encode_json_body({
+    model = 'qwen3-max',
+    messages = { { role = 'user', content = '你好' } },
+  })
+  lu.assertEquals(body, vim.json.encode({
+    model = 'qwen3-max',
+    messages = { { role = 'user', content = '你好' } },
+  }))
+  lu.assertNil(util.find_invalid_utf8(body))
+end
+
+function TestUtil:testEncodeJsonBodyRepairsInvalidBytes()
+  -- Simulate a body table polluted by non-UTF-8 tool output
+  local body = util.encode_json_body({
+    model = 'qwen3-max',
+    messages = { { role = 'tool', content = 'output: \xB4\xFA\xC2\xEB' } },
+  })
+  -- The encoded body must be valid UTF-8 end to end
+  lu.assertNil(util.find_invalid_utf8(body))
+  -- Invalid bytes replaced with U+FFFD (raw UTF-8 bytes in the JSON string)
+  lu.assertStrContains(body, '\xEF\xBF\xBD')
+  -- Decoding round-trip still works
+  local decoded = vim.json.decode(body)
+  lu.assertStrContains(decoded.messages[1].content, '\xEF\xBF\xBD')
+end
+
+function TestUtil:testEncodeJsonBodyDeeplyNested()
+  local body = util.encode_json_body({
+    tools = {
+      {
+        type = 'function',
+        ['function'] = {
+          name = 'x',
+          description = 'desc \xC0\xAF',
+          parameters = {
+            properties = {
+              p = { description = 'prop \xED\xA0\x80' },
+            },
+          },
+        },
+      },
+    },
+  })
+  lu.assertNil(util.find_invalid_utf8(body))
+end
+
+function TestUtil:testEncodeJsonBodyPreservesValidUtf8()
+  local tbl = { content = '你好 emoji 😀' }
+  local body = util.encode_json_body(tbl)
+  lu.assertEquals(vim.json.decode(body).content, '你好 emoji 😀')
+end
+
 -- ========== utf8_truncate tests ==========
 
 function TestUtil:testUtf8TruncateAsciiExact()
