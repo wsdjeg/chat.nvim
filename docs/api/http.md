@@ -54,6 +54,8 @@ require('chat').setup({
 | `/providers` | GET | List all available providers and their models |
 | `/skills` | GET | List all registered skills (slash commands) |
 | `/messages` | GET | Get messages for a session |
+| `/logs` | GET | Get runtime log lines (supports `level`, `name`, `tail` filters) |
+| `/logs` | DELETE | Clear the runtime log |
 | `/session/new` | POST | Create a new session |
 | `/session/{id}` | DELETE | Delete a session |
 | `/session/{id}/stop` | POST | Stop generation |
@@ -386,6 +388,77 @@ curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
 # Get messages starting from index 5
 curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
   -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### GET `/logs`
+
+Get the in-memory runtime log lines kept by [logger.nvim](https://github.com/wsdjeg/logger.nvim) (the underlying logging library of chat.nvim). Useful for remote debugging: API errors, provider request failures, integration lifecycle, etc.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `level` | string | No | Severity filter: `error`, `warn`, `info` or `debug`. Keeps lines with severity >= requested (e.g., `warn` keeps warnings and errors) |
+| `name` | string | No | Substring filter on the logger name field (e.g., `chat.nvim`), useful when several plugins share the runtime log |
+| `tail` | number | No | Return only the last N lines (applied after other filters) |
+
+**Response (200 OK):**
+
+```json
+{
+  "logs": [
+    "[ 21:18:43:123 ] [ Info  ] [    chat.nvim ] http server started on 127.0.0.1:7777",
+    "[ 21:19:02:004 ] [ Error ] [    chat.nvim ] request failed: connection refused"
+  ],
+  "count": 2
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `logs` | string[] | Log lines, each formatted as `[ HH:MM:SS:mmm ] [ Level ] [ name ] message` |
+| `count` | number | Number of returned lines |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success (empty `logs` when logger.nvim is unavailable) |
+| 400 | Invalid `level` parameter |
+
+**Examples:**
+
+```bash
+# All log lines
+curl http://127.0.0.1:7777/logs -H "X-API-Key: your-secret-key"
+
+# Warnings and errors only
+curl "http://127.0.0.1:7777/logs?level=warn" -H "X-API-Key: your-secret-key"
+
+# Last 50 lines of chat.nvim logs
+curl "http://127.0.0.1:7777/logs?name=chat.nvim&tail=50" -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### DELETE `/logs`
+
+Clear the in-memory runtime log (shared across all plugins using logger.nvim).
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - log cleared |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/logs -H "X-API-Key: your-secret-key"
 ```
 
 ---

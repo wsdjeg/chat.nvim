@@ -209,6 +209,76 @@ local function handle_list_skills(client)
   response.send_json(client, 200, result)
 end
 
+--- GET /logs: return runtime log lines
+--- Query: ?level=error|warn|info|debug (severity filter),
+---        ?name=substr (filter by logger name substring),
+---        ?tail=N (return only the last N lines)
+local function handle_get_logs(client, path)
+  local query = path:match('^/logs%?(.*)$')
+
+  local lines = {}
+  local all = log.view_all()
+  if all and all ~= '' then
+    for line in all:gmatch('[^\n]+') do
+      lines[#lines + 1] = line
+    end
+  end
+
+  -- ?level= : keep lines with severity >= requested (Error > Warn > Info > Debug)
+  local level_param = query and query:match('level=([^&]+)') or ''
+  if level_param ~= '' then
+    local severity = { error = 3, warn = 2, info = 1, debug = 0 }
+    local min_sev = severity[level_param:lower()]
+    if not min_sev then
+      response.send_json(client, 400, {
+        error = 'Invalid level parameter, expected: error, warn, info or debug',
+      })
+      return
+    end
+    if min_sev > 0 then
+      local sev_names = { Info = 1, Warn = 2, Error = 3, Debug = 0 }
+      local filtered = {}
+      for _, line in ipairs(lines) do
+        local sev = sev_names[line:match('^%[[^%]]*%]%s*%[%s*(%a+)') or '']
+        if sev and sev >= min_sev then
+          filtered[#filtered + 1] = line
+        end
+      end
+      lines = filtered
+    end
+  end
+
+  -- ?name= : keep lines whose logger name contains the given substring
+  local name_param = query and query:match('name=([^&]+)')
+  if name_param then
+    name_param = url_decode(name_param)
+    local filtered = {}
+    for _, line in ipairs(lines) do
+      if line:find(name_param, 1, true) then
+        filtered[#filtered + 1] = line
+      end
+    end
+    lines = filtered
+  end
+
+  -- ?tail=N : keep only the last N lines
+  local tail = query and query:match('tail=(%d+)')
+  if tail then
+    tail = tonumber(tail)
+    if tail and tail < #lines then
+      lines = vim.list_slice(lines, #lines - tail + 1)
+    end
+  end
+
+  response.send_json(client, 200, { logs = lines, count = #lines })
+end
+
+--- DELETE /logs: clear the runtime log
+local function handle_clear_logs(client)
+  log.clear()
+  response.send_response(client, 204)
+end
+
 --- POST /session/new: create new session
 local function handle_new_session(client, body, content_length)
   local new_id = sessions.new()
@@ -1016,6 +1086,10 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_list_providers(client)
   elseif method == 'GET' and path == '/skills' then
     handle_list_skills(client)
+  elseif method == 'GET' and (path == '/logs' or path:match('^/logs%?')) then
+    handle_get_logs(client, path)
+  elseif method == 'DELETE' and path == '/logs' then
+    handle_clear_logs(client)
   elseif method == 'POST' and path == '/session/new' then
     handle_new_session(client, body, content_length)
   elseif method == 'DELETE' and path:match('^/session/[^/]+$') then

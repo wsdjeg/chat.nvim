@@ -98,6 +98,7 @@ end
 function TestHTTPRoutes:tearDown()
   package.loaded['chat.windows'] = real_windows
   package.loaded['chat.protocol'] = real_protocol
+  package.loaded['logger.base'] = nil
   config.config.allowed_path = vim.fn.getcwd()
   vim.fn.delete(test_cache_dir, 'rf')
   if test_storage_dir and vim.fn.isdirectory(test_storage_dir) == 1 then
@@ -759,5 +760,161 @@ function TestHTTPRoutes:test_weixin_logout()
   local _, status, body = req('DELETE', '/weixin/credentials')
   lu.assertEquals(status, 200)
   lu.assertStrContains(body, 'logged_out')
+end
+
+-- ─── /logs routes ───────────────────────────────────────
+
+--- Stub package.loaded['logger.base'] (mock of logger.nvim) with given lines
+--- Returns the lines table (mutated in place by clear, like the real module)
+local function stub_logger_base(lines)
+  package.loaded['logger.base'] = {
+    view_all = function()
+      return table.concat(lines, '\n')
+    end,
+    clear = function()
+      for i = #lines, 1, -1 do
+        lines[i] = nil
+      end
+    end,
+  }
+  return lines
+end
+
+function TestHTTPRoutes:test_get_logs_returns_all_lines()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] http server started',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] retrying request',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] request failed',
+    '[ 10:00:03:004 ] [ Debug ] [    chat.nvim ] detail trace',
+  })
+  local _, status, body = req('GET', '/logs')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 4)
+  lu.assertEquals(#data.logs, 4)
+  lu.assertStrContains(data.logs[1], 'http server started')
+end
+
+function TestHTTPRoutes:test_get_logs_level_error()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] info line',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] warn line',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] error line',
+    '[ 10:00:03:004 ] [ Debug ] [    chat.nvim ] debug line',
+  })
+  local _, status, body = req('GET', '/logs?level=error')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 1)
+  lu.assertStrContains(data.logs[1], 'error line')
+end
+
+function TestHTTPRoutes:test_get_logs_level_warn()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] info line',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] warn line',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] error line',
+    '[ 10:00:03:004 ] [ Debug ] [    chat.nvim ] debug line',
+  })
+  local _, status, body = req('GET', '/logs?level=warn')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 2) -- warn + error
+end
+
+function TestHTTPRoutes:test_get_logs_level_info_excludes_debug()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] info line',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] warn line',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] error line',
+    '[ 10:00:03:004 ] [ Debug ] [    chat.nvim ] debug line',
+  })
+  local _, status, body = req('GET', '/logs?level=info')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 3) -- info + warn + error
+end
+
+function TestHTTPRoutes:test_get_logs_level_debug_returns_everything()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] info line',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] warn line',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] error line',
+    '[ 10:00:03:004 ] [ Debug ] [    chat.nvim ] debug line',
+  })
+  local _, status, body = req('GET', '/logs?level=debug')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 4)
+end
+
+function TestHTTPRoutes:test_get_logs_invalid_level_400()
+  stub_logger_base({})
+  local _, status, body = req('GET', '/logs?level=bogus')
+  lu.assertEquals(status, 400)
+  lu.assertStrContains(body, 'Invalid level')
+end
+
+function TestHTTPRoutes:test_get_logs_name_filter()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] chat line',
+    '[ 10:00:01:002 ] [ Info  ] [ other.plugin ] foreign line',
+  })
+  local _, status, body = req('GET', '/logs?name=chat.nvim')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 1)
+  lu.assertStrContains(data.logs[1], 'chat line')
+end
+
+function TestHTTPRoutes:test_get_logs_tail()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] line 1',
+    '[ 10:00:01:002 ] [ Info  ] [    chat.nvim ] line 2',
+    '[ 10:00:02:003 ] [ Info  ] [    chat.nvim ] line 3',
+  })
+  local _, status, body = req('GET', '/logs?tail=2')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 2)
+  lu.assertStrContains(data.logs[1], 'line 2')
+  lu.assertStrContains(data.logs[2], 'line 3')
+end
+
+function TestHTTPRoutes:test_get_logs_combined_filters()
+  stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] info 1',
+    '[ 10:00:01:002 ] [ Warn  ] [    chat.nvim ] warn 1',
+    '[ 10:00:02:003 ] [ Error ] [    chat.nvim ] error 1',
+    '[ 10:00:03:004 ] [ Warn  ] [ other.plugin ] foreign warn',
+  })
+  -- level=warn + name=chat.nvim -> warn 1 + error 1
+  local _, status, body = req('GET', '/logs?level=warn&name=chat.nvim')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 2)
+end
+
+function TestHTTPRoutes:test_get_logs_empty_without_logger()
+  package.loaded['logger.base'] = nil
+  local _, status, body = req('GET', '/logs')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.count, 0)
+  lu.assertEquals(data.logs, {})
+end
+
+function TestHTTPRoutes:test_delete_logs_clears_runtime_log()
+  local lines = stub_logger_base({
+    '[ 10:00:00:001 ] [ Info  ] [    chat.nvim ] line 1',
+  })
+  local _, status = req('DELETE', '/logs')
+  lu.assertEquals(status, 204)
+  lu.assertEquals(#lines, 0)
+
+  local _, status2, body2 = req('GET', '/logs')
+  lu.assertEquals(status2, 200)
+  local data = vim.json.decode(body2)
+  lu.assertEquals(data.count, 0)
 end
 
