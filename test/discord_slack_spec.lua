@@ -185,6 +185,34 @@ function TestDiscordIntegration:test_fetch_empty_response()
   lu.assertTrue(true)
 end
 
+function TestDiscordIntegration:test_fetch_get_reads_no_stdin()
+  -- Regression: GET requests must not carry `-d @-`. job.nvim only closes
+  -- stdin after `job.send(jobid, nil)` which never happens for a GET —
+  -- curl would block reading stdin forever and the watchdog would fire
+  -- every cycle (--max-time can't interrupt the pre-transfer stdin slurp).
+  self.dc.connect(function() end)
+  wait(200)
+  dc_feed_bot_id()
+  wait(200)
+  local _, fetch_j = find_job('/messages?limit=10')
+  lu.assertNotNil(fetch_j, 'fetch job started')
+  lu.assertFalse(vim.tbl_contains(fetch_j.cmd, '@-'), 'GET must not read body from stdin')
+  lu.assertFalse(vim.tbl_contains(fetch_j.cmd, '-d'))
+  lu.assertFalse(vim.tbl_contains(fetch_j.cmd, '--data-binary'))
+  local _, getme_j = find_job('users/@me')
+  lu.assertNotNil(getme_j)
+  lu.assertFalse(vim.tbl_contains(getme_j.cmd, '@-'), 'users/@me GET must not read stdin')
+end
+
+function TestDiscordIntegration:test_send_message_post_still_uses_stdin()
+  self.dc.send_message('via stdin')
+  local _, j = find_job('ch-1/messages')
+  lu.assertNotNil(j)
+  lu.assertTrue(vim.tbl_contains(j.cmd, '@-'), 'POST reads body from stdin')
+  lu.assertEquals(vim.json.decode(j.stdin[1]).content, 'via stdin')
+  lu.assertNil(j.stdin[2], 'stdin closed with nil after the body')
+end
+
 function TestDiscordIntegration:test_fetch_api_error_object()
   local received = {}
   self.dc.connect(function(msg)

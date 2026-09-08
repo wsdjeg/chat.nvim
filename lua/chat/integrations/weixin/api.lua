@@ -116,7 +116,10 @@ function M.request(endpoint, data, callback, opts)
     connect_timeout = 10,
     max_time = opts.timeout or Types.Timeout.API_REQUEST,
     headers = headers,
-    stdin_body = true,
+    -- Only read body from stdin when there is one: `-d @-` with stdin
+    -- never closed (no `job.send(jobid, nil)` below) would hang curl
+    -- forever — `--max-time` can't interrupt the stdin slurp.
+    stdin_body = body_data ~= nil,
   })
 
   -- Guard: ensure callback is called exactly once

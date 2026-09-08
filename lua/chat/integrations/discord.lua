@@ -145,7 +145,12 @@ local function api_request(method, endpoint, data, callback)
       'Authorization: Bot ' .. token,
       'Content-Type: application/json',
     },
-    stdin_body = true,
+    -- Only read the body from stdin when there IS one. A GET with `-d @-`
+    -- blocks curl reading stdin until EOF, but stdin is only closed by
+    -- `job.send(jobid, nil)` below — which never runs for `data == nil`.
+    -- curl would then hang forever: `--max-time` cannot help because the
+    -- `-d` data is slurped before the transfer even starts.
+    stdin_body = data ~= nil,
     connect_timeout = CONNECT_TIMEOUT,
     max_time = MAX_TIME,
   })
@@ -306,25 +311,34 @@ local function fetch_messages()
   end
 
   -- Safety net only: curl itself fails fast (connect 5s / total 10s).
-  -- If this fires, the job callback was lost — always worth a warning.
+  -- If this fires, the job callback was lost — kill the job so a hung
+  -- curl cannot linger forever, then release the lock.
+  local jobid
+  local watchdog_fired = false
   local timeout = uv.new_timer()
   timeout:start(WATCHDOG_TIMEOUT, 0, function()
     timeout:close()
+    watchdog_fired = true
     if state.is_fetching and state.request_seq == seq then
-      log.warn('[Discord] Watchdog fired (callback lost?), releasing lock')
+      log.warn('[Discord] Watchdog fired (callback lost?), killing job and releasing lock')
+      if jobid and jobid > 0 then
+        job.stop(jobid, 15) -- SIGTERM: the killed job still emits on_exit
+      end
       state.is_fetching = false
     end
   end)
 
-  api_request('GET', endpoint, nil, function(messages, err)
+  jobid = api_request('GET', endpoint, nil, function(messages, err)
     -- Stale response from an earlier request — discard
     if state.request_seq ~= seq then
       return
     end
 
-    timeout:stop()
-    if not timeout:is_closing() then
-      timeout:close()
+    if not watchdog_fired then
+      timeout:stop()
+      if not timeout:is_closing() then
+        timeout:close()
+      end
     end
 
     -- Release lock
