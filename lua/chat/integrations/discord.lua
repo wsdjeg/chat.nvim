@@ -14,6 +14,18 @@ local uv = vim.uv
 --------------------------------------------------
 local STATE_FILE = config.config.storage_dir .. 'integration/discord.json'
 
+-- curl-level timeouts: a failing request is fast and definitive instead
+-- of hanging until the watchdog fires
+local CONNECT_TIMEOUT = 5
+local MAX_TIME = 10
+
+-- Safety net for lost job callbacks. Must be larger than MAX_TIME so it
+-- never fires in normal operation — if it does, something is a bug.
+local WATCHDOG_TIMEOUT = 15000
+
+-- While an outage persists, re-log a heartbeat every N failed polls
+local FAILURE_HEARTBEAT = 10
+
 --------------------------------------------------
 -- state
 --------------------------------------------------
@@ -27,6 +39,10 @@ local state = {
   processed_ids = {},
   max_processed_cache = 100,
   poll_interval = 3000,
+  -- request epoch: responses from earlier requests are discarded
+  request_seq = 0,
+  -- consecutive failed polls (for state-change logging)
+  fail_count = 0,
 }
 
 --------------------------------------------------
@@ -110,6 +126,8 @@ end
 --------------------------------------------------
 -- Helper: make API request
 --------------------------------------------------
+-- callback(result, err): result is the decoded JSON table (nil on
+-- failure), err is a human-readable failure reason
 local function api_request(method, endpoint, data, callback)
   local token = config.config.integrations
     and config.config.integrations.discord
@@ -128,9 +146,11 @@ local function api_request(method, endpoint, data, callback)
       'Content-Type: application/json',
     },
     stdin_body = true,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
 
-  local stdout = {}
+  local stdout, stderr = {}, {}
 
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
@@ -139,27 +159,38 @@ local function api_request(method, endpoint, data, callback)
       end
     end,
     on_stderr = function(_, lines)
+      -- Collect instead of logging: curl writes network errors to
+      -- stderr even with -s, and per-line logging would spam every
+      -- poll while the network is down
       for _, line in ipairs(lines) do
         if line and line ~= '' then
-          log.error('[Discord] ' .. line)
+          table.insert(stderr, line)
         end
       end
     end,
     on_exit = function(_, code, signal)
-      if callback then
-        if code == 0 and signal == 0 then
-          local output = table.concat(stdout, '\n')
-          if output and output ~= '' then
-            local ok, result = pcall(json.decode, output)
-            if ok and result then
-              return callback(result)
-            else
-              log.error('[Discord] Failed to decode: ' .. output)
-            end
-          end
-        end
-        callback(nil)
+      if not callback then
+        return
       end
+
+      if code ~= 0 or signal ~= 0 then
+        local reason = 'curl exited with code ' .. code
+        if #stderr > 0 then
+          reason = reason .. ': ' .. table.concat(stderr, ' ')
+        end
+        return callback(nil, reason)
+      end
+
+      local output = table.concat(stdout, '\n')
+      if output == '' then
+        return callback(nil, 'empty response')
+      end
+
+      local ok, result = pcall(json.decode, output)
+      if not ok or result == nil then
+        return callback(nil, 'invalid JSON: ' .. output:sub(1, 120))
+      end
+      callback(result)
     end,
   })
 
@@ -167,6 +198,8 @@ local function api_request(method, endpoint, data, callback)
     job.send(jobid, json.encode(data))
     job.send(jobid, nil)
   end
+
+  return jobid
 end
 
 --------------------------------------------------
@@ -177,13 +210,13 @@ local function get_bot_id()
     return state.bot_id
   end
 
-  api_request('GET', '/users/@me', nil, function(data)
+  api_request('GET', '/users/@me', nil, function(data, err)
     if data and data.id then
       state.bot_id = data.id
       save_state()
       log.info('[Discord] Bot ID: ' .. state.bot_id)
     else
-      log.error('[Discord] Failed to get bot ID: ' .. vim.inspect(data))
+      log.error('[Discord] Failed to get bot ID: ' .. (err or vim.inspect(data)))
     end
   end)
 end
@@ -212,6 +245,39 @@ local function is_for_bot(msg)
 end
 
 --------------------------------------------------
+-- Poll health tracking (state-change logging)
+--
+-- Healthy polling is silent. A failure logs once on entry, every
+-- FAILURE_HEARTBEAT polls while it persists, and once on recovery.
+--------------------------------------------------
+local function poll_failed(reason)
+  state.fail_count = state.fail_count + 1
+  if state.fail_count == 1 then
+    log.error('[Discord] Polling failed: ' .. (reason or 'unknown error'))
+  elseif state.fail_count % FAILURE_HEARTBEAT == 0 then
+    log.warn(
+      string.format(
+        '[Discord] Polling still failing (%d attempts, last: %s)',
+        state.fail_count,
+        reason or 'unknown error'
+      )
+    )
+  end
+end
+
+local function poll_ok()
+  if state.fail_count > 0 then
+    log.info(
+      string.format(
+        '[Discord] Polling recovered after %d failed attempt(s)',
+        state.fail_count
+      )
+    )
+    state.fail_count = 0
+  end
+end
+
+--------------------------------------------------
 -- Fetch messages
 --------------------------------------------------
 local function fetch_messages()
@@ -229,7 +295,8 @@ local function fetch_messages()
     return
   end
 
-  -- Set lock
+  local seq = state.request_seq + 1
+  state.request_seq = seq
   state.is_fetching = true
 
   -- Build endpoint
@@ -238,18 +305,23 @@ local function fetch_messages()
     endpoint = endpoint .. '&after=' .. state.last_message_id
   end
 
-  -- Timeout protection
+  -- Safety net only: curl itself fails fast (connect 5s / total 10s).
+  -- If this fires, the job callback was lost — always worth a warning.
   local timeout = uv.new_timer()
-  timeout:start(5000, 0, function()
-    if state.is_fetching then
-      log.warn('[Discord] Request timeout, releasing lock')
+  timeout:start(WATCHDOG_TIMEOUT, 0, function()
+    timeout:close()
+    if state.is_fetching and state.request_seq == seq then
+      log.warn('[Discord] Watchdog fired (callback lost?), releasing lock')
       state.is_fetching = false
     end
   end)
 
-  api_request('GET', endpoint, nil, function(messages)
-    -- Cleanup timeout timer (guard against double-close when the same
-    -- job's callback fires more than once)
+  api_request('GET', endpoint, nil, function(messages, err)
+    -- Stale response from an earlier request — discard
+    if state.request_seq ~= seq then
+      return
+    end
+
     timeout:stop()
     if not timeout:is_closing() then
       timeout:close()
@@ -258,7 +330,26 @@ local function fetch_messages()
     -- Release lock
     state.is_fetching = false
 
-    if not messages or type(messages) ~= 'table' or #messages == 0 then
+    -- Request failed (network error, curl timeout, bad JSON)
+    if messages == nil then
+      poll_failed(err or 'request failed')
+      return
+    end
+
+    -- API error object (e.g. 401/429) instead of a message array
+    if type(messages) ~= 'table' or (messages.message and not messages[1]) then
+      local reason = 'unexpected response'
+      if type(messages) == 'table' and messages.message then
+        reason = 'API error: ' .. tostring(messages.message)
+      end
+      poll_failed(reason)
+      return
+    end
+
+    -- Healthy again
+    poll_ok()
+
+    if #messages == 0 then
       return
     end
 
@@ -402,6 +493,8 @@ function M.disconnect()
     state.timer = nil
   end
 
+  -- Invalidate any in-flight request
+  state.request_seq = state.request_seq + 1
   state.is_running = false
   state.is_fetching = false
   state.callback = nil
@@ -459,7 +552,10 @@ local function process_queue()
       'Content-Type: application/json',
     },
     stdin_body = true,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
+  local stderr_lines = {}
   send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
@@ -469,12 +565,22 @@ local function process_queue()
     on_stderr = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
+        if v and v ~= '' then
+          table.insert(stderr_lines, v)
+        end
       end
     end,
     on_exit = function(_, code, single)
       log.debug(
         'discord send_message job exit ' .. code .. ' single ' .. single
       )
+      if code ~= 0 or single ~= 0 then
+        local reason = 'curl exit ' .. code
+        if #stderr_lines > 0 then
+          reason = reason .. ': ' .. table.concat(stderr_lines, ' ')
+        end
+        log.error('[Discord] Failed to send message (' .. reason .. ')')
+      end
       send_message_jobid = -1
       table.remove(message_queue, 1)
       -- Process next message in queue
@@ -538,13 +644,15 @@ function M.reply(channel, message_id, text)
       'Content-Type: application/json',
     },
     body = body,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
   local jobid = job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
-        log.debug(
+        log.error(
           string.format(
-            '[discord] reply job %d exit with code %d signal %d',
+            '[Discord] Failed to send reply (job %d exit %d signal %d)',
             id,
             code,
             signal
@@ -630,6 +738,8 @@ function M.send_typing(is_typing)
     headers = {
       'Authorization: Bot ' .. token,
     },
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
   job.start(cmd, {
     on_exit = function(id, code, signal)
@@ -648,3 +758,4 @@ function M.send_typing(is_typing)
 end
 
 return M
+

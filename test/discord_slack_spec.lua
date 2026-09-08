@@ -26,6 +26,20 @@ local function find_job(fragment)
   end
 end
 
+-- Latest recorded job matching fragment (job ids increase monotonically,
+-- and exited jobs stay in the table)
+local function find_last_job(fragment)
+  local best_id, best
+  for id, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find(fragment, 1, true) then
+      if not best_id or id > best_id then
+        best_id, best = id, j
+      end
+    end
+  end
+  return best_id, best
+end
+
 -- ═════════════════════ Discord ═════════════════════
 
 TestDiscordIntegration = {}
@@ -171,6 +185,24 @@ function TestDiscordIntegration:test_fetch_empty_response()
   lu.assertTrue(true)
 end
 
+function TestDiscordIntegration:test_fetch_api_error_object()
+  local received = {}
+  self.dc.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  dc_feed_bot_id()
+  wait(200)
+  local fetch_id = find_job('/messages?limit=10')
+  -- Discord returns an error object (e.g. 401/429) instead of an array
+  job.emit_stdout(fetch_id, {
+    vim.json.encode({ message = 'You are being rate limited.', code = 0 }),
+  })
+  job.emit_exit(fetch_id, 0, 0)
+  wait(100)
+  lu.assertEquals(#received, 0, 'error object delivers no messages')
+end
+
 function TestDiscordIntegration:test_fetch_decode_error()
   self.dc.connect(function() end)
   wait(200)
@@ -191,7 +223,7 @@ function TestDiscordIntegration:test_fetch_nonzero_exit()
   local fetch_id = find_job('/messages?limit=10')
   job.emit_exit(fetch_id, 22, 0)
   wait(100)
-  lu.assertTrue(true, 'callback(nil) path exercised')
+  lu.assertTrue(true, 'failure path releases the lock without crashing')
 end
 
 function TestDiscordIntegration:test_send_message_queue()
@@ -219,6 +251,19 @@ function TestDiscordIntegration:test_send_message_chunks()
   job.emit_exit(send_id, 0, 0)
   wait(200)
   lu.assertNotNil(find_job('ch-1/messages'))
+end
+
+function TestDiscordIntegration:test_send_message_failure_still_advances_queue()
+  self.dc.send_message('first')
+  local send_id = find_last_job('ch-1/messages')
+  lu.assertEquals(send_id, 1, 'first message job started')
+  self.dc.send_message('second')
+  -- curl exit 28 (timeout): failed message is dropped, queue moves on
+  job.emit_exit(send_id, 28, 0)
+  wait(200)
+  local next_id, j2 = find_last_job('ch-1/messages')
+  lu.assertTrue(next_id > send_id, 'second message attempted after failure')
+  lu.assertEquals(vim.json.decode(j2.stdin[1]).content, 'second')
 end
 
 function TestDiscordIntegration:test_reply()
@@ -300,6 +345,7 @@ local function sl_feed_bot_id()
   job.emit_stdout(auth_id, {
     vim.json.encode({ ok = true, user_id = 'UBOT' }),
   })
+  job.emit_exit(auth_id, 0, 0)
   wait(50)
 end
 
@@ -349,6 +395,7 @@ function TestSlackIntegration:test_fetch_delivers_mention()
       },
     }),
   })
+  job.emit_exit(fetch_id, 0, 0)
   wait(300)
   lu.assertEquals(#received, 2, 'mention and thread reply delivered')
   lu.assertEquals(received[1].content, 'hi slack')
@@ -362,6 +409,19 @@ function TestSlackIntegration:test_fetch_api_error()
   wait(200)
   local fetch_id = find_job('conversations.history')
   job.emit_stdout(fetch_id, { vim.json.encode({ ok = false, error = 'channel_not_found' }) })
+  job.emit_exit(fetch_id, 0, 0)
+  wait(100)
+  lu.assertTrue(true)
+end
+
+function TestSlackIntegration:test_fetch_nonzero_exit()
+  self.slack.connect(function() end)
+  wait(200)
+  sl_feed_bot_id()
+  wait(200)
+  local fetch_id = find_job('conversations.history')
+  -- curl exit 28 (timeout): failure path must fire and release the lock
+  job.emit_exit(fetch_id, 28, 0)
   wait(100)
   lu.assertTrue(true)
 end
@@ -380,9 +440,11 @@ function TestSlackIntegration:test_fetch_skips_processed()
   })
   local fetch_id = find_job('conversations.history')
   job.emit_stdout(fetch_id, { payload })
+  job.emit_exit(fetch_id, 0, 0)
   wait(200)
   lu.assertEquals(#received, 1)
   job.emit_stdout(fetch_id, { payload })
+  job.emit_exit(fetch_id, 0, 0)
   wait(200)
   lu.assertEquals(#received, 1, 'duplicate ts skipped')
 end
@@ -433,4 +495,5 @@ function TestSlackIntegration:test_cleanup()
   self.slack.cleanup()
   lu.assertFalse(self.slack.get_state().is_running)
 end
+
 

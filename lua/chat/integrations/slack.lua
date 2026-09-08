@@ -15,6 +15,18 @@ local uv = vim.uv
 local STATE_FILE = config.config.storage_dir .. 'integration/slack.json'
 local API_BASE = 'https://slack.com/api'
 
+-- curl-level timeouts: a failing request is fast and definitive instead
+-- of hanging until the watchdog fires
+local CONNECT_TIMEOUT = 5
+local MAX_TIME = 10
+
+-- Safety net for lost job callbacks. Must be larger than MAX_TIME so it
+-- never fires in normal operation — if it does, something is a bug.
+local WATCHDOG_TIMEOUT = 15000
+
+-- While an outage persists, re-log a heartbeat every N failed polls
+local FAILURE_HEARTBEAT = 10
+
 --------------------------------------------------
 -- state
 --------------------------------------------------
@@ -29,6 +41,10 @@ local state = {
   max_processed_cache = 100,
   poll_interval = 3000,
   session = nil,
+  -- request epoch: responses from earlier requests are discarded
+  request_seq = 0,
+  -- consecutive failed polls (for state-change logging)
+  fail_count = 0,
 }
 
 --------------------------------------------------
@@ -102,6 +118,8 @@ end
 --------------------------------------------------
 -- API request helper
 --------------------------------------------------
+-- callback(result, err): result is the decoded JSON table (nil on
+-- failure), err is a human-readable failure reason
 local function api_request(method, params, callback)
   local bot_token = config.config.integrations
     and config.config.integrations.slack
@@ -131,28 +149,51 @@ local function api_request(method, params, callback)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body_data,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
+
+  local stdout, stderr = {}, {}
 
   local jobid = job.start(cmd, {
     on_stdout = function(_, lines)
-      if callback then
-        local output = table.concat(lines, '\n')
-        if output and output ~= '' then
-          local ok, result = pcall(json.decode, output)
-          if ok and result then
-            callback(result)
-          else
-            log.error('[Slack] Failed to decode: ' .. output)
-          end
-        end
+      for _, v in ipairs(lines) do
+        table.insert(stdout, v)
       end
     end,
     on_stderr = function(_, lines)
+      -- Collect instead of logging: curl writes network errors to
+      -- stderr even with -s, and per-line logging would spam every
+      -- poll while the network is down
       for _, line in ipairs(lines) do
         if line and line ~= '' then
-          log.error('[Slack] ' .. line)
+          table.insert(stderr, line)
         end
       end
+    end,
+    on_exit = function(_, code, signal)
+      if not callback then
+        return
+      end
+
+      if code ~= 0 or signal ~= 0 then
+        local reason = 'curl exited with code ' .. code
+        if #stderr > 0 then
+          reason = reason .. ': ' .. table.concat(stderr, ' ')
+        end
+        return callback(nil, reason)
+      end
+
+      local output = table.concat(stdout, '\n')
+      if output == '' then
+        return callback(nil, 'empty response')
+      end
+
+      local ok, result = pcall(json.decode, output)
+      if not ok or result == nil then
+        return callback(nil, 'invalid JSON: ' .. output:sub(1, 120))
+      end
+      callback(result)
     end,
   })
 
@@ -167,15 +208,48 @@ local function get_bot_user_id()
     return state.bot_user_id
   end
 
-  api_request('auth.test', nil, function(result)
-    if result.ok and result.user_id then
+  api_request('auth.test', nil, function(result, err)
+    if result and result.ok and result.user_id then
       state.bot_user_id = result.user_id
       save_state()
       log.info('[Slack] Bot User ID: ' .. state.bot_user_id)
     else
-      log.error('[Slack] Failed to get bot user ID: ' .. vim.inspect(result))
+      log.error('[Slack] Failed to get bot user ID: ' .. (err or vim.inspect(result)))
     end
   end)
+end
+
+--------------------------------------------------
+-- Poll health tracking (state-change logging)
+--
+-- Healthy polling is silent. A failure logs once on entry, every
+-- FAILURE_HEARTBEAT polls while it persists, and once on recovery.
+--------------------------------------------------
+local function poll_failed(reason)
+  state.fail_count = state.fail_count + 1
+  if state.fail_count == 1 then
+    log.error('[Slack] Polling failed: ' .. (reason or 'unknown error'))
+  elseif state.fail_count % FAILURE_HEARTBEAT == 0 then
+    log.warn(
+      string.format(
+        '[Slack] Polling still failing (%d attempts, last: %s)',
+        state.fail_count,
+        reason or 'unknown error'
+      )
+    )
+  end
+end
+
+local function poll_ok()
+  if state.fail_count > 0 then
+    log.info(
+      string.format(
+        '[Slack] Polling recovered after %d failed attempt(s)',
+        state.fail_count
+      )
+    )
+    state.fail_count = 0
+  end
 end
 
 --------------------------------------------------
@@ -195,13 +269,17 @@ local function fetch_messages()
     return
   end
 
+  local seq = state.request_seq + 1
+  state.request_seq = seq
   state.is_fetching = true
 
-  -- Timeout protection
+  -- Safety net only: curl itself fails fast (connect 5s / total 10s).
+  -- If this fires, the job callback was lost — always worth a warning.
   local timeout = uv.new_timer()
-  timeout:start(5000, 0, function()
-    if state.is_fetching then
-      log.warn('[Slack] Request timeout, releasing lock')
+  timeout:start(WATCHDOG_TIMEOUT, 0, function()
+    timeout:close()
+    if state.is_fetching and state.request_seq == seq then
+      log.warn('[Slack] Watchdog fired (callback lost?), releasing lock')
       state.is_fetching = false
     end
   end)
@@ -215,9 +293,12 @@ local function fetch_messages()
     params.oldest = state.last_timestamp
   end
 
-  api_request('conversations.history', params, function(result)
-    -- Cleanup timeout timer (guard against double-close when the same
-    -- job's callback fires more than once)
+  api_request('conversations.history', params, function(result, err)
+    -- Stale response from an earlier request — discard
+    if state.request_seq ~= seq then
+      return
+    end
+
     timeout:stop()
     if not timeout:is_closing() then
       timeout:close()
@@ -226,10 +307,22 @@ local function fetch_messages()
     -- Release lock
     state.is_fetching = false
 
-    if not result.ok or not result.messages or #result.messages == 0 then
-      if not result.ok then
-        log.error('[Slack] API error: ' .. (result.error or 'unknown'))
-      end
+    -- Request failed (network error, curl timeout, bad JSON)
+    if result == nil then
+      poll_failed(err or 'request failed')
+      return
+    end
+
+    -- Slack API-level error
+    if not result.ok then
+      poll_failed('API error: ' .. (result.error or 'unknown'))
+      return
+    end
+
+    -- Healthy again
+    poll_ok()
+
+    if not result.messages or #result.messages == 0 then
       return
     end
 
@@ -384,6 +477,8 @@ function M.disconnect()
     state.timer = nil
   end
 
+  -- Invalidate any in-flight request
+  state.request_seq = state.request_seq + 1
   state.is_running = false
   state.is_fetching = false
   state.callback = nil
@@ -433,7 +528,10 @@ local function send_message(content)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
+  local stderr_lines = {}
   send_message_jobid = job.start(cmd, {
     on_stdout = function(_, data)
       for _, v in ipairs(data) do
@@ -443,9 +541,19 @@ local function send_message(content)
     on_stderr = function(_, data)
       for _, v in ipairs(data) do
         log.debug(v)
+        if v and v ~= '' then
+          table.insert(stderr_lines, v)
+        end
       end
     end,
-    on_exit = function()
+    on_exit = function(_, code, signal)
+      if code ~= 0 or signal ~= 0 then
+        local reason = 'curl exit ' .. code
+        if #stderr_lines > 0 then
+          reason = reason .. ': ' .. table.concat(stderr_lines, ' ')
+        end
+        log.error('[Slack] Failed to send message (' .. reason .. ')')
+      end
       send_message_jobid = -1
       if #message_queue > 0 then
         send_message(table.remove(message_queue, 1))
@@ -502,13 +610,15 @@ function M.reply(channel, thread_ts, text)
       'Content-Type: application/x-www-form-urlencoded',
     },
     body = body,
+    connect_timeout = CONNECT_TIMEOUT,
+    max_time = MAX_TIME,
   })
   return job.start(cmd, {
     on_exit = function(id, code, signal)
       if code ~= 0 or signal ~= 0 then
-        log.debug(
+        log.error(
           string.format(
-            '[slack] reply job %d exit with code %d signal %d',
+            '[Slack] Failed to send reply (job %d exit %d signal %d)',
             id,
             code,
             signal
@@ -563,3 +673,4 @@ function M.cleanup()
 end
 
 return M
+
