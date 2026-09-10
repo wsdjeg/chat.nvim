@@ -60,6 +60,121 @@ function TestSessions:testAppendMessage()
   lu.assertEquals(messages[1].content, 'Hi there!')
 end
 
+-- ─── get_total_tokens ───────────────────────────────────
+
+function TestSessions:testGetTotalTokensNonexistentSession()
+  local total, prompt, completion = sessions.get_total_tokens('no-such-session')
+  lu.assertEquals(total, 0)
+  lu.assertEquals(prompt, 0)
+  lu.assertEquals(completion, 0)
+end
+
+function TestSessions:testGetTotalTokensEmptySession()
+  local session_id = sessions.new()
+  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  lu.assertEquals(total, 0)
+  lu.assertEquals(prompt, 0)
+  lu.assertEquals(completion, 0)
+end
+
+function TestSessions:testGetTotalTokensSumsMessageUsage()
+  local session_id = sessions.new()
+  sessions.append_message(session_id, {
+    role = 'user',
+    content = 'hello',
+    created = os.time(),
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'hi',
+    created = os.time(),
+    usage = { total_tokens = 120, prompt_tokens = 100, completion_tokens = 20 },
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'more',
+    created = os.time(),
+    usage = { total_tokens = 50, prompt_tokens = 30, completion_tokens = 20 },
+  })
+
+  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  lu.assertEquals(total, 170)
+  lu.assertEquals(prompt, 130)
+  lu.assertEquals(completion, 40)
+
+  -- second call returns the same cached values
+  local total2, prompt2, completion2 = sessions.get_total_tokens(session_id)
+  lu.assertEquals(total2, 170)
+  lu.assertEquals(prompt2, 130)
+  lu.assertEquals(completion2, 40)
+end
+
+function TestSessions:testGetTotalTokensPartialUsageFields()
+  local session_id = sessions.new()
+  -- missing fields default to 0
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'a',
+    created = os.time(),
+    usage = { total_tokens = 10 },
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'b',
+    created = os.time(),
+    usage = { prompt_tokens = 4 },
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'c',
+    created = os.time(),
+    usage = { completion_tokens = 3 },
+  })
+  -- empty usage table contributes nothing
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'd',
+    created = os.time(),
+    usage = {},
+  })
+
+  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  lu.assertEquals(total, 10)
+  lu.assertEquals(prompt, 4)
+  lu.assertEquals(completion, 3)
+end
+
+function TestSessions:testGetTotalTokensRecomputesLegacySession()
+  local session_id = sessions.new()
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'legacy',
+    created = os.time(),
+    usage = { total_tokens = 25, prompt_tokens = 20, completion_tokens = 5 },
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'legacy2',
+    created = os.time(),
+    usage = { total_tokens = 15, prompt_tokens = 10, completion_tokens = 5 },
+  })
+
+  -- simulate legacy persisted data: messages keep usage but the
+  -- session-level usage cache is missing
+  require('chat.sessions.storage').sessions[session_id].usage = nil
+
+  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  lu.assertEquals(total, 40)
+  lu.assertEquals(prompt, 30)
+  lu.assertEquals(completion, 10)
+
+  -- computed result is cached back onto the session
+  local cached = require('chat.sessions.storage').sessions[session_id].usage
+  lu.assertEquals(cached.total_tokens, 40)
+  lu.assertEquals(cached.prompt_tokens, 30)
+  lu.assertEquals(cached.completion_tokens, 10)
+end
+
 function TestSessions:testSetSessionProvider()
   local session_id = sessions.new()
 

@@ -243,6 +243,64 @@ function TestHTTPRoutes:test_sessions_usage_tokens()
   lu.assertEquals(mine[1].usage.completion_tokens, 40)
 end
 
+function TestHTTPRoutes:test_sessions_usage_independent_per_session()
+  -- Seed a second session directly in storage: sessions.new() ids are
+  -- second-resolution timestamps and would collide with self.sid when
+  -- called within the same second.
+  local sid2 = '2099-01-01-00-00-00'
+  require('chat.sessions.storage').sessions[sid2] = {
+    id = sid2,
+    messages = {},
+    provider = 'test-provider',
+    model = 'test-model',
+    cwd = vim.fn.getcwd(),
+  }
+  sessions.append_message(self.sid, {
+    role = 'assistant',
+    content = 'first',
+    created = os.time(),
+    usage = { total_tokens = 30, prompt_tokens = 20, completion_tokens = 10 },
+  })
+  sessions.append_message(sid2, {
+    role = 'assistant',
+    content = 'second',
+    created = os.time(),
+    usage = { total_tokens = 7, prompt_tokens = 5, completion_tokens = 2 },
+  })
+
+  local _, status, body = req('GET', '/sessions')
+  lu.assertEquals(status, 200)
+  local by_id = {}
+  for _, s in ipairs(vim.json.decode(body)) do
+    by_id[s.id] = s
+  end
+  lu.assertEquals(by_id[self.sid].usage.total_tokens, 30)
+  lu.assertEquals(by_id[self.sid].usage.prompt_tokens, 20)
+  lu.assertEquals(by_id[self.sid].usage.completion_tokens, 10)
+  lu.assertEquals(by_id[sid2].usage.total_tokens, 7)
+  lu.assertEquals(by_id[sid2].usage.prompt_tokens, 5)
+  lu.assertEquals(by_id[sid2].usage.completion_tokens, 2)
+end
+
+function TestHTTPRoutes:test_sessions_usage_zero_after_clear()
+  sessions.append_message(self.sid, {
+    role = 'assistant',
+    content = 'spent',
+    created = os.time(),
+    usage = { total_tokens = 99, prompt_tokens = 90, completion_tokens = 9 },
+  })
+  lu.assertTrue(sessions.clear(self.sid))
+
+  local _, status, body = req('GET', '/sessions/' .. self.sid)
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.message_count, 0)
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertNotNil(data.cleared_at)
+end
+
 -- ─── GET /sessions/:id/raw ──────────────────────────────
 
 function TestHTTPRoutes:test_get_session_raw()
@@ -302,6 +360,9 @@ function TestHTTPRoutes:test_new_session_default()
   local data = vim.json.decode(body)
   lu.assertTrue(sessions.exists(data.id))
   lu.assertEquals(data.message_count, 0)
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_with_provider_model()
@@ -314,6 +375,9 @@ function TestHTTPRoutes:test_new_session_with_provider_model()
   local data = vim.json.decode(body)
   lu.assertEquals(data.provider, 'openai')
   lu.assertEquals(data.model, 'gpt-4o')
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_invalid_body_ignored()
@@ -321,6 +385,9 @@ function TestHTTPRoutes:test_new_session_invalid_body_ignored()
   lu.assertEquals(status, 200)
   local data = vim.json.decode(body)
   lu.assertTrue(sessions.exists(data.id))
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_empty_fields_ignored()
@@ -329,6 +396,9 @@ function TestHTTPRoutes:test_new_session_empty_fields_ignored()
   local data = vim.json.decode(body)
   -- empty/wrong-typed fields ignored, default provider retained
   lu.assertEquals(data.provider, 'test-provider')
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
 end
 
 -- ─── DELETE /session/:id ────────────────────────────────
