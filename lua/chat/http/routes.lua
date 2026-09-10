@@ -47,6 +47,9 @@ local function build_session_info(id, data)
     }
   end
 
+  local total_tokens, prompt_tokens, completion_tokens =
+    sessions.get_total_tokens(id)
+
   return {
     id = id,
     title = title,
@@ -57,6 +60,11 @@ local function build_session_info(id, data)
     in_progress = sessions.is_in_progress(id) or queue.has_pending(id),
     message_count = message_count,
     last_message = last_message,
+    usage = {
+      total_tokens = total_tokens,
+      prompt_tokens = prompt_tokens,
+      completion_tokens = completion_tokens,
+    },
     cleared_at = data.cleared_at,
   }
 end
@@ -309,6 +317,11 @@ local function handle_new_session(client, body, content_length)
     in_progress = false,
     message_count = 0,
     last_message = nil,
+    usage = {
+      total_tokens = 0,
+      prompt_tokens = 0,
+      completion_tokens = 0,
+    },
   })
 end
 

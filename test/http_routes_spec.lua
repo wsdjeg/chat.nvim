@@ -148,6 +148,10 @@ function TestHTTPRoutes:test_list_sessions()
   lu.assertEquals(mine[1].title, 'My Title')
   lu.assertEquals(mine[1].message_count, 1)
   lu.assertStrContains(mine[1].last_message.content, '...')
+  -- usage is zero for sessions without assistant usage records
+  lu.assertEquals(mine[1].usage.total_tokens, 0)
+  lu.assertEquals(mine[1].usage.prompt_tokens, 0)
+  lu.assertEquals(mine[1].usage.completion_tokens, 0)
   -- pin defaults to false; in_progress is nil-or-boolean
   lu.assertFalse(mine[1].pin)
   lu.assertNil(mine[1].in_progress)
@@ -179,11 +183,64 @@ function TestHTTPRoutes:test_get_session()
   lu.assertEquals(data.id, self.sid)
   lu.assertEquals(data.message_count, 0)
   lu.assertNil(data.last_message)
+  lu.assertEquals(data.usage.total_tokens, 0)
+  lu.assertEquals(data.usage.prompt_tokens, 0)
+  lu.assertEquals(data.usage.completion_tokens, 0)
 end
 
 function TestHTTPRoutes:test_get_session_404()
   local _, status = req('GET', '/sessions/does-not-exist')
   lu.assertEquals(status, 404)
+end
+
+-- ─── GET /sessions usage tokens ─────────────────────────
+
+function TestHTTPRoutes:test_sessions_usage_tokens()
+  sessions.append_message(self.sid, {
+    role = 'user',
+    content = 'hello',
+    created = os.time(),
+  })
+  sessions.append_message(self.sid, {
+    role = 'assistant',
+    content = 'hi there',
+    created = os.time(),
+    usage = {
+      total_tokens = 120,
+      prompt_tokens = 100,
+      completion_tokens = 20,
+    },
+  })
+  sessions.append_message(self.sid, {
+    role = 'assistant',
+    content = 'more',
+    created = os.time(),
+    usage = {
+      total_tokens = 50,
+      prompt_tokens = 30,
+      completion_tokens = 20,
+    },
+  })
+
+  -- GET /sessions/:id returns summed usage
+  local _, status, body = req('GET', '/sessions/' .. self.sid)
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.usage.total_tokens, 170)
+  lu.assertEquals(data.usage.prompt_tokens, 130)
+  lu.assertEquals(data.usage.completion_tokens, 40)
+
+  -- GET /sessions returns the same usage for this session
+  local _, status2, body2 = req('GET', '/sessions')
+  lu.assertEquals(status2, 200)
+  local list = vim.json.decode(body2)
+  local mine = vim.tbl_filter(function(s)
+    return s.id == self.sid
+  end, list)
+  lu.assertEquals(#mine, 1)
+  lu.assertEquals(mine[1].usage.total_tokens, 170)
+  lu.assertEquals(mine[1].usage.prompt_tokens, 130)
+  lu.assertEquals(mine[1].usage.completion_tokens, 40)
 end
 
 -- ─── GET /sessions/:id/raw ──────────────────────────────

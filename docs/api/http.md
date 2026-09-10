@@ -143,6 +143,11 @@ Get a list of all sessions with details.
       "content": "I'd be happy to help you write a Lua plugin for Neovim. Let's start by...",
       "created": 1705315800
     },
+    "usage": {
+      "total_tokens": 12345,
+      "prompt_tokens": 10000,
+      "completion_tokens": 2345
+    },
     "cleared_at": null
   }
 ]
@@ -161,6 +166,7 @@ Get a list of all sessions with details.
 | `in_progress` | boolean | Whether generation is in progress |
 | `message_count` | number | Total number of messages |
 | `last_message` | object\|null | Last message object (null if no messages) |
+| `usage` | object | Cumulative token usage for the session (see below) |
 | `cleared_at` | number\|null | Unix timestamp when session was last cleared (null if never cleared) |
 
 **`last_message` Object:**
@@ -170,6 +176,14 @@ Get a list of all sessions with details.
 | `role` | string | Message role (`user` / `assistant`) |
 | `content` | string | Message content (truncated to 100 chars) |
 | `created` | number | Unix timestamp of message creation |
+
+**`usage` Object:**
+
+| Field | Type | Description |
+|---|---|---|
+| `total_tokens` | number | Total tokens used (prompt + completion, all requests summed) |
+| `prompt_tokens` | number | Total prompt tokens used |
+| `completion_tokens` | number | Total completion tokens used |
 
 **Example:**
 
@@ -494,7 +508,12 @@ Create a new session, optionally specifying the provider and model.
   "model": "gpt-4o",
   "in_progress": false,
   "message_count": 0,
-  "last_message": null
+  "last_message": null,
+  "usage": {
+    "total_tokens": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0
+  }
 }
 ```
 
@@ -510,6 +529,7 @@ Create a new session, optionally specifying the provider and model.
 | `in_progress` | boolean | Generation status (false for new sessions) |
 | `message_count` | number | Message count (0 for new sessions) |
 | `last_message` | null | Last message (null for new sessions) |
+| `usage` | object | Token usage (all zeros for new sessions; same structure as `GET /sessions`) |
 
 **Examples:**
 
