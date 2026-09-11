@@ -47,7 +47,7 @@ Most tools are NOT sent with your current request to save tokens. Only the tools
 How to use:
 1. Find the tool you need in the catalog below.
 2. Call find_tool with the tool name, e.g. query="git_log" (query="git log" also works).
-3. You receive its full parameter schema, and the tool becomes callable in your next response.
+3. You receive its full parameter schema, and the tool becomes callable in your next response. Activation lasts until you finish the turn with a plain-text reply; later turns need a new find_tool call.
 4. If unsure about the name, query a keyword (e.g. query="git") and you will get matching candidates.
 
 Catalog of all available tools:
@@ -87,7 +87,7 @@ local function schema_response(session_id, scheme, query)
         description = scheme['function'].description,
         parameters = scheme['function'].parameters,
       },
-      note = 'This tool is now available for tool calls in your next response. Call it with the parameters described above.',
+      note = 'This tool is now callable for the rest of this turn (until you reply with plain text). Call it with the parameters described above.',
     }),
   }
 end

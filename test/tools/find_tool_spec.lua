@@ -165,6 +165,117 @@ function TestFindTool:test_request_tools_history_self_healing()
   )
 end
 
+function TestFindTool:test_request_tools_history_resets_after_turn_end()
+  local sessions = require('chat.sessions')
+  local storage = require('chat.sessions.storage')
+  local sid = sessions.new()
+  storage.sessions[sid].messages = storage.sessions[sid].messages or {}
+  -- finished turn: user, tool call, tool result, text-only reply
+  table.insert(storage.sessions[sid].messages, {
+    role = 'user', content = 'write a file',
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant',
+    tool_calls = {
+      { id = 'call_1', type = 'function', ['function'] = { name = 'write_file', arguments = '{}' } },
+    },
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'tool', content = 'ok', tool_call_id = 'call_1',
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant', content = 'done',
+  })
+  -- next turn starts
+  table.insert(storage.sessions[sid].messages, {
+    role = 'user', content = 'something else',
+  })
+  local names = names_of(tools.request_tools(sid))
+  lu.assertFalse(
+    contains(names, 'write_file'),
+    'tools from a finished turn must not be carried into the next turn'
+  )
+  lu.assertTrue(contains(names, 'find_tool'))
+end
+
+function TestFindTool:test_request_tools_history_keeps_current_turn_tools()
+  local sessions = require('chat.sessions')
+  local storage = require('chat.sessions.storage')
+  local sid = sessions.new()
+  storage.sessions[sid].messages = storage.sessions[sid].messages or {}
+  -- finished turn using write_file
+  table.insert(storage.sessions[sid].messages, { role = 'user', content = 'u1' })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant',
+    tool_calls = {
+      { id = 'call_1', type = 'function', ['function'] = { name = 'write_file', arguments = '{}' } },
+    },
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'tool', content = 'ok', tool_call_id = 'call_1',
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant', content = 'done',
+  })
+  -- open turn using git_log (no text-only reply yet)
+  table.insert(storage.sessions[sid].messages, { role = 'user', content = 'u2' })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant',
+    tool_calls = {
+      { id = 'call_2', type = 'function', ['function'] = { name = 'git_log', arguments = '{}' } },
+    },
+  })
+  local names = names_of(tools.request_tools(sid))
+  lu.assertFalse(
+    contains(names, 'write_file'),
+    'tools from the finished turn must be dropped'
+  )
+  lu.assertTrue(
+    contains(names, 'git_log'),
+    'tools from the current (open) turn must stay available'
+  )
+end
+
+--------------------------------------------------------------------
+-- turn-end tool cleanup (progress.on_progress_done)
+--------------------------------------------------------------------
+
+function TestFindTool:test_turn_end_clears_activated_tools()
+  local sessions = require('chat.sessions')
+  local progress = require('chat.sessions.progress')
+  local sid = sessions.new()
+  local jobid = 987654321
+  progress.set_session_jobid(sid, jobid)
+  tools.activate_tool(sid, 'write_file')
+  -- text-only response: the turn is complete, no further request follows
+  progress.on_progress_done(jobid)
+  lu.assertNil(
+    tools.get_activated_tools(sid).write_file,
+    'activated tools must be cleared when the turn ends without tool calls'
+  )
+  local names = names_of(tools.request_tools(sid))
+  lu.assertFalse(contains(names, 'write_file'))
+end
+
+function TestFindTool:test_tool_call_turn_keeps_activated_tools()
+  local sessions = require('chat.sessions')
+  local progress = require('chat.sessions.progress')
+  local sid = sessions.new()
+  local jobid = 987654322
+  progress.set_session_jobid(sid, jobid)
+  tools.activate_tool(sid, 'write_file')
+  -- response carries tool calls: the turn continues
+  progress.on_progress_done(jobid, {
+    tool_calls = {
+      { id = 'call_1', type = 'function', ['function'] = { name = 'write_file', arguments = '{}' } },
+    },
+  })
+  lu.assertTrue(
+    tools.get_activated_tools(sid).write_file,
+    'activated tools must survive while the turn continues with tool calls'
+  )
+end
+
 --------------------------------------------------------------------
 -- find_tool handler
 --------------------------------------------------------------------

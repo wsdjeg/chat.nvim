@@ -126,6 +126,16 @@ function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
   local has_content = progress_messages[session_id] ~= nil
 
+  -- Turn ended (text-only response, no tool calls): no further request will
+  -- be sent for this turn, so drop the lazily activated tools. The next turn
+  -- starts fresh from lazy loading (essential + find_tool). If this turn is
+  -- later resumed (abort/retry/restart mid tool-call loop), the history scan
+  -- re-includes the tools that were actually called.
+  local has_tool_calls = opts and opts.tool_calls and #opts.tool_calls > 0
+  if not has_tool_calls and session_id then
+    require('chat.tools').clear_activated_tools(session_id)
+  end
+
   -- Build the message
   local message = {
     role = 'assistant',

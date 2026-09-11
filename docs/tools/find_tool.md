@@ -32,16 +32,17 @@ With lazy tool loading (default), only essential tools are sent with each reques
 
 ## Behavior
 
-- Exact name match (case-insensitive): returns the full tool schema and activates the tool for the session - it becomes callable in the next response
+- Exact name match (case-insensitive): returns the full tool schema and activates the tool for the current turn - it becomes callable in the next response
 - Unique partial match: returns the schema directly (saves a round trip)
 - Multiple matches: returns the candidate list with introductions
 - No match: returns the full catalog to help refine the query
 - `list` / `all` / `catalog` / empty query: returns the full catalog
 
-## Activation & Self-healing
+## Activation & Turn Scope
 
-- Tools returned by `find_tool` are activated for the current session only
-- Tools that were already called in the session history are automatically re-included in requests (self-healing after a restart)
+- Tools returned by `find_tool` are activated for the current turn only: when the model replies with plain text (no tool calls), the turn is complete and activation is cleared
+- The next turn starts fresh from the essential toolset plus `find_tool`
+- Tools that were already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop)
 
 ## Configuration
 
@@ -62,5 +63,5 @@ Set `tools.lazy = false` to send all tools with every request (previous behavior
 
 {: .info }
 > - MCP tools are part of the catalog and can be discovered via `find_tool` too
-> - Activated tools are session-scoped and never persisted to disk
+> - Activated tools are turn-scoped and never persisted to disk
 

@@ -324,13 +324,19 @@ function M.get_activated_tools(session_id)
 end
 
 --- Clear activated tool names for a session.
+--- Called when a turn ends with a text-only response (no tool calls), so
+--- the next turn starts fresh from lazy loading.
 ---@param session_id string
 function M.clear_activated_tools(session_id)
   activated[session_id] = nil
 end
 
---- Scan session history and collect tool names that were already called.
---- This makes tool activation self-healing across session restarts.
+--- Scan session history and collect tool names called in the current turn.
+--- A turn starts with a user message and ends when the assistant replies
+--- with text only (no tool calls). Tool names are reset at such turn-end
+--- messages, so finished turns do not leak their tools into later turns,
+--- while tools called within the still-open turn are re-included. This
+--- keeps tool activation self-healing across aborts/restarts mid-loop.
 ---@param session_id string
 ---@return table<string, boolean>
 local function scan_history_tool_names(session_id)
@@ -347,12 +353,19 @@ local function scan_history_tool_names(session_id)
     return names
   end
   for _, m in ipairs(s.messages) do
-    if m.role == 'assistant' and type(m.tool_calls) == 'table' then
-      for _, tc in ipairs(m.tool_calls) do
-        local n = tc['function'] and tc['function'].name
-        if n and n ~= '' then
-          names[n] = true
+    if m.role == 'assistant' then
+      local tcs = type(m.tool_calls) == 'table' and m.tool_calls or {}
+      if #tcs > 0 then
+        for _, tc in ipairs(tcs) do
+          local n = tc['function'] and tc['function'].name
+          if n and n ~= '' then
+            names[n] = true
+          end
         end
+      else
+        -- Text-only assistant reply: this turn is finished. Tools used in
+        -- earlier turns are not carried into the next one.
+        names = {}
       end
     end
   end
@@ -387,7 +400,8 @@ function M.request_tools(session_id)
     end
   end
 
-  -- 2. tools already called in session history (self-healing after restart)
+  -- 2. tools already called in the current turn (self-healing after abort
+  --    or restart mid-loop; finished turns do not carry tools over)
   for name in pairs(scan_history_tool_names(session_id)) do
     if by_name[name] and not seen[name] then
       seen[name] = true

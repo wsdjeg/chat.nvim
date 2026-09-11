@@ -712,7 +712,7 @@ Learn more: [MCP](../mcp/)
 - User: `user_profile`
 - Discovery: `find_tool` (look up tools by keyword, lazy loading)
 
-Tools are lazy-loaded by default: only essential tools are sent with each request, all other tools are discovered via `find_tool` (see [Tools](../tools/)).
+Tools are lazy-loaded by default: only essential tools are sent with each request, all other tools are discovered via `find_tool` (see [Tools](../tools/)). Tool activation resets at the end of each turn (text-only response).
 
 ## Next Steps
 

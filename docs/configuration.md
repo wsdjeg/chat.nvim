@@ -108,8 +108,9 @@ require('chat').setup({
 ### Notes
 
 {: .info }
-> - With lazy loading the `find_tool` tool is always included; it lets the AI model discover other tools by keyword and activate them for the session
-> - Tools already called in the session history are automatically re-included
+> - With lazy loading the `find_tool` tool is always included; it lets the AI model discover other tools by keyword and activate them for the current turn
+> - Activation resets when the turn ends (text-only response, no tool calls), so each turn starts from the essential toolset
+> - Tools already called in the still-open turn are automatically re-included (self-healing after an abort or restart mid tool-call loop)
 
 ---
 
