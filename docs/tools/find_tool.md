@@ -44,6 +44,18 @@ With lazy tool loading (default), only essential tools are sent with each reques
 - The next turn starts fresh from the essential toolset plus `find_tool`
 - Tools that were already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop)
 
+## Example Flow
+
+A typical turn with lazy tool loading:
+
+```
+You   : "Commit my changes"
+Model : @find_tool query="git commit"     git_commit activated for this turn
+Model : @git_add                          discovery continues in the same turn
+Model : @git_commit message="feat: add x"
+Model : "Committed as abc1234."           plain text, no tool call: turn ends, activation cleared
+```
+
 ## Configuration
 
 Lazy tool loading is controlled by the `tools` section:

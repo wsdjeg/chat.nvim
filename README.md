@@ -37,6 +37,7 @@ Full documentation is available at [nvim.chat](https://nvim.chat).
 - **🤖 19+ AI Providers** - DeepSeek, OpenAI, Anthropic, GitHub AI, Gemini, Ollama, Baidu, Xiaomi, Alibaba Cloud, and more
 - **🧠 Three-Tier Memory** - Working, daily, and long-term memory with automatic extraction and priority-based retrieval
 - **🛠️ 40+ Built-in Tools** - File operations, Git integration, web search, memory management, scheduling, user profiles
+- **🔍 Lazy Tool Discovery** - Only essential tools are sent with each request; other tools are activated on demand via a built-in catalog
 - **🔄 Parallel Sessions** - Multiple conversations with different models simultaneously
 - **🔌 MCP Protocol** - Native Model Context Protocol support via stdio and HTTP transports
 - **💬 IM Integration** - Discord, Telegram, Slack, Lark, DingTalk, WeCom, WeChat
@@ -176,6 +177,11 @@ See the [Memory Guide](https://nvim.chat/memory/) for details.
 - **Office Documents** - View Excel files with multiple modes
 - **Zettelkasten** - Create and manage notes
 
+Tools are lazy-loaded by default: only the essential tools plus a `find_tool` discovery
+catalog are sent with each request to save prompt tokens, and other tools are activated
+on demand for the current turn. Set `tools.lazy = false` to send all tools with every
+request.
+
 See the [Tools Guide](https://nvim.chat/tools/) for the full list and usage.
 
 ## 🔌 MCP Support
@@ -241,7 +247,8 @@ Also check out my other Neovim plugins:
 
 ## 💬 Feedback
 
-If you encounter any bugs or have suggestions, please file an issue in the [issue tracker](https://github.com/wsdjeg/chat.nvim/issues)
+If you encounter any bugs or have suggestions, please file an issue in the
+[issue tracker](https://github.com/wsdjeg/chat.nvim/issues)
 
 ## 📄 License
 

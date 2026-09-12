@@ -28,6 +28,18 @@ By default, chat.nvim uses lazy tool loading to save prompt tokens: only the ess
 
 Tool activation is turn-scoped: when the model replies with plain text (no tool calls), the turn is complete and activated tools are cleared, so the next turn starts fresh from the essential toolset. Tools already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop).
 
+A typical turn looks like this:
+
+```
+1. You send a message; the request carries the essential toolset + find_tool.
+2. The model looks up a tool it needs: @find_tool query="git commit".
+3. git_commit is activated for this turn and becomes callable in the next response.
+4. The model keeps calling tools (@git_add, @git_commit, ...); tools already used
+   in this turn are re-included automatically.
+5. The model replies with plain text (no tool call); the turn ends and activation
+   is cleared.
+```
+
 ```lua
 require('chat').setup({
   tools = {
@@ -94,7 +106,7 @@ Here is a list of 44 built-in tools:
 | [git_merge](./git_merge.md)                  | Merge branches                                                     |
 | [git_pull](./git_pull.md)                    | Pull changes from remote and merge                                 |
 | [git_push](./git_push.md)                    | Push commits to remote repository                                  |
-| [git_rebase](./git_rebase.md)                | Rebase current branch onto another branch                          |
+| [git_rebase](./git_rebase.md)                | Rebase current branch onto another branch                         |
 | [git_remote](./git_remote.md)                | Manage remote repositories                                         |
 | [git_reset](./git_reset.md)                  | Reset current HEAD to specified state                              |
 | [git_show](./git_show.md)                    | Show detailed changes of a specific commit                         |
