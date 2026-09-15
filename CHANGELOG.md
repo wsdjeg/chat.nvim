@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/wsdjeg/chat.nvim/compare/v1.10.0...v1.10.1) (2026-09-15)
+
+
+### Documentation
+
+* **util:** add doc comment to iso_to_snowflake ([87e578a](https://github.com/wsdjeg/chat.nvim/commit/87e578a6524f86c46d2594c9dd619901246334eb))
+
 ## [1.10.0](https://github.com/wsdjeg/chat.nvim/compare/v1.9.0...v1.10.0) (2026-09-11)
 
 
