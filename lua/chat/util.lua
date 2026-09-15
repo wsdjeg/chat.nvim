@@ -12,6 +12,14 @@ function M.buf_set_lines(buf, from, to, lines)
   vim.api.nvim_set_option_value('modifiable', modifiable, { buf = buf })
 end
 
+--- Convert an ISO 8601 datetime string to a Discord Snowflake ID.
+--- Parses the "YYYY-MM-DDTHH:MM:SS.mmm" part, converts it to milliseconds
+--- since the Discord epoch (2015-01-01T00:00:00 UTC, i.e. 1420070400000),
+--- then shifts left by 22 bits, leaving worker/process/increment bits as 0.
+--- Note: os.time() interprets the parsed date in the local timezone, so the
+--- result is only exact when the ISO string's timezone matches the local one.
+---@param iso string ISO 8601 datetime, e.g. "2025-01-10T14:30:00.123Z"
+---@return number snowflake ID
 function M.iso_to_snowflake(iso)
   local year, month, day, hour, minute, second, millisecond =
     iso:match('(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)%.(%d+)')
