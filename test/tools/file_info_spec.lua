@@ -72,6 +72,26 @@ function TestFileInfo:testFileInfoEmptyFile()
 end
 
 -- ============================
+-- Permissions Tests
+-- ============================
+
+function TestFileInfo:testFileInfoPermissionsOctal()
+  local file = self.test_dir .. '/perms.lua'
+  vim.fn.writefile({ 'content' }, file)
+
+  local result = tools.call('file_info', {
+    filepath = file,
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  -- Permissions should be symbolic + octal, e.g. "rw-r--r-- (644)"
+  -- Note: capture close is a bare ')', literal parens are '%(' and '%)'
+  local sym, octal = result.content:match('Permissions: (%S+) %((%d%d%d)%)')
+  lu.assertNotNil(octal, 'Expected octal mode in permissions output')
+  lu.assertEquals(#sym, 9, 'Expected 9-char symbolic permissions, got: ' .. tostring(sym))
+end
+
+-- ============================
 -- Directory Info Tests
 -- ============================
 

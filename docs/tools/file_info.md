@@ -38,7 +38,7 @@ Returns the following metadata:
 | Size         | File size (human-readable + bytes)       |
 | Entries      | Number of entries (for directories)      |
 | Modified     | Last modification timestamp              |
-| Permissions  | File permissions                         |
+| Permissions  | File permissions, symbolic + octal (e.g. `rw-r--r-- (644)`) |
 | Lines        | Line count (for text files under 1MB)    |
 | Fileformat   | Detected line-ending format: `unix (LF)`, `dos (CRLF)` or `mac (CR)` |
 
@@ -50,4 +50,5 @@ Returns the following metadata:
 > - Line count is only calculated for text files smaller than 1MB
 > - `Fileformat` is detected from the first line ending (omitted when the file has no line breaks);
 >   pass the detected value as `fileformat` to `write_file` to preserve line endings
+> - To change permissions, use `@write_file` with `action="chmod"` and an octal `mode` (e.g. `"644"`)
 

@@ -86,6 +86,28 @@ local function get_perms(filepath)
   return '---------'
 end
 
+--- Convert symbolic permissions to octal mode string
+--- e.g. "rw-r--r--" -> "644", "rwxr-xr-x" -> "755"
+--- Returns nil when the symbolic string is not 9 chars (unparseable)
+---@param perms string symbolic permissions like "rwxrw-r--"
+---@return string? octal mode like "755"
+local function to_octal(perms)
+  if not perms or #perms ~= 9 then
+    return nil
+  end
+  local bits = { r = 4, w = 2, x = 1, s = 1, t = 1 }
+  local octal = {}
+  for i = 1, 9, 3 do
+    local sum = 0
+    for j = 0, 2 do
+      local c = perms:sub(i + j, i + j)
+      sum = sum + (bits[c] or 0)
+    end
+    octal[#octal + 1] = tostring(sum)
+  end
+  return table.concat(octal)
+end
+
 ---@param action ChatToolsFileInfoAction
 ---@param ctx ChatToolContext
 function M.file_info(action, ctx)
@@ -106,6 +128,7 @@ function M.file_info(action, ctx)
   local size = vim.fn.getfsize(resolved)
   local mtime = vim.fn.getftime(resolved)
   local perms = get_perms(resolved)
+  local perms_octal = to_octal(perms)
 
   local lines = {}
   table.insert(lines, string.format('Path:       %s', resolved))
@@ -127,7 +150,10 @@ function M.file_info(action, ctx)
   table.insert(lines, string.format('Modified:   %s',
     mtime > 0 and os.date('%Y-%m-%d %H:%M:%S', mtime) or '-'
   ))
-  table.insert(lines, string.format('Permissions: %s', perms))
+  table.insert(lines, string.format('Permissions: %s%s',
+    perms,
+    perms_octal and string.format(' (%s)', perms_octal) or ''
+  ))
 
   -- For files, show line count if text file
   if ftype == 'file' and size >= 0 and size < 1024 * 1024 then
@@ -159,9 +185,11 @@ function M.scheme()
       name = 'file_info',
       description = [[Get file or directory metadata.
 
-Returns type, size, modification time, permissions, line count (for text files),
-and line-ending format (unix/dos/mac).
+Returns type, size, modification time, permissions (symbolic + octal, e.g. "rw-r--r-- (644)"),
+line count (for text files), and line-ending format (unix/dos/mac).
 Lighter than read_file when you only need metadata, not content.
+
+To change permissions, use write_file with action="chmod" (octal mode).
 
 SECURITY:
 - Path must be within working directory (cwd) and allowed_path config
