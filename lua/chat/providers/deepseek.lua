@@ -8,9 +8,7 @@ local config = require('chat.config')
 local model_max_tokens = {
   ['deepseek-v4-flash'] = 384 * 1024,
   ['deepseek-v4-pro'] = 384 * 1024,
-  ['minimax-m2.7'] = 128 * 1024,
   ['minimax-m3'] = 128 * 1024,
-  ['kimi-k2.6'] = 32 * 1024,
   ['glm-5.1'] = 128 * 1024,
 }
 
