@@ -1,48 +1,37 @@
 source "https://rubygems.org"
 
-# GitHub Pages gem
-gem "github-pages", group: :jekyll_plugins
+# Modern Jekyll, self-hosted on Cloudflare Pages. The github-pages gem is
+# gone: it pinned a Ruby-3-era stack (Jekyll 3.9 / Liquid 4.0.0) that needed
+# compat shims for Ruby >= 3.2. Jekyll 4.4 declares csv/webrick itself and
+# pulls Liquid 4.0.4+ (bigdecimal + no taint crash), so Ruby 3.4 on
+# Cloudflare Pages works out of the box.
+gem "jekyll", "~> 4.4"
 
-# Required for GitHub Pages
-gem "jekyll-include-cache", group: :jekyll_plugins
+# Theme, pinned exactly: the rendered site only changes when WE bump this.
+# (Pulled from rubygems, so builds do not depend on the GitHub API.)
+gem "just-the-docs", "0.12.0", group: :jekyll_plugins
 
-# Optional but recommended
-gem "webrick", "~> 1.8"
+group :jekyll_plugins do
+  # Explicitly owned copies of the theme's own runtime deps.
+  gem "jekyll-seo-tag", "~> 2.7"
+  gem "jekyll-include-cache", "~> 0.2"
 
-# csv and bigdecimal were removed from Ruby's default gems in 3.4, but
-# Jekyll 3.9 (csv, jekyll.rb:28) and Liquid 4.0 (bigdecimal,
-# standardfilters.rb:2) still require them. Explicit dependencies keep the
-# docs build working on Ruby >= 3.4 (e.g. Cloudflare Pages).
-gem "csv"
-gem "bigdecimal"
+  # site.github metadata for seo-tag canonical links.
+  gem "jekyll-github-metadata", "~> 2.13"
+  gem "jekyll-sitemap", "~> 1.4"
 
-# ---------------------------------------------------------------------------
-# Ruby >= 3.2 compatibility for Liquid 4.0.x (pinned by github-pages).
-#
-# Liquid::Variable#render calls taint_check(context, obj), which calls
-# obj.tainted? -- but Ruby removed String#tainted? in 3.2, so on Ruby
-# >= 3.2 (Cloudflare Pages uses 3.4) every page render crashes with
-#   "undefined method 'tainted?' for an instance of String".
-#
-# Why this lives in the Gemfile and not in a _plugins/*.rb file: the
-# github-pages gem force-overrides `safe: true` and `plugins_dir: <random
-# hex>` (see its lib/github-pages/configuration.rb OVERRIDES), which makes
-# Jekyll silently skip source _plugins entirely. `bundle exec jekyll build`
-# on the other hand evaluates this Gemfile via bundler/setup in the very
-# process that then renders the site (bundler 2.x Kernel#loads the jekyll
-# binstub in-process), so the patch below is guaranteed to be applied
-# before the first page renders. A first `bundle install` run has no
-# liquid gem installed yet, hence the LoadError rescue.
-begin
-  require "liquid"
-rescue LoadError
-  # gems not installed yet (first `bundle install`) -- nothing to patch
-else
-  unless "".respond_to?(:tainted?) # taint was removed in Ruby 3.2
-    Liquid::Variable.prepend(Module.new do
-      # With taint gone there is nothing to check; make it a no-op.
-      def taint_check(_context, _obj); end
-    end)
-  end
+  # docs/tools/index.md links pages with *.md URLs; this rewrites them to
+  # the rendered pages. Without it every one of those links 404s.
+  gem "jekyll-relative-links", "~> 0.8"
+
+  # Keep the same page-set the old github-pages default plugin set had:
+  # pages without front matter still render, page titles fall back to the
+  # first heading, README.md (if one ever appears) becomes a dir index.
+  gem "jekyll-optional-front-matter", "~> 0.3.2"
+  gem "jekyll-readme-index", "~> 0.3"
+  gem "jekyll-titles-from-headings", "~> 0.5.3"
+
+  # feed.xml, kept from the github-pages default plugin set.
+  gem "jekyll-feed", "~> 0.15"
 end
 

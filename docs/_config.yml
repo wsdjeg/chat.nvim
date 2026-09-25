@@ -4,8 +4,8 @@ description: A lightweight, extensible chat plugin for Neovim with AI integratio
 baseurl: "" # Leave empty for user/organization sites, or use "/repo-name" for project sites
 url: "https://nvim.chat" # Your domain
 
-# Theme
-remote_theme: just-the-docs/just-the-docs
+# Theme (version pinned in Gemfile: gem "just-the-docs", "0.12.0")
+theme: just-the-docs
 
 # Repository
 repository: wsdjeg/chat.nvim
@@ -73,12 +73,17 @@ callouts:
 mermaid:
   version: "9.1.6"
 
-# Plugins (GitHub Pages compatible)
+# Plugins (must all be present in the Gemfile)
 plugins:
   - jekyll-seo-tag
   - jekyll-github-metadata
   - jekyll-include-cache
   - jekyll-sitemap
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-titles-from-headings
+  - jekyll-feed
 
 # Markdown
 kramdown:
@@ -103,3 +108,4 @@ exclude:
   - Gemfile.lock
   - node_modules/
   - vendor/
+
