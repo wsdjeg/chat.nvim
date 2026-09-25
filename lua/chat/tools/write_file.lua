@@ -3,7 +3,7 @@ local M = {}
 local util = require('chat.util')
 ---@class ChatToolsWriteFileAction
 ---@field filepath string
----@field action "create"|"overwrite"|"append"|"insert"|"delete"|"replace"|"str_replace"|"remove"
+---@field action "create"|"overwrite"|"append"|"insert"|"delete"|"replace"|"str_replace"|"remove"|"chmod"
 ---@field content string?
 ---@field line_start integer?
 ---@field line_to integer?
@@ -13,6 +13,7 @@ local util = require('chat.util')
 ---@field backup boolean? -- Create backup before modifying
 ---@field validate boolean? -- Validate syntax after modification (for code files)
 ---@field fileformat string? -- Line-ending format for writing: "unix"|"dos"|"mac"
+---@field mode string? -- Octal permission mode (for chmod action), e.g., "644", "755", "0755"
 
 
 
@@ -283,6 +284,7 @@ function M.write_file(action, ctx)
     'replace',
     'str_replace',
     'remove',
+    'chmod',
   }
   local action_type = action.action or 'create'
   if not vim.tbl_contains(valid_actions, action_type) then
@@ -322,6 +324,66 @@ function M.write_file(action, ctx)
     end
     return {
       content = string.format('Successfully removed file: %s', filepath),
+    }
+  end
+
+  -- Handle chmod (change file permissions)
+  if action_type == 'chmod' then
+    if
+      not action.mode
+      or type(action.mode) ~= 'string'
+      or action.mode == ''
+    then
+      return {
+        error = 'mode is required for chmod action (e.g., "644", "755").',
+      }
+    end
+
+    -- 3 or 4 octal digits (e.g., "644", "755", "0755", "4755")
+    if not action.mode:match('^[0-7]?[0-7][0-7][0-7]$') then
+      return {
+        error = string.format(
+          'Invalid mode "%s". Must be 3 or 4 octal digits (0-7), e.g., "644", "755", "0755".',
+          action.mode
+        ),
+      }
+    end
+
+    -- Target must exist (file or directory)
+    if
+      vim.fn.filereadable(filepath) == 0
+      and vim.fn.isdirectory(filepath) == 0
+    then
+      return { error = string.format('File does not exist: %s', filepath) }
+    end
+
+    local mode_num = tonumber(action.mode, 8)
+    local old_perm = vim.fn.getfperm(filepath) or ''
+
+    -- vim.uv.fs_chmod is synchronous when no callback is passed
+    local ok, err_name = vim.uv.fs_chmod(filepath, mode_num)
+    if not ok then
+      return {
+        error = string.format(
+          'Failed to chmod %s to %s: %s',
+          filepath,
+          action.mode,
+          tostring(err_name)
+        ),
+      }
+    end
+
+    local new_perm = vim.fn.getfperm(filepath) or ''
+    local canonical = string.format('%04o', mode_num)
+
+    return {
+      content = string.format(
+        'Successfully changed permissions of %s\n  mode: %s\n  before: %s\n  after: %s',
+        filepath,
+        canonical,
+        old_perm,
+        new_perm
+      ),
     }
   end
 
@@ -825,6 +887,7 @@ ACTIONS:
 - replace: Replace specific line range with new content
 - str_replace: Replace string by matching old_str (no line numbers needed)
 - remove: Delete entire file
+- chmod: Change file permissions (octal mode, e.g., "755")
 
 VALIDATION:
 - Use validate=true to check syntax after modification
@@ -844,6 +907,11 @@ STR_REPLACE ACTION:
 - new_str can be empty (to delete a string)
 - Uses literal string matching (no regex/patterns)
 
+CHMOD ACTION:
+- mode is an octal string: 3 or 4 digits 0-7 (e.g., "644", "755", "0755")
+- Works on files and directories (target must exist)
+- Uses vim.uv.fs_chmod (libuv); on Windows only the read-only bit is honored
+
 FILEFORMAT (line endings):
 - fileformat: "unix" (LF), "dos" (CRLF), or "mac" (CR)
 - If omitted, the existing file's line endings are preserved automatically
@@ -862,6 +930,8 @@ EXAMPLES:
 - @write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true
 - @write_file filepath="./src/main.lua" action="overwrite" content="x=1" fileformat="dos"
 - @write_file filepath="./src/main.lua" action="remove"
+- @write_file filepath="./scripts/deploy.sh" action="chmod" mode="755"
+- @write_file filepath="./docs" action="chmod" mode="0755"
 NOTES:
 - Line numbers are 1-indexed (first line is line 1)
 - line_start and line_to are both inclusive (e.g., line_start=5 line_to=10 deletes lines 5-10, including both)
@@ -888,6 +958,7 @@ NOTES:
               'replace',
               'str_replace',
               'remove',
+              'chmod',
             },
             description = 'Action to perform (default: create)',
           },
@@ -930,6 +1001,10 @@ NOTES:
             enum = { 'unix', 'dos', 'mac' },
             description = 'Line-ending format for writing: "unix" (LF), "dos" (CRLF), "mac" (CR). If omitted, existing file line endings are preserved automatically; new files default to unix.',
           },
+          mode = {
+            type = 'string',
+            description = 'Octal permission mode (for chmod action): 3 or 4 digits 0-7, e.g., "644", "755", "0755".',
+          },
         },
         required = { 'filepath' },
       },
@@ -968,6 +1043,10 @@ function M.info(action, ctx)
 
     if args.fileformat then
       info = info .. string.format(' [ff=%s]', args.fileformat)
+    end
+
+    if args.mode then
+      info = info .. string.format(' [mode=%s]', args.mode)
     end
 
     if args.backup then

@@ -1201,5 +1201,118 @@ function TestWriteFile:testDosWriteWithParentDirCreation()
   lu.assertEquals(read_raw(test_file), 'hello\r\n')
 end
 
+-- ============================
+-- CHMOD Tests
+-- ============================
+
+function TestWriteFile:testChmodFileBasic()
+  if vim.fn.has('win32') == 1 then
+    return
+  end
+  local test_file = self.test_dir .. '/test_chmod_basic.lua'
+  vim.fn.writefile({ 'content' }, test_file)
+  vim.uv.fs_chmod(test_file, tonumber('644', 8))
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'chmod',
+    mode = '755',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Successfully changed permissions')
+  lu.assertStrContains(result.content, '0755')
+  lu.assertEquals(vim.fn.getfperm(test_file), 'rwxr-xr-x')
+end
+
+function TestWriteFile:testChmodFourDigitMode()
+  if vim.fn.has('win32') == 1 then
+    return
+  end
+  local test_file = self.test_dir .. '/test_chmod_4digit.lua'
+  vim.fn.writefile({ 'content' }, test_file)
+  vim.uv.fs_chmod(test_file, tonumber('755', 8))
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'chmod',
+    mode = '0644',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertEquals(vim.fn.getfperm(test_file), 'rw-r--r--')
+end
+
+function TestWriteFile:testChmodDirectory()
+  if vim.fn.has('win32') == 1 then
+    return
+  end
+  local test_dir = self.test_dir .. '/test_chmod_dir'
+  vim.fn.mkdir(test_dir, 'p')
+
+  local result = tools.call('write_file', {
+    filepath = test_dir,
+    action = 'chmod',
+    mode = '700',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.content, 'Expected content, got error: ' .. (result.error or 'unknown'))
+  lu.assertStrContains(result.content, 'Successfully changed permissions')
+  lu.assertEquals(vim.fn.getfperm(test_dir), 'rwx------')
+end
+
+function TestWriteFile:testChmodInvalidModes()
+  local test_file = self.test_dir .. '/test_chmod_invalid.lua'
+  vim.fn.writefile({ 'content' }, test_file)
+
+  for _, mode in ipairs({ '999', '75', '75x', '8888', 'rwxr-xr-x' }) do
+    local result = tools.call('write_file', {
+      filepath = test_file,
+      action = 'chmod',
+      mode = mode,
+    }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+    lu.assertNotNil(result.error, 'Expected error for mode: ' .. mode)
+    lu.assertStrContains(result.error, 'Invalid mode')
+  end
+end
+
+function TestWriteFile:testChmodMissingMode()
+  local test_file = self.test_dir .. '/test_chmod_missing.lua'
+  vim.fn.writefile({ 'content' }, test_file)
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'chmod',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'mode is required')
+end
+
+function TestWriteFile:testChmodNonExistentFile()
+  local test_file = self.test_dir .. '/non_existent_chmod.lua'
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'chmod',
+    mode = '755',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'does not exist')
+end
+
+function TestWriteFile:testChmodSecurityOutsideCwd()
+  local result = tools.call('write_file', {
+    filepath = '../../../etc/passwd',
+    action = 'chmod',
+    mode = '777',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result.error)
+  lu.assertStrContains(result.error, 'Security')
+end
+
 return TestWriteFile
 

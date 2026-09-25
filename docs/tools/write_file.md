@@ -27,6 +27,8 @@ Write, modify, or delete file content.
 - `@write_file filepath="./src/main.lua" action="str_replace" old_str="TODO" new_str="DONE" replace_all=true` - Replace all occurrences
 - `@write_file filepath="./src/main.lua" action="overwrite" content="x=1" fileformat="dos"` - Overwrite with CRLF (Windows) line endings
 - `@write_file filepath="./src/main.lua" action="remove"` - Delete entire file
+- `@write_file filepath="./scripts/deploy.sh" action="chmod" mode="755"` - Change file permissions to 755
+- `@write_file filepath="./docs" action="chmod" mode="0755"` - Change directory permissions
 
 ## Parameters
 
@@ -43,6 +45,7 @@ Write, modify, or delete file content.
 | `backup`      | boolean  | Create backup before modification (default: false)               |
 | `validate`    | boolean  | Validate syntax after modification for code files (default: false) |
 | `fileformat`  | string   | Line-ending format: `unix` (LF), `dos` (CRLF), `mac` (CR)         |
+| `mode`       | string   | Octal permission mode (for chmod): 3-4 digits 0-7, e.g., `644`, `755`, `0755` |
 
 ## Actions
 
@@ -56,6 +59,7 @@ Write, modify, or delete file content.
 | `replace`    | Replace specific line range with new content                      |
 | `str_replace`| Replace string by matching old_str (no line numbers needed)       |
 | `remove`     | Delete entire file                                                |
+| `chmod`      | Change file permissions (octal mode, e.g., `"755"`)                |
 
 ## Notes
 
@@ -67,6 +71,7 @@ Write, modify, or delete file content.
 > - For str_replace: `old_str` uses literal string matching (no regex/patterns), supports multi-line matching
 > - For str_replace: by default, `old_str` must match exactly once; use `replace_all=true` to replace all occurrences
 > - For str_replace: `new_str` can be empty to delete the matched text
+> - For chmod: `mode` is an octal string (3 or 4 digits 0-7, e.g., `"644"`, `"755"`, `"0755"`); works on files and directories; implemented via `vim.uv.fs_chmod` (on Windows only the read-only bit is honored)
 > - Use `validate=true` for code files to catch syntax errors (supports Lua and Python)
 > - Use `backup=true` to create backup before modification (format: `<filepath>.backup.<timestamp>`)
 > - Line endings: `fileformat` accepts `unix` (LF), `dos` (CRLF) or `mac` (CR); if omitted, the

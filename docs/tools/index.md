@@ -74,7 +74,7 @@ Here is a list of 44 built-in tools:
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
 | [read_file](./read_file.md)                  | Reads the content of a file                                        |
-| [write_file](./write_file.md)                | Write, modify, or delete file content (includes str_replace)      |
+| [write_file](./write_file.md)                | Write, modify, or delete file content (str_replace, chmod)        |
 | [copy_file](./copy_file.md)                  | Copy a file or directory (recursive)                               |
 | [create_directory](./create_directory.md)    | Create a directory (including parent directories)                  |
 | [delete_directory](./delete_directory.md)    | Delete a directory (recursive)                                    |
