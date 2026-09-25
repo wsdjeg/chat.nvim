@@ -8,3 +8,9 @@ gem "jekyll-include-cache", group: :jekyll_plugins
 
 # Optional but recommended
 gem "webrick", "~> 1.8"
+
+# csv was removed from Ruby's default gems in 3.4, but Jekyll 3.9 (pinned by
+# github-pages) still requires it. Explicit dependency keeps the docs build
+# working on Ruby >= 3.4 (e.g. Cloudflare Pages).
+gem "csv"
+
