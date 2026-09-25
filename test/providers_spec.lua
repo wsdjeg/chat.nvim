@@ -425,7 +425,7 @@ function TestProviders:test_deepseek_max_tokens_per_model()
 end
 
 function TestProviders:test_volcengine_coding_plan_flags()
-  local _, j, body = do_request('volcengine_coding_plan', nil, 'glm-5.2')
+  local _, j, body = do_request('volcengine_coding_plan', nil, 'glm-5.3')
   lu.assertEquals(body.max_tokens, 128000)
   lu.assertEquals(body.tool_stream, true)
   lu.assertStrContains(table.concat(j.cmd, ' '), '-N')

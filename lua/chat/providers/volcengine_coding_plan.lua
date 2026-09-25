@@ -8,10 +8,14 @@ local config = require('chat.config')
 local model_max_tokens = {
   ['deepseek-v4-flash'] = 384 * 1024,
   ['deepseek-v4-pro'] = 384 * 1024,
-  ['minimax-m2.7'] = 128 * 1024,
+  ['deepseek-v4.1-flash'] = 384 * 1024,
   ['minimax-m3'] = 128 * 1024,
-  ['kimi-k2.6'] = 32 * 1024,
-  ['glm-5.2'] = 128000,
+  ['kimi-k2.7-code'] = 32 * 1024,
+  ['kimi-k2.8-preview'] = 32 * 1024,
+  ['kimi-k3'] = 32 * 1024,
+  ['glm-5.3'] = 128000,
+  ['glm-latest'] = 128000,
+  ['glm-5.3-flash'] = 128000,
 }
 
 local function get_max_tokens(model)
@@ -20,16 +24,20 @@ end
 
 function M.available_models()
   return {
-    'glm-5.2',
-    'doubao-seed-code',
-    'doubao-seed-2.0-code',
-    'doubao-seed-2.0-pro',
-    'doubao-seed-2.0-lite',
-    'minimax-m2.7',
-    'kimi-k2.6',
-    'deepseek-v4-pro',
-    'deepseek-v4-flash',
+    'doubao-seed-evolving',
+    'doubao-seed-2.1-pro',
+    'doubao-seed-2.1-lite',
+    'doubao-seed-2.0-mini',
     'minimax-m3',
+    'glm-5.3',
+    'glm-latest',
+    'glm-5.3-flash',
+    'deepseek-v4.1-flash',
+    'deepseek-v4-flash',
+    'deepseek-v4-pro',
+    'kimi-k2.7-code',
+    'kimi-k2.8-preview',
+    'kimi-k3',
   }
 end
 
