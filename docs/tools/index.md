@@ -69,7 +69,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 44 built-in tools:
+Here is a list of 45 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -89,6 +89,7 @@ Here is a list of 44 built-in tools:
 | [set_prompt](./set_prompt.md)                | Set system prompt from file                                        |
 | [fetch_web](./fetch_web.md)                  | Fetch content from web URLs                                        |
 | [web_search](./web_search.md)                | Search the web using multiple engines                              |
+| [mastodon](./mastodon.md)                    | Read-only Mastodon access: fetch toots/threads, search, timelines  |
 | [get_time](./get_time.md)                    | Get current time and date information                              |
 | [get_weather](./get_weather.md)              | Get weather data from Meizu weather API                            |
 | [lsp_diagnostics](./lsp_diagnostics.md)      | Get LSP diagnostics for a file                                     |

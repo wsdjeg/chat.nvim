@@ -171,6 +171,7 @@ See the [Memory Guide](https://nvim.chat/memory/) for details.
 - **File Operations** - Read, write, search files and directories
 - **Git Integration** - Status, diff, commit, push, branch management
 - **Web Search** - Search the web via Firecrawl, Google, or SerpAPI
+- **Mastodon** - Read-only Mastodon: fetch toots, threads, and timelines
 - **Memory Management** - Extract and recall memories
 - **Scheduled Tasks** - Create one-time or recurring tasks
 - **User Profiles** - Manage per-user preferences and skills

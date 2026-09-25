@@ -20,6 +20,7 @@ local M = {}
 ---@field storage_dir? string Base storage directory for all persistent data
 ---@field memory? table
 ---@field user? table
+---@field mastodon? table
 ---@field integrations? table
 ---@field mcp? table
 ---@field winhighlight? string
@@ -95,6 +96,13 @@ local default = {
     -- If not set, defaults to storage_dir .. 'users/'
     storage_dir = nil,
   },
+  -- Mastodon (read-only) configuration for the mastodon tool
+  mastodon = {
+    -- Default instance origin used by the mastodon tool
+    instance = 'https://mastodon.social',
+    -- Optional access token (Bearer). Required for search on most instances.
+    access_token = '',
+  },
   -- Tool discovery configuration
   tools = {
     -- When true, only essential tools + find_tool are sent with each request.
@@ -117,6 +125,7 @@ local default = {
 
 ---@type ChatConfig
 M.config = vim.tbl_deep_extend('force', default, {})
+
 
 ---Get the effective memory storage directory
 ---@return string
@@ -141,7 +150,7 @@ function M.setup(opt)
   then
     require('chat.log').error(
       'system_prompt must be string or function, got '
-        .. type(opt.system_prompt)
+      .. type(opt.system_prompt)
     )
     return
   end
