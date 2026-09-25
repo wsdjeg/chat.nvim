@@ -16,3 +16,33 @@ gem "webrick", "~> 1.8"
 gem "csv"
 gem "bigdecimal"
 
+# ---------------------------------------------------------------------------
+# Ruby >= 3.2 compatibility for Liquid 4.0.x (pinned by github-pages).
+#
+# Liquid::Variable#render calls taint_check(context, obj), which calls
+# obj.tainted? -- but Ruby removed String#tainted? in 3.2, so on Ruby
+# >= 3.2 (Cloudflare Pages uses 3.4) every page render crashes with
+#   "undefined method 'tainted?' for an instance of String".
+#
+# Why this lives in the Gemfile and not in a _plugins/*.rb file: the
+# github-pages gem force-overrides `safe: true` and `plugins_dir: <random
+# hex>` (see its lib/github-pages/configuration.rb OVERRIDES), which makes
+# Jekyll silently skip source _plugins entirely. `bundle exec jekyll build`
+# on the other hand evaluates this Gemfile via bundler/setup in the very
+# process that then renders the site (bundler 2.x Kernel#loads the jekyll
+# binstub in-process), so the patch below is guaranteed to be applied
+# before the first page renders. A first `bundle install` run has no
+# liquid gem installed yet, hence the LoadError rescue.
+begin
+  require "liquid"
+rescue LoadError
+  # gems not installed yet (first `bundle install`) -- nothing to patch
+else
+  unless "".respond_to?(:tainted?) # taint was removed in Ruby 3.2
+    Liquid::Variable.prepend(Module.new do
+      # With taint gone there is nothing to check; make it a no-op.
+      def taint_check(_context, _obj); end
+    end)
+  end
+end
+
