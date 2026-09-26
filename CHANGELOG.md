@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.11.0](https://github.com/wsdjeg/chat.nvim/compare/v1.10.0...v1.11.0) (2026-09-26)
+
+
+### Features
+
+* add read-only mastodon tool (fetch/search/timeline) ([387f244](https://github.com/wsdjeg/chat.nvim/commit/387f244741c9a84b6ee3ed89441d486494c17384))
+* **file_info:** show octal mode alongside symbolic permissions ([ff940ad](https://github.com/wsdjeg/chat.nvim/commit/ff940ad4b5986c96db569316aa0879caa023323e))
+* include real delta content in protocol debug logs ([03f00e3](https://github.com/wsdjeg/chat.nvim/commit/03f00e364dbac09120f03174e231d4f544e652dd))
+* **providers:** update volcengine coding plan model list ([9068da2](https://github.com/wsdjeg/chat.nvim/commit/9068da2d7884424c32adb22d290ef5c37ad7ddf7))
+* **tools:** add chmod action to write_file tool ([cb956dd](https://github.com/wsdjeg/chat.nvim/commit/cb956dd94bde6ea8019c3df4898153bebc120eba))
+* **volcengine:** update coding plan model list ([e120bb0](https://github.com/wsdjeg/chat.nvim/commit/e120bb0d2f2cef883654198c94d300a787ef22b5))
+
+
+### Bug Fixes
+
+* **docs:** add bigdecimal gem for Ruby 3.4 compatibility ([f3818e3](https://github.com/wsdjeg/chat.nvim/commit/f3818e37931b34ade0c2c9cc27ba42b17b262f1a))
+* **docs:** add csv gem for Ruby 3.4 compatibility ([d4a056e](https://github.com/wsdjeg/chat.nvim/commit/d4a056e8298cccbd731935e56d90123512339c5d))
+* **docs:** patch liquid taint_check from Gemfile for ruby 3.2+ ([84b1c10](https://github.com/wsdjeg/chat.nvim/commit/84b1c1059e2c57d0bf1f5af3519f3d752dd8e8ac))
+* **docs:** replace github-pages gem with modern Jekyll 4.4 stack ([07ffa18](https://github.com/wsdjeg/chat.nvim/commit/07ffa181e736c5e29c4c03eb941df2d94203bb93))
+* **docs:** stub liquid taint_check for ruby 3.2+ ([dec7f42](https://github.com/wsdjeg/chat.nvim/commit/dec7f4250ceff03e702305f80e1c77de915afa14))
+* **sessions:** log argument decode failures at warn level ([9a46893](https://github.com/wsdjeg/chat.nvim/commit/9a468938881348643dbda4c6bbc88bdcd754cad8))
+
+
+### Code Refactoring
+
+* **log:** correct log levels across modules to match semantics ([ab576d3](https://github.com/wsdjeg/chat.nvim/commit/ab576d3433f6cf30d3336a2ff97d9635e8d8979b))
+* **providers:** drop deprecated glm-5.2, glm-latest, minimax-m2.7, kimi-k2.6 models ([812ee43](https://github.com/wsdjeg/chat.nvim/commit/812ee4327cf7efc7a182bb8b57de9e5269b3e0fa))
+
+
+### Documentation
+
+* add ideas/ pool with project-scoped tools proposal ([abc6204](https://github.com/wsdjeg/chat.nvim/commit/abc62049b55fb8f005c837aadd916d4750604b45))
+* **util:** add doc comment to iso_to_snowflake ([87e578a](https://github.com/wsdjeg/chat.nvim/commit/87e578a6524f86c46d2594c9dd619901246334eb))
+
 ## [1.10.0](https://github.com/wsdjeg/chat.nvim/compare/v1.9.0...v1.10.0) (2026-09-11)
 
 
