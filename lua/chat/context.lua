@@ -120,7 +120,7 @@ function M.truncate_messages(messages, config)
           table.insert(valid_tool_calls, tc)
         else
           removed_count = removed_count + 1
-          log.warn(
+          log.debug(
             '[Context] Removing orphaned tool_call: ' .. tostring(tc.id)
           )
         end

@@ -258,7 +258,7 @@ end
 local function poll_failed(reason)
   state.fail_count = state.fail_count + 1
   if state.fail_count == 1 then
-    log.error('[Discord] Polling failed: ' .. (reason or 'unknown error'))
+    log.warn('[Discord] Polling failed: ' .. (reason or 'unknown error'))
   elseif state.fail_count % FAILURE_HEARTBEAT == 0 then
     log.warn(
       string.format(
@@ -537,7 +537,7 @@ local function process_queue()
   end
 
   local content = message_queue[1]
-  log.info(
+  log.debug(
     string.format(
       '[Discord] process_queue: sending message (%d bytes)',
       #content
@@ -615,7 +615,7 @@ function M.send_message(content)
     return
   end
 
-  log.info(
+  log.debug(
     string.format('[Discord] send_message called (%d bytes)', #content)
   )
 

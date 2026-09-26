@@ -116,7 +116,7 @@ end
 
 -- Helper: list sessions with optional filter
 local function handle_list_command(integration, message)
-  log.info('[Integration] handle_list_command called')
+  log.debug('[Integration] handle_list_command called')
   local pattern = message.content:match('^/list%s+(.+)$')
   local sessions = require('chat.sessions')
   local all_sessions = sessions.get()
@@ -250,7 +250,7 @@ local function handle_list_command(integration, message)
   end
 
   local message_content = table.concat(lines, '\n')
-  log.info(
+  log.debug(
     string.format(
       '[Integration] Sending list message (%d bytes)',
       #message_content

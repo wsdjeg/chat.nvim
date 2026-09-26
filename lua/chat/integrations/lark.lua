@@ -437,7 +437,7 @@ local function fetch_messages()
         -- Save state if there are new messages
         if has_new then
           state.last_message_time = latest_time
-          log.info('[Lark] Updated last_message_time to: ' .. latest_time)
+          log.debug('[Lark] Updated last_message_time to: ' .. latest_time)
           save_state()
         end
       end,
@@ -598,3 +598,4 @@ function M.cleanup()
 end
 
 return M
+

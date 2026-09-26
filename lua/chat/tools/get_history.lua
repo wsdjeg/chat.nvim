@@ -151,7 +151,7 @@ function M.get_history(action, ctx)
     response.total_matched = #working_set
   end
 
-  log.info(
+  log.debug(
     string.format(
       '[get_history] Retrieved %d messages (offset=%d, total=%d%s)',
       #result,

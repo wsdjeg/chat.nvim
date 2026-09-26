@@ -78,13 +78,13 @@ end
 --- @return boolean True if write succeeded, false otherwise
 function M.write_cache(session_id)
   if not M.sessions[session_id] then
-    log.error('session does not existed, skip writing cache.')
+    log.warn('session does not exist, skipping cache write')
     return false
   end
   if vim.fn.isdirectory(M.cache_dir) == 0 then
     local ok, err = pcall(vim.fn.mkdir, M.cache_dir, 'p')
     if not ok then
-      log.warn('failed to created cache directory, ' .. err)
+      log.error('Failed to create cache directory: ' .. err)
       return
     end
   end

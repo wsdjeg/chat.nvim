@@ -238,7 +238,7 @@ function M.send_tool_results(session_id)
 
   -- Check if session was cancelled
   if async.cancelled_sessions[session_id] then
-    log.info('Session cancelled, skip sending tool results.')
+    log.debug('Session cancelled, skip sending tool results.')
     async.cancelled_sessions[session_id] = nil
     return
   end
@@ -248,12 +248,12 @@ function M.send_tool_results(session_id)
     -- Reset retry count for new tool result request
     require('chat.sessions.retry').reset_retry_count(session_id)
     local protocol = require('chat.protocol')
-    log.info('send tool_call results to server.')
+    log.debug('send tool_call results to server.')
     local jobid = protocol.request({
       session = session_id,
       messages = msg,
     })
-    log.info('curl request jobid is ' .. tostring(jobid))
+    log.debug('curl request jobid is ' .. tostring(jobid))
     if jobid and jobid > 0 then
       if session_id == require('chat.windows').current_session() then
         require('chat.spinners').start()
@@ -265,3 +265,4 @@ function M.send_tool_results(session_id)
 end
 
 return M
+

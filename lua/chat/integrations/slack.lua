@@ -228,7 +228,7 @@ end
 local function poll_failed(reason)
   state.fail_count = state.fail_count + 1
   if state.fail_count == 1 then
-    log.error('[Slack] Polling failed: ' .. (reason or 'unknown error'))
+    log.warn('[Slack] Polling failed: ' .. (reason or 'unknown error'))
   elseif state.fail_count % FAILURE_HEARTBEAT == 0 then
     log.warn(
       string.format(

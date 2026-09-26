@@ -135,7 +135,7 @@ function M.should_process(parsed_msg)
 
   -- Only process USER messages
   if parsed_msg.message_type ~= Types.MessageType.USER then
-    log.warn(
+    log.debug(
       string.format(
         '[WeChat] should_process: skip non-USER message, type=%s',
         parsed_msg.message_type
@@ -193,3 +193,4 @@ function M.extract_inbound(msgs, context_tokens)
 end
 
 return M
+

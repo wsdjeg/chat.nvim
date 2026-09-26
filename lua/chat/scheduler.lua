@@ -169,7 +169,7 @@ local function arm_task(task)
     -- skip_if_busy: 周期性任务在 session 忙时跳过本轮，等待下轮
     if task.skip_if_busy and task.interval then
       if is_session_busy(task.session) then
-        log.info(string.format(
+        log.debug(string.format(
           'Scheduled task %s skipped: session %s is busy, will retry next cycle',
           task.id, task.session
         ))

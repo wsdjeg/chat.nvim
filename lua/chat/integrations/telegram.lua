@@ -138,7 +138,7 @@ local function api_request(method, data, callback)
     on_stderr = function(_, lines)
       for _, line in ipairs(lines) do
         if line and line ~= '' then
-          log.error('[Telegram] ' .. line)
+          log.debug('[Telegram] ' .. line)
         end
       end
     end,
@@ -518,3 +518,4 @@ function M.cleanup()
 end
 
 return M
+

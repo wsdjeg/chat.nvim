@@ -62,7 +62,7 @@ end
 -- a new session.
 --------------------------------------------------
 local function handle_session_expired()
-  log.error('[Weixin] Session expired, please re-login')
+  log.warn('[Weixin] Session expired, please re-login')
 
   -- Stop all timers
   stop_all_timers()

@@ -227,7 +227,7 @@ function M.connect_server(name, server_config)
   end
 
   if init_delay > 0 then
-    log.info(
+    log.debug(
       '[MCP] Waiting ' .. init_delay .. 'ms for server to start: ' .. name
     )
     vim.defer_fn(send_initialize, init_delay)

@@ -43,7 +43,7 @@ function M.on_stdout(id, data)
             if candidate.content and candidate.content.parts then
               for _, part in ipairs(candidate.content.parts) do
                 if part.text and #part.text > 0 then
-                  log.info('handle content')
+                  log.debug('handle content')
                   sessions.on_progress(id, part.text)
                 end
               end
@@ -137,7 +137,7 @@ function M.on_exit(id, code, signal)
       end
     end
 
-    log.info(string.format('job exit code %d signal %d', code, signal))
+    log.debug(string.format('job exit code %d signal %d', code, signal))
 
     local reason = sessions.get_progress_finish_reason(id)
     if reason == 'stop' then
@@ -194,3 +194,4 @@ function M.on_exit(id, code, signal)
 end
 
 return M
+

@@ -45,7 +45,7 @@ function M.create(server_name, config, on_message)
       on_stderr = function(_, data)
         for _, v in ipairs(data) do
           if v and #v > 0 then
-            log.info('[MCP:' .. server_name .. '] ' .. v)
+            log.debug('[MCP:' .. server_name .. '] ' .. v)
           end
         end
       end,
@@ -294,3 +294,4 @@ function M.close(transport)
 end
 
 return M
+
