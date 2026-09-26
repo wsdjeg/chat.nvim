@@ -206,8 +206,8 @@ function M.on_progress_tool_call_done(jobid)
         },
       }
       messages.append_message(session_id, tool_done_message)
-      log.info('failed to decode arguments, error is:' .. arguments)
-      log.info('arguments is:' .. (tool_call['function'].arguments or 'nil'))
+      log.warn('failed to decode arguments, error is:' .. arguments)
+      log.warn('arguments is:' .. (tool_call['function'].arguments or 'nil'))
       windows.on_tool_call_done(session_id, { tool_done_message })
     end
     ::continue::
