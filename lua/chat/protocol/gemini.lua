@@ -43,7 +43,7 @@ function M.on_stdout(id, data)
             if candidate.content and candidate.content.parts then
               for _, part in ipairs(candidate.content.parts) do
                 if part.text and #part.text > 0 then
-                  log.debug('handle content')
+                  log.debug('handle content: ' .. part.text)
                   sessions.on_progress(id, part.text)
                 end
               end

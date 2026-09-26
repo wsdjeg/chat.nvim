@@ -49,7 +49,10 @@ function M.on_stdout(id, data)
                   and choice.delta.reasoning_content ~= vim.NIL
                   and #choice.delta.reasoning_content > 0
                 then
-                  log.debug('handle reasoning_content')
+                  log.debug(
+                    'handle reasoning content: '
+                      .. choice.delta.reasoning_content
+                  )
                   sessions.on_progress_reasoning_content(
                     id,
                     choice.delta.reasoning_content
@@ -59,7 +62,7 @@ function M.on_stdout(id, data)
                   and choice.delta.content ~= vim.NIL
                   and #choice.delta.content > 0
                 then
-                  log.debug('handle content')
+                  log.debug('handle content: ' .. choice.delta.content)
                   sessions.on_progress(id, choice.delta.content)
                 end
               end

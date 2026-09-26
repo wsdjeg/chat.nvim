@@ -84,13 +84,13 @@ function M.on_stdout(id, data)
               -- Streaming content
               if chunk.delta and chunk.delta.type == 'text_delta' then
                 if chunk.delta.text and #chunk.delta.text > 0 then
-                  log.debug('handle text delta')
+                  log.debug('handle text delta: ' .. chunk.delta.text)
                   sessions.on_progress(id, chunk.delta.text)
                 end
               elseif chunk.delta and chunk.delta.type == 'thinking_delta' then
                 -- Thinking content streaming (similar to reasoning_content in OpenAI)
                 if chunk.delta.thinking and #chunk.delta.thinking > 0 then
-                  log.debug('handle thinking delta')
+                  log.debug('handle thinking delta: ' .. chunk.delta.thinking)
                   sessions.on_progress_reasoning_content(
                     id,
                     chunk.delta.thinking
@@ -372,3 +372,4 @@ function M.convert_message(messages)
 end
 
 return M
+
