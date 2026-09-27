@@ -69,7 +69,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 45 built-in tools:
+Here is a list of 46 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -118,6 +118,7 @@ Here is a list of 45 built-in tools:
 | [plan](./plan.md)                            | Plan mode for task management                                      |
 | [user_profile](./user_profile.md)            | Manage user profiles (人物画像) for personalized assistance        |
 | [schedule_task](./schedule_task.md)          | Schedule tasks to be executed at a future time (with skip_if_busy)|
+| [send_email](./send_email.md)                | Send an email via the system `mail` command                        |
 
 ---
 
