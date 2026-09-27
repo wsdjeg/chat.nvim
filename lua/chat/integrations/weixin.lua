@@ -150,23 +150,55 @@ local function process_queue()
 
       log.debug(vim.inspect(result))
 
+      -- Collect failure reason (nil = success)
+      local failed
       if err then
-        log.error('[Weixin] Failed to send message: ' .. err)
+        failed = err
       elseif not result then
-        log.error('[Weixin] Failed to send message: empty response')
+        failed = 'empty response'
       elseif result.ret and result.ret ~= 0 then
-        log.error('[Weixin] Failed to send message:')
-        log.error('  ret=' .. (result.ret or '?'))
-        log.error('  errcode=' .. (result.errcode or '?'))
-        log.error('  errmsg=' .. (result.errmsg or 'unknown'))
-        log.error('  Full response: ' .. vim.json.encode(result))
+        failed = string.format(
+          'ret=%s, errcode=%s, errmsg=%s',
+          result.ret or '?',
+          result.errcode or '?',
+          result.errmsg or 'unknown'
+        )
+      end
 
-        -- Session expired
+      if failed then
+        -- Session expired: credentials get cleared by the expiry
+        -- flow below, retrying is pointless. Record error and
+        -- run the expiry flow.
         if
-          result.ret == -14
-          or result.errcode == Types.ErrorCode.SESSION_EXPIRED
+          result
+          and (result.ret == -14
+            or result.errcode == Types.ErrorCode.SESSION_EXPIRED)
         then
+          log.error('[Weixin] Failed to send message: ' .. failed)
+          log.error('  Full response: ' .. vim.json.encode(result))
           handle_session_expired()
+          return
+        end
+
+        -- First attempt failed: record warn and retry once.
+        -- The message is re-queued at the head to preserve order.
+        -- Use vim.schedule (not a direct call) so the retry jobid
+        -- cannot be overwritten by the `or -1` below in the
+        -- synchronous-callback case.
+        if not msg_data.retried then
+          msg_data.retried = true
+          log.warn('[Weixin] Send failed, retrying once: ' .. failed)
+          table.insert(message_queue, 1, msg_data)
+          vim.schedule(process_queue)
+          return
+        end
+
+        -- Retry also failed: final error
+        log.error(
+          '[Weixin] Failed to send message (after 1 retry): ' .. failed
+        )
+        if result then
+          log.error('  Full response: ' .. vim.json.encode(result))
         end
       else
         log.debug(string.format('[Weixin] Message sent to %s', to_user_id))

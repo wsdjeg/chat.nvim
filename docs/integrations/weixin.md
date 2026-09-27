@@ -86,6 +86,7 @@ Subsequent restarts will auto-connect using saved credentials.
 - **API**: OpenClaw WeChat Gateway
 - **Authentication**: QR Code Login (auto-refresh)
 - **Message Limit**: 2,048 characters (auto-chunking)
+- **Send Retry**: failed messages are retried once; a second failure is logged as error
 - **State Persistence**: `{storage_dir}/integration/weixin.json`
 - **Polling**: Long-poll every 3 seconds
 

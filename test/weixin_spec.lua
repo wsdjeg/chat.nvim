@@ -460,7 +460,8 @@ function TestWeixinIntegration:test_send_message_after_inbound()
   job.emit_stdout(send_id, { '{"ret":0}' })
 end
 
-function TestWeixinIntegration:test_send_message_error_response()
+-- Feed one inbound message so context_token + last_from_user_id are set
+local function setup_inbound(self)
   local Types = require('chat.integrations.weixin.types')
   self.wx.connect(function() end)
   wait(300)
@@ -469,13 +470,79 @@ function TestWeixinIntegration:test_send_message_error_response()
   USER_MSG.item_list[1].type = Types.MessageItemType.TEXT
   feed_update(poll_id, { USER_MSG })
   wait(300)
+end
 
+-- All sendmessage job ids, sorted oldest first
+local function send_job_ids()
+  local ids = {}
+  for id, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find('sendmessage', 1, true) then
+      ids[#ids + 1] = id
+    end
+  end
+  table.sort(ids)
+  return ids
+end
+
+function TestWeixinIntegration:test_send_message_error_response()
+  setup_inbound(self)
   self.wx.send_message('will fail')
-  local send_id = find_job('sendmessage')
-  lu.assertNotNil(send_id)
-  job.emit_stdout(send_id, { '{"ret":5,"errcode":1,"errmsg":"nope"}' })
   wait(100)
-  lu.assertTrue(true, 'non-expired error logged without session reset')
+  local ids = send_job_ids()
+  lu.assertEquals(#ids, 1, 'first attempt started')
+  job.emit_stdout(ids[1], { '{"ret":5,"errcode":1,"errmsg":"nope"}' })
+  wait(200)
+  ids = send_job_ids()
+  lu.assertEquals(#ids, 2, 'failure triggers exactly one retry')
+  -- non-expired error: session untouched
+  local Api = require('chat.integrations.weixin.api')
+  lu.assertTrue(Api.is_configured())
+end
+
+function TestWeixinIntegration:test_send_message_retry_success()
+  setup_inbound(self)
+  self.wx.send_message('retry me')
+  wait(100)
+  local ids = send_job_ids()
+  lu.assertEquals(#ids, 1)
+  -- First attempt fails -> warn logged, message re-queued, retried once
+  job.emit_stdout(ids[1], { '{"ret":5,"errcode":1,"errmsg":"nope"}' })
+  wait(200)
+  ids = send_job_ids()
+  lu.assertEquals(#ids, 2, 'retry attempt started')
+  -- Retry succeeds -> no further attempts
+  job.emit_stdout(ids[2], { '{"ret":0}' })
+  wait(100)
+  lu.assertEquals(#send_job_ids(), 2, 'success stops retrying')
+end
+
+function TestWeixinIntegration:test_send_message_retry_exhausted()
+  setup_inbound(self)
+  self.wx.send_message('always fails')
+  wait(100)
+  local ids = send_job_ids()
+  lu.assertEquals(#ids, 1)
+  job.emit_stdout(ids[1], { '{"ret":5,"errcode":1,"errmsg":"nope"}' })
+  wait(200)
+  ids = send_job_ids()
+  lu.assertEquals(#ids, 2, 'one retry started')
+  -- Retry also fails -> final error recorded, no third attempt
+  job.emit_stdout(ids[2], { '{"ret":5,"errcode":1,"errmsg":"still nope"}' })
+  wait(200)
+  lu.assertEquals(#send_job_ids(), 2, 'only one retry, no third attempt')
+end
+
+function TestWeixinIntegration:test_send_message_session_expired_no_retry()
+  setup_inbound(self)
+  self.wx.send_message('boom')
+  wait(100)
+  local ids = send_job_ids()
+  lu.assertEquals(#ids, 1)
+  job.emit_stdout(ids[1], { '{"ret":-14}' })
+  wait(200)
+  lu.assertEquals(#send_job_ids(), 1, 'session expiry is not retried')
+  local Api = require('chat.integrations.weixin.api')
+  lu.assertFalse(Api.is_configured(), 'credentials cleared after expiry')
 end
 
 function TestWeixinIntegration:test_send_message_session_expired()
