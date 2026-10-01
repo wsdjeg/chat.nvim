@@ -34,6 +34,25 @@ function TestFormatter:test_user_message()
   lu.assertEquals(lines[#lines], '')
 end
 
+function TestFormatter:test_custom_names()
+  -- custom display names from the `names` config
+  local saved = config.config.names
+  config.config.names = { bot = 'Nova', user = 'Tester' }
+  local user_lines = formatter.generate_message({
+    role = 'user',
+    content = 'hi',
+    created = os.time(),
+  })
+  lu.assertStrContains(user_lines[1], '👤 Tester: hi')
+  local bot_lines = formatter.generate_message({
+    role = 'assistant',
+    content = 'hello',
+    created = os.time(),
+  })
+  lu.assertStrContains(bot_lines[1], '🤖 Nova:')
+  config.config.names = saved
+end
+
 function TestFormatter:test_assistant_message()
   local lines = formatter.generate_message({
     role = 'assistant',

@@ -15,6 +15,7 @@ local M = {}
 ---@field http? table
 ---@field allowed_path? string | string[]
 ---@field strftime? string
+---@field names? { bot?: string, user?: string }
 ---@field system_prompt? string | function
 ---@field context? table
 ---@field storage_dir? string Base storage directory for all persistent data
@@ -55,6 +56,13 @@ local default = {
   -- default allowed_path is empty string, which means no files is allowed.
   allowed_path = '',
   strftime = '%m-%d %H:%M:%S',
+  -- Custom role display names shown before the colon in the chat window
+  names = {
+    -- Display name for the AI assistant (e.g. '🤖 Bot: ...')
+    bot = 'Bot',
+    -- Display name for the user (e.g. '👤 You: ...')
+    user = 'You',
+  },
   system_prompt = '',
   context = {
     enable = true,
@@ -150,7 +158,7 @@ function M.setup(opt)
   then
     require('chat.log').error(
       'system_prompt must be string or function, got '
-      .. type(opt.system_prompt)
+        .. type(opt.system_prompt)
     )
     return
   end

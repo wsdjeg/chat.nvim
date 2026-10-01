@@ -100,6 +100,11 @@ require('chat').setup({
   model = 'deepseek-v4-flash',
   -- time display format
   strftime = '%m-%d %H:%M:%S',
+  -- display names for the AI and user in the chat window
+  names = {
+    bot = 'Bot',
+    user = 'You',
+  },
   -- enable RenderMarkdown for result buffer
   render_markdown = true,
   -- default system prompt

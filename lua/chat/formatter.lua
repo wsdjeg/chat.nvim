@@ -5,7 +5,16 @@ local tools = require('chat.tools')
 local sessions = require('chat.sessions')
 local util = require('chat.util')
 
+--- Build role labels from the `names` config (emoji + name + colon)
+---@return string bot_label label for assistant messages, e.g. '🤖 Bot:'
+---@return string user_label label for user messages, e.g. '👤 You:'
+local function role_labels()
+  local names = config.config.names or {}
+  return '🤖 ' .. (names.bot or 'Bot') .. ':', '👤 ' .. (names.user or 'You') .. ':'
+end
+
 function M.generate_message(message, session)
+  local bot_label, user_label = role_labels()
   if message.role == 'assistant' and message.tool_calls then
     local msg = {}
     if message.reasoning_content then
@@ -13,7 +22,8 @@ function M.generate_message(message, session)
         msg,
         '['
           .. os.date(config.config.strftime, message.created)
-          .. '] 🤖 Bot:'
+          .. '] '
+          .. bot_label
           .. ((message.reasoning_content and ' thinking ...') or '')
       )
       table.insert(msg, '')
@@ -36,8 +46,9 @@ function M.generate_message(message, session)
         goto continue
       end
       local base = string.format(
-        '[%s] 🤖 Bot: 🔧 Executing tool: ',
-        os.date(config.config.strftime, message.created)
+        '[%s] %s 🔧 Executing tool: ',
+        os.date(config.config.strftime, message.created),
+        bot_label
       )
       local tool_info = vim.split(
         tools.info(tool_call, { cwd = sessions.getcwd(session) }),
@@ -57,7 +68,8 @@ function M.generate_message(message, session)
     local msg = {
       '['
         .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:'
+        .. '] '
+        .. bot_label
         .. ((message.reasoning_content and ' thinking ...') or ''),
       '',
     }
@@ -79,7 +91,9 @@ function M.generate_message(message, session)
     local msg = {
       '['
         .. os.date(config.config.strftime, message.created)
-        .. '] 👤 You: '
+        .. '] '
+        .. user_label
+        .. ' '
         .. content[1],
     }
     if #content > 1 then
@@ -107,8 +121,9 @@ function M.generate_message(message, session)
     else
       local lines = {
         string.format(
-          '[%s] 🤖 Bot: ✅ Tool execution complete: %s',
+          '[%s] %s ✅ Tool execution complete: %s',
           os.date(config.config.strftime, message.created),
+          bot_label,
           (message.tool_call_state and message.tool_call_state.name) or ''
         ),
         '',
@@ -142,7 +157,8 @@ function M.generate_message(message, session)
     return {
       '['
         .. os.date(config.config.strftime, message.created)
-        .. '] 🤖 Bot:'
+        .. '] '
+        .. bot_label
         .. complete_str,
       '',
     }
