@@ -16,8 +16,19 @@ function TestFfmpeg:setUp()
 end
 
 function TestFfmpeg:tearDown()
-  if self.test_dir and vim.fn.isdirectory(self.test_dir) == 1 then
+  if not self.test_dir or vim.fn.isdirectory(self.test_dir) == 0 then
+    return
+  end
+
+  -- Async ffmpeg jobs (job passthrough mode) may still be running when the
+  -- test finishes and can recreate output files after deletion. Retry the
+  -- deletion until in-flight processes exit.
+  for _ = 1, 10 do
     vim.fn.delete(self.test_dir, 'rf')
+    if vim.fn.isdirectory(self.test_dir) == 0 then
+      return
+    end
+    vim.wait(100)
   end
 end
 

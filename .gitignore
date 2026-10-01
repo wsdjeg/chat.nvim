@@ -7,3 +7,5 @@ test/junit_output.xml
 D:
 
 .junit/
+test_temp_ffmpeg/
+
