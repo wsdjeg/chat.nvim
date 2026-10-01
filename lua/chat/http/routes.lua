@@ -27,7 +27,7 @@ local function build_session_info(id, data)
       if msg.role == 'user' then
         title = msg.content or ''
         if #title > 50 then
-          title = title:sub(1, 50) .. '...'
+          title = util.utf8_truncate(title, 50) .. '...'
         end
         break
       end
@@ -38,7 +38,7 @@ local function build_session_info(id, data)
     local last = messages[message_count]
     local content = last.content or ''
     if #content > 100 then
-      content = content:sub(1, 100) .. '...'
+      content = util.utf8_truncate(content, 100) .. '...'
     end
     last_message = {
       role = last.role,
