@@ -256,10 +256,26 @@ function TestPreview:test_generate_html_message_roles()
       { role = nil, created = os.time() },
     },
   })
-  lu.assertStrContains(html, '👤 user')
-  lu.assertStrContains(html, '🤖 assistant')
+  lu.assertStrContains(html, '👤 You')
+  lu.assertStrContains(html, '🤖 Bot')
   lu.assertStrContains(html, '🔧 tool')
   lu.assertStrContains(html, 'role-unknown')
+end
+
+function TestPreview:test_generate_html_custom_names()
+  -- HTML preview uses the same `names` config as the chat window
+  local saved = config.config.names
+  config.config.names = { bot = 'Nova', user = 'Tester' }
+  local html = preview.generate_html({
+    id = 's',
+    messages = {
+      { role = 'user', content = 'hi', created = os.time() },
+      { role = 'assistant', content = 'hello', created = os.time() },
+    },
+  })
+  lu.assertStrContains(html, '👤 Tester')
+  lu.assertStrContains(html, '🤖 Nova')
+  config.config.names = saved
 end
 
 function TestPreview:test_generate_html_reasoning_and_tools()

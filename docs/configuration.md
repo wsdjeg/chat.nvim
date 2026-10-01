@@ -31,7 +31,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `provider`        | string             | `'deepseek'`                                                    | Default AI provider                                                        |
 | `model`           | string             | `'deepseek-v4-flash'`                                          | Default AI model                                                           |
 | `strftime`        | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
-| `names`            | table              | `{bot = 'Bot', user = 'You'}`                                   | Display names for the AI and user shown before the colon in the chat window |
+| `names`            | table              | `{bot = 'Bot', user = 'You'}`                                   | Display names for the AI and user, shown before the colon in the chat window and on role badges in the HTML preview |
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt`   | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
 | `storage_dir`     | string             | `stdpath('data') .. '/chat.nvim/'`                             | Base storage directory for all persistent data (sessions, plans, scheduler, etc.) |
@@ -483,7 +483,8 @@ require('chat').setup({
   -- Time format
   strftime = '%Y-%m-%d %H:%M',
 
-  -- Display names for the AI and user in the chat window
+  -- Display names for the AI and user, used in the chat window
+  -- and on role badges in the HTML preview
   names = {
     bot = 'Bot',
     user = 'You',

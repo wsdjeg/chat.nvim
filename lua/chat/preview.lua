@@ -212,9 +212,17 @@ local function generate_message(msg)
   local html = '<div class="message">'
 
   -- Message header
+  local names = config.config.names or {}
   local role_emoji = msg.role == 'user' and '👤'
     or (msg.role == 'assistant' and '🤖' or '🔧')
   local role_class = 'role-' .. (msg.role or 'unknown')
+  -- display name: use configured names for user/assistant, raw role otherwise
+  local role_name = msg.role or 'unknown'
+  if msg.role == 'user' then
+    role_name = names.user or 'You'
+  elseif msg.role == 'assistant' then
+    role_name = names.bot or 'Bot'
+  end
 
   html = html
     .. '<div class="message-header">'
@@ -226,7 +234,7 @@ local function generate_message(msg)
       '<span class="role-badge %s">%s %s</span>',
       role_class,
       role_emoji,
-      escape_html(msg.role or 'unknown')
+      escape_html(role_name)
     )
     .. '</div>'
 

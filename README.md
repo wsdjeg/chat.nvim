@@ -100,7 +100,8 @@ require('chat').setup({
   model = 'deepseek-v4-flash',
   -- time display format
   strftime = '%m-%d %H:%M:%S',
-  -- display names for the AI and user in the chat window
+  -- display names for the AI and user, used in the chat window
+  -- and on role badges in the HTML preview
   names = {
     bot = 'Bot',
     user = 'You',
