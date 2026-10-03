@@ -289,7 +289,11 @@ end
 
 --- POST /session/new: create new session
 local function handle_new_session(client, body, content_length)
-  local new_id = sessions.new()
+  local new_id, err = sessions.new()
+  if not new_id then
+    response.send_json(client, 409, { error = err or 'Failed to create session' })
+    return
+  end
 
   -- Parse optional body for provider and model
   if content_length and content_length > 0 then
@@ -673,9 +677,9 @@ local function handle_retry_session(client, path)
     return
   end
 
-  local ok, err = sessions.retry(session_id)
-  if not ok then
-    response.send_json(client, 400, { error = err or 'Retry failed' })
+  local jobid = sessions.retry(session_id)
+  if not jobid then
+    response.send_json(client, 400, { error = 'Retry failed' })
     return
   end
 

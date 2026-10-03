@@ -157,7 +157,11 @@ M._builtin_new = {
   handler = function(_, _)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
-    local new_id = sessions.new()
+    local new_id, err = sessions.new()
+    if not new_id then
+      log.notify(err or '创建会话失败', 'ErrorMsg')
+      return err
+    end
     windows.open({ session = new_id })
     return 'New session: ' .. new_id
   end,

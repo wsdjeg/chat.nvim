@@ -24,6 +24,8 @@ function TestFindTool:setUp()
       essential = { 'get_time' },
     },
   })
+  -- 隔离会话缓存，避免同秒 new() 冲突（#7）
+  require('chat.sessions').set_cache_dir(self.tmp .. 'sessions/')
   tools.clear_activated_tools(SID)
 end
 

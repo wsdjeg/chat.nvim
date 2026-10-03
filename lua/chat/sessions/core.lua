@@ -46,10 +46,23 @@ end
 
 --- Creates a new session with default configuration
 --- Session ID is generated from current timestamp
---- @return string The newly created session ID
+--- @return string|nil id The newly created session ID, nil on collision
+--- @return string|nil err Error message if ID collides within the same second
 function M.new()
   local NOTE_ID_STRFTIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
   local id = os.date(NOTE_ID_STRFTIME_FORMAT, os.time())
+
+  -- 确保缓存已加载，避免同秒冲突检测遗漏磁盘上的历史会话
+  if vim.tbl_isempty(storage.sessions) then
+    for _ in require('chat.sessions.storage').iter_sessions() do
+    end
+  end
+
+  -- 同秒内重复创建会静默覆盖已存在的会话，检测并拒绝
+  if storage.sessions[id] then
+    return nil, '创建会话过于频繁，请稍后重试'
+  end
+
   local config = require('chat.config')
   storage.sessions[id] = {
     id = id,
@@ -109,7 +122,7 @@ function M.delete(session_id)
     table.sort(s)
 
     if #s == 0 then
-      return M.new()
+      return (M.new())
     else
       return s[1]
     end
@@ -225,6 +238,9 @@ end
 --- @param session_id string The session identifier
 --- @return string|nil The provider name if session exists
 function M.get_session_provider(session_id)
+  if not storage.sessions[session_id] then
+    return nil
+  end
   return storage.sessions[session_id].provider
 end
 
@@ -234,6 +250,9 @@ end
 --- @param provider string The provider name to set
 --- @return boolean|nil True if set successfully, nil if session is in progress
 function M.set_session_provider(session_id, provider)
+  if not storage.sessions[session_id] then
+    return false
+  end
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
     log.notify(
@@ -250,6 +269,9 @@ end
 --- @param session_id string The session identifier
 --- @return string|nil The model name if session exists
 function M.get_session_model(session_id)
+  if not storage.sessions[session_id] then
+    return nil
+  end
   return storage.sessions[session_id].model
 end
 
@@ -259,6 +281,9 @@ end
 --- @param session_id string The session identifier
 --- @param model string The model name to set
 function M.set_session_model(session_id, model)
+  if not storage.sessions[session_id] then
+    return false
+  end
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
     log.notify(
@@ -278,7 +303,10 @@ end
 --- @param session_id string The session identifier
 --- @return string|nil The working directory path
 function M.getcwd(session_id)
-  if storage.sessions[session_id] and not storage.sessions[session_id].cwd then
+  if not storage.sessions[session_id] then
+    return nil
+  end
+  if not storage.sessions[session_id].cwd then
     storage.sessions[session_id].cwd = vim.fs.normalize(vim.fn.getcwd())
   end
   return storage.sessions[session_id].cwd
@@ -289,6 +317,9 @@ end
 --- @param session_id string The session identifier
 --- @param cwd string The new working directory path
 function M.change_cwd(session_id, cwd)
+  if not storage.sessions[session_id] then
+    return
+  end
   local windows = require('chat.windows')
   storage.sessions[session_id].cwd = cwd
   if session_id == windows.current_session() then

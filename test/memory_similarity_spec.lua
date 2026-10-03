@@ -144,5 +144,20 @@ function TestMemorySimilarity:testWorkingUsesSharedSimilarity()
   lu.assertEquals(working.text_similarity('vim', 'I use vim'), 0.8)
 end
 
+-- === _split_words (unigram 切分 / #6) ===
+
+function TestMemorySimilarity:testSplitWordsCjkUnigram()
+  local words = similarity._split_words('编辑器 配置')
+  lu.assertTrue(words['编'] ~= nil)
+  lu.assertTrue(words['辑'] ~= nil)
+  lu.assertTrue(words['器'] ~= nil)
+  lu.assertTrue(words['配'] ~= nil)
+  lu.assertTrue(words['置'] ~= nil)
+
+  local eng = similarity._split_words('Neovim Plugin')
+  lu.assertTrue(eng['neovim'] ~= nil)
+  lu.assertTrue(eng['plugin'] ~= nil)
+end
+
 return TestMemorySimilarity
 

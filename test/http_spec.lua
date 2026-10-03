@@ -64,6 +64,13 @@ function TestHTTP:setUp()
 
   -- Create a test session
   self.test_session_id = sessions.new()
+  -- 释放「当前秒」id，避免测试内新建会话触发 #7 同秒冲突
+  local storage = require('chat.sessions.storage')
+  local sid = 'http-' .. self.test_session_id .. '-' .. math.random(100000, 999999)
+  storage.sessions[sid] = storage.sessions[self.test_session_id]
+  storage.sessions[sid].id = sid
+  storage.sessions[self.test_session_id] = nil
+  self.test_session_id = sid
 end
 
 function TestHTTP:tearDown()

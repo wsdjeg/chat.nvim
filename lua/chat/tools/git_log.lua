@@ -27,24 +27,7 @@ end
 ---@param ctx ChatToolContext
 function M.git_log(action, ctx)
   -- Security check for ctx.cwd
-  local is_allowed_path = false
-  local allowed_path = config.config.allowed_path
-
-  if type(allowed_path) == 'table' then
-    ---@cast allowed_path string[]
-    for _, v in ipairs(allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
-          is_allowed_path = true
-          break
-        end
-      end
-    end
-  elseif type(allowed_path) == 'string' and #allowed_path > 0 then
-    is_allowed_path = vim.startswith(ctx.cwd, vim.fs.normalize(allowed_path))
-  end
-
-  if not is_allowed_path then
+  if not util.is_allowed_path(ctx.cwd) then
     return {
       error = 'Cannot run git log in non-allowed path.',
     }

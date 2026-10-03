@@ -389,5 +389,53 @@ function TestSessions:testAppendMessageWithErrorOnlyFields()
   lu.assertNil(messages[1].content)
 end
 
+-- ─── nil 守卫（#5）────────────────────────────────────
+
+function TestSessions:testGetSessionProviderNonexistent()
+  lu.assertNil(sessions.get_session_provider('no-such-session'))
+end
+
+function TestSessions:testSetSessionProviderNonexistent()
+  lu.assertFalse(sessions.set_session_provider('no-such-session', 'openai'))
+end
+
+function TestSessions:testGetSessionModelNonexistent()
+  lu.assertNil(sessions.get_session_model('no-such-session'))
+end
+
+function TestSessions:testSetSessionModelNonexistent()
+  lu.assertFalse(sessions.set_session_model('no-such-session', 'gpt-4'))
+end
+
+function TestSessions:testGetcwdNonexistent()
+  lu.assertNil(sessions.getcwd('no-such-session'))
+end
+
+function TestSessions:testChangeCwdNonexistent()
+  sessions.change_cwd('no-such-session', '/tmp/whatever')
+  lu.assertTrue(true)
+end
+
+-- ─── 同秒冲突（#7）─────────────────────────────────────
+
+function TestSessions:testNewSessionSameSecondCollision()
+  local id = os.date('%Y-%m-%d-%H-%M-%S', os.time())
+  local storage = require('chat.sessions.storage')
+  storage.sessions[id] = {
+    id = id,
+    messages = { { role = 'user', content = 'original', created = os.time() } },
+    provider = 'test',
+    model = 'test',
+    cwd = vim.fn.getcwd(),
+  }
+
+  local new_id, err = sessions.new()
+  lu.assertNil(new_id)
+  lu.assertNotNil(err)
+
+  -- 原会话未被静默覆盖
+  lu.assertEquals(storage.sessions[id].messages[1].content, 'original')
+end
+
 return TestSessions
 

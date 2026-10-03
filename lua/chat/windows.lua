@@ -197,6 +197,10 @@ function M.open(opt)
 
   -- Initialize or restore session (handles externally deleted sessions)
   ensure_session()
+  if not current_session then
+    log.notify('创建会话过于频繁，请稍后重试', 'ErrorMsg')
+    return
+  end
 
   -- Handle cwd option
   if opt and opt.cwd then

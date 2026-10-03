@@ -111,26 +111,36 @@ local function is_session_busy(session_id)
   return sessions.is_in_progress(session_id)
 end
 
+--- 计算任务下次触发的延迟毫秒数（纯函数，无副作用，导出供测试）。
+--- 周期性任务若已错过当期触发点（如 skip_if_busy 跳过、重启后过期），
+--- 会把触发点对齐到下一个未来周期，避免 0ms 忙循环。
+---@param task ScheduledTask
+---@param now_sec number 当前时间（秒，os.time 尺度）
+---@return number|nil delay_ms 延迟毫秒数；无 trigger_at/interval 时返回 nil
+local function compute_delay_ms(task, now_sec)
+  if task.trigger_at then
+    local delay = (task.trigger_at - now_sec) * 1000
+    return delay < 0 and 0 or delay
+  elseif task.interval then
+    local next_fire = task.created + (task.executed_count + 1) * task.interval
+    if next_fire <= now_sec then
+      -- 错过当期，对齐到下一个未来周期
+      local periods = math.floor((now_sec - task.created) / task.interval) + 1
+      next_fire = task.created + periods * task.interval
+    end
+    return (next_fire - now_sec) * 1000
+  else
+    return nil
+  end
+end
+M._compute_delay_ms = compute_delay_ms
+
 --- 为任务设置 timer
 local function arm_task(task)
   clear_timer(task)
 
-  local delay_ms
-
-  if task.trigger_at then
-    -- 一次性任务：计算距离触发时间的毫秒数
-    local now_ms = uv.now()
-    local trigger_ms = (task.trigger_at - os.time()) * 1000 + now_ms
-    delay_ms = trigger_ms - now_ms
-    if delay_ms < 0 then
-      delay_ms = 0 -- 立即触发
-    end
-  elseif task.interval then
-    -- 周期性任务：基于创建时间和已执行次数计算下次触发
-    local now = os.time()
-    local next_fire = task.created + (task.executed_count + 1) * task.interval
-    delay_ms = math.max(0, (next_fire - now) * 1000)
-  else
+  local delay_ms = compute_delay_ms(task, os.time())
+  if not delay_ms then
     log.error('Task ' .. task.id .. ' has no trigger_at or interval')
     return
   end

@@ -749,6 +749,7 @@ function TestNudge:setUp()
     end,
   }
   local sessions = require('chat.sessions')
+  sessions.set_cache_dir(vim.fn.tempname() .. '_nudge_sessions/')
   self.sessions = sessions
   self.sessions_module = real_sessions
 end

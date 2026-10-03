@@ -93,6 +93,13 @@ function TestHTTPRoutes:setUp()
   }
 
   self.sid = sessions.new()
+  -- 释放「当前秒」id，避免测试内新建会话触发 #7 同秒冲突
+  local storage = require('chat.sessions.storage')
+  local sid = 'routes-' .. self.sid .. '-' .. math.random(100000, 999999)
+  storage.sessions[sid] = storage.sessions[self.sid]
+  storage.sessions[sid].id = sid
+  storage.sessions[self.sid] = nil
+  self.sid = sid
 end
 
 function TestHTTPRoutes:tearDown()

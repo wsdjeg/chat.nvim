@@ -1,12 +1,13 @@
 -- lua/chat/memory/similarity.lua
 -- Shared text similarity calculation for all memory modules.
--- Supports English words, Chinese bigrams, substring matching,
+-- Supports English words, CJK character unigrams, substring matching,
 -- and Levenshtein distance as a fallback for fuzzy matching.
 
 local M = {}
 
 ---Split text into word tokens (set).
----Supports English words and Chinese character bigrams.
+---English words are split on word boundaries; non-ASCII characters
+---(e.g. Chinese) are split into per-character tokens (unigram).
 ---@param text string
 ---@return table<string, boolean>
 local function split_words(text)
@@ -15,20 +16,29 @@ local function split_words(text)
   for word in text:gmatch('%w+') do
     words[word:lower()] = true
   end
-  -- Chinese characters (simple bigram)
+  -- 非 ASCII 字符：按单个 UTF-8 字符拆分为 token（中文单字等）
   local i = 1
-  while i <= #text do
+  local n = #text
+  while i <= n do
     local byte = text:byte(i)
-    if byte >= 0xE4 and byte <= 0xE9 then
-      local gram = text:sub(i, i + 2)
-      words[gram] = true
-      i = i + 3
+    local len
+    if byte < 0x80 then
+      len = 1
+    elseif byte < 0xE0 then
+      len = 2
+    elseif byte < 0xF0 then
+      len = 3
     else
-      i = i + 1
+      len = 4
     end
+    if len > 1 then
+      words[text:sub(i, i + len - 1)] = true
+    end
+    i = i + len
   end
   return words
 end
+M._split_words = split_words
 
 ---Calculate Levenshtein distance between two strings.
 ---@param s1 string

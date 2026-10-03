@@ -433,5 +433,28 @@ function TestUtil:testIsAllowedPathBlocksGitWithRelativePath()
   TestUtil:tearDownIsAllowedPath()
 end
 
+function TestUtil:testIsAllowedPathDirectoryBoundary()
+  TestUtil:setUpIsAllowedPath()
+  -- 精确匹配 allowed_path 本身
+  lu.assertTrue(util.is_allowed_path('/project'))
+  -- 子目录应允许
+  lu.assertTrue(util.is_allowed_path('/project/src/main.lua'))
+  -- 前缀相同但非子目录（/project2）应拒绝，防止目录逃逸
+  -- （旧的手写 vim.startswith 简版会误判为允许）
+  lu.assertFalse(util.is_allowed_path('/project2'))
+  lu.assertFalse(util.is_allowed_path('/project2/src/main.lua'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testIsAllowedPathArrayDirectoryBoundary()
+  TestUtil:setUpIsAllowedPath()
+  config.setup({ allowed_path = { '/project', '/other' } })
+  lu.assertTrue(util.is_allowed_path('/project/src'))
+  lu.assertTrue(util.is_allowed_path('/other/subdir'))
+  lu.assertFalse(util.is_allowed_path('/project2/src'))
+  lu.assertFalse(util.is_allowed_path('/other2/subdir'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
 return TestUtil
 

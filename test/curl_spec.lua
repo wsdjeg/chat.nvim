@@ -14,6 +14,14 @@ function TestCurl:test_get_error_message()
   lu.assertNil(curl.get_error_message(999))
 end
 
+function TestCurl:test_error_codes_used_by_protocols()
+  -- anthropic/gemini 之前各自维护本地 CURL_ERRORS 表，
+  -- 现已统一委托 curl.get_error_message。确保所有依赖的错误码都有映射。
+  for _, code in ipairs({ 6, 7, 22, 28, 35, 52, 56 }) do
+    lu.assertNotNil(curl.get_error_message(code), 'missing mapping for curl code ' .. code)
+  end
+end
+
 function TestCurl:test_is_retryable_error()
   lu.assertTrue(curl.is_retryable_error(6))
   lu.assertTrue(curl.is_retryable_error(7))

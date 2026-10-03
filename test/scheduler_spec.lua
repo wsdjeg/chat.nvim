@@ -423,5 +423,51 @@ function TestScheduler:testGenerateIdIsUnique()
   end
 end
 
+-- ── _compute_delay_ms (delay 计算 / skip 忙循环修复) ──────
+
+function TestScheduler:testComputeDelayOneShot()
+  local now = os.time()
+  local task = { trigger_at = now + 3600 }
+  lu.assertEquals(scheduler._compute_delay_ms(task, now), 3600 * 1000)
+end
+
+function TestScheduler:testComputeDelayOneShotPast()
+  local now = os.time()
+  local task = { trigger_at = now - 100 }
+  lu.assertEquals(scheduler._compute_delay_ms(task, now), 0)
+end
+
+function TestScheduler:testComputeDelayPeriodicNormal()
+  local now = os.time()
+  local task = { created = now, interval = 3600, executed_count = 0 }
+  lu.assertEquals(scheduler._compute_delay_ms(task, now), 3600 * 1000)
+end
+
+function TestScheduler:testComputeDelayPeriodicOverdueAlignsToFuture()
+  local now = os.time()
+  -- 任务 1 小时前创建，周期 60s；首个触发点早已错过。
+  -- 应对齐到 now 之后的第一个周期边界（60s 后），而非 0ms 忙循环。
+  local task = { created = now - 3600, interval = 60, executed_count = 0 }
+  lu.assertEquals(scheduler._compute_delay_ms(task, now), 60 * 1000)
+end
+
+function TestScheduler:testComputeDelaySkipIfBusyDoesNotSpin()
+  local created = os.time()
+  -- 模拟：任务在 created+60 时应触发但 session 忙被 skip，
+  -- 此刻时间已到 created+60，重新 arm 应推迟到下一个周期而非 0。
+  local task = {
+    created = created,
+    interval = 60,
+    executed_count = 0,
+    skip_if_busy = true,
+  }
+  lu.assertEquals(scheduler._compute_delay_ms(task, created + 60), 60 * 1000)
+end
+
+function TestScheduler:testComputeDelayNoTriggerOrInterval()
+  local task = { created = os.time(), executed_count = 0 }
+  lu.assertNil(scheduler._compute_delay_ms(task, os.time()))
+end
+
 return TestScheduler
 

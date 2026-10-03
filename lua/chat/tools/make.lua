@@ -69,26 +69,7 @@ end
 ---@param ctx ChatToolContext
 function M.make(action, ctx)
   -- Security check for ctx.cwd
-  local is_allowed_path = false
-
-  if type(config.config.allowed_path) == 'table' then
-    for _, v in ipairs(config.config.allowed_path) do
-      if type(v) == 'string' and #v > 0 then
-        if vim.startswith(ctx.cwd, vim.fs.normalize(v)) then
-          is_allowed_path = true
-          break
-        end
-      end
-    end
-  elseif
-    type(config.config.allowed_path) == 'string'
-    and #config.config.allowed_path > 0
-  then
-    is_allowed_path =
-      vim.startswith(ctx.cwd, vim.fs.normalize(config.config.allowed_path))
-  end
-
-  if not is_allowed_path then
+  if not util.is_allowed_path(ctx.cwd) then
     return {
       error = 'Cannot run make in non-allowed path.',
     }
@@ -125,7 +106,9 @@ function M.make(action, ctx)
   local work_dir = ctx.cwd
   if action.directory and type(action.directory) == 'string' then
     work_dir = util.resolve(action.directory, ctx.cwd)
-    if not vim.startswith(vim.fs.normalize(work_dir), vim.fs.normalize(ctx.cwd)) then
+    local norm_work = vim.fs.normalize(work_dir)
+    local norm_cwd = vim.fs.normalize(ctx.cwd)
+    if norm_work ~= norm_cwd and not vim.startswith(norm_work, norm_cwd .. '/') then
       return {
         error = 'Cannot access directory outside working directory.',
       }

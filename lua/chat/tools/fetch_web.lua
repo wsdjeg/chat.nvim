@@ -91,26 +91,7 @@ function M.fetch_web(action, ctx)
   if action.output then
     output_path = util.resolve(action.output, ctx.cwd)
 
-    local is_allowed_path = false
-
-    if type(config.config.allowed_path) == 'table' then
-      for _, v in ipairs(config.config.allowed_path) do
-        if type(v) == 'string' and #v > 0 then
-          if vim.startswith(output_path, vim.fs.normalize(v)) then
-            is_allowed_path = true
-            break
-          end
-        end
-      end
-    elseif
-      type(config.config.allowed_path) == 'string'
-      and #config.config.allowed_path > 0
-    then
-      is_allowed_path =
-        vim.startswith(output_path, vim.fs.normalize(config.config.allowed_path))
-    end
-
-    if not is_allowed_path then
+    if not util.is_allowed_path(output_path) then
       return {
         error = 'output file path is not allowed path',
       }

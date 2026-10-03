@@ -138,6 +138,8 @@ end
 --- Build a request through a provider and return (jobid, j, body)
 --- Creates a fresh session per call (request marks session in_progress)
 local function do_request(mod, messages, model)
+  -- 同一秒内多次 new 会冲突（#7），先清空上一轮（同秒）的会话
+  require('chat.sessions.storage').sessions = {}
   local sid = sessions.new()
   sessions.set_session_model(sid, model or 'unit-test-model')
   local provider = require('chat.providers.' .. mod)
