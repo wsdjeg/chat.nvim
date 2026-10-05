@@ -49,6 +49,7 @@ M.delete_message = messages.delete_message
 -- ─── Progress / Streaming ──────────────────────────────────────
 M.on_progress = progress.on_progress
 M.on_progress_done = progress.on_progress_done
+M.on_progress_partial = progress.on_progress_partial
 M.on_progress_exit = progress.on_progress_exit
 M.on_progress_reasoning_content = progress.on_progress_reasoning_content
 M.get_progress_message = progress.get_progress_message

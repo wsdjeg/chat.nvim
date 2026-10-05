@@ -153,6 +153,18 @@ function M.on_exit(id, code, signal)
       sessions.on_complete(session, id)
     elseif reason == 'tool_calls' then
       sessions.on_progress_tool_call_done(id)
+    elseif reason == 'length' then
+      sessions.on_progress_partial(id)
+      local continue = require('chat.sessions.continue')
+      local jobid, hint = continue.continue(session)
+      if not jobid and hint then
+        local message = {
+          error = hint,
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+      end
     end
     sessions.on_progress_exit(id, code, signal)
     if session == require('chat.windows').current_session() then
@@ -190,7 +202,7 @@ function M.on_exit(id, code, signal)
       sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     end
-    if code == 0 and signal == 0 then
+    if code == 0 and signal == 0 and reason ~= 'length' then
       local session_messages = sessions.get_messages(session)
       if #session_messages == 0 or session_messages[#session_messages].error then
         log.error('API error detected, skip sending tool results')

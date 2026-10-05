@@ -395,6 +395,26 @@ The following curl exit codes are considered retryable:
 
 ---
 
+## Auto-Continuation Configuration
+
+When a response is truncated because it hit the model's `max_tokens` limit (finish reason `length`), chat.nvim can automatically continue it instead of losing the tail.
+
+```lua
+continuation = {
+  enable = true,           -- Enable automatic continuation (default: true)
+  max_continuations = 3,   -- Max continuation requests per response (default: 3)
+}
+```
+
+### How It Works
+
+- The truncated output is kept as an assistant message and the request is re-sent **directly** (no synthetic user message), so the model resumes from where it stopped.
+- Fragments from repeated continuations are merged into a single assistant message (required by Anthropic's strict user/assistant role alternation).
+- The continuation budget is per-session and resets on a completed response or a new user message.
+- When the budget is exhausted, an `Auto-continue limit reached (N).` notice is appended and the truncated content stays in the history so you can continue manually.
+
+---
+
 ## system_prompt Usage Examples
 
 Here are different ways to use the `system_prompt` option:
@@ -523,6 +543,12 @@ require('chat').setup({
     retry_delay = 2000,
   },
 
+  -- Auto-continuation for responses truncated by max_tokens
+  continuation = {
+    enable = true,
+    max_continuations = 3,
+  },
+
   -- User profile system (人物画像)
   user = {
     enable = true,
@@ -577,6 +603,7 @@ require('chat').setup({
 > 10. **Storage Paths**: All persistent data is stored under `storage_dir` (defaults to `stdpath('data')/chat.nvim/`). Sub-module directories (`memory.storage_dir`, `user.storage_dir`, plans, scheduler) are automatically derived from `storage_dir` unless explicitly overridden. See [Storage Paths](#storage-paths) for the full derivation table.
 > 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir` (auto-derived from `storage_dir` if not set).
 > 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/delete`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
+> 13. **Auto-Continuation**: The `continuation` option configures automatic continuation of responses truncated by `max_tokens` (finish reason `length`). The truncated content is kept as an assistant message and the request is re-sent directly (no synthetic user message) until the response completes or the budget is exhausted.
 
 ---
 

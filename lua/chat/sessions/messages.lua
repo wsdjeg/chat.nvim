@@ -70,6 +70,9 @@ function M.append_message(session_id, message)
   -- Record the time when user sends a message
   if message.role == 'user' then
     storage.sessions[session_id].last_user_message_time = os.time()
+    -- A new user turn breaks any auto-continuation chain from a previous
+    -- truncated response, so the continuation budget resets.
+    require('chat.sessions.continue').reset(session_id)
   end
 
   table.insert(storage.sessions[session_id].messages, message)

@@ -2,6 +2,7 @@
 local M = {}
 
 local job = require('job')
+local continue = require('chat.sessions.continue')
 
 local progress_reasoning_contents = {} ---@type table<string, string>
 local progress_finish_reasons = {} ---@type table<string, string>
@@ -122,9 +123,58 @@ end
 --- @class ChatProgressDoneOpt
 --- @field tool_calls? ChatToolCall[]
 
+--- Flush the in-flight response (content + reasoning) into an assistant
+--- message. During an active continuation chain the content is appended to the
+--- pending assistant message, so a truncated reply stays a single message.
+--- Returns the target message, or nil if there is nothing to write.
+--- @param session_id string The session identifier
+--- @param opts ChatProgressDoneOpt|nil
+--- @return table|nil
+local function flush_progress(session_id, opts)
+  local has_content = progress_messages[session_id] ~= nil
+
+  local reasoning_content
+  if progress_reasoning_contents[session_id] then
+    reasoning_content = progress_reasoning_contents[session_id]
+    progress_reasoning_contents[session_id] = nil
+  end
+
+  local has_tool_calls = opts and opts.tool_calls and #opts.tool_calls > 0
+  if not has_content and not reasoning_content and not has_tool_calls then
+    return nil
+  end
+
+  local message = continue.get_pending(session_id)
+  if not message then
+    message = {
+      role = 'assistant',
+      created = os.time(),
+    }
+    require('chat.sessions.messages').append_message(session_id, message)
+  end
+
+  if has_content then
+    local content = progress_messages[session_id]
+    progress_messages[session_id] = nil
+    if content and content ~= '' then
+      message.content = (message.content or '') .. content
+    end
+  end
+
+  if reasoning_content and reasoning_content ~= '' then
+    message.reasoning_content = (message.reasoning_content or '')
+      .. reasoning_content
+  end
+
+  if has_tool_calls then
+    message.tool_calls = opts.tool_calls
+  end
+
+  return message
+end
+
 function M.on_progress_done(jobid, opts)
   local session_id = M.get_progress_session(jobid)
-  local has_content = progress_messages[session_id] ~= nil
 
   -- Turn ended (text-only response, no tool calls): no further request will
   -- be sent for this turn, so drop the lazily activated tools. The next turn
@@ -136,44 +186,42 @@ function M.on_progress_done(jobid, opts)
     require('chat.tools').clear_activated_tools(session_id)
   end
 
-  -- Build the message
-  local message = {
-    role = 'assistant',
-    created = os.time(),
-  }
+  local message = flush_progress(session_id, opts)
 
-  -- Handle reasoning_content for both content and tool_calls cases
-  -- DeepSeek thinking mode requires reasoning_content when tool_calls present
-  local reasoning_content
-  if progress_reasoning_contents[session_id] then
-    reasoning_content = progress_reasoning_contents[session_id]
-    progress_reasoning_contents[session_id] = nil
+  -- If this completed a continuation chain, the assistant message was appended
+  -- without content (to avoid pushing partial output to integrations); notify
+  -- integrations of the now-complete content exactly once.
+  if
+    message
+    and continue.get_pending(session_id) == message
+    and message.content
+    and message.content ~= ''
+  then
+    require('chat.integrations').on_response(session_id, message.content)
   end
 
-  if has_content then
-    message.content = progress_messages[session_id]
-    progress_messages[session_id] = nil
-  end
-
-  -- Always include reasoning_content if present (for thinking models like DeepSeek)
-  if reasoning_content then
-    message.reasoning_content = reasoning_content
-  end
-
-  -- Always include tool_calls if provided (handles pure tool_calls case)
-  if opts and opts.tool_calls then
-    message.tool_calls = opts.tool_calls
-  end
-
-  -- Append if we have content, tool_calls, or reasoning_content
-  -- DeepSeek thinking mode requires reasoning_content to be preserved
-  -- even if the content happens to be empty
-  if has_content or reasoning_content or (opts and opts.tool_calls) then
-    require('chat.sessions.messages').append_message(session_id, message)
-  end
+  -- A complete (non-truncated) response closes any continuation chain.
+  continue.reset(session_id)
 
   -- Reset retry count on successful response
   require('chat.sessions.retry').reset_retry_count(session_id)
+
+  require('chat.sessions.storage').write_cache(session_id)
+end
+
+--- Handles a truncated response (finish_reason == "length"). Preserves the
+--- partial output as the trailing assistant message so an auto-continuation
+--- request can resume it directly, without a synthetic user message.
+function M.on_progress_partial(jobid)
+  local session_id = M.get_progress_session(jobid)
+  if not session_id then
+    return
+  end
+
+  local message = flush_progress(session_id, nil)
+  if message then
+    continue.set_pending(session_id, message)
+  end
 
   require('chat.sessions.storage').write_cache(session_id)
 end

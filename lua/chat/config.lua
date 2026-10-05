@@ -26,6 +26,7 @@ local M = {}
 ---@field mcp? table
 ---@field winhighlight? string
 ---@field retry? table
+---@field continuation? table
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
@@ -126,6 +127,16 @@ local default = {
     max_retries = 3,
     -- Delay between retries in milliseconds (default: 2000 = 2 seconds)
     retry_delay = 2000,
+  },
+  -- Auto-continuation for responses truncated by max_tokens
+  -- (finish_reason == "length"). The truncated content is kept as an
+  -- assistant message and the request is re-sent directly (no synthetic user
+  -- message) until the response completes or the budget is exhausted.
+  continuation = {
+    -- Enable automatic continuation of truncated responses.
+    enable = true,
+    -- Maximum number of continuation requests per response (default: 3).
+    max_continuations = 3,
   },
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',

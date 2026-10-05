@@ -134,6 +134,18 @@ function M.on_exit(id, code, signal)
     if reason == 'stop' then
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
+    elseif reason == 'length' then
+      sessions.on_progress_partial(id)
+      local continue = require('chat.sessions.continue')
+      local jobid, hint = continue.continue(session)
+      if not jobid and hint then
+        local message = {
+          error = hint,
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+      end
     end
 
     sessions.on_progress_exit(id, code, signal)
