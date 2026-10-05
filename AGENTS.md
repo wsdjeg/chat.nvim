@@ -36,6 +36,16 @@ Three types, use `@extract_memory` to store and `@recall_memory` to recall:
 7. @git_status                            # Verify workspace is clean after push
 ```
 
+### Modifying the agent prompt file
+
+Any time `AGENTS.md` (or another file loaded as the system prompt) is changed, **always** reload it into the current session with:
+
+```
+@set_prompt filepath="AGENTS.md"
+```
+
+Otherwise the updated instructions have no effect until the session restarts.
+
 ### Git tools: one at a time
 
 Never batch git calls. Send `@git_add`, wait for result, then `@git_commit`, wait, then `@git_push`.
