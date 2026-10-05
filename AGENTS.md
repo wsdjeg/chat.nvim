@@ -149,6 +149,39 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/). Format: `ty
 
 **Rules:** imperative mood, lowercase, no period, under 72 chars. Use `!` for breaking: `refactor!: change API`.
 
+### Commit body (mandatory)
+
+**必须严格遵守。** `feat` / `fix` / `refactor` / `perf` / `security` commits MUST include a body describing what changed and why. A bare subject with no body is **forbidden**.
+
+- `feat`: explain the new functionality, key code changes, config options, and behavior.
+- `fix`: describe the bug, root cause, and how it's fixed.
+- Blank line between subject and body (standard git format).
+- Prefer bullet points (`- `) listing concrete changes, matching existing history.
+
+Example (good):
+
+```
+feat(sessions): auto-continue responses truncated by max_tokens
+
+Auto-continue a response when the model stops early because of
+max_tokens (finish_reason == "length"), merging each continuation
+fragment back into a single in-flight assistant message.
+
+- config: add `continuation = { enable = true, max_continuations = 3 }`
+- sessions/continue.lua: track per-session continuation budget and the
+  in-flight assistant message being extended
+- protocols: trigger continuation on finish_reason "length"
+- test: cover budget exhaustion, fragment merging, and reset behavior
+```
+
+Forbidden:
+
+```
+feat: auto-continue truncated responses
+```
+
+`docs` / `test` / `chore` / `ci` / `style` commits should also add a body when the change is non-trivial.
+
 ---
 
 ## Testing
@@ -267,4 +300,3 @@ chat.nvim/
 ├── AGENTS.md
 └── CHANGELOG.md          # Auto-generated, DO NOT EDIT
 ```
-
