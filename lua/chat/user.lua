@@ -28,12 +28,39 @@ local function sanitize_user_id(user_id)
   return user_id:gsub('[^%w%-_]', '-')
 end
 
---- Get the current user ID from config
---- Returns empty string if not configured (no auto-detection)
+--- Detect the current system username (best effort).
+--- Tries libuv's getpwuid (UNIX only), then environment variables, then `whoami`.
+--- @return string|nil username, nil if it cannot be determined
+function M.get_system_username()
+  -- 1. libuv passwd (returns nil on Windows)
+  local ok, pw = pcall(function()
+    return vim.uv.os_get_passwd()
+  end)
+  if ok and pw and pw.username and #pw.username > 0 then
+    return pw.username
+  end
+  -- 2. environment variables (cross-platform)
+  local name = os.getenv('USER') or os.getenv('USERNAME') or os.getenv('LOGNAME')
+  if name and #name > 0 then
+    return name
+  end
+  -- 3. `whoami` as a last resort
+  local out = vim.trim(vim.fn.system('whoami'))
+  if vim.v.shell_error == 0 and #out > 0 then
+    return out:match('[^\\]+$') or out
+  end
+  return nil
+end
+
+--- Get the current user ID.
+--- Returns the configured id, falling back to the detected system username.
 --- @return string
 function M.get_user_id()
   local cfg = config.config.user or {}
-  return cfg.id or ''
+  if cfg.id and #cfg.id > 0 then
+    return cfg.id
+  end
+  return M.get_system_username() or ''
 end
 
 --- Get the file path for a user profile
@@ -121,8 +148,9 @@ function M.list_profiles()
   return profiles
 end
 
---- Get the user profile as a system message string
---- Returns nil if user profiles are disabled, user ID is empty, or no profile exists
+--- Get the user profile as a system message string.
+--- Returns nil if user profiles are disabled, the effective user ID cannot be
+--- determined, or no profile exists.
 --- @param user_id? string (defaults to current user)
 --- @return string|nil
 function M.get_profile_system_message(user_id)
@@ -146,4 +174,3 @@ function M.get_profile_system_message(user_id)
 end
 
 return M
-

@@ -26,16 +26,32 @@ function TestUser:testGetUserId()
   lu.assertEquals(uid, 'testuser')
 end
 
-function TestUser:testGetUserIdEmpty()
-  config.setup({
-    user = {
-      enable = true,
-      id = '',
-      storage_dir = vim.fn.tempname() .. '_empty/',
-    },
-  })
-  local uid = user.get_user_id()
-  lu.assertEquals(uid, '')
+function TestUser:testGetUserIdAutoDetectFromEnv()
+  local orig_passwd = vim.uv.os_get_passwd
+  vim.uv.os_get_passwd = function()
+    return nil
+  end
+  local orig_user = os.getenv('USER')
+  vim.fn.setenv('USER', 'autouser')
+
+  local ok, err = pcall(function()
+    config.setup({
+      user = {
+        enable = true,
+        id = '',
+        storage_dir = vim.fn.tempname() .. '_auto/',
+      },
+    })
+    lu.assertEquals(user.get_user_id(), 'autouser')
+  end)
+
+  -- restore globals even on assertion failure
+  vim.uv.os_get_passwd = orig_passwd
+  vim.fn.setenv('USER', orig_user or '')
+
+  if not ok then
+    error(err)
+  end
 end
 
 function TestUser:testGetProfilePath()
@@ -126,7 +142,9 @@ function TestUser:testGetProfileSystemMessageNotFound()
   lu.assertNil(msg)
 end
 
-function TestUser:testGetProfileSystemMessageEmptyId()
+-- With an empty configured id, get_profile_system_message falls back to the
+-- detected system username. No profile exists for it, so it returns nil.
+function TestUser:testGetProfileSystemMessageDefaultUserNoProfile()
   config.setup({
     user = {
       enable = true,
@@ -144,4 +162,3 @@ function TestUser:testSaveProfileEmptyId()
 end
 
 return TestUser
-
