@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.11.0](https://github.com/wsdjeg/chat.nvim/compare/v1.10.0...v1.11.0) (2026-10-08)
+
+
+### Features
+
+* add read-only mastodon tool (fetch/search/timeline) ([387f244](https://github.com/wsdjeg/chat.nvim/commit/387f244741c9a84b6ee3ed89441d486494c17384))
+* **file_info:** show octal mode alongside symbolic permissions ([ff940ad](https://github.com/wsdjeg/chat.nvim/commit/ff940ad4b5986c96db569316aa0879caa023323e))
+* **http:** add session message search via GET /messages?q= ([a64bc53](https://github.com/wsdjeg/chat.nvim/commit/a64bc53a7fb4b285c38babb531ee30e05ffb5df8))
+* include real delta content in protocol debug logs ([03f00e3](https://github.com/wsdjeg/chat.nvim/commit/03f00e364dbac09120f03174e231d4f544e652dd))
+* **providers:** update volcengine coding plan model list ([9068da2](https://github.com/wsdjeg/chat.nvim/commit/9068da2d7884424c32adb22d290ef5c37ad7ddf7))
+* **sessions:** auto-continue responses truncated by max_tokens ([f211a37](https://github.com/wsdjeg/chat.nvim/commit/f211a37fbf01a9f244c0e97c218a855e304cb9b3))
+* **tools:** add chmod action to write_file tool ([cb956dd](https://github.com/wsdjeg/chat.nvim/commit/cb956dd94bde6ea8019c3df4898153bebc120eba))
+* **tools:** add send_email tool via system mail command ([a2aa11e](https://github.com/wsdjeg/chat.nvim/commit/a2aa11edfa3a3c2b8d8f73119004e6701768939e))
+* **ui:** add names config for role display names ([8bae9bf](https://github.com/wsdjeg/chat.nvim/commit/8bae9bfcc29d9347d8bad947601ce5025b7e8d58))
+* **ui:** use custom names in HTML preview role badges ([06e37fb](https://github.com/wsdjeg/chat.nvim/commit/06e37fb4bb9f4448384ba567ec45d56c3a6cfb77))
+* **user:** auto-detect system username when id is empty ([e9ba2d9](https://github.com/wsdjeg/chat.nvim/commit/e9ba2d9256e057096d41dfa018701f1ee0f811a5))
+* **volcengine:** update coding plan model list ([e120bb0](https://github.com/wsdjeg/chat.nvim/commit/e120bb0d2f2cef883654198c94d300a787ef22b5))
+* **weixin:** retry failed message sends once before logging error ([f29b1ac](https://github.com/wsdjeg/chat.nvim/commit/f29b1acaed11636fe9849843f7d7c7fa0f5f4e7b))
+
+
+### Bug Fixes
+
+* address code review findings ([025e709](https://github.com/wsdjeg/chat.nvim/commit/025e7094e87379a0551a01e3d4ca8cc1b1640b12))
+* **docs:** add bigdecimal gem for Ruby 3.4 compatibility ([f3818e3](https://github.com/wsdjeg/chat.nvim/commit/f3818e37931b34ade0c2c9cc27ba42b17b262f1a))
+* **docs:** add csv gem for Ruby 3.4 compatibility ([d4a056e](https://github.com/wsdjeg/chat.nvim/commit/d4a056e8298cccbd731935e56d90123512339c5d))
+* **docs:** patch liquid taint_check from Gemfile for ruby 3.2+ ([84b1c10](https://github.com/wsdjeg/chat.nvim/commit/84b1c1059e2c57d0bf1f5af3519f3d752dd8e8ac))
+* **docs:** replace github-pages gem with modern Jekyll 4.4 stack ([07ffa18](https://github.com/wsdjeg/chat.nvim/commit/07ffa181e736c5e29c4c03eb941df2d94203bb93))
+* **docs:** stub liquid taint_check for ruby 3.2+ ([dec7f42](https://github.com/wsdjeg/chat.nvim/commit/dec7f4250ceff03e702305f80e1c77de915afa14))
+* **http:** use UTF-8 safe truncation for session title and message preview ([e95cff8](https://github.com/wsdjeg/chat.nvim/commit/e95cff8ab65fa45b54877c58a311e6258e787e54))
+* **sessions:** log argument decode failures at warn level ([9a46893](https://github.com/wsdjeg/chat.nvim/commit/9a468938881348643dbda4c6bbc88bdcd754cad8))
+
+
+### Code Refactoring
+
+* **http:** decouple message search into dedicated endpoint ([20b1cf8](https://github.com/wsdjeg/chat.nvim/commit/20b1cf8fc9b07b4a8598421d8dd25f34c7aad2f0))
+* **log:** correct log levels across modules to match semantics ([ab576d3](https://github.com/wsdjeg/chat.nvim/commit/ab576d3433f6cf30d3336a2ff97d9635e8d8979b))
+* **providers:** drop deprecated glm-5.2, glm-latest, minimax-m2.7, kimi-k2.6 models ([812ee43](https://github.com/wsdjeg/chat.nvim/commit/812ee4327cf7efc7a182bb8b57de9e5269b3e0fa))
+
+
+### Documentation
+
+* add ideas/ pool with project-scoped tools proposal ([abc6204](https://github.com/wsdjeg/chat.nvim/commit/abc62049b55fb8f005c837aadd916d4750604b45))
+* add MCP 2.0 stateless client design idea ([1ffca6d](https://github.com/wsdjeg/chat.nvim/commit/1ffca6d08a20638192e5504b5388d45bd1dcb486))
+* **agents:** make commit body mandatory ([82fd045](https://github.com/wsdjeg/chat.nvim/commit/82fd04551c8beb5d78286bc3bf6196b69696dafa))
+* **agents:** require set_prompt after modifying agent prompt file ([d2dfd2f](https://github.com/wsdjeg/chat.nvim/commit/d2dfd2fb3d125738da7ae47ab58ed45ce47bedef))
+* **http:** add message search examples to clients ([2bea903](https://github.com/wsdjeg/chat.nvim/commit/2bea903b641e57d0cde4146f433109ef30743365))
+* **ideas:** add finish_reason handling idea ([1578e95](https://github.com/wsdjeg/chat.nvim/commit/1578e9523630f41430d2fa449eb20bcd08e76493))
+* **util:** add doc comment to iso_to_snowflake ([87e578a](https://github.com/wsdjeg/chat.nvim/commit/87e578a6524f86c46d2594c9dd619901246334eb))
+
+
+### Tests
+
+* **ffmpeg:** clean up test temp dir left by async jobs ([0af997c](https://github.com/wsdjeg/chat.nvim/commit/0af997ca062eb1f9dc2f1596371a7052945eabec))
+
 ## [1.10.0](https://github.com/wsdjeg/chat.nvim/compare/v1.9.0...v1.10.0) (2026-09-11)
 
 
