@@ -726,7 +726,8 @@ local function handle_delete_message(client, path)
   response.send_response(client, 204)
 end
 
---- GET /messages?session=session_id&since=index: return message list
+--- GET /messages?session=session_id[&since=index][&q=query]: return message
+--- list, or search results when q= is present.
 local function handle_get_messages(client, path)
   local session_id = path:match('session=([^&]+)')
   if not session_id then
@@ -738,6 +739,21 @@ local function handle_get_messages(client, path)
 
   if not sessions.exists(session_id) then
     response.send_response(client, 404)
+    return
+  end
+
+  -- q= : search messages, returning { total, count, matches } instead of a
+  -- plain message array.
+  local query = path:match('q=([^&]+)')
+  if query then
+    query = url_decode(query)
+    if query == '' then
+      response.send_json(client, 400, { error = 'Missing search query' })
+      return
+    end
+    local result = sessions.search_messages(session_id, query)
+    result.query = query
+    response.send_json(client, 200, result)
     return
   end
 

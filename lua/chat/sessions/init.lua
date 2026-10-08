@@ -43,6 +43,7 @@ M.get_total_tokens = core.get_total_tokens
 -- ─── Messages ──────────────────────────────────────────────────
 M.append_message = messages.append_message
 M.get_messages = messages.get_messages
+M.search_messages = messages.search_messages
 M.get_request_messages = messages.get_request_messages
 M.delete_message = messages.delete_message
 

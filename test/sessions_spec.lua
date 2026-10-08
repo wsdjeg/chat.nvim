@@ -45,6 +45,50 @@ function TestSessions:testGetMessages()
   lu.assertEquals(messages[1].content, 'Hello')
 end
 
+function TestSessions:testSearchMessages()
+  local session_id = sessions.new()
+
+  sessions.append_message(session_id, {
+    role = 'user',
+    content = 'Hello world',
+    created = os.time(),
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'Hi',
+    reasoning_content = 'world is the topic',
+    created = os.time(),
+  })
+
+  local result = sessions.search_messages(session_id, 'world')
+  lu.assertNotNil(result)
+  lu.assertEquals(result.total, 2)
+  lu.assertEquals(result.count, 2)
+  lu.assertEquals(result.matches[1].index, 1)
+  lu.assertEquals(result.matches[1].field, 'content')
+  lu.assertEquals(result.matches[2].index, 2)
+  lu.assertEquals(result.matches[2].field, 'reasoning_content')
+end
+
+function TestSessions:testSearchMessagesNoMatch()
+  local session_id = sessions.new()
+
+  sessions.append_message(session_id, {
+    role = 'user',
+    content = 'hello',
+    created = os.time(),
+  })
+
+  local result = sessions.search_messages(session_id, 'nope')
+  lu.assertEquals(result.total, 1)
+  lu.assertEquals(result.count, 0)
+  lu.assertEquals(#result.matches, 0)
+end
+
+function TestSessions:testSearchMessagesNonExistentSession()
+  lu.assertNil(sessions.search_messages('ghost', 'x'))
+end
+
 function TestSessions:testAppendMessage()
   local session_id = sessions.new()
 
