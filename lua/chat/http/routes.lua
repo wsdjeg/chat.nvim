@@ -726,8 +726,7 @@ local function handle_delete_message(client, path)
   response.send_response(client, 204)
 end
 
---- GET /messages?session=session_id[&since=index][&q=query]: return message
---- list, or search results when q= is present.
+--- GET /messages?session=session_id&since=index: return message list
 local function handle_get_messages(client, path)
   local session_id = path:match('session=([^&]+)')
   if not session_id then
@@ -739,21 +738,6 @@ local function handle_get_messages(client, path)
 
   if not sessions.exists(session_id) then
     response.send_response(client, 404)
-    return
-  end
-
-  -- q= : search messages, returning { total, count, matches } instead of a
-  -- plain message array.
-  local query = path:match('q=([^&]+)')
-  if query then
-    query = url_decode(query)
-    if query == '' then
-      response.send_json(client, 400, { error = 'Missing search query' })
-      return
-    end
-    local result = sessions.search_messages(session_id, query)
-    result.query = query
-    response.send_json(client, 200, result)
     return
   end
 
@@ -771,6 +755,36 @@ local function handle_get_messages(client, path)
   end
 
   response.send_json(client, 200, messages)
+end
+
+--- GET /session/:id/search?q=query: search session messages, returning
+--- { count, indices }.
+local function handle_search(client, path)
+  local session_id, query = path:match('^/session/([^/]+)/search%?(.*)$')
+  if not session_id then
+    response.send_response(client, 400)
+    return
+  end
+
+  session_id = url_decode(session_id)
+
+  if not ensure_session_exists(client, session_id) then
+    return
+  end
+
+  local q = query:match('q=([^&]+)')
+  if not q then
+    response.send_json(client, 400, { error = 'Missing q parameter' })
+    return
+  end
+
+  q = url_decode(q)
+  if q == '' then
+    response.send_json(client, 400, { error = 'Missing search query' })
+    return
+  end
+
+  response.send_json(client, 200, sessions.search_messages(session_id, q))
 end
 
 --- POST /: push message to session (existing behavior)
@@ -1151,6 +1165,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_delete_message(client, path)
   elseif method == 'GET' and path:match('^/messages%?') then
     handle_get_messages(client, path)
+  elseif method == 'GET' and path:match('^/session/[^/]+/search') then
+    handle_search(client, path)
   elseif method == 'POST' and path:match('^/session/[^/]+/upload') then
     handle_upload_file(client, path, headers, body, content_length)
   elseif method == 'GET' and path:match('^/session/[^/]+/bridge$') then

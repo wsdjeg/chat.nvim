@@ -62,12 +62,9 @@ function TestSessions:testSearchMessages()
 
   local result = sessions.search_messages(session_id, 'world')
   lu.assertNotNil(result)
-  lu.assertEquals(result.total, 2)
   lu.assertEquals(result.count, 2)
-  lu.assertEquals(result.matches[1].index, 1)
-  lu.assertEquals(result.matches[1].field, 'content')
-  lu.assertEquals(result.matches[2].index, 2)
-  lu.assertEquals(result.matches[2].field, 'reasoning_content')
+  lu.assertEquals(result.indices[1], 1)
+  lu.assertEquals(result.indices[2], 2)
 end
 
 function TestSessions:testSearchMessagesNoMatch()
@@ -80,9 +77,8 @@ function TestSessions:testSearchMessagesNoMatch()
   })
 
   local result = sessions.search_messages(session_id, 'nope')
-  lu.assertEquals(result.total, 1)
   lu.assertEquals(result.count, 0)
-  lu.assertEquals(#result.matches, 0)
+  lu.assertEquals(#result.indices, 0)
 end
 
 function TestSessions:testSearchMessagesNonExistentSession()

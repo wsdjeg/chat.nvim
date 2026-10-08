@@ -753,50 +753,49 @@ function TestHTTPRoutes:test_search_messages()
     created = os.time(),
   })
   sessions.append_message(self.sid, { role = 'user', content = 'Goodbye', created = os.time() })
-  local _, status, body = req('GET', '/messages?session=' .. self.sid .. '&q=world')
+  local _, status, body = req('GET', '/session/' .. self.sid .. '/search?q=world')
   lu.assertEquals(status, 200)
   local data = vim.json.decode(body)
-  lu.assertEquals(data.total, 3)
   lu.assertEquals(data.count, 2)
-  lu.assertEquals(#data.matches, 2)
-  lu.assertEquals(data.matches[1].index, 1)
-  lu.assertEquals(data.matches[1].field, 'content')
-  lu.assertStrContains(data.matches[1].content, 'world')
-  lu.assertEquals(data.matches[2].index, 2)
-  lu.assertEquals(data.matches[2].field, 'reasoning_content')
-  lu.assertEquals(data.query, 'world')
+  lu.assertEquals(#data.indices, 2)
+  lu.assertEquals(data.indices[1], 1)
+  lu.assertEquals(data.indices[2], 2)
 end
 
 function TestHTTPRoutes:test_search_messages_case_insensitive()
   sessions.append_message(self.sid, { role = 'user', content = 'Hello WORLD', created = os.time() })
-  local _, status, body = req('GET', '/messages?session=' .. self.sid .. '&q=world')
+  local _, status, body = req('GET', '/session/' .. self.sid .. '/search?q=world')
   lu.assertEquals(status, 200)
   local data = vim.json.decode(body)
   lu.assertEquals(data.count, 1)
-  lu.assertEquals(data.matches[1].index, 1)
+  lu.assertEquals(data.indices[1], 1)
 end
 
 function TestHTTPRoutes:test_search_messages_chinese()
   sessions.append_message(self.sid, { role = 'user', content = '你好世界', created = os.time() })
-  local _, status, body = req('GET', '/messages?session=' .. self.sid .. '&q=世界')
+  local _, status, body = req('GET', '/session/' .. self.sid .. '/search?q=世界')
   lu.assertEquals(status, 200)
   local data = vim.json.decode(body)
   lu.assertEquals(data.count, 1)
-  lu.assertEquals(data.matches[1].index, 1)
+  lu.assertEquals(data.indices[1], 1)
 end
 
 function TestHTTPRoutes:test_search_messages_no_match()
   sessions.append_message(self.sid, { role = 'user', content = 'hello', created = os.time() })
-  local _, status, body = req('GET', '/messages?session=' .. self.sid .. '&q=zzz')
+  local _, status, body = req('GET', '/session/' .. self.sid .. '/search?q=zzz')
   lu.assertEquals(status, 200)
   local data = vim.json.decode(body)
-  lu.assertEquals(data.total, 1)
   lu.assertEquals(data.count, 0)
-  lu.assertEquals(#data.matches, 0)
+  lu.assertEquals(#data.indices, 0)
+end
+
+function TestHTTPRoutes:test_search_messages_missing_query()
+  local _, status = req('GET', '/session/' .. self.sid .. '/search')
+  lu.assertEquals(status, 400)
 end
 
 function TestHTTPRoutes:test_search_messages_404()
-  local _, status = req('GET', '/messages?session=ghost&q=hi')
+  local _, status = req('GET', '/session/ghost/search?q=hi')
   lu.assertEquals(status, 404)
 end
 

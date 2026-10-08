@@ -53,7 +53,8 @@ require('chat').setup({
 | `/sessions/{id}/raw` | GET | Get a session's raw cache JSON |
 | `/providers` | GET | List all available providers and their models |
 | `/skills` | GET | List all registered skills (slash commands) |
-| `/messages` | GET | Get messages for a session (or search with `q`) |
+| `/messages` | GET | Get messages for a session |
+| `/session/{id}/search` | GET | Search a session's messages (returns match count and indices) |
 | `/logs` | GET | Get runtime log lines (supports `level`, `name`, `tail` filters) |
 | `/logs` | DELETE | Clear the runtime log |
 | `/session/new` | POST | Create a new session |
@@ -335,7 +336,7 @@ curl -H "X-API-Key: your-secret-key" http://127.0.0.1:7777/skills
 
 ### GET `/messages`
 
-Get the message list for a specific session, with optional pagination. When the `q` parameter is present, the endpoint instead searches the session's messages and returns a search result object.
+Get the message list for a specific session, with optional pagination.
 
 **Query Parameters:**
 
@@ -343,7 +344,6 @@ Get the message list for a specific session, with optional pagination. When the 
 |---|---|---|---|
 | `session` | string | Yes | Session ID |
 | `since` | number | No | Starting index (1-indexed) |
-| `q` | string | No | Search query. When present, returns search results (see below) |
 
 **Response (200 OK):**
 
@@ -390,55 +390,8 @@ Get the message list for a specific session, with optional pagination. When the 
 | Status Code | Description |
 |---|---|
 | 200 | Success |
-| 400 | Missing `session` parameter or empty `q` |
+| 400 | Missing `session` parameter |
 | 404 | Session not found |
-
-**Search Response (200 OK, when `q` is present):**
-
-```json
-{
-  "query": "world",
-  "total": 3,
-  "count": 2,
-  "matches": [
-    {
-      "index": 1,
-      "role": "user",
-      "field": "content",
-      "content": "Hello world",
-      "created": 1705315800
-    },
-    {
-      "index": 2,
-      "role": "assistant",
-      "field": "reasoning_content",
-      "content": "thinking about the world",
-      "created": 1705315801
-    }
-  ]
-}
-```
-
-**Search Response Fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `query` | string | The search query as received |
-| `total` | number | Total number of messages in the session |
-| `count` | number | Number of matching messages |
-| `matches` | array | List of matching messages |
-
-**`matches[]` Object:**
-
-| Field | Type | Description |
-|---|---|---|
-| `index` | number | 1-based position of the message in the session |
-| `role` | string | Message role (`user` / `assistant` / `tool` / `system`) |
-| `field` | string | Which field matched: `content` or `reasoning_content` |
-| `content` | string | Context snippet around the first match (up to ~160 chars, truncated with `…`) |
-| `created` | number\|null | Unix timestamp |
-
-Matching is **case-insensitive** and **literal** (no regex). Only `content` and `reasoning_content` are searched.
 
 **Examples:**
 
@@ -450,9 +403,48 @@ curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00" \
 # Get messages starting from index 5
 curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&since=5" \
   -H "X-API-Key: your-secret-key"
+```
 
-# Search messages for "world" (returns match count and positions)
-curl "http://127.0.0.1:7777/messages?session=2024-01-15-10-30-00&q=world" \
+---
+
+### GET `/session/{id}/search`
+
+Search a session's messages for a literal, case-insensitive substring. Only `content` and `reasoning_content` (for thinking models) are searched. The response is intentionally minimal: the total number of matches and their 1-based message indices — call `GET /messages` separately to fetch the actual messages.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `q` | string | Yes | Search query (literal substring, case-insensitive) |
+
+**Response (200 OK):**
+
+```json
+{
+  "count": 2,
+  "indices": [1, 2]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `count` | number | Total number of matching messages |
+| `indices` | array | 1-based positions of the matching messages |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success |
+| 400 | Missing or empty `q` parameter |
+| 404 | Session not found |
+
+**Example:**
+
+```bash
+curl "http://127.0.0.1:7777/session/2024-01-15-10-30-00/search?q=world" \
   -H "X-API-Key: your-secret-key"
 ```
 

@@ -203,28 +203,15 @@ function M.get_request_messages(session_id)
   return message
 end
 
---- Extract a context snippet around the first match position for hit preview.
---- @param text string
---- @param pos integer 1-based position of the match
---- @return string Snippet with leading/trailing ellipsis when truncated
-local function build_snippet(text, pos)
-  local SNIPPET_LEN = 160
-  local pre = pos > 1 and text:sub(math.max(1, pos - SNIPPET_LEN), pos - 1) or ''
-  local tail = text:sub(pos, pos + SNIPPET_LEN - 1)
-  local prefix = (pos - SNIPPET_LEN > 1) and '…' or ''
-  local suffix = (pos + SNIPPET_LEN - 1 < #text) and '…' or ''
-  return prefix .. pre .. tail .. suffix
-end
-
 --- Search a session's messages for a text query.
 ---
 --- Matches are case-insensitive literal substring matches against `content`
---- and `reasoning_content`. Returns the total message count plus the list of
---- matching messages with their 1-based index and a context snippet.
+--- and `reasoning_content`. Returns the match count plus the 1-based indices
+--- of the matching messages.
 --- @param session_id string The session identifier
 --- @param query string Non-empty search text
---- @return table|nil Result table { total, count, matches } or nil when the
----   session does not exist
+--- @return table|nil Result table { count, indices } or nil when the session
+---   does not exist
 function M.search_messages(session_id, query)
   local session = storage.sessions[session_id]
   if not session then
@@ -234,35 +221,25 @@ function M.search_messages(session_id, query)
   -- Case-insensitive lookup via lowercased copy is byte-length stable for
   -- ASCII and CJK content (the common cases in chat history).
   local q = query:lower()
-  local result = { total = #session.messages, count = 0, matches = {} }
+  local indices = {}
 
   for i, m in ipairs(session.messages) do
-    local hit_field, hit_text, hit_pos = nil, nil, nil
-
+    local matched = false
     for _, field in ipairs({ 'content', 'reasoning_content' }) do
       local v = m[field]
       if type(v) == 'string' and v ~= '' then
-        local pos = v:lower():find(q, 1, true)
-        if pos then
-          hit_field, hit_text, hit_pos = field, v, pos
+        matched = v:lower():find(q, 1, true) ~= nil
+        if matched then
           break
         end
       end
     end
-
-    if hit_field then
-      result.count = result.count + 1
-      table.insert(result.matches, {
-        index = i,
-        role = m.role,
-        field = hit_field,
-        content = build_snippet(hit_text, hit_pos),
-        created = m.created,
-      })
+    if matched then
+      table.insert(indices, i)
     end
   end
 
-  return result
+  return { count = #indices, indices = indices }
 end
 
 return M
