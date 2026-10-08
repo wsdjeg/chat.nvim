@@ -1572,6 +1572,16 @@ def get_messages(session_id: str, since: int = None) -> list:
     return resp.json() if resp.status_code == 200 else []
 
 
+# Search messages
+def search_messages(session_id: str, query: str) -> dict:
+    resp = requests.get(
+        f"{BASE_URL}/session/{session_id}/search",
+        params={"q": query},
+        headers=HEADERS,
+    )
+    return resp.json() if resp.status_code == 200 else {"count": 0, "indices": []}
+
+
 # Delete a session
 def delete_session(session_id: str) -> bool:
     resp = requests.delete(f"{BASE_URL}/session/{session_id}", headers=HEADERS)
@@ -1654,6 +1664,15 @@ async function getMessages(sessionId, since) {
 
   const resp = await fetch(`${BASE_URL}/messages?${params}`, { headers: HEADERS });
   return resp.ok ? resp.json() : [];
+}
+
+// Search messages
+async function searchMessages(sessionId, query) {
+  const params = new URLSearchParams({ q: query });
+  const resp = await fetch(`${BASE_URL}/session/${sessionId}/search?${params}`, {
+    headers: HEADERS,
+  });
+  return resp.ok ? resp.json() : { count: 0, indices: [] };
 }
 
 // Upload a file to session's working directory
