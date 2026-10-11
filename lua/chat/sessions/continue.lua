@@ -48,12 +48,14 @@ end
 --
 --- @param session_id string The session identifier
 --- @return integer|nil jobid on success, or nil on failure
---- @return string|nil hint User-facing hint when the continuation budget is exhausted
+--- @return string|nil hint User-facing hint on failure (budget exhausted,
+---   continuation disabled, or request failed to start)
 function M.continue(session_id)
   local config = require('chat.config')
   local c = config.config.continuation or {}
   if c.enable == false then
-    return nil
+    return nil,
+      'Response truncated by max_tokens; auto-continue is disabled. Press r to retry.'
   end
 
   local max = c.max_continuations or 3
@@ -108,7 +110,7 @@ function M.continue(session_id)
   -- Roll back so a failed request doesn't consume the budget.
   counts[session_id] = count
   log.error('Auto-continue failed to start request')
-  return nil
+  return nil, 'Auto-continue failed to start request. Press r to retry.'
 end
 
 return M

@@ -14,12 +14,12 @@ local real_retry = package.loaded['chat.sessions.retry']
 local captured = {}
 
 local function mock_modules()
-  captured = { request = {}, retry_reset = 0 }
+  captured = { request = {}, retry_reset = 0, request_result = 42 }
 
   package.loaded['chat.protocol'] = {
     request = function(opt)
       table.insert(captured.request, opt)
-      return 42
+      return captured.request_result
     end,
   }
   package.loaded['chat.sessions.messages'] = {
@@ -133,8 +133,24 @@ function TestContinue:test_continue_disabled()
 
   local jobid, hint = continue.continue('sess-1')
   lu.assertNil(jobid)
-  lu.assertNil(hint)
+  -- Disabled continuation still reports why the reply stopped short, so a
+  -- truncated response never ends in silence.
+  lu.assertNotNil(hint)
+  lu.assertStrContains(hint, 'truncated')
+  lu.assertStrContains(hint, 'disabled')
   lu.assertEquals(#captured.request, 0)
+  lu.assertEquals(continue.get_count('sess-1'), 0)
+end
+
+function TestContinue:test_continue_request_failed_to_start()
+  -- protocol.request returning nil (e.g. unknown provider) must roll back the
+  -- budget and surface a hint instead of silently dropping the turn.
+  captured.request_result = nil
+
+  local jobid, hint = continue.continue('sess-1')
+  lu.assertNil(jobid)
+  lu.assertNotNil(hint)
+  lu.assertStrContains(hint, 'failed to start')
   lu.assertEquals(continue.get_count('sess-1'), 0)
 end
 
@@ -156,3 +172,4 @@ function TestContinue:test_per_session_independence()
 end
 
 return TestContinue
+

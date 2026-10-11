@@ -134,7 +134,11 @@ function M.on_exit(id, code, signal)
     if reason == 'stop' then
       sessions.on_progress_done(id)
       sessions.on_complete(session, id)
-    elseif reason == 'length' then
+    elseif reason == 'length' and code == 0 and signal == 0 then
+      -- Only auto-continue on a clean exit. A cancelled (signal 2) or failed
+      -- (code ~= 0) job must not spawn a follow-up request: the cancel and
+      -- retry handlers below own that turn, and continuing here would race
+      -- a retry into a second concurrent request.
       sessions.on_progress_partial(id)
       local continue = require('chat.sessions.continue')
       local jobid, hint = continue.continue(session)

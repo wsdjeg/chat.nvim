@@ -114,4 +114,39 @@ function TestProtocol:test_anthropic_convert_system_prompt()
   lu.assertEquals(anthropic_messages[1].role, 'user')
 end
 
+function TestProtocol:test_anthropic_merges_multiple_system_messages()
+  -- get_request_messages can emit two system entries (session prompt + user
+  -- profile); convert_message must merge them, not keep only the last one.
+  local anthropic = require('chat.protocol.anthropic')
+
+  local messages = {
+    { role = 'system', content = 'Session prompt.' },
+    { role = 'system', content = 'User profile.' },
+    { role = 'user', content = 'Hi' },
+  }
+
+  local system_prompt, anthropic_messages = anthropic.convert_message(messages)
+
+  lu.assertStrContains(system_prompt, 'Session prompt.')
+  lu.assertStrContains(system_prompt, 'User profile.')
+  lu.assertEquals(#anthropic_messages, 1)
+end
+
+function TestProtocol:test_anthropic_convert_reasoning_only_assistant()
+  -- A truncated reasoning-only turn (no content, no tool_calls) still needs
+  -- a non-empty content array for Anthropic's API.
+  local anthropic = require('chat.protocol.anthropic')
+
+  local messages = {
+    { role = 'user', content = 'Think hard' },
+    { role = 'assistant', reasoning_content = 'halfway through thinking' },
+  }
+
+  local _, anthropic_messages = anthropic.convert_message(messages)
+
+  lu.assertEquals(#anthropic_messages, 2)
+  lu.assertEquals(#anthropic_messages[2].content, 1)
+  lu.assertEquals(anthropic_messages[2].content[1].type, 'thinking')
+end
+
 return TestProtocol

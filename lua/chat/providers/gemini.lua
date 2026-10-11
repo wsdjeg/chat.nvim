@@ -55,11 +55,19 @@ function M.request(opt)
   -- Convert OpenAI message format to Gemini format
   for _, msg in ipairs(messages) do
     if msg.role == 'system' then
-      system_instruction = {
-        parts = {
-          { text = msg.content },
-        },
-      }
+      -- Multiple system messages (session prompt + user profile) must be
+      -- merged into one system instruction; overwriting here would
+      -- silently drop all but the last.
+      if system_instruction then
+        system_instruction.parts[1].text =
+          system_instruction.parts[1].text .. '\n\n' .. msg.content
+      else
+        system_instruction = {
+          parts = {
+            { text = msg.content },
+          },
+        }
+      end
     elseif msg.role == 'user' then
       table.insert(gemini_contents, {
         role = 'user',
@@ -68,12 +76,17 @@ function M.request(opt)
         },
       })
     elseif msg.role == 'assistant' then
-      table.insert(gemini_contents, {
-        role = 'model', -- Gemini uses 'model' instead of 'assistant'
-        parts = {
-          { text = msg.content },
-        },
-      })
+      -- Skip empty assistant turns (reasoning-only truncated responses have
+      -- nil content): a part without a usable field makes the whole request
+      -- fail with a 400 from the Gemini API.
+      if type(msg.content) == 'string' and #msg.content > 0 then
+        table.insert(gemini_contents, {
+          role = 'model', -- Gemini uses 'model' instead of 'assistant'
+          parts = {
+            { text = msg.content },
+          },
+        })
+      end
     elseif msg.role == 'tool' then
       -- Handle tool results
       table.insert(gemini_contents, {

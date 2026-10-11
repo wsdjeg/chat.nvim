@@ -194,6 +194,18 @@ function TestProviders:test_all_providers_build_request()
   end
 end
 
+function TestProviders:test_all_providers_close_stdin()
+  -- curl in stdin_body mode waits for EOF before sending the request; a
+  -- provider that never closes stdin leaves the request hanging forever.
+  for _, mod in ipairs(ALL_PROVIDERS) do
+    local _, j = do_request(mod)
+    lu.assertTrue(
+      j.stdin_closed,
+      mod .. ' should close stdin (job.send(jobid, nil)) after sending body'
+    )
+  end
+end
+
 function TestProviders:test_openai_compat_auth_headers()
   for _, mod in ipairs({
     'deepseek',
@@ -281,6 +293,34 @@ function TestProviders:test_gemini_convert_tools()
   lu.assertEquals(#converted, 1, 'non-function tools skipped')
   lu.assertEquals(converted[1].functionDeclarations[1].name, 'read_file')
   lu.assertEquals(converted[1].functionDeclarations[1].description, 'Read a file')
+end
+
+function TestProviders:test_gemini_merges_multiple_system_messages()
+  -- Session prompt + user profile both arrive as system messages and must
+  -- be merged, otherwise only the last one survives in systemInstruction.
+  local _, _, body = do_request('gemini', {
+    { role = 'system', content = 'session prompt' },
+    { role = 'system', content = 'user profile' },
+    { role = 'user', content = 'hi' },
+  })
+
+  local text = body.systemInstruction.parts[1].text
+  lu.assertStrContains(text, 'session prompt')
+  lu.assertStrContains(text, 'user profile')
+end
+
+function TestProviders:test_gemini_skips_empty_assistant_content()
+  -- A reasoning-only truncated turn has nil content; encoding it as
+  -- parts = { { text = nil } } makes the whole request 400.
+  local _, _, body = do_request('gemini', {
+    { role = 'user', content = 'think' },
+    { role = 'assistant', reasoning_content = 'thinking...', content = nil },
+    { role = 'assistant', content = 'real answer' },
+  })
+
+  lu.assertEquals(#body.contents, 2, 'nil-content assistant turn skipped')
+  lu.assertEquals(body.contents[2].role, 'model')
+  lu.assertEquals(body.contents[2].parts[1].text, 'real answer')
 end
 
 function TestProviders:test_anthropic_convert_tools()

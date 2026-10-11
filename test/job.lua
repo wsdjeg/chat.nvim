@@ -61,7 +61,12 @@ end
 
 function M.send(jobid, data)
   if is_mocked(jobid) then
-    table.insert(M.jobs[jobid].stdin, data)
+    if data == nil then
+      -- job.send(jobid, nil) closes stdin; record it instead of storing nil
+      M.jobs[jobid].stdin_closed = true
+    else
+      table.insert(M.jobs[jobid].stdin, data)
+    end
   else
     real.send(jobid, data)
   end

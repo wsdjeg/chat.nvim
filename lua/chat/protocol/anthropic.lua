@@ -213,7 +213,11 @@ function M.on_exit(id, code, signal)
       sessions.on_complete(session, id)
     elseif reason == 'tool_use' then
       sessions.on_progress_tool_call_done(id)
-    elseif reason == 'length' then
+    elseif reason == 'length' and code == 0 and signal == 0 then
+      -- Only auto-continue on a clean exit. A cancelled (signal 2) or failed
+      -- (code ~= 0) job must not spawn a follow-up request: the cancel and
+      -- retry handlers below own that turn, and continuing here would race
+      -- a retry into a second concurrent request.
       sessions.on_progress_partial(id)
       local continue = require('chat.sessions.continue')
       local jobid, hint = continue.continue(session)
@@ -295,7 +299,13 @@ function M.convert_message(messages)
   local anthropic_messages = {}
   for _, msg in ipairs(messages) do
     if msg.role == 'system' then
-      system_prompt = msg.content
+      -- Multiple system messages (session prompt + user profile) must be
+      -- merged; overwriting here would silently drop all but the last.
+      if system_prompt then
+        system_prompt = system_prompt .. '\n\n' .. msg.content
+      else
+        system_prompt = msg.content
+      end
     elseif msg.role == 'user' then
       table.insert(anthropic_messages, {
         role = msg.role,

@@ -58,6 +58,9 @@ function M.request(opt)
     on_exit = opt.on_exit,
   })
   job.send(jobid, body_json)
+  -- Close stdin so curl sees EOF and sends the request; without it curl
+  -- keeps waiting for more body data and the request never completes.
+  job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
 
   return jobid

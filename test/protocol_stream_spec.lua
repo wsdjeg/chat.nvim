@@ -7,6 +7,7 @@ local real_sessions = package.loaded['chat.sessions']
 local real_windows = package.loaded['chat.windows']
 local real_spinners = package.loaded['chat.spinners']
 local real_retry = package.loaded['chat.sessions.retry']
+local real_continue = package.loaded['chat.sessions.continue']
 if not real_sessions then
   real_sessions = require('chat.sessions')
 end
@@ -42,6 +43,9 @@ local function sessions_stub()
     end,
     on_progress_exit = function()
       S.exited = true
+    end,
+    on_progress_partial = function()
+      S.partial = true
     end,
     on_progress_done = function()
       S.done = true
@@ -96,11 +100,21 @@ local function retry_stub()
   }
 end
 
+local function continue_stub()
+  return {
+    continue = function()
+      S.continue_called = S.continue_called + 1
+      return S.continue_result, S.continue_hint
+    end,
+  }
+end
+
 local function load_protocol_fresh(name)
   package.loaded['chat.sessions'] = sessions_stub()
   package.loaded['chat.windows'] = windows_stub()
   package.loaded['chat.spinners'] = spinners_stub()
   package.loaded['chat.sessions.retry'] = retry_stub()
+  package.loaded['chat.sessions.continue'] = continue_stub()
   package.loaded['chat.protocol.' .. name] = nil
   return require('chat.protocol.' .. name)
 end
@@ -110,8 +124,10 @@ local function restore_modules()
   package.loaded['chat.windows'] = real_windows
   package.loaded['chat.spinners'] = real_spinners
   package.loaded['chat.sessions.retry'] = real_retry
+  package.loaded['chat.sessions.continue'] = real_continue
   package.loaded['chat.protocol.openai'] = nil
   package.loaded['chat.protocol.gemini'] = nil
+  package.loaded['chat.protocol.anthropic'] = nil
 end
 
 local function reset_state()
@@ -133,6 +149,10 @@ local function reset_state()
     nudged = false,
     sent_tool_results = false,
     exited = false,
+    partial = false,
+    continue_called = 0,
+    continue_result = 99,
+    continue_hint = nil,
     spinner_stopped = false,
   }
 end
@@ -385,6 +405,52 @@ function TestProtocolOpenAI:test_exit_no_finish_reason()
   lu.assertTrue(S.exited)
 end
 
+function TestProtocolOpenAI:test_exit_reason_length_continues()
+  S.finish_reason = 'length'
+  self.proto.on_exit(27, 0, 0)
+  flush()
+  lu.assertTrue(S.partial)
+  lu.assertEquals(S.continue_called, 1)
+  -- No error appended on a successful continuation start
+  lu.assertEquals(#S.appended, 0)
+end
+
+function TestProtocolOpenAI:test_exit_reason_length_shows_hint_when_failed()
+  S.finish_reason = 'length'
+  S.continue_result = nil
+  S.continue_hint = 'Auto-continue limit reached (3).'
+  self.proto.on_exit(28, 0, 0)
+  flush()
+  lu.assertTrue(S.partial)
+  lu.assertEquals(S.continue_called, 1)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'limit reached')
+end
+
+function TestProtocolOpenAI:test_exit_length_cancelled_skips_continue()
+  -- Cancelling after finish_reason was already received must not spawn a
+  -- follow-up request against the user's intent.
+  S.finish_reason = 'length'
+  self.proto.on_exit(29, 0, 2)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'cancelled')
+end
+
+function TestProtocolOpenAI:test_exit_length_curl_error_skips_continue()
+  -- A connection failure must not continue either: the retry handler owns
+  -- the turn and continuing here would race a second concurrent request.
+  S.finish_reason = 'length'
+  self.proto.on_exit(30, 28, 0)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'Operation timeout')
+end
+
 TestProtocolGemini = {}
 
 function TestProtocolGemini:setUp()
@@ -553,5 +619,84 @@ function TestProtocolGemini:test_exit_nonzero_without_retry_hint()
   flush()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'Failed to connect')
+end
+
+function TestProtocolGemini:test_exit_reason_length_continues()
+  S.finish_reason = 'length'
+  self.proto.on_exit(22, 0, 0)
+  flush()
+  lu.assertTrue(S.partial)
+  lu.assertEquals(S.continue_called, 1)
+  lu.assertEquals(#S.appended, 0)
+end
+
+function TestProtocolGemini:test_exit_length_cancelled_skips_continue()
+  S.finish_reason = 'length'
+  self.proto.on_exit(23, 0, 2)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertStrContains(S.appended[1].error, 'cancelled')
+end
+
+function TestProtocolGemini:test_exit_length_curl_error_skips_continue()
+  S.finish_reason = 'length'
+  self.proto.on_exit(24, 28, 0)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'Operation timeout')
+end
+
+TestProtocolAnthropic = {}
+
+function TestProtocolAnthropic:setUp()
+  reset_state()
+  self.proto = load_protocol_fresh('anthropic')
+end
+
+function TestProtocolAnthropic:tearDown()
+  restore_modules()
+end
+
+function TestProtocolAnthropic:test_exit_reason_length_continues()
+  S.finish_reason = 'length'
+  self.proto.on_exit(1, 0, 0)
+  flush()
+  lu.assertTrue(S.partial)
+  lu.assertEquals(S.continue_called, 1)
+  lu.assertEquals(#S.appended, 0)
+end
+
+function TestProtocolAnthropic:test_exit_length_cancelled_skips_continue()
+  S.finish_reason = 'length'
+  self.proto.on_exit(2, 0, 2)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertStrContains(S.appended[1].error, 'cancelled')
+end
+
+function TestProtocolAnthropic:test_exit_length_curl_error_skips_continue()
+  S.finish_reason = 'length'
+  self.proto.on_exit(3, 28, 0)
+  flush()
+  lu.assertFalse(S.partial)
+  lu.assertEquals(S.continue_called, 0)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'Operation timeout')
+end
+
+function TestProtocolAnthropic:test_exit_reason_length_shows_hint_when_failed()
+  S.finish_reason = 'length'
+  S.continue_result = nil
+  S.continue_hint = 'Response truncated by max_tokens; auto-continue is disabled. Press r to retry.'
+  self.proto.on_exit(4, 0, 0)
+  flush()
+  lu.assertTrue(S.partial)
+  lu.assertEquals(S.continue_called, 1)
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'truncated')
 end
 
