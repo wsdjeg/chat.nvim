@@ -78,12 +78,18 @@ function M.continue(session_id)
   -- Warn-level before/after logs make the auto-continuation visible in the
   -- UI log view. The "requesting" line also proves the truncated assistant
   -- message is carried as the last request entry: last=assistant with the
-  -- accumulated content length.
+  -- accumulated content and reasoning lengths. Reasoning models truncated
+  -- while still thinking (finish_reason == "length" with empty content) show
+  -- content=0 while reasoning keeps growing across continuations.
   local last = messages[#messages] or {}
   local last_len = type(last.content) == 'string' and #last.content or 0
+  local last_reasoning_len = type(last.reasoning_content) == 'string'
+    and #last.reasoning_content
+    or 0
   log.warn(string.format(
-    'Auto-continue %d/%d requesting: %d messages, last=%s (%d chars)',
-    new_count, max, #messages, tostring(last.role), last_len
+    'Auto-continue %d/%d requesting: %d messages, last=%s (content %d, reasoning %d chars)',
+    new_count, max, #messages, tostring(last.role), last_len,
+    last_reasoning_len
   ))
 
   local jobid = protocol.request({
@@ -106,3 +112,4 @@ function M.continue(session_id)
 end
 
 return M
+
