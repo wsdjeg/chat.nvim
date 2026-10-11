@@ -614,7 +614,11 @@ curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
 
 ### POST `/session/{id}/stop`
 
-Stop generation for a session.
+Stop generation for a session. Cancels the active LLM streaming request and
+any pending async tool calls. If a tool job already exited without delivering
+a result (e.g. its callback crashed), the session state is force-released and
+a placeholder tool result is appended, so the session becomes usable again
+instead of being stuck in `in_progress` forever.
 
 **Response Status Codes:**
 

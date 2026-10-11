@@ -279,24 +279,79 @@ function M.is_in_progress(session_id)
   return false
 end
 
+--- Checks whether a job is still running, treating job.nvim errors
+--- (e.g. unknown job id) as not running.
+--- @param jobid integer The job identifier
+--- @return boolean True if the job is alive
+local function is_job_alive(jobid)
+  local ok, running = pcall(job.is_running, jobid)
+  return ok and running == true
+end
+
+--- Force-finishes a pending async tool whose job already exited without
+--- delivering a result. This happens when the tool's on_exit callback
+--- crashed before invoking ctx.callback: job.nvim fires on_exit exactly
+--- once, so kill() cannot re-fire it and the pending entry leaks forever,
+--- leaving the session permanently "in progress" (stop/continue/send all
+--- blocked). Appends a placeholder tool result so the assistant
+--- tool_calls history stays valid for the next request, then releases
+--- the pending entry.
+--- @param session_id string The session identifier
+--- @param jobid integer The dead job id (negative for MCP tools)
+local function force_finish_dead_tool(session_id, jobid)
+  local async = require('chat.sessions.async')
+  local context = async.get_tool_context(session_id, jobid)
+
+  if context and context.tool_call_id then
+    local message = {
+      role = 'tool',
+      content = (context.tool_name or 'tool')
+        .. ' was cancelled (job exited without delivering a result)',
+      tool_call_id = context.tool_call_id,
+      created = os.time(),
+      tool_call_state = {
+        name = context.tool_name,
+        error = 'cancelled (job already exited)',
+      },
+    }
+    require('chat.sessions.messages').append_message(session_id, message)
+    require('chat.windows').on_tool_call_done(session_id, { message })
+  end
+
+  async.finish_async_tool(session_id, jobid)
+end
+
 --- Cancels any active streaming request, async tool calls, or pending auto-retry for a session
 --- Stops LLM streaming jobs and cancels pending MCP tool requests
 --- @param session_id string The session identifier
 function M.cancel_progress(session_id)
+  local function stop_spinner()
+    if session_id == require('chat.windows').current_session() then
+      require('chat.spinners').stop()
+    end
+  end
+
   -- Cancel any pending auto-retry first
   local retry = require('chat.sessions.retry')
   if retry.is_retrying(session_id) then
     retry.cancel_retry(session_id)
-    if session_id == require('chat.windows').current_session() then
-      require('chat.spinners').stop()
-    end
+    stop_spinner()
     return
   end
 
   --- if the llm progress is running, stop llm progress and return
   for jobid, v in pairs(jobid_session) do
     if v == session_id then
-      job.stop(jobid, 2)
+      if is_job_alive(jobid) then
+        job.stop(jobid, 2)
+      else
+        -- Dead job: its exit callback already fired once (possibly crashing
+        -- before cleaning up), so kill() cannot re-fire it. Clear the
+        -- leaked entry, otherwise is_in_progress keeps reporting this
+        -- session busy forever and every action gets rejected.
+        M.on_progress_exit(jobid, 0, 0)
+        stop_spinner()
+      end
       return
     end
   end
@@ -304,24 +359,35 @@ function M.cancel_progress(session_id)
   local async = require('chat.sessions.async')
   local pending = async.pending_async_tools[session_id]
 
-  -- Cancel MCP tool calls
+  -- Cancel MCP tool calls and async tool jobs
   if pending then
     async.cancelled_sessions[session_id] = true
     local ok, mcp = pcall(require, 'chat.mcp')
-    if ok and mcp then
-      for _, id in ipairs(pending) do
-        if id < 0 then
-          mcp.cancel_request(id)
-        else
-          job.stop(id, 2)
+    for _, id in ipairs(pending) do
+      if id < 0 then
+        local cancelled = false
+        if ok and mcp then
+          cancelled = mcp.cancel_request(id)
         end
+        -- The MCP request is already gone (e.g. its callback crashed after
+        -- completion but before ctx.callback was invoked): release the
+        -- leaked pending entry directly.
+        if not cancelled then
+          force_finish_dead_tool(session_id, id)
+        end
+      elseif is_job_alive(id) then
+        job.stop(id, 2)
+      else
+        -- Dead job: on_exit already fired once (possibly crashing before
+        -- invoking ctx.callback), kill() cannot re-fire it and the pending
+        -- entry would leak forever, deadlocking the session. Force-finish
+        -- to release the state.
+        force_finish_dead_tool(session_id, id)
       end
     end
 
     -- Stop spinner
-    if session_id == require('chat.windows').current_session() then
-      require('chat.spinners').stop()
-    end
+    stop_spinner()
   end
 end
 

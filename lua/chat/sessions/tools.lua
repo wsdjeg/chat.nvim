@@ -17,6 +17,25 @@ local job_tool_calls = {} ---@type table<string, table>
 --- @field type string
 --- @field function ChatToolCallFunction
 
+--- Checks whether the session history already contains a tool result for
+--- the given tool_call_id. Used to keep tool result callbacks idempotent:
+--- when cancel_progress force-finished a dead job, a queued on_exit may
+--- still invoke the callback afterwards and would otherwise append a
+--- duplicate tool result message.
+--- @param session_id string The session identifier
+--- @param tool_call_id string The tool call id
+--- @return boolean True if a tool result exists for tool_call_id
+local function has_tool_result(session_id, tool_call_id)
+  local session = storage.sessions[session_id]
+  local messages = session and session.messages or {}
+  for _, m in ipairs(messages) do
+    if m.role == 'tool' and m.tool_call_id == tool_call_id then
+      return true
+    end
+  end
+  return false
+end
+
 function M.on_progress_tool_call(jobid, tool_call)
   job_tool_calls[jobid] = job_tool_calls[jobid] or {}
 
@@ -141,6 +160,17 @@ function M.on_progress_tool_call_done(jobid)
         cwd = storage.sessions[session_id].cwd,
         session = session_id,
         callback = function(res)
+          local async = require('chat.sessions.async')
+
+          -- Idempotency: if a tool result for this tool_call_id already
+          -- exists (e.g. cancel_progress force-finished the dead job and
+          -- a queued on_exit fired late), skip appending a duplicate
+          -- message and just release the pending entry.
+          if has_tool_result(session_id, tool_call.id) then
+            async.finish_async_tool(session_id, res.jobid or res.mcp_tool_call_id)
+            return
+          end
+
           local tool_done_message = {
             role = 'tool',
             content = res.content
@@ -154,7 +184,6 @@ function M.on_progress_tool_call_done(jobid)
           }
           messages.append_message(session_id, tool_done_message)
           windows.on_tool_call_done(session_id, { tool_done_message })
-          local async = require('chat.sessions.async')
           async.finish_async_tool(session_id, res.jobid or res.mcp_tool_call_id)
         end,
       })
@@ -178,7 +207,14 @@ function M.on_progress_tool_call_done(jobid)
         windows.on_tool_call_done(session_id, { tool_done_message })
       elseif result.jobid or result.mcp_tool_call_id then
         local async = require('chat.sessions.async')
-        async.start_async_tool(session_id, result.jobid or result.mcp_tool_call_id)
+        async.start_async_tool(
+          session_id,
+          result.jobid or result.mcp_tool_call_id,
+          {
+            tool_call_id = tool_call.id,
+            tool_name = tool_call['function'].name,
+          }
+        )
       else
         local tool_done_done_message = {
           role = 'tool',
@@ -244,7 +280,8 @@ function M.send_tool_results(session_id)
   end
 
   local msg = require('chat.sessions.messages').get_request_messages(session_id)
-  if msg[#msg].role == 'tool' then
+  local last = msg and msg[#msg] or nil
+  if last and last.role == 'tool' then
     -- Reset retry count for new tool result request
     require('chat.sessions.retry').reset_retry_count(session_id)
     local protocol = require('chat.protocol')

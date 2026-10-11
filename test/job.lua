@@ -30,7 +30,7 @@ local M = {}
 
 local intercepted = false
 
---- jobid -> { cmd, opts, stdin = {}, stopped = nil|signal } (interception mode)
+--- jobid -> { cmd, opts, stdin = {}, stopped = nil|signal, running = boolean } (interception mode)
 M.jobs = {}
 local next_id = 0 -- mocked ids start at 1, matching specs that hardcode ids
 
@@ -55,6 +55,9 @@ function M.start(cmd, opts)
     opts = opts or {},
     stdin = {},
     stopped = nil,
+    -- intercepted jobs do not really run; specs can flip this to simulate
+    -- a live process (cancel_progress only stops jobs that are running)
+    running = false,
   }
   return jobid
 end
@@ -82,6 +85,9 @@ end
 
 -- Passthrough helpers for real jobs (used e.g. by mcp transports)
 function M.is_running(jobid)
+  if is_mocked(jobid) then
+    return M.jobs[jobid].running == true
+  end
   return real.is_running(jobid)
 end
 
@@ -122,6 +128,17 @@ function M.emit_exit(jobid, code, signal)
   local j = M.jobs[jobid]
   if j and j.opts.on_exit then
     j.opts.on_exit(jobid, code or 0, signal or 0)
+  end
+end
+
+--- Toggle the simulated liveness of an intercepted job. `cancel_progress`
+--- checks `is_running` before stopping a job: alive jobs get a stop signal,
+--- dead jobs get force-cleaned instead of being killed.
+--- @param jobid integer
+--- @param running boolean
+function M.set_running(jobid, running)
+  if M.jobs[jobid] then
+    M.jobs[jobid].running = running == true
   end
 end
 
