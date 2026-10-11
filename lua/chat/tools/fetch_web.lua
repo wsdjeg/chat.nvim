@@ -43,7 +43,11 @@ function M.fetch_web(action, ctx)
   end
 
   -- Timeout (validate range: 1-300)
+  -- Models sometimes send numbers as JSON strings, so coerce defensively.
   local timeout = action.timeout or 30
+  if type(timeout) == 'string' then
+    timeout = tonumber(timeout)
+  end
   if type(timeout) ~= 'number' or timeout < 1 or timeout > 300 then
     return {
       error = 'Timeout must be between 1 and 300 seconds.',
@@ -52,9 +56,28 @@ function M.fetch_web(action, ctx)
 
   -- Max redirects (validate range: 0-20)
   local max_redirects = action.max_redirects or 5
+  if type(max_redirects) == 'string' then
+    max_redirects = tonumber(max_redirects)
+  end
   if type(max_redirects) ~= 'number' or max_redirects < 0 or max_redirects > 20 then
     return {
       error = 'Max redirects must be between 0 and 20.',
+    }
+  end
+
+  -- Max display length (0 or negative disables truncation; default 10000)
+  -- Same defensive coercion: without it a string like "10000" crashes the
+  -- on_exit comparison (`attempt to compare number with string`).
+  local max_length = action.max_length
+  if max_length == nil then
+    max_length = 10000
+  end
+  if type(max_length) == 'string' then
+    max_length = tonumber(max_length)
+  end
+  if type(max_length) ~= 'number' then
+    return {
+      error = 'max_length must be an integer (set 0 or negative to disable truncation).',
     }
   end
 
@@ -210,8 +233,9 @@ function M.fetch_web(action, ctx)
           end
 
           -- Truncate very large responses
-          -- max_length: 0 or negative means no truncation; default 10000
-          local max_content_length = action.max_length or 10000
+          -- max_length: 0 or negative means no truncation (normalized to a
+          -- number during validation above)
+          local max_content_length = max_length
           local display_result = result
           local truncation_note = ''
 
@@ -389,6 +413,15 @@ end
 function M.info(action, ctx)
   local ok, arguments = pcall(vim.json.decode, action)
   if ok then
+    -- Format an argument that may be a number or a numeric string safely.
+    local function fmt_int(v)
+      local n = tonumber(v)
+      if n ~= nil then
+        return string.format('%d', n)
+      end
+      return tostring(v)
+    end
+
     local info_parts = {
       string.format('fetch_web "%s"', arguments.url),
     }
@@ -397,12 +430,12 @@ function M.info(action, ctx)
       table.insert(info_parts, string.format('method=%s', arguments.method))
     end
 
-    if arguments.timeout then
-      table.insert(info_parts, string.format('timeout=%d', arguments.timeout))
+    if arguments.timeout ~= nil then
+      table.insert(info_parts, string.format('timeout=%s', fmt_int(arguments.timeout)))
     end
 
     if arguments.max_length ~= nil then
-      table.insert(info_parts, string.format('max_length=%d', arguments.max_length))
+      table.insert(info_parts, string.format('max_length=%s', fmt_int(arguments.max_length)))
     end
 
     if arguments.output then
