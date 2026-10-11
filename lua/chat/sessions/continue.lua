@@ -73,13 +73,26 @@ function M.continue(session_id)
   local messages =
     require('chat.sessions.messages').get_request_messages(session_id)
   local protocol = require('chat.protocol')
+  local log = require('chat.log')
+
+  -- Warn-level before/after logs make the auto-continuation visible in the
+  -- UI log view. The "requesting" line also proves the truncated assistant
+  -- message is carried as the last request entry: last=assistant with the
+  -- accumulated content length.
+  local last = messages[#messages] or {}
+  local last_len = type(last.content) == 'string' and #last.content or 0
+  log.warn(string.format(
+    'Auto-continue %d/%d requesting: %d messages, last=%s (%d chars)',
+    new_count, max, #messages, tostring(last.role), last_len
+  ))
+
   local jobid = protocol.request({
     session = session_id,
     messages = messages,
   })
 
   if jobid and jobid > 0 then
-    require('chat.log').info(string.format(
+    log.warn(string.format(
       'Auto-continue %d/%d started, jobid: %d',
       new_count, max, jobid
     ))
@@ -88,7 +101,7 @@ function M.continue(session_id)
 
   -- Roll back so a failed request doesn't consume the budget.
   counts[session_id] = count
-  require('chat.log').error('Auto-continue failed to start request')
+  log.error('Auto-continue failed to start request')
   return nil
 end
 
