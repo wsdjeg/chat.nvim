@@ -2,7 +2,7 @@
 
 `chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI integration.
 Chat with AI assistants directly in your editor using a clean, floating window interface.
-It supports 19+ AI providers, a three-tier memory system, 40+ built-in tools,
+It supports 20+ AI providers, a three-tier memory system, 45+ built-in tools,
 MCP protocol, IM integrations, and an HTTP API for external access.
 Full documentation is available at [nvim.chat](https://nvim.chat).
 
@@ -34,9 +34,10 @@ Full documentation is available at [nvim.chat](https://nvim.chat).
 
 ## ✨ Features
 
-- **🤖 19+ AI Providers** - DeepSeek, OpenAI, Anthropic, GitHub AI, Gemini, Ollama, Baidu, Xiaomi, Alibaba Cloud, and more
+- **🤖 20+ AI Providers** - DeepSeek, OpenAI, Anthropic, GitHub Models, Gemini, Ollama, Baidu, Xiaomi, Alibaba Cloud, Moonshot, Tencent, and more
 - **🧠 Three-Tier Memory** - Working, daily, and long-term memory with automatic extraction and priority-based retrieval
-- **🛠️ 40+ Built-in Tools** - File operations, Git integration, web search, memory management, scheduling, user profiles
+- **🛠️ 45+ Built-in Tools** - File operations, Git integration, web search and fetch, email, scheduling, user profiles
+- **🧩 Slash Commands** - Built-in skills (`/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, ...) with custom skill registration
 - **🔍 Lazy Tool Discovery** - Only essential tools are sent with each request; other tools are activated on demand via a built-in catalog
 - **🔄 Parallel Sessions** - Multiple conversations with different models simultaneously
 - **🔌 MCP Protocol** - Native Model Context Protocol support via stdio and HTTP transports
@@ -44,7 +45,6 @@ Full documentation is available at [nvim.chat](https://nvim.chat).
 - **🌐 HTTP API** - Built-in server for external integration with API key authentication
 - **👤 User Profiles** - Per-user preferences and skills for personalized assistance
 - **⏰ Scheduled Tasks** - One-time or recurring tasks that persist across Neovim restarts
-- **📝 Zettelkasten** - Note-taking support via zettelkasten.nvim integration
 - **⚡ Streaming Responses** - Real-time AI responses with cancellation and token tracking
 
 ## 📦 Installation
@@ -110,6 +110,8 @@ require('chat').setup({
   render_markdown = true,
   -- default system prompt
   system_prompt = '',
+  -- restrict file tool access to specific paths (string or list of strings)
+  allowed_path = '',
   -- HTTP server for external integration
   http = {
     host = '127.0.0.1',
@@ -148,11 +150,17 @@ Or use [picker.nvim](https://github.com/wsdjeg/picker.nvim) keybindings (in the 
 | `<Leader>fm` | Switch model via picker         |
 | `<Leader>fr` | Browse session history via picker |
 
-Navigate between sessions:
+Navigate and manage sessions:
 
 ```vim
-:Chat prev
-:Chat next
+:Chat new      " create a new session
+:Chat prev     " previous session
+:Chat next     " next session
+:Chat delete   " delete the current session
+:Chat save f   " save the session to a file
+:Chat load f   " load a session from a file or URL
+:Chat share    " share the session to a pastebin
+:Chat preview  " open the HTML preview in your browser
 ```
 
 See the [Usage Guide](https://nvim.chat/usage/) for all commands and keybindings.
@@ -172,17 +180,20 @@ See the [Memory Guide](https://nvim.chat/memory/) for details.
 
 ## 🛠️ Tools
 
-40+ built-in tools are available for AI assistants to interact with your environment:
+45+ built-in tools are available for AI assistants to interact with your environment:
 
-- **File Operations** - Read, write, search files and directories
-- **Git Integration** - Status, diff, commit, push, branch management
+- **File Operations** - Read, write, copy, move, and search files and directories
+- **Git Integration** - Status, diff, log, commit, push, branch, rebase, stash, tag
 - **Web Search** - Search the web via Firecrawl, Google, or SerpAPI
+- **Web Fetch** - Fetch URLs and convert HTML to markdown
+- **Email** - Send emails via the system `mail` command
 - **Mastodon** - Read-only Mastodon: fetch toots, threads, and timelines
 - **Memory Management** - Extract and recall memories
-- **Scheduled Tasks** - Create one-time or recurring tasks
+- **Scheduled Tasks** - One-time or recurring tasks, persisted across restarts
 - **User Profiles** - Manage per-user preferences and skills
+- **Task Plans** - Create and manage task plans
 - **Office Documents** - View Excel files with multiple modes
-- **Zettelkasten** - Create and manage notes
+- **Development** - Run make targets, check LSP diagnostics, get weather/time, convert images via ffmpeg
 
 Tools are lazy-loaded by default: only the essential tools plus a `find_tool` discovery
 catalog are sent with each request to save prompt tokens, and other tools are activated
@@ -198,7 +209,7 @@ Native [Model Context Protocol](https://modelcontextprotocol.io/) support for ex
 ```lua
 require('chat').setup({
   mcp = {
-    servers = {
+    mcpServers = {
       -- stdio transport
       filesystem = {
         command = 'npx',
