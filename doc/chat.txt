@@ -1332,7 +1332,12 @@ Usage:
     @fetch_web url="https://example.com"
     @fetch_web url="https://api.github.com/repos/neovim/neovim" timeout=60
     @fetch_web url="https://api.example.com/data" method="POST" data='{"key":"value"}'
+    @fetch_web url="https://example.com" markdown=true
 <
+
+`markdown=true` converts HTML responses to Markdown via the html2markdown
+CLI (https://github.com/JohannesKaufmann/html-to-markdown) before
+returning the result, greatly reducing tokens compared to raw HTML.
 
 **web_search**                                            *chat-tool-web_search*
 

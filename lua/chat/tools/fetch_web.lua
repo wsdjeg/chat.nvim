@@ -16,6 +16,7 @@ local curl = require('chat.curl')
 ---@field max_redirects? integer
 ---@field max_length? integer
 ---@field insecure? boolean
+---@field markdown? boolean
 ---@field output? string
 
 ---@param action ChatToolsFetchWebAction
@@ -81,6 +82,9 @@ function M.fetch_web(action, ctx)
     }
   end
 
+  -- Markdown conversion flag (defensive: some models send "true" as string)
+  local to_markdown = action.markdown == true or action.markdown == 'true'
+
   -- User agent
   local user_agent = action.user_agent
     or 'Mozilla/5.0 (compatible; chat.nvim)'
@@ -119,6 +123,19 @@ function M.fetch_web(action, ctx)
         error = 'output file path is not allowed path',
       }
     end
+  end
+
+  -- html2markdown CLI availability check.
+  -- Only needed in display mode: with the output parameter the raw
+  -- response is saved to a file and markdown conversion is ignored.
+  if to_markdown and not output_path and vim.fn.executable('html2markdown') ~= 1 then
+    return {
+      error = 'markdown=true requires the html2markdown CLI to be installed and in PATH. '
+        .. 'Install: https://github.com/JohannesKaufmann/html-to-markdown '
+        .. '(brew install JohannesKaufmann/tap/html2markdown, '
+        .. 'or go install github.com/JohannesKaufmann/html-to-markdown/v2/cli/html2markdown@latest). '
+        .. 'Or omit the markdown parameter to return raw HTML.',
+    }
   end
 
   -- Build curl command via unified module
@@ -213,45 +230,113 @@ function M.fetch_web(action, ctx)
             content_type = 'application/json'
           end
 
-          local summary = string.format(
-            'Successfully fetched content from: %s\n'
-              .. 'Method: %s\n'
-              .. 'Timeout: %d seconds\n'
-              .. 'Content-Type: %s\n'
-              .. 'Content-Length: %d characters\n\n',
-            action.url,
-            method,
-            timeout,
-            content_type,
-            #result
-          )
-
-          if had_invalid then
-            summary = summary
-              .. '[Warning: Non-UTF-8 bytes detected and replaced with U+FFFD. '
-              .. 'The original content may use a different encoding (e.g., GBK, Big5).]\n\n'
-          end
-
-          -- Truncate very large responses
-          -- max_length: 0 or negative means no truncation (normalized to a
-          -- number during validation above)
-          local max_content_length = max_length
-          local display_result = result
-          local truncation_note = ''
-
-          if max_content_length > 0 and #result > max_content_length then
-            display_result = util.utf8_truncate(result, max_content_length)
-            truncation_note = string.format(
-              '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
-              #result,
-              max_content_length
+          -- Build summary + truncation and emit the final tool result.
+          -- Shared by the raw response and the html2markdown output.
+          local function emit_content(raw, ct, note)
+            local summary = string.format(
+              'Successfully fetched content from: %s\n'
+                .. 'Method: %s\n'
+                .. 'Timeout: %d seconds\n'
+                .. 'Content-Type: %s\n'
+                .. 'Content-Length: %d characters\n\n',
+              action.url,
+              method,
+              timeout,
+              ct,
+              #raw
             )
+
+            if had_invalid then
+              summary = summary
+                .. '[Warning: Non-UTF-8 bytes detected and replaced with U+FFFD. '
+                .. 'The original content may use a different encoding (e.g., GBK, Big5).]\n\n'
+            end
+
+            -- Truncate very large responses
+            -- max_length: 0 or negative means no truncation (normalized
+            -- to a number during validation above)
+            local display_result = raw
+            local truncation_note = ''
+            if max_length > 0 and #raw > max_length then
+              display_result = util.utf8_truncate(raw, max_length)
+              truncation_note = string.format(
+                '\n\n[Content truncated from %d to %d characters. Use output parameter to save to file for full content.]',
+                #raw,
+                max_length
+              )
+            end
+
+            ctx.callback({
+              content = summary .. (note or '') .. display_result .. truncation_note,
+              jobid = id,
+            })
           end
 
-          ctx.callback({
-            content = summary .. display_result .. truncation_note,
-            jobid = id,
-          })
+          -- markdown=true: pipe the HTML through the html2markdown CLI
+          -- so the result returned to the LLM is clean Markdown instead
+          -- of raw HTML. The HTML is fed via stdin; the final tool result
+          -- is emitted from the html2markdown job exit.
+          if to_markdown and content_type == 'text/html' then
+            local md_stdout = {}
+            local md_stderr = {}
+            local md_jobid = job.start({ 'html2markdown' }, {
+              on_stdout = function(_, data)
+                for _, v in ipairs(data) do
+                  table.insert(md_stdout, v)
+                end
+              end,
+              on_stderr = function(_, data)
+                for _, v in ipairs(data) do
+                  table.insert(md_stderr, v)
+                end
+              end,
+              on_exit = function(md_id, md_code, md_signal)
+                if md_signal ~= 0 then
+                  ctx.callback({
+                    error = string.format(
+                      'html2markdown cancelled by user (signal: %d)',
+                      md_signal
+                    ),
+                    jobid = id,
+                  })
+                  return
+                end
+
+                if md_code ~= 0 then
+                  local err_result = util.sanitize_utf8(table.concat(md_stderr, '\n'))
+                  ctx.callback({
+                    error = string.format(
+                      'html2markdown failed to convert the response (exit code: %d): %s',
+                      md_code,
+                      err_result ~= '' and err_result or 'no error output'
+                    ),
+                    jobid = id,
+                  })
+                  return
+                end
+
+                emit_content(
+                  util.sanitize_utf8(table.concat(md_stdout, '\n')),
+                  'text/markdown'
+                )
+              end,
+            })
+
+            if md_jobid and md_jobid > 0 then
+              -- Pipe the HTML via stdin, then close it (nil sends EOF)
+              job.send(md_jobid, result)
+              job.send(md_jobid, nil)
+            else
+              ctx.callback({
+                error = 'failed to start html2markdown job',
+                jobid = id,
+              })
+            end
+            return
+          end
+
+          emit_content(result, content_type, to_markdown
+            and '[Note: markdown conversion skipped, response is not HTML.]\n\n')
         end
       else
         -- Error handling
@@ -304,6 +389,8 @@ function M.scheme()
          
          DEPENDENCIES:
          - Requires curl to be installed and available in PATH
+         - Optional: html2markdown CLI (https://github.com/JohannesKaufmann/html-to-markdown)
+           required only when markdown=true
          - Uses vim.system() on Neovim 0.10+, falls back to vim.fn.system()
          
          EXAMPLES:
@@ -332,6 +419,9 @@ function M.scheme()
          8. Custom truncation limit:
             @fetch_web url="https://example.com" max_length=50000
          
+         9. Convert HTML pages to Markdown before returning:
+            @fetch_web url="https://example.com" markdown=true
+         
          SECURITY NOTES:
          - Only HTTP/HTTPS URLs are allowed (no file://, ftp://, etc.)
          - SSL verification is enabled by default
@@ -343,9 +433,12 @@ function M.scheme()
          - Use max_length=0 to disable truncation and get full content
          - For large responses, consider using output parameter to save to file
          - Compression is automatically requested (--compressed)
+         - Use markdown=true to convert HTML to clean Markdown, greatly reducing
+           tokens compared to raw HTML
          
          TROUBLESHOOTING:
          - If curl is not installed, you'll get an error
+         - If html2markdown is not installed, markdown=true returns an error
          - For SSL issues, try insecure=true (for testing only)
          - For timeout issues, increase timeout value
          - Check network connectivity if host cannot be resolved
@@ -399,6 +492,10 @@ function M.scheme()
             type = 'boolean',
             description = 'Disable SSL certificate verification (use with caution, for testing only)',
           },
+          markdown = {
+            type = 'boolean',
+            description = 'Convert HTML response to Markdown via the html2markdown CLI before returning (requires html2markdown in PATH). Ignored when output is set or the response is not HTML.',
+          },
           output = {
             type = 'string',
             description = 'Save response to file instead of displaying (e.g., "./response.html")',
@@ -436,6 +533,10 @@ function M.info(action, ctx)
 
     if arguments.max_length ~= nil then
       table.insert(info_parts, string.format('max_length=%s', fmt_int(arguments.max_length)))
+    end
+
+    if arguments.markdown then
+      table.insert(info_parts, 'markdown=true')
     end
 
     if arguments.output then

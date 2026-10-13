@@ -5,6 +5,10 @@
 --     (regression: `attempt to compare number with string` in on_exit)
 --   - mocked job success / failure / signal paths
 --   - output-file mode
+--   - markdown=true conversion via the html2markdown CLI (needs two jobs:
+--     curl pipes the HTML into html2markdown stdin, whose exit emits the
+--     final result). Conversion-flow tests only run where the CLI is
+--     installed; the missing-CLI error path runs everywhere else.
 --   - info() formatting with numeric-string arguments
 
 local lu = require('luaunit')
@@ -14,6 +18,7 @@ local fetch_web = require('chat.tools.fetch_web')
 TestFetchWeb = {}
 
 local curl_available = vim.fn.executable('curl') == 1
+local html2markdown_available = vim.fn.executable('html2markdown') == 1
 
 local function make_ctx()
   local ctx = {}
@@ -23,6 +28,27 @@ local function make_ctx()
     ctx.result = res
   end
   return ctx
+end
+
+-- Fetch with markdown=true, drive the curl job to success, then return the
+-- second (html2markdown) jobid so the spec can simulate its output.
+-- Returns res, md_jobid (md_jobid is nil when conversion was skipped).
+local function start_markdown_flow(ctx, opts)
+  local res = fetch_web.fetch_web(
+    vim.tbl_extend('force', {
+      url = 'https://example.com',
+      markdown = true,
+    }, opts or {}),
+    ctx
+  )
+  lu.assertNil(res.error)
+  job.emit_stdout(res.jobid, { '<html><body><h1>Title</h1></body></html>' })
+  job.emit_exit(res.jobid, 0)
+  local md_jobid = res.jobid + 1
+  if job.jobs[md_jobid] and job.jobs[md_jobid].cmd[1] == 'html2markdown' then
+    return res, md_jobid
+  end
+  return res, nil
 end
 
 function TestFetchWeb:setUp()
@@ -42,6 +68,8 @@ function TestFetchWeb:testScheme()
   lu.assertEquals(scheme.type, 'function')
   lu.assertEquals(scheme['function'].name, 'fetch_web')
   lu.assertEquals(scheme['function'].parameters.required, { 'url' })
+  lu.assertNotNil(scheme['function'].parameters.properties.markdown)
+  lu.assertEquals(scheme['function'].parameters.properties.markdown.type, 'boolean')
 end
 
 -- ============================
@@ -376,6 +404,142 @@ function TestFetchWeb:testOutputFileMissingAfterSuccess()
 end
 
 -- ============================
+-- Markdown conversion (markdown=true)
+-- ============================
+
+function TestFetchWeb:testMarkdownMissingCliError()
+  if not curl_available then
+    print('Skipping testMarkdownMissingCliError: curl not available')
+    return
+  end
+  if html2markdown_available then
+    print('Skipping testMarkdownMissingCliError: html2markdown is installed')
+    return
+  end
+  local res = fetch_web.fetch_web({
+    url = 'https://example.com',
+    markdown = true,
+  }, make_ctx())
+  lu.assertStrContains(res.error, 'html2markdown CLI')
+end
+
+-- Output mode saves the raw response, so markdown=true must skip the
+-- html2markdown availability check entirely.
+function TestFetchWeb:testMarkdownWithOutputSkipsCliCheck()
+  if not curl_available then
+    print('Skipping testMarkdownWithOutputSkipsCliCheck: curl not available')
+    return
+  end
+  local out = vim.fn.getcwd() .. '/test_fetch_web_markdown_tmp.html'
+  vim.fn.writefile({ '<html>saved</html>' }, out)
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({
+    url = 'https://example.com',
+    markdown = true,
+    output = out,
+  }, ctx)
+  lu.assertNil(res.error)
+  job.emit_exit(res.jobid, 0)
+  lu.assertNil(ctx.result.error)
+  lu.assertStrContains(ctx.result.content, 'Output file: ')
+  -- No second job: the raw response is saved, conversion never starts
+  lu.assertNil(job.jobs[res.jobid + 1])
+  vim.fn.delete(out)
+end
+
+function TestFetchWeb:testMarkdownConvertsHtml()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownConvertsHtml: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res, md_jobid = start_markdown_flow(ctx)
+  lu.assertNotNil(md_jobid, 'html2markdown job should be started for HTML')
+  -- The fetched HTML was piped to html2markdown via stdin
+  lu.assertStrContains(table.concat(job.jobs[md_jobid].stdin, '\n'), '<h1>Title</h1>')
+  job.emit_stdout(md_jobid, { '# Title' })
+  job.emit_exit(md_jobid, 0)
+  lu.assertNil(ctx.result.error)
+  lu.assertStrContains(ctx.result.content, '# Title')
+  lu.assertStrContains(ctx.result.content, 'Content-Type: text/markdown')
+  lu.assertNotStrContains(ctx.result.content, '<html>')
+  lu.assertEquals(ctx.result.jobid, res.jobid)
+end
+
+-- Defensive coercion: some models send "true" instead of true
+function TestFetchWeb:testMarkdownStringTrueAccepted()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownStringTrueAccepted: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local _, md_jobid = start_markdown_flow(ctx, { markdown = 'true' })
+  lu.assertNotNil(md_jobid, 'markdown="true" should trigger conversion')
+  job.emit_stdout(md_jobid, { '# Title' })
+  job.emit_exit(md_jobid, 0)
+  lu.assertNil(ctx.result.error)
+  lu.assertStrContains(ctx.result.content, 'Content-Type: text/markdown')
+end
+
+function TestFetchWeb:testMarkdownSkipsNonHtmlResponse()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownSkipsNonHtmlResponse: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({
+    url = 'https://example.com/api',
+    markdown = true,
+  }, ctx)
+  lu.assertNil(res.error)
+  job.emit_stdout(res.jobid, { '{"key": "value"}' })
+  job.emit_exit(res.jobid, 0)
+  -- No conversion job: JSON is returned as-is with an explanatory note
+  lu.assertNil(job.jobs[res.jobid + 1])
+  lu.assertNil(ctx.result.error)
+  lu.assertStrContains(ctx.result.content, 'Content-Type: application/json')
+  lu.assertStrContains(ctx.result.content, '[Note: markdown conversion skipped')
+  lu.assertStrContains(ctx.result.content, '{"key": "value"}')
+end
+
+function TestFetchWeb:testMarkdownConversionFails()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownConversionFails: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local _, md_jobid = start_markdown_flow(ctx)
+  job.emit_stderr(md_jobid, { 'boom' })
+  job.emit_exit(md_jobid, 1)
+  lu.assertStrContains(ctx.result.error, 'html2markdown failed to convert')
+  lu.assertStrContains(ctx.result.error, 'boom')
+end
+
+function TestFetchWeb:testMarkdownSignalCancelled()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownSignalCancelled: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local _, md_jobid = start_markdown_flow(ctx)
+  job.emit_exit(md_jobid, 0, 15)
+  lu.assertStrContains(ctx.result.error, 'html2markdown cancelled by user (signal: 15)')
+end
+
+function TestFetchWeb:testMarkdownTruncatesConvertedOutput()
+  if not curl_available or not html2markdown_available then
+    print('Skipping testMarkdownTruncatesConvertedOutput: html2markdown not available')
+    return
+  end
+  local ctx = make_ctx()
+  local _, md_jobid = start_markdown_flow(ctx, { max_length = 10 })
+  job.emit_stdout(md_jobid, { string.rep('x', 100) })
+  job.emit_exit(md_jobid, 0)
+  lu.assertNil(ctx.result.error)
+  lu.assertStrContains(ctx.result.content, '[Content truncated from 100 to 10 characters')
+end
+
+-- ============================
 -- info()
 -- ============================
 
@@ -412,6 +576,17 @@ function TestFetchWeb:testInfoNumbers()
   lu.assertStrContains(info, 'timeout=45')
   lu.assertStrContains(info, 'max_length=2000')
   lu.assertStrContains(info, 'output=./res.json')
+end
+
+function TestFetchWeb:testInfoMarkdown()
+  local info = fetch_web.info(
+    vim.json.encode({
+      url = 'https://example.com',
+      markdown = true,
+    }),
+    nil
+  )
+  lu.assertStrContains(info, 'markdown=true')
 end
 
 function TestFetchWeb:testInfoNonNumericStringDoesNotCrash()
