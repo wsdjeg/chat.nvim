@@ -45,13 +45,40 @@ local function create_temp_git_repo(name)
   vim.fn.system(
     'git -C "' .. temp_dir .. '" config user.email "test@test.com"'
   )
-  vim.fn.system('git -C "' .. temp_dir .. '" config user.name "Test User"')
+  vim.fn.system(
+    'git -C "' .. temp_dir .. '" config user.name "Test User"'
+  )
   return vim.fs.normalize(temp_dir)
 end
 
 -- Set allowed path directly
 local function set_allowed_path(path)
   config.config.allowed_path = vim.fs.normalize(path)
+end
+
+--- Get the repo-relative list of files currently staged (git diff --cached)
+--- @param repo string Path to the git repo
+--- @return string[] staged file paths
+local function staged_files(repo)
+  local out = vim.fn.system(
+    'git -C "' .. repo .. '" diff --cached --name-only'
+  )
+  local files = {}
+  for line in out:gmatch('[^\r\n]+') do
+    table.insert(files, line)
+  end
+  return files
+end
+
+--- Assert the repo has exactly the expected files staged
+--- @param repo string Path to the git repo
+--- @param expected string[] Expected repo-relative file list
+local function assert_staged(repo, expected)
+  local files = staged_files(repo)
+  table.sort(files)
+  local sorted_expected = vim.deepcopy(expected)
+  table.sort(sorted_expected)
+  lu.assertEquals(files, sorted_expected)
 end
 
 TestGitAdd = {}
@@ -212,3 +239,124 @@ function TestGitAdd:testGitAddAll()
 
   vim.fn.delete(git_repo, 'rf')
 end
+
+-- path value as a plain string must stage exactly that file
+function TestGitAdd:testGitAddPathAsStringStagesRequestedFile()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddPathAsStringStagesRequestedFile: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('str')
+  set_allowed_path(git_repo)
+
+  vim.fn.writefile({ '-- requested' }, git_repo .. '/requested.lua')
+  -- Decoy file that must NOT be staged
+  vim.fn.writefile({ '-- decoy' }, git_repo .. '/decoy.lua')
+
+  local result = call_async_tool('git_add', {
+    path = git_repo .. '/requested.lua',
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  assert_staged(git_repo, { 'requested.lua' })
+
+  vim.fn.delete(git_repo, 'rf')
+end
+
+-- path value as an array of strings must stage all requested files
+function TestGitAdd:testGitAddPathAsArrayOfStringsStagesAllRequested()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddPathAsArrayOfStrings: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('arr')
+  set_allowed_path(git_repo)
+
+  vim.fn.writefile({ '-- one' }, git_repo .. '/one.lua')
+  vim.fn.writefile({ '-- two' }, git_repo .. '/two.lua')
+  -- Decoy file that must NOT be staged
+  vim.fn.writefile({ '-- decoy' }, git_repo .. '/decoy.lua')
+
+  local result = call_async_tool('git_add', {
+    path = { git_repo .. '/one.lua', git_repo .. '/two.lua' },
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  assert_staged(git_repo, { 'one.lua', 'two.lua' })
+
+  vim.fn.delete(git_repo, 'rf')
+end
+
+-- path as a stringified JSON array (LLM may send the array as a string)
+function TestGitAdd:testGitAddPathAsStringifiedArray()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddPathAsStringifiedArray: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('strarr')
+  set_allowed_path(git_repo)
+
+  vim.fn.writefile({ '-- f1' }, git_repo .. '/f1.lua')
+  vim.fn.writefile({ '-- f2' }, git_repo .. '/f2.lua')
+
+  local result = call_async_tool('git_add', {
+    path = '["'
+      .. git_repo
+      .. '/f1.lua", "'
+      .. git_repo
+      .. '/f2.lua"]',
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  assert_staged(git_repo, { 'f1.lua', 'f2.lua' })
+
+  vim.fn.delete(git_repo, 'rf')
+end
+
+-- path as an array wrapping a single stringified JSON array
+-- (variant of the LLM format confusion the normalizer handles)
+function TestGitAdd:testGitAddPathAsWrappedStringifiedArray()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddPathAsWrappedStringifiedArray: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('wraparr')
+  set_allowed_path(git_repo)
+
+  vim.fn.writefile({ '-- w1' }, git_repo .. '/w1.lua')
+  vim.fn.writefile({ '-- w2' }, git_repo .. '/w2.lua')
+
+  local result = call_async_tool('git_add', {
+    path = { '["'
+      .. git_repo
+      .. '/w1.lua", "'
+      .. git_repo
+      .. '/w2.lua"]' },
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.content,
+    'Expected content, got error: ' .. (result.error or 'unknown')
+  )
+  assert_staged(git_repo, { 'w1.lua', 'w2.lua' })
+
+  vim.fn.delete(git_repo, 'rf')
+end
+

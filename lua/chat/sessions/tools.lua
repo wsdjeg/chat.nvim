@@ -17,6 +17,98 @@ local job_tool_calls = {} ---@type table<string, table>
 --- @field type string
 --- @field function ChatToolCallFunction
 
+--- Check whether a bare JSON value token is actually a literal
+--- (number, boolean, null) that must NOT be quoted when repairing
+--- damaged arguments.
+--- @param v string Bare value token, e.g. "true", "42", "-1.5"
+--- @return boolean
+local function is_json_literal(v)
+  return v:match('^%-?%d+%.?%d*$') ~= nil
+    or v == 'true'
+    or v == 'false'
+    or v == 'null'
+end
+
+--- Quote bare (unquoted) string values in a damaged JSON arguments
+--- string. Some models or relays strip quotes from argument values,
+--- producing payloads like {"path": README.md} that fail strict JSON
+--- decoding and would drop the whole tool call. Repair rules:
+---   1. Top-level bare scalars:   {"path": README.md}    -> {"path": "README.md"}
+---   2. Bare flat-array elements: {"path": [a.lua, b]}   -> {"path": ["a.lua", "b"]}
+--- Numbers, booleans and null are never quoted. Arrays containing
+--- nested objects/arrays are left untouched (only flat arrays are
+--- rewritten), so valid nested structures cannot be corrupted.
+--- @param s string Raw arguments string that already failed strict decode
+--- @return string repaired Repaired string
+local function repair_json_arguments(s)
+  -- 1. Top-level bare scalar values ("key": value followed by , or })
+  s = s:gsub('(:%s*)([^%s"%[%{][^,%}]*)(%s*[,}%]])', function(pre, val, post)
+    if is_json_literal(val) then
+      return pre .. val .. post
+    end
+    return pre .. '"' .. val .. '"' .. post
+  end)
+
+  -- 2. Bare elements of flat arrays (no nested {} or [] inside)
+  s = s:gsub('(:%s*)(%[)([^%[%]%{%}]*)(%])', function(pre, lb, inner, rb)
+    local fixed = {}
+    for elem in inner:gmatch('[^,]+') do
+      elem = elem:gsub('^%s+', ''):gsub('%s+$', '')
+      if
+        elem ~= ''
+        and not is_json_literal(elem)
+        and not elem:match('^"')
+      then
+        table.insert(fixed, '"' .. elem .. '"')
+      else
+        table.insert(fixed, elem)
+      end
+    end
+    if #fixed == 0 then
+      return pre .. lb .. inner .. rb
+    end
+    return pre .. lb .. ' ' .. table.concat(fixed, ', ') .. ' ' .. rb
+  end)
+
+  return s
+end
+
+--- Decode tool call arguments with tolerance for common damage.
+--- Strict decode first; on failure, quote bare string values and retry
+--- once. A parameter value shaped as a string or an array of strings
+--- must survive even when upstream components stripped its quotes.
+--- Returns nil when the arguments are not decodable to an object at
+--- all (garbage, truncated, or a bare scalar like "123").
+--- @param s string Raw arguments from the tool call
+--- @return table|nil args Decoded arguments table, or nil when undecodable
+function M.decode_arguments(s)
+  if type(s) ~= 'string' or s == '' then
+    return nil
+  end
+
+  local ok, args = pcall(vim.json.decode, s)
+  if ok and type(args) == 'table' then
+    return args
+  end
+
+  local repaired = repair_json_arguments(s)
+  if repaired ~= s then
+    local ok2, args2 = pcall(vim.json.decode, repaired)
+    if ok2 and type(args2) == 'table' then
+      log.warn(string.format(
+        'arguments decoded only after repairing bare values:\n'
+          .. '  raw:      %s\n'
+          .. '  repaired: %s',
+        s,
+        repaired
+      ))
+      return args2
+    end
+  end
+
+  return nil
+end
+
 --- Checks whether the session history already contains a tool result for
 --- the given tool_call_id. Used to keep tool result callbacks idempotent:
 --- when cancel_progress force-finished a dead job, a queued on_exit may
@@ -152,9 +244,8 @@ function M.on_progress_tool_call_done(jobid)
       goto continue
     end
 
-    local ok, arguments =
-      pcall(vim.json.decode, tool_call['function'].arguments or '')
-    if ok then
+    local arguments = M.decode_arguments(tool_call['function'].arguments or '')
+    if arguments then
       local call_ok, result =
         pcall(tools.call, tool_call['function'].name, arguments, {
         cwd = storage.sessions[session_id].cwd,
@@ -242,8 +333,8 @@ function M.on_progress_tool_call_done(jobid)
         },
       }
       messages.append_message(session_id, tool_done_message)
-      log.warn('failed to decode arguments, error is:' .. arguments)
-      log.warn('arguments is:' .. (tool_call['function'].arguments or 'nil'))
+      log.warn('failed to decode arguments, raw is: '
+        .. (tool_call['function'].arguments or 'nil'))
       windows.on_tool_call_done(session_id, { tool_done_message })
     end
     ::continue::
@@ -255,7 +346,7 @@ end
 
 --- Handles completion of tool call processing
 --- @param session_id string The session identifier
---- @param jobid string The job identifier
+--- @param jobid string The job identifier for the streaming request
 function M.on_complete(session_id, jobid)
   local progress = require('chat.sessions.progress')
   local usage = progress.get_progress_usage(jobid)
