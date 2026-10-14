@@ -235,6 +235,75 @@ function TestValidateScheme:testMultipleErrors()
   lu.assertTrue(#errors >= 3, 'should have at least 3 errors')
 end
 
+-- anyOf: property accepting multiple types (e.g. string or array)
+function TestValidateScheme:testValidSchemeWithAnyOf()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'A test tool',
+      parameters = {
+        type = 'object',
+        properties = {
+          path = {
+            anyOf = {
+              { type = 'string' },
+              { type = 'array', items = { type = 'string' } },
+            },
+          },
+        },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertEquals(#errors, 0)
+end
+
+-- anyOf variants must each carry a type field
+function TestValidateScheme:testAnyOfVariantMissingType()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+      parameters = {
+        type = 'object',
+        properties = {
+          path = {
+            anyOf = {
+              { type = 'string' },
+              { description = 'no type' },
+            },
+          },
+        },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'anyOf')
+end
+
+-- an empty anyOf is not a type declaration: still missing "type"
+function TestValidateScheme:testEmptyAnyOfFallsBackToMissingType()
+  local scheme = {
+    type = 'function',
+    ['function'] = {
+      name = 'test_tool',
+      description = 'desc',
+      parameters = {
+        type = 'object',
+        properties = {
+          path = { anyOf = {} },
+        },
+      },
+    },
+  }
+  local errors = tools.validate_scheme(scheme)
+  lu.assertTrue(#errors >= 1)
+  lu.assertStrContains(errors[1], 'missing "type" field')
+end
+
 function TestValidateScheme:testAllBuiltInToolsPassValidation()
   local available = tools.available_tools()
   lu.assertNotNil(available)

@@ -360,3 +360,57 @@ function TestGitAdd:testGitAddPathAsWrappedStringifiedArray()
   vim.fn.delete(git_repo, 'rf')
 end
 
+-- Providing both path and all must be rejected as ambiguous, and nothing
+-- may be staged by the rejected request (contract promised in the scheme)
+function TestGitAdd:testGitAddPathAndAllConflictRejected()
+  if vim.fn.executable('git') ~= 1 then
+    print('Skipping testGitAddPathAndAllConflictRejected: git not available')
+    return
+  end
+
+  local git_repo = create_temp_git_repo('conflict')
+  set_allowed_path(git_repo)
+
+  vim.fn.writefile({ '-- conflict' }, git_repo .. '/conflict.lua')
+
+  local result = call_async_tool('git_add', {
+    path = git_repo .. '/conflict.lua',
+    all = true,
+  }, { cwd = git_repo }, 5000)
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.error,
+    'Should reject path + all as ambiguous, got: '
+      .. (result.content or 'no error')
+  )
+  lu.assertStrContains(result.error, 'mbiguous')
+  -- Nothing must be staged when the request is rejected
+  assert_staged(git_repo, {})
+
+  vim.fn.delete(git_repo, 'rf')
+end
+
+-- The scheme must declare path as string-or-array via anyOf, matching what
+-- normalize_paths actually accepts (schema/implementation contract)
+function TestGitAdd:testGitAddSchemeDeclaresStringOrArrayPath()
+  local scheme = require('chat.tools.git_add').scheme()
+  lu.assertEquals(scheme['function'].name, 'git_add')
+
+  local props = scheme['function'].parameters.properties
+  lu.assertNotNil(props.path.anyOf, 'path should use anyOf')
+
+  local has_string, has_array = false, false
+  for _, variant in ipairs(props.path.anyOf) do
+    if variant.type == 'string' then
+      has_string = true
+    elseif variant.type == 'array' then
+      has_array = true
+    end
+  end
+  lu.assertTrue(has_string, 'anyOf should include a string variant')
+  lu.assertTrue(has_array, 'anyOf should include an array variant')
+
+  lu.assertEquals(props.all.type, 'boolean')
+end
+

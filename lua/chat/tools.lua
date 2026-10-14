@@ -94,13 +94,26 @@ function M.validate_scheme(scheme)
     end
   end
 
-  -- Each property definition should have a type field
+  -- Each property definition should have a type field, or an anyOf array
+  -- of typed variants (for properties accepting multiple types, e.g.
+  -- "string or array of strings").
   if type(params.properties) == 'table' then
     for prop_name, prop_def in pairs(params.properties) do
       if type(prop_def) ~= 'table' then
         table.insert(errors, string.format(
           'parameters.properties.%s must be a table', prop_name))
-      elseif not prop_def.type then
+      elseif prop_def.type then
+        -- Single-typed property: nothing else to check here.
+      elseif type(prop_def.anyOf) == 'table' and #prop_def.anyOf > 0 then
+        -- anyOf: each variant must be a table with a type field
+        for i, variant in ipairs(prop_def.anyOf) do
+          if type(variant) ~= 'table' or not variant.type then
+            table.insert(errors, string.format(
+              'parameters.properties.%s.anyOf[%d] must be a table with a "type" field',
+              prop_name, i))
+          end
+        end
+      else
         table.insert(errors, string.format(
           'parameters.properties.%s missing "type" field', prop_name))
       end

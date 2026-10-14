@@ -77,6 +77,13 @@ function M.git_add(action, ctx)
     }
   end
 
+  -- path and all together are ambiguous: the scheme promises a rejection
+  if action.all and action.path then
+    return {
+      error = 'Ambiguous parameters: provide either path or all, not both.',
+    }
+  end
+
   -- Build git command
   local cmd = { 'git', '-C', ctx.cwd, 'add' }
 
@@ -188,45 +195,38 @@ function M.scheme()
       name = 'git_add',
       description = [[Stage file changes for commit.
 
-This tool executes git add to stage changes for the next commit.
+Executes git add to stage changes for the next commit.
 
-USAGE:
-- @git_add                                # Add changes in current directory
-- @git_add path="file.lua"                # Add single file
-- @git_add path=["a.lua", "b.lua"]        # Add multiple files
-- @git_add all=true                       # Add all changes (git add -A)
-- @git_add path="./src"                   # Add all changes in directory
+Parameters (JSON):
+- path: a file or directory path, or an array of paths.
+  e.g. {"path": "src/main.lua"} or {"path": ["a.lua", "b.lua"]}
+- all: stage all changes, equivalent to git add -A.
 
-PARAMETER FORMAT:
-- Single file:   path="src/main.lua"      (string)
-- Multiple files: path=["a.lua", "b.lua"] (array of strings)
+Provide either path or all, not both. If neither is given, all changes
+under the current directory are staged (git add .).
 
-IMPORTANT: Do NOT wrap the array in quotes!
-✅ Correct:   path=["file1.lua", "file2.lua"]
-❌ Wrong:     path="["file1.lua", "file2.lua"]"
-
-EXAMPLES:
-@git_add path="src/main.lua"
-@git_add path=["src/main.lua", "src/utils.lua", "README.md"]
-@git_add all=true
-@git_add path="./src"]],
+Notes:
+- Requires git to be installed and in PATH.]],
       parameters = {
         type = 'object',
         properties = {
           path = {
-            type = 'array',
-            items = { type = 'string' },
-            description = [[File or directory path(s) to add.
-For a single file: ["src/main.lua"]
-For multiple files: ["a.lua", "b.lua"]
-NOTE: A single string like "src/main.lua" is also accepted.]],
+            anyOf = {
+              { type = 'string' },
+              {
+                type = 'array',
+                items = { type = 'string' },
+                minItems = 1,
+              },
+            },
+            description = 'A file or directory path, or an array of paths.',
           },
           all = {
             type = 'boolean',
-            description = 'Add all changes (like git add -A)',
+            description = 'Stage all changes, equivalent to git add -A.',
           },
         },
-        required = {},
+        additionalProperties = false,
       },
     },
   }
