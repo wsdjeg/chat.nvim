@@ -456,6 +456,163 @@ function M.request_tools(session_id)
   return selected
 end
 
+-- ── Argument normalization ─────────────────────────────────────────────
+-- Models routinely violate their JSON schemas in ways that break tools:
+--   * numbers as strings ("count": "10"): comparisons raise
+--     (attempt to compare number with string) and string.format('%d', v)
+--     raises on non-numeric strings
+--   * booleans as strings ("force": "false"): Lua truthiness makes
+--     "false" truthy, so `if action.force then` force-pushes when the
+--     model meant NOT to
+--   * bare string for an array param ("file_types": "*.lua")
+--   * JSON null decoding to vim.NIL, which is truthy in Lua
+-- Normalizing decoded arguments against the tool's own scheme at the
+-- entry point fixes every tool at once instead of patching each handler.
+--
+-- Only dangerous classes are coerced. Non-numeric strings for number
+-- params and non-string values for string params pass through untouched:
+-- the tool's own validation already reports those with a clear error and
+-- the model retries correctly.
+
+-- tool name -> scheme.parameters table (false = no scheme available);
+-- schemes are static per module, the cache never needs invalidation
+local scheme_params_cache = {}
+
+---@param name string Tool function name
+---@return table? params scheme parameters, nil when unavailable
+local function get_scheme_params(name)
+  local cached = scheme_params_cache[name]
+  if cached ~= nil then
+    return cached or nil
+  end
+  local params = nil
+  local ok, tool = pcall(require, 'chat.tools.' .. name)
+  if ok and tool and type(tool.scheme) == 'function' then
+    local ok_s, scheme = pcall(tool.scheme)
+    if
+      ok_s
+      and type(scheme) == 'table'
+      and type(scheme['function']) == 'table'
+      and type(scheme['function'].parameters) == 'table'
+    then
+      params = scheme['function'].parameters
+    end
+  end
+  scheme_params_cache[name] = params or false
+  return params
+end
+
+--- Scalar types accepted by a property definition.
+--- Returns nil for anyOf / multi-typed properties: there is no single
+--- target type to coerce toward, so values pass through untouched.
+---@param def any Property definition from the scheme
+---@return table<string, boolean>? types
+local function property_types(def)
+  if type(def) == 'table' and type(def.type) == 'string' then
+    return { [def.type] = true }
+  end
+  return nil
+end
+
+--- Coerce one value toward a declared scalar type.
+--- Values that cannot be converted pass through unchanged, so the tool's
+--- own validation still reports them with its usual error message.
+---@param v any Value from decoded arguments
+---@param types table<string, boolean> Declared types
+---@return any coerced
+local function coerce_value(v, types)
+  if types.boolean then
+    if type(v) == 'string' then
+      local lower = v:lower()
+      if lower == 'true' then
+        return true
+      end
+      if lower == 'false' then
+        return false
+      end
+    elseif type(v) == 'number' then
+      -- 0 is truthy in Lua but the model means false
+      return v ~= 0
+    end
+  elseif types.number or types.integer then
+    if type(v) == 'string' then
+      local n = tonumber(v)
+      if n ~= nil then
+        return n
+      end
+    end
+  elseif types.array then
+    -- bare string for an array param: wrap it (plan step_ids,
+    -- search_text file_types, ...)
+    if type(v) == 'string' then
+      return { v }
+    end
+  end
+  return v
+end
+
+--- Coerce array items toward the declared items type, dropping JSON nulls.
+---@param v any Value from decoded arguments
+---@param def table Property definition (type = 'array')
+---@return any coerced
+local function coerce_items(v, def)
+  if type(v) ~= 'table' or type(def.items) ~= 'table' then
+    return v
+  end
+  local types = property_types(def.items)
+  if not types then
+    return v
+  end
+  local out = {}
+  local changed = false
+  for _, item in ipairs(v) do
+    if item == vim.NIL then
+      changed = true
+    else
+      local c = coerce_value(item, types)
+      changed = changed or c ~= item
+      table.insert(out, c)
+    end
+  end
+  if not changed then
+    return v
+  end
+  return out
+end
+
+--- Normalize decoded tool arguments against the tool's scheme (see the
+--- section comment above). Returns a NEW table, the input is untouched.
+--- Arguments not declared in the scheme pass through unchanged; JSON null
+--- values are dropped (vim.NIL is truthy in Lua and would otherwise flip
+--- `if action.x then` checks).
+---@param name string Tool function name
+---@param arguments table Decoded tool arguments
+---@return table normalized
+function M.normalize_arguments(name, arguments)
+  if type(arguments) ~= 'table' then
+    return arguments
+  end
+  local params = get_scheme_params(name)
+  if not params or type(params.properties) ~= 'table' then
+    return arguments
+  end
+  local out = {}
+  for k, v in pairs(arguments) do
+    if v ~= vim.NIL then
+      local def = params.properties[k]
+      local types = property_types(def)
+      if types then
+        v = coerce_value(v, types)
+        if types.array then
+          v = coerce_items(v, def)
+        end
+      end
+      out[k] = v
+    end
+  end
+  return out
+end
+
 ---@param ctx ChatToolContext
 function M.call(func, arguments, ctx)
   -- 检查是否是 MCP tool (格式: mcp_<server>_<tool>)
@@ -475,6 +632,10 @@ function M.call(func, arguments, ctx)
 
   local ok, tool = pcall(require, tool_module)
   if ok and tool[func] then
+    -- Coerce model mistakes (numbers/booleans as strings, bare strings
+    -- for array params, JSON nulls) against the scheme before the tool
+    -- sees them.
+    arguments = M.normalize_arguments(func, arguments)
     return tool[func](arguments, ctx)
   end
 
@@ -512,8 +673,31 @@ function M.info(tool_call, ctx)
   local tool_module = 'chat.tools.' .. name
 
   local ok, tool = pcall(require, tool_module)
-  if ok and tool.info then
-    return tool.info(tool_call['function'].arguments, ctx)
+  if ok and tool and type(tool.info) == 'function' then
+    -- Normalize arguments the same way as M.call: info() formats numeric
+    -- params with string.format('%d', ...) and would raise on strings,
+    -- and boolean flags sent as strings display incorrectly.
+    local args_str = tool_call['function'].arguments
+    if type(args_str) == 'string' and args_str ~= '' then
+      local ok_d, decoded = pcall(vim.json.decode, args_str)
+      if ok_d and type(decoded) == 'table' and next(decoded) ~= nil then
+        decoded = M.normalize_arguments(name, decoded)
+        local ok_e, encoded = pcall(vim.json.encode, decoded)
+        if ok_e and type(encoded) == 'string' then
+          args_str = encoded
+        end
+      end
+    end
+    -- info() only renders UI text: never let it break the rendering
+    -- pipeline, fall back to the tool name on failure.
+    local ok_i, info = pcall(tool.info, args_str, ctx)
+    if ok_i and type(info) == 'string' then
+      return info
+    end
+    if not ok_i then
+      log.warn(string.format('tool info() for %s raised: %s', name, tostring(info)))
+    end
+    return name
   else
     return name
   end

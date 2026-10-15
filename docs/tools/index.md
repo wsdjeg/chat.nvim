@@ -205,6 +205,19 @@ chat.nvim supports both synchronous and **asynchronous** custom tools. Users can
 
 This module should provide at least two functions: `scheme()` and `<tool_name>` function. The `scheme()` function returns a table describing the tool's schema (name, description, parameters). The `<tool_name>` function is the actual implementation that will be called when the tool is invoked.
 
+### Argument Normalization
+
+Before your handler is invoked, decoded arguments are normalized against the tool's own `scheme()` (`tools.normalize_arguments`), fixing common model mistakes at the entry point:
+
+- **boolean params**: `"true"` / `"false"` strings are converted to real booleans, numeric `0` / `1` to `false` / `true`. Without this, `"false"` is truthy in Lua and flips flag semantics (`git_push force="false"` would trigger `--force`).
+- **number / integer params**: numeric strings are converted to numbers (`"10"` → `10`). Comparisons and `string.format('%d', ...)` raise on strings.
+- **array params**: a bare string is wrapped into a single-element table (`"*.lua"` → `{ "*.lua" }`), and items are coerced toward the declared `items` type (`{ "1", "2" }` → `{ 1, 2 }` for integer arrays).
+- **JSON null**: values decoding to `vim.NIL` (which is truthy in Lua) are dropped, so `if action.x then` checks work as expected.
+
+Values that cannot be converted are passed through untouched — your own validation should still reject them with a clear error message. Properties declared with `anyOf` (multiple types) and unknown properties are never coerced.
+
+Handlers can therefore assume: a declared `boolean` param arrives as a real boolean, a declared `number`/`integer` as a number, and a declared `array` as a table.
+
 ### Synchronous Tool Example
 
 Here is an example for a synchronous `get_weather` tool:
