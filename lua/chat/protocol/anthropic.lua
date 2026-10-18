@@ -299,32 +299,12 @@ function M.convert_message(messages)
   local anthropic_messages = {}
   for _, msg in ipairs(messages) do
     if msg.role == 'system' then
-      if #anthropic_messages == 0 then
-        -- Multiple leading system messages (session prompt + user profile)
-        -- must be merged; overwriting here would silently drop all but the
-        -- last.
-        if system_prompt then
-          system_prompt = system_prompt .. '\n\n' .. msg.content
-        else
-          system_prompt = msg.content
-        end
+      -- Multiple system messages (session prompt + user profile) must be
+      -- merged; overwriting here would silently drop all but the last.
+      if system_prompt then
+        system_prompt = system_prompt .. '\n\n' .. msg.content
       else
-        -- Anthropic has no mid-conversation system role. A trailing system
-        -- message (the context window notice appended by
-        -- context.truncate_messages) must NOT be merged into the top-level
-        -- system prompt: that would move per-turn changing content to the
-        -- very head of the request and invalidate the prompt cache for the
-        -- stable system + tools blocks. Convert it into a user text message
-        -- so it stays at the conversation tail.
-        table.insert(anthropic_messages, {
-          role = 'user',
-          content = {
-            {
-              type = 'text',
-              text = msg.content,
-            },
-          },
-        })
+        system_prompt = msg.content
       end
     elseif msg.role == 'user' then
       table.insert(anthropic_messages, {
