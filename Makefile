@@ -1,4 +1,4 @@
-.PHONY: test coverage clean install-deps install-luaunit install-job junit help
+.PHONY: test test-all test-verbose coverage clean install-deps install-luaunit install-job junit help lint
 
 # Default target
 help:
