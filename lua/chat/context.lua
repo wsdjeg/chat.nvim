@@ -146,9 +146,15 @@ function M.truncate_messages(messages, config)
   end
   cleaned = cleaned2
 
-  -- Build final result: system messages + context notice + cleaned messages
+  -- Build final result: system messages + kept messages + context notice
+  --
+  -- The notice is appended at the END, not right after the system messages.
+  -- It embeds per-turn changing numbers (total/kept counts); placing it near
+  -- the front would churn the request head every turn and defeat provider
+  -- prompt caching for everything behind it. Static content first, notice last.
   local result = {}
   vim.list_extend(result, system_messages)
+  vim.list_extend(result, cleaned)
 
   table.insert(result, {
     role = 'system',
@@ -159,8 +165,6 @@ function M.truncate_messages(messages, config)
       #other_messages
     ),
   })
-
-  vim.list_extend(result, cleaned)
 
   log.info(
     string.format(

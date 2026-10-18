@@ -132,6 +132,64 @@ function TestProtocol:test_anthropic_merges_multiple_system_messages()
   lu.assertEquals(#anthropic_messages, 1)
 end
 
+function TestProtocol:test_anthropic_mid_conversation_system_becomes_user_message()
+  -- context.truncate_messages appends the context window notice as a
+  -- trailing system message. Merging it into the top-level system prompt
+  -- would move per-turn changing content to the request head and defeat
+  -- prompt caching; it must become a trailing user message instead.
+  local anthropic = require('chat.protocol.anthropic')
+
+  local messages = {
+    { role = 'system', content = 'Session prompt.' },
+    { role = 'user', content = 'Hi' },
+    { role = 'assistant', content = 'Hello!' },
+    { role = 'system', content = '[Context Window Notice] truncated history' },
+  }
+
+  local system_prompt, anthropic_messages = anthropic.convert_message(messages)
+
+  -- Only leading system messages feed the top-level system prompt
+  lu.assertEquals(system_prompt, 'Session prompt.')
+  lu.assertEquals(#anthropic_messages, 3)
+  lu.assertEquals(anthropic_messages[3].role, 'user')
+  lu.assertEquals(anthropic_messages[3].content[1].type, 'text')
+  lu.assertStrContains(
+    anthropic_messages[3].content[1].text,
+    '[Context Window Notice]'
+  )
+end
+
+function TestProtocol:test_anthropic_system_prompt_stable_across_truncation()
+  -- End-to-end: once context truncation kicks in and appends the notice,
+  -- the top-level system prompt must stay byte-identical so Anthropic's
+  -- cached system + tools blocks remain valid across turns.
+  local anthropic = require('chat.protocol.anthropic')
+  local context = require('chat.context')
+
+  local msgs = { { role = 'system', content = 'Session prompt.' } }
+  for i = 1, 59 do
+    table.insert(msgs, { role = 'user', content = 'm' .. i })
+  end
+
+  local sys_before = anthropic.convert_message(msgs)
+
+  -- Conversation grows past the truncation threshold
+  table.insert(msgs, { role = 'assistant', content = 'ok' })
+  table.insert(msgs, { role = 'user', content = 'more' })
+  local truncated, did_truncate = context.truncate_messages(msgs)
+  lu.assertTrue(did_truncate)
+  lu.assertEquals(truncated[#truncated].role, 'system')
+  lu.assertStrContains(truncated[#truncated].content, 'Context Window Notice')
+
+  local sys_after, after = anthropic.convert_message(truncated)
+
+  lu.assertEquals(sys_before, 'Session prompt.')
+  lu.assertEquals(sys_after, sys_before, 'system prompt untouched by notice')
+  -- The notice rides at the tail as a user text message
+  lu.assertEquals(after[#after].role, 'user')
+  lu.assertStrContains(after[#after].content[1].text, 'Context Window Notice')
+end
+
 function TestProtocol:test_anthropic_convert_reasoning_only_assistant()
   -- A truncated reasoning-only turn (no content, no tool_calls) still needs
   -- a non-empty content array for Anthropic's API.
@@ -150,3 +208,4 @@ function TestProtocol:test_anthropic_convert_reasoning_only_assistant()
 end
 
 return TestProtocol
+
