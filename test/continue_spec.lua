@@ -171,5 +171,39 @@ function TestContinue:test_per_session_independence()
   lu.assertEquals(continue.get_count('sess-2'), 0)
 end
 
+function TestContinue:test_continue_resends_trailing_assistant_after_truncation()
+  -- Regression for eac6d50: moving the context notice to the END of the
+  -- request list displaced the truncated assistant message, so auto-continue
+  -- resumed the wrong turn. Drive the real get_request_messages (which applies
+  -- context truncation) and assert the final entry stays the assistant.
+  package.loaded['chat.sessions.messages'] = real_messages
+
+  local storage = require('chat.sessions.storage')
+  local sid = 'cont-truncate'
+  local msgs = {}
+  for i = 1, 58 do
+    table.insert(msgs, { role = 'user', content = 'm' .. i, created = os.time() })
+  end
+  table.insert(msgs, {
+    role = 'assistant',
+    content = 'partial answer',
+    created = os.time(),
+  })
+  storage.sessions[sid] = { prompt = '', messages = msgs }
+
+  local jobid = continue.continue(sid)
+  lu.assertEquals(jobid, 42)
+
+  local sent = captured.request[1].messages
+  lu.assertEquals(
+    sent[#sent].role,
+    'assistant',
+    'continuation request ends with assistant, not the context notice'
+  )
+  lu.assertEquals(sent[#sent].content, 'partial answer')
+
+  storage.sessions[sid] = nil
+end
+
 return TestContinue
 

@@ -256,6 +256,46 @@ function TestSessions:testGetRequestMessages()
   lu.assertEquals(request_messages[3].role, 'assistant')
 end
 
+function TestSessions:testGetRequestMessagesKeepsTrailingAssistantForContinuation()
+  -- Auto-continue (finish_reason == "length") resends get_request_messages
+  -- unchanged, so the truncated assistant message must stay the final entry
+  -- even after context truncation. Regression for eac6d50, which moved the
+  -- context notice to the END and thereby displaced the assistant.
+  local session_id = sessions.new()
+  sessions.set_session_prompt(session_id, 'You are helpful.')
+
+  for i = 1, 58 do
+    sessions.append_message(session_id, {
+      role = 'user',
+      content = 'm' .. i,
+      created = os.time(),
+    })
+  end
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'partial answer',
+    created = os.time(),
+  })
+
+  local request_messages = sessions.get_request_messages(session_id)
+
+  lu.assertEquals(request_messages[#request_messages].role, 'assistant')
+  lu.assertEquals(request_messages[#request_messages].content, 'partial answer')
+
+  -- 60 messages exceed trigger_threshold (50), so truncation fires and
+  -- emits the context notice; it must sit at the head, never after the
+  -- trailing assistant.
+  local notice_index = nil
+  for i, m in ipairs(request_messages) do
+    if m.role == 'system' and m.content:find('Context Window Notice', 1, true) then
+      notice_index = i
+      break
+    end
+  end
+  lu.assertNotNil(notice_index, 'context notice emitted after truncation')
+  lu.assertTrue(notice_index < #request_messages, 'notice precedes trailing assistant')
+end
+
 function TestSessions:testChangeCwd()
   local session_id = sessions.new()
   local test_cwd = '/tmp/test-dir'

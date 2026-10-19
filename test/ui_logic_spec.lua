@@ -566,6 +566,34 @@ function TestContextTruncate:test_get_stats()
   lu.assertEquals(stats.system_count, 1)
 end
 
+function TestContextTruncate:test_truncation_keeps_trailing_assistant_last()
+  -- Auto-continue (finish_reason == "length") resends the request messages
+  -- unchanged and relies on the truncated assistant message being the final
+  -- entry. The context notice must be inserted before the kept history, never
+  -- appended after the trailing assistant: otherwise the continuation would
+  -- end with the notice and the assistant turn would stop being resumed.
+  local msgs = { { role = 'system', content = 'sys' } }
+  for i = 1, 58 do
+    table.insert(msgs, { role = 'user', content = 'm' .. i })
+  end
+  table.insert(msgs, { role = 'assistant', content = 'partial answer' })
+
+  local result, truncated = context.truncate_messages(msgs)
+
+  lu.assertTrue(truncated)
+  lu.assertEquals(
+    result[#result].role,
+    'assistant',
+    'trailing assistant stays last for auto-continue'
+  )
+  lu.assertEquals(result[#result].content, 'partial answer')
+
+  -- The notice is still emitted, but at the head (right after system msgs),
+  -- never after the trailing assistant.
+  lu.assertEquals(result[2].role, 'system')
+  lu.assertStrContains(result[2].content, 'Context Window Notice')
+end
+
 TestQueue = {}
 
 local Q = {}
