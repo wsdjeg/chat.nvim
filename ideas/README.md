@@ -32,3 +32,4 @@
 | [001](./001-project-scoped-tools.md) | 项目级工具目录(按会话 cwd 发现) | design |
 | [002](./002-mcp2-stateless-client.md) | MCP 2.0 无状态客户端适配(2026-07-28 规范) | design |
 | [003](./003-finish-reason-handling.md) | finish_reason 处理统一与兜底 | draft |
+| [004](./004-multi-token-support.md) | 多 token 支持(多账号 api_key 轮询/故障切换) | draft |
