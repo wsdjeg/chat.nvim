@@ -233,8 +233,10 @@ end
 --- @param signal integer The signal that caused the exit (if any)
 function M.on_progress_exit(jobid, code, signal)
   local session_id = M.get_progress_session(jobid)
-  progress_reasoning_contents[session_id] = nil
-  progress_messages[session_id] = nil
+  if session_id then
+    progress_reasoning_contents[session_id] = nil
+    progress_messages[session_id] = nil
+  end
   progress_usage[jobid] = nil
   progress_finish_reasons[jobid] = nil
   jobid_session[jobid] = nil
