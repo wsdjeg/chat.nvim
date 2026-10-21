@@ -7,18 +7,19 @@ local systemObj
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 
 -- Use Gemini protocol
 M.protocol = 'gemini'
 
 function M.available_models()
   if #available_models == 0 and not systemObj then
-    if config.config.api_key.gemini then
+    local api_key = tokens.next('gemini')
+    if api_key then
       local cmd = curl.build_request({
         url = string.format(
           'https://generativelanguage.googleapis.com/v1beta/models?key=%s',
-          config.config.api_key.gemini
+          api_key
         ),
       })
       systemObj = vim.system(cmd, { text = true }, function(out)
@@ -48,6 +49,11 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('gemini')
+  if not api_key then
+    return nil
+  end
+
   local messages = opt.messages
   local gemini_contents = {}
   local system_instruction = nil
@@ -117,7 +123,6 @@ function M.request(opt)
   end
 
   local model = sessions.get_session_model(opt.session)
-  local api_key = config.config.api_key.gemini
   local body_json = vim.json.encode(body)
 
   local cmd = curl.build_request({
@@ -138,6 +143,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'gemini', key_index)
   job.send(jobid, body_json)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)

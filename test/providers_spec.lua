@@ -4,6 +4,7 @@ local lu = require('luaunit')
 local job = require('job')
 local config = require('chat.config')
 local sessions = require('chat.sessions')
+local tokens = require('chat.tokens')
 
 -- [modname] = api_key field name
 local ALL_PROVIDERS = {
@@ -103,6 +104,8 @@ function TestProviders:setUp()
   for _, name in ipairs(ALL_PROVIDERS) do
     config.config.api_key[name] = name .. '-test-key'
   end
+  -- Rotation state must not leak between tests
+  tokens.reset()
   self.session_id = sessions.new()
   sessions.set_session_model(self.session_id, 'unit-test-model')
 end
@@ -111,6 +114,7 @@ function TestProviders:tearDown()
   job.intercept(false)
   vim.system = real_vim_system
   config.config.api_key.ollama_fake = nil
+  tokens.reset()
 end
 
 local function load_fresh(modname)
@@ -539,6 +543,96 @@ end
 function TestProviders:test_gemini_tools_in_body()
   local _, _, body = do_request('gemini')
   lu.assertNotNil(body.tools, 'gemini converts available tools')
+end
+
+------------------------------------------------------------------ multi-token
+
+function TestProviders:test_multi_key_rotation()
+  -- api_key as a list: consecutive requests rotate through the keys
+  local saved = config.config.api_key.deepseek
+  config.config.api_key.deepseek = { 'deepseek-key-1', 'deepseek-key-2' }
+  tokens.reset()
+
+  local _, j1 = do_request('deepseek')
+  lu.assertStrContains(table.concat(j1.cmd, ' '), 'Bearer deepseek-key-1', false, 'first key used first')
+  local _, j2 = do_request('deepseek')
+  lu.assertStrContains(table.concat(j2.cmd, ' '), 'Bearer deepseek-key-2', false, 'second key used next')
+  local _, j3 = do_request('deepseek')
+  lu.assertStrContains(table.concat(j3.cmd, ' '), 'Bearer deepseek-key-1', false, 'rotation wraps around')
+
+  config.config.api_key.deepseek = saved
+  tokens.reset()
+end
+
+function TestProviders:test_multi_key_failover_on_rate_limit()
+  -- A rate-limited key is skipped on the next request
+  local saved = config.config.api_key.deepseek
+  config.config.api_key.deepseek = { 'deepseek-key-1', 'deepseek-key-2' }
+  tokens.reset()
+
+  local jobid, j1 = do_request('deepseek')
+  lu.assertStrContains(table.concat(j1.cmd, ' '), 'Bearer deepseek-key-1')
+
+  -- Simulate a 429 error for the job (as protocol error handlers do)
+  tokens.report_error(jobid, 429, 'rate limit reached')
+
+  local _, j2 = do_request('deepseek')
+  lu.assertStrContains(
+    table.concat(j2.cmd, ' '),
+    'Bearer deepseek-key-2',
+    false,
+    'rotate away from the limited key'
+  )
+
+  config.config.api_key.deepseek = saved
+  tokens.reset()
+end
+
+function TestProviders:test_request_returns_nil_without_api_key()
+  local saved = config.config.api_key.deepseek
+  config.config.api_key.deepseek = nil
+  tokens.reset()
+  local provider = require('chat.providers.deepseek')
+  local jobid = provider.request({
+    session = self.session_id,
+    messages = { { role = 'user', content = 'x' } },
+    on_stdout = function() end,
+    on_stderr = function() end,
+    on_exit = function() end,
+  })
+  lu.assertNil(jobid, 'no api key -> no request started')
+  config.config.api_key.deepseek = saved
+  tokens.reset()
+end
+
+function TestProviders:test_multi_key_gemini_url_rotation()
+  -- gemini puts the key in the URL; arrays must rotate there too
+  local saved = config.config.api_key.gemini
+  config.config.api_key.gemini = { 'gemini-key-1', 'gemini-key-2' }
+  tokens.reset()
+
+  local _, j1 = do_request('gemini')
+  lu.assertStrContains(table.concat(j1.cmd, ' '), 'key=gemini-key-1')
+  local _, j2 = do_request('gemini')
+  lu.assertStrContains(table.concat(j2.cmd, ' '), 'key=gemini-key-2')
+
+  config.config.api_key.gemini = saved
+  tokens.reset()
+end
+
+function TestProviders:test_multi_key_anthropic_header_rotation()
+  -- anthropic providers put the key in the x-api-key header
+  local saved = config.config.api_key.anthropic
+  config.config.api_key.anthropic = { 'anthropic-key-1', 'anthropic-key-2' }
+  tokens.reset()
+
+  local _, j1 = do_request('anthropic')
+  lu.assertStrContains(table.concat(j1.cmd, ' '), 'x-api-key: anthropic-key-1')
+  local _, j2 = do_request('anthropic')
+  lu.assertStrContains(table.concat(j2.cmd, ' '), 'x-api-key: anthropic-key-2')
+
+  config.config.api_key.anthropic = saved
+  tokens.reset()
 end
 
 return TestProviders

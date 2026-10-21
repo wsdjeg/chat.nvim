@@ -1,6 +1,10 @@
 local M = {}
 
----@alias ChatConfigApiKey table<string, string>
+--- A single api key (string) or a list of keys (string[]) rotated
+--- round-robin by the tokens module, with per-key cooldown on rate limits.
+---@alias ChatApiKey string|string[]
+
+---@alias ChatConfigApiKey table<string, ChatApiKey>
 
 ---@class ChatConfig
 ---@field width? number
@@ -27,6 +31,7 @@ local M = {}
 ---@field winhighlight? string
 ---@field retry? table
 ---@field continuation? table
+---@field token_cooldown? number Seconds an api key is skipped after a rate-limit / server error (default: 30)
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
@@ -138,6 +143,9 @@ local default = {
     -- Maximum number of continuation requests per response (default: 3).
     max_continuations = 3,
   },
+  -- Multi-api_key rotation: seconds an api key is skipped after a rate
+  -- limit (429) or server error (5xx) before it is tried again
+  token_cooldown = 30,
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',
 }

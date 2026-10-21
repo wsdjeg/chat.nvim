@@ -3,6 +3,7 @@ local M = {}
 local curl = require('chat.curl')
 local log = require('chat.log')
 local sessions = require('chat.sessions')
+local tokens = require('chat.tokens')
 
 local sse_buffers = {}
 local body_buffers = {}
@@ -70,6 +71,15 @@ function M.on_stdout(id, data)
           if chunk.error then
             local error_msg = chunk.error.message or 'Unknown error'
             local error_code = chunk.error.code or 'unknown'
+            -- Gemini error status (e.g. RESOURCE_EXHAUSTED, UNAVAILABLE)
+            -- carries the rate-limit signal, fold it into the detection text
+            local status = chunk.error.status
+            if type(status) == 'string' then
+              error_code = error_code .. ' ' .. status
+            end
+            -- Rate limit / server errors cool the api key down so the
+            -- next request rotates to another key (multi-token support)
+            tokens.report_error(id, error_code, error_msg)
             local message = {
               error = string.format(
                 'Gemini API Error (%s): %s',
@@ -104,6 +114,7 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_exit(id, code, signal)
       sse_buffers[id] = nil
       body_buffers[id] = nil
+      tokens.unbind(id)
       return
     end
 
@@ -115,6 +126,11 @@ function M.on_exit(id, code, signal)
       if ok and chunk.error then
         local error_msg = chunk.error.message or 'Unknown error'
         local error_code = chunk.error.code or 'unknown'
+        local status = chunk.error.status
+        if type(status) == 'string' then
+          error_code = error_code .. ' ' .. status
+        end
+        tokens.report_error(id, error_code, error_msg)
         local message = {
           error = string.format(
             'Gemini API Error (%s): %s',
@@ -197,6 +213,7 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil
+    tokens.unbind(id)
   end)
 end
 

@@ -3,7 +3,7 @@ local M = {}
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 
 -- Use Anthropic protocol
 M.protocol = 'anthropic'
@@ -19,6 +19,11 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('anthropic')
+  if not api_key then
+    return nil
+  end
+
   local system_prompt, anthropic_messages = require('chat.protocol.anthropic').convert_message(opt.messages)
 
   -- Build request body
@@ -46,7 +51,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'x-api-key: ' .. config.config.api_key.anthropic,
+      'x-api-key: ' .. api_key,
       'anthropic-version: 2023-06-01',
     },
     stdin_body = true,
@@ -57,6 +62,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'anthropic', key_index)
   job.send(jobid, body_json)
   -- Close stdin so curl sees EOF and sends the request; without it curl
   -- keeps waiting for more body data and the request never completes.

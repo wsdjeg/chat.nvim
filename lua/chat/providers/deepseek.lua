@@ -3,7 +3,7 @@ local M = {}
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 
 local model_max_tokens = {
   ['deepseek-v4-flash'] = 384 * 1024,
@@ -24,6 +24,11 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('deepseek')
+  if not api_key then
+    return nil
+  end
+
   local model = sessions.get_session_model(opt.session)
   local body = vim.json.encode({
     model = model,
@@ -42,7 +47,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'Authorization: Bearer ' .. config.config.api_key.deepseek,
+      'Authorization: Bearer ' .. api_key,
     },
     stdin_body = true,
   })
@@ -52,6 +57,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'deepseek', key_index)
   job.send(jobid, body)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)

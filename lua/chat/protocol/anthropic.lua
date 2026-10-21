@@ -3,6 +3,7 @@ local M = {}
 local curl = require('chat.curl')
 local log = require('chat.log')
 local sessions = require('chat.sessions')
+local tokens = require('chat.tokens')
 
 local sse_buffers = {}
 local body_buffers = {}
@@ -143,6 +144,9 @@ function M.on_stdout(id, data)
             elseif chunk.error then
               local error_msg = chunk.error.message or 'Unknown error'
               local error_type = chunk.error.type or 'unknown'
+              -- Rate limit / server errors cool the api key down so the
+              -- next request rotates to another key (multi-token support)
+              tokens.report_error(id, error_type, error_msg)
               local message = {
                 error = string.format(
                   'Anthropic API Error (%s): %s',
@@ -180,6 +184,7 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_exit(id, code, signal)
       sse_buffers[id] = nil
       body_buffers[id] = nil
+      tokens.unbind(id)
       return
     end
 
@@ -191,6 +196,7 @@ function M.on_exit(id, code, signal)
       if ok and chunk.error then
         local error_msg = chunk.error.message or 'Unknown error'
         local error_type = chunk.error.type or 'unknown'
+        tokens.report_error(id, error_type, error_msg)
         local message = {
           error = string.format(
             'Anthropic API Error (%s): %s',
@@ -291,6 +297,7 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers
     sse_buffers[id] = nil
     body_buffers[id] = nil
+    tokens.unbind(id)
   end)
 end
 

@@ -3,7 +3,7 @@ local M = {}
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 local util = require('chat.util')
 
 -- Use Anthropic protocol
@@ -23,6 +23,10 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('aliyuncs_coding_plan')
+  if not api_key then
+    return nil
+  end
 
   local system_prompt, anthropic_messages = require('chat.protocol.anthropic').convert_message(opt.messages)
 
@@ -52,7 +56,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'x-api-key: ' .. config.config.api_key.aliyuncs_coding_plan,
+      'x-api-key: ' .. api_key,
       'anthropic-version: 2023-06-01',
     },
     stdin_body = true,
@@ -63,6 +67,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'aliyuncs_coding_plan', key_index)
   job.send(jobid, body_json)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)

@@ -3,7 +3,7 @@ local M = {}
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 
 function M.available_models()
   return {
@@ -16,6 +16,11 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('bigmodel')
+  if not api_key then
+    return nil
+  end
+
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
@@ -30,7 +35,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'Authorization: Bearer ' .. config.config.api_key.bigmodel,
+      'Authorization: Bearer ' .. api_key,
     },
     stdin_body = true,
   })
@@ -40,6 +45,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'bigmodel', key_index)
   job.send(jobid, body)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)

@@ -3,6 +3,7 @@ local M = {}
 local curl = require('chat.curl')
 local log = require('chat.log')
 local sessions = require('chat.sessions')
+local tokens = require('chat.tokens')
 
 local sse_buffers = {}
 local body_buffers = {}
@@ -71,7 +72,10 @@ function M.on_stdout(id, data)
               end
             elseif chunk.error then
               local error_msg = chunk.error.message or 'Unknown error'
-              local error_code = chunk.error.code or chunk.type or 'unknown'
+              local error_code = chunk.error.code or chunk.error.type or 'unknown'
+              -- Rate limit / server errors cool the api key down so the
+              -- next request rotates to another key (multi-token support)
+              tokens.report_error(id, error_code, error_msg)
               local message = {
                 error = string.format(
                   'API Error (%s): %s',
@@ -116,6 +120,7 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_exit(id, code, signal)
       sse_buffers[id] = nil
       body_buffers[id] = nil
+      tokens.unbind(id)
       return
     end
 
@@ -128,9 +133,14 @@ function M.on_exit(id, code, signal)
         log.error('Failed to decode JSON: ' .. text)
       elseif ok and chunk.error then
         local error_msg = chunk.error.message or 'Unknown error'
-        local error_code = chunk.error.code or chunk.type or 'unknown'
+        local error_code = chunk.error.code or chunk.error.type or 'unknown'
+        tokens.report_error(id, error_code, error_msg)
         local message = {
-          error = string.format('API Error (%s): %s', error_code, error_msg),
+          error = string.format(
+            'API Error (%s): %s',
+            error_code,
+            error_msg
+          ),
           created = os.time(),
         }
         sessions.append_message(session, message)
@@ -138,8 +148,13 @@ function M.on_exit(id, code, signal)
       elseif ok and chunk.code then
         local error_msg = chunk.msg or 'Unknown error'
         local error_code = chunk.code or chunk.type or 'unknown'
+        tokens.report_error(id, error_code, error_msg)
         local message = {
-          error = string.format('API Error (%s): %s', error_code, error_msg),
+          error = string.format(
+            'API Error (%s): %s',
+            error_code,
+            error_msg
+          ),
           created = os.time(),
         }
         sessions.append_message(session, message)
@@ -230,6 +245,7 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers to prevent memory leak
     sse_buffers[id] = nil
     body_buffers[id] = nil
+    tokens.unbind(id)
   end)
 end
 

@@ -9,18 +9,19 @@ local systemObj
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 local util = require('chat.util')
 
 function M.available_models()
   if #available_models == 0 and not systemObj then
-    if config.config.api_key.qwen then
+    local api_key = tokens.next('qwen')
+    if api_key then
       local cmd = curl.build_request({
         url = 'https://dashscope.aliyuncs.com/api/v1/models?page_size='
           .. page_size,
         headers = {
           'Content-Type: application/json',
-          'Authorization: Bearer ' .. config.config.api_key.qwen,
+          'Authorization: Bearer ' .. api_key,
         },
       })
       systemObj = vim.system(cmd, { text = true }, function(out)
@@ -47,7 +48,7 @@ function M.available_models()
                     .. page_size,
                   headers = {
                     'Content-Type: application/json',
-                    'Authorization: Bearer ' .. config.config.api_key.qwen,
+                    'Authorization: Bearer ' .. api_key,
                   },
                 })
                 vim.system(cmd, { text = true }, function(out2)
@@ -78,6 +79,11 @@ function M.available_models()
 end
 
 function M.request(opt)
+  local api_key, key_index = tokens.next('qwen')
+  if not api_key then
+    return nil
+  end
+
   local body = util.encode_json_body({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
@@ -92,7 +98,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'Authorization: Bearer ' .. config.config.api_key.qwen,
+      'Authorization: Bearer ' .. api_key,
     },
     stdin_body = true,
   })
@@ -102,6 +108,7 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  tokens.bind(jobid, 'qwen', key_index)
   job.send(jobid, body)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
