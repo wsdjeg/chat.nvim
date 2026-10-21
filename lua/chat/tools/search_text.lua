@@ -286,8 +286,21 @@ function M.search_text(action, ctx)
       end
     end,
   })
+
+  if jobid and jobid > 0 then
+    return {
+      jobid = jobid,
+    }
+  end
+
+  -- job.start failed to spawn the rg process (e.g. not executable):
+  -- on_exit will never fire, so fail fast instead of leaving a pending
+  -- async tool whose callback would never arrive.
   return {
-    jobid = jobid,
+    error = string.format(
+      'Failed to start ripgrep process (jobid: %s). Please verify rg is installed and executable.',
+      tostring(jobid)
+    ),
   }
 end
 

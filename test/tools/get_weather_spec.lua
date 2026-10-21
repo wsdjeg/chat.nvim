@@ -3,6 +3,7 @@ local tools = require('chat.tools')
 local config = require('chat.config')
 local get_weather = require('chat.tools.get_weather')
 local curl = require('chat.curl')
+local job = require('job')
 
 local function call_async_tool(func, arguments, ctx, timeout)
   timeout = timeout or 5000
@@ -54,6 +55,9 @@ function TestGetWeather:tearDown()
   curl.is_available = self._orig_avail
   curl.build_request = self._orig_build
   curl.get_error_message = self._orig_get_err
+  -- Restore passthrough mode for other specs in case a test switched to
+  -- interception mode (also clears recorded mock jobs).
+  job.reset()
 end
 
 function TestGetWeather:testCurlUnavailable()
@@ -142,12 +146,50 @@ end
 function TestGetWeather:testCurlFailure()
   mock_curl_failure()
   curl.get_error_message = function() return 'some hint' end
-  local result = call_async_tool('get_weather', {
+  -- Use interception mode and drive the exit callback manually: the
+  -- command `sh -c 'exit 3'` only exists on machines with `sh` in PATH
+  -- (not the case on every Windows box), so do not rely on a real process.
+  job.intercept()
+
+  local result_received = false
+  local actual_result = nil
+  local result = tools.call('get_weather', {
     city_id = '101240101',
-  }, { cwd = self.cwd })
+  }, {
+    cwd = self.cwd,
+    callback = function(res)
+      result_received = true
+      actual_result = res
+    end,
+  })
+
+  lu.assertNil(result.error)
+  lu.assertNotNil(result.jobid)
+
+  -- Simulate curl exiting with a non-zero code
+  job.emit_exit(result.jobid, 3, 0)
+
+  lu.assertTrue(result_received, 'on_exit should have invoked ctx.callback')
+  lu.assertNotNil(actual_result)
+  lu.assertNotNil(actual_result.error)
+  lu.assertStrContains(actual_result.error, 'Failed to fetch weather data')
+  lu.assertStrContains(actual_result.error, 'exit code: 3')
+  lu.assertStrContains(actual_result.error, 'some hint')
+end
+
+function TestGetWeather:testJobStartFailure()
+  -- curl passes the availability pre-check, but spawning the process fails
+  -- (job.start returns -1 for a non-executable command): the tool must
+  -- fail fast with an error instead of leaving a pending async tool whose
+  -- callback would never fire.
+  curl.is_available = function() return true end
+  curl.build_request = function()
+    return { 'chat-nvim-definitely-missing-cmd' }
+  end
+  local result = tools.call('get_weather', {}, { cwd = self.cwd })
   lu.assertNotNil(result)
   lu.assertNotNil(result.error)
-  lu.assertStrContains(result.error, 'Failed to fetch weather data')
+  lu.assertStrContains(result.error, 'Failed to start curl process')
 end
 
 function TestGetWeather:testInfoDefault()
@@ -183,3 +225,4 @@ function TestGetWeather:testScheme()
 end
 
 return TestGetWeather
+

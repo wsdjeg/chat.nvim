@@ -371,8 +371,21 @@ function M.fetch_web(action, ctx)
       end
     end,
   })
+
+  if jobid and jobid > 0 then
+    return {
+      jobid = jobid,
+    }
+  end
+
+  -- job.start failed to spawn the curl process (e.g. not executable):
+  -- on_exit will never fire, so fail fast instead of leaving a pending
+  -- async tool whose callback would never arrive.
   return {
-    jobid = jobid,
+    error = string.format(
+      'Failed to start curl process (jobid: %s). Please verify curl is installed and executable.',
+      tostring(jobid)
+    ),
   }
 end
 
