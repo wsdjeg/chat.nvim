@@ -242,19 +242,18 @@ function M.on_exit(id, code, signal)
         if rotate then
           failover.mark(id, session, error_type, error_msg)
           rotating = true
-        elseif not rotating then
-          local message = {
-            error = string.format(
-              'Anthropic API Error (%s): %s',
-              error_type,
-              error_msg
-            ),
-            created = os.time(),
-          }
-          sessions.append_message(session, message)
-          require('chat.windows').on_message(session, message)
-          sessions.write_cache(session)
         end
+        local message = {
+          error = string.format(
+            'Anthropic API Error (%s): %s',
+            error_type,
+            error_msg
+          ),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_type, error_msg)
       end
@@ -335,14 +334,11 @@ function M.on_exit(id, code, signal)
     end
 
     -- Send tool results back to server (same as OpenAI protocol)
-    if
-      not rotating
-      and code == 0
-      and signal == 0
-      and reason ~= 'length'
-    then
+    if not rotating and code == 0 and signal == 0 and reason ~= 'length' then
       local session_messages = sessions.get_messages(session)
-      if #session_messages == 0 or session_messages[#session_messages].error then
+      if
+        #session_messages == 0 or session_messages[#session_messages].error
+      then
         log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
@@ -408,10 +404,8 @@ function M.convert_message(messages)
         for _, tool_call in ipairs(msg.tool_calls) do
           local input = {}
           if tool_call['function'].arguments then
-            local ok, decoded = pcall(
-              vim.json.decode,
-              tool_call['function'].arguments
-            )
+            local ok, decoded =
+              pcall(vim.json.decode, tool_call['function'].arguments)
             if ok and type(decoded) == 'table' then
               input = decoded
             else
@@ -464,4 +458,3 @@ function M.convert_message(messages)
 end
 
 return M
-

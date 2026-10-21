@@ -82,7 +82,9 @@ function M.on_stdout(id, data)
               end
             elseif chunk.error then
               local error_msg = chunk.error.message or 'Unknown error'
-              local error_code = chunk.error.code or chunk.error.type or 'unknown'
+              local error_code = chunk.error.code
+                or chunk.error.type
+                or 'unknown'
               local session = sessions.get_progress_session(id)
               -- Api-key errors (rate limit / quota / server) rotate the key
               -- and transparently re-send the request; a UI notice is
@@ -180,19 +182,14 @@ function M.on_exit(id, code, signal)
         if rotate then
           failover.mark(id, session, error_code, error_msg)
           rotating = true
-        elseif not rotating then
-          local message = {
-            error = string.format(
-              'API Error (%s): %s',
-              error_code,
-              error_msg
-            ),
-            created = os.time(),
-          }
-          sessions.append_message(session, message)
-          require('chat.windows').on_message(session, message)
-          sessions.write_cache(session)
         end
+        local message = {
+          error = string.format('API Error (%s): %s', error_code, error_msg),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_code, error_msg)
       elseif ok and chunk.code then
@@ -206,19 +203,14 @@ function M.on_exit(id, code, signal)
         if rotate then
           failover.mark(id, session, error_code, error_msg)
           rotating = true
-        elseif not rotating then
-          local message = {
-            error = string.format(
-              'API Error (%s): %s',
-              error_code,
-              error_msg
-            ),
-            created = os.time(),
-          }
-          sessions.append_message(session, message)
-          require('chat.windows').on_message(session, message)
-          sessions.write_cache(session)
         end
+        local message = {
+          error = string.format('API Error (%s): %s', error_code, error_msg),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_code, error_msg)
       end
@@ -296,7 +288,9 @@ function M.on_exit(id, code, signal)
     end
     if not rotating and code == 0 and signal == 0 and reason ~= 'length' then
       local session_messages = sessions.get_messages(session)
-      if #session_messages == 0 or session_messages[#session_messages].error then
+      if
+        #session_messages == 0 or session_messages[#session_messages].error
+      then
         log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
@@ -328,4 +322,3 @@ function M.on_exit(id, code, signal)
 end
 
 return M
-

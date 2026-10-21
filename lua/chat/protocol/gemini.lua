@@ -172,19 +172,19 @@ function M.on_exit(id, code, signal)
         if rotate then
           failover.mark(id, session, error_code, error_msg)
           rotating = true
-        elseif not rotating then
-          local message = {
-            error = string.format(
-              'Gemini API Error (%s): %s',
-              error_code,
-              error_msg
-            ),
-            created = os.time(),
-          }
-          sessions.append_message(session, message)
-          require('chat.windows').on_message(session, message)
-          sessions.write_cache(session)
         end
+
+        local message = {
+          error = string.format(
+            'Gemini API Error (%s): %s',
+            error_code,
+            error_msg
+          ),
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_code, error_msg)
       end
@@ -281,4 +281,3 @@ function M.on_exit(id, code, signal)
 end
 
 return M
-
