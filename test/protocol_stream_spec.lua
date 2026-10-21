@@ -41,6 +41,9 @@ local function sessions_stub()
     append_message = function(sid, msg)
       table.insert(S.appended, msg)
     end,
+    write_cache = function(sid)
+      S.cached = S.cached + 1
+    end,
     on_progress_exit = function()
       S.exited = true
     end,
@@ -138,6 +141,7 @@ local function reset_state()
     tool_calls = {},
     appended = {},
     ui_messages = {},
+    cached = 0,
     messages = {},
     finish_reason = nil,
     usage = nil,
@@ -261,6 +265,7 @@ function TestProtocolOpenAI:test_error_chunk()
   lu.assertStrContains(S.appended[1].error, 'API Error (429)')
   lu.assertStrContains(S.appended[1].error, 'rate limited')
   lu.assertEquals(#S.ui_messages, 1)
+  lu.assertEquals(S.cached, 1, 'error is persisted to the session cache')
 end
 
 function TestProtocolOpenAI:test_error_chunk_defaults()
@@ -349,6 +354,7 @@ function TestProtocolOpenAI:test_exit_cancelled_by_signal()
   flush()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'cancelled')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolOpenAI:test_exit_curl_error_with_retry_hint()
@@ -358,6 +364,7 @@ function TestProtocolOpenAI:test_exit_curl_error_with_retry_hint()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, "Couldn't resolve host")
   lu.assertStrContains(S.appended[1].error, 'Auto-retrying')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolOpenAI:test_exit_curl_error_unknown_code()
@@ -375,6 +382,7 @@ function TestProtocolOpenAI:test_exit_body_buffer_error_object()
   flush()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'API Error (401)')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolOpenAI:test_exit_body_buffer_code_object()
@@ -387,6 +395,7 @@ function TestProtocolOpenAI:test_exit_body_buffer_code_object()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'API Error (1100)')
   lu.assertStrContains(S.appended[1].error, 'invalid api key')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolOpenAI:test_exit_body_buffer_invalid_json()
@@ -425,6 +434,7 @@ function TestProtocolOpenAI:test_exit_reason_length_shows_hint_when_failed()
   lu.assertEquals(S.continue_called, 1)
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'limit reached')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolOpenAI:test_exit_length_cancelled_skips_continue()
@@ -524,6 +534,7 @@ function TestProtocolGemini:test_error_chunk()
   flush()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'Gemini API Error (500)')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolGemini:test_error_chunk_defaults()
@@ -548,6 +559,7 @@ function TestProtocolGemini:test_accumulated_buffer_error_on_exit()
   -- joined buffer decodes into error object
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'Gemini API Error (503)')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolGemini:test_on_stderr_noop()
@@ -595,6 +607,7 @@ function TestProtocolGemini:test_exit_cancelled_by_signal()
   flush()
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'cancelled')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolGemini:test_exit_curl_error_with_hint()
@@ -686,6 +699,7 @@ function TestProtocolAnthropic:test_exit_length_curl_error_skips_continue()
   lu.assertEquals(S.continue_called, 0)
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'Operation timeout')
+  lu.assertEquals(S.cached, 1)
 end
 
 function TestProtocolAnthropic:test_exit_reason_length_shows_hint_when_failed()
@@ -698,6 +712,7 @@ function TestProtocolAnthropic:test_exit_reason_length_shows_hint_when_failed()
   lu.assertEquals(S.continue_called, 1)
   lu.assertEquals(#S.appended, 1)
   lu.assertStrContains(S.appended[1].error, 'truncated')
+  lu.assertEquals(S.cached, 1)
 end
 
 

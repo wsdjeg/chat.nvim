@@ -111,6 +111,9 @@ function M.on_stdout(id, data)
                 }
                 sessions.append_message(session, message)
                 require('chat.windows').on_message(session, message)
+                -- Persist the error so a restart / crash does not lose
+                -- the failed turn
+                sessions.write_cache(session)
               end
               -- Cool the failed key down in both branches
               tokens.report_error(id, error_code, error_msg)
@@ -188,6 +191,7 @@ function M.on_exit(id, code, signal)
           }
           sessions.append_message(session, message)
           require('chat.windows').on_message(session, message)
+          sessions.write_cache(session)
         end
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_code, error_msg)
@@ -213,6 +217,7 @@ function M.on_exit(id, code, signal)
           }
           sessions.append_message(session, message)
           require('chat.windows').on_message(session, message)
+          sessions.write_cache(session)
         end
         -- Cool the failed key down in both branches
         tokens.report_error(id, error_code, error_msg)
@@ -241,6 +246,7 @@ function M.on_exit(id, code, signal)
         }
         sessions.append_message(session, message)
         require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
       end
     end
     sessions.on_progress_exit(id, code, signal)
@@ -260,6 +266,7 @@ function M.on_exit(id, code, signal)
       }
       sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
+      sessions.write_cache(session)
     elseif code ~= 0 then
       -- Connection-level failures keep the retry module unless a key
       -- rotation is already pending
@@ -284,6 +291,7 @@ function M.on_exit(id, code, signal)
         }
         sessions.append_message(session, message)
         require('chat.windows').on_message(session, message)
+        sessions.write_cache(session)
       end
     end
     if not rotating and code == 0 and signal == 0 and reason ~= 'length' then

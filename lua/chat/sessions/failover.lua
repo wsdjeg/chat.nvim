@@ -209,6 +209,7 @@ local function start_request(session_id, reason)
     }
     sessions.append_message(session_id, message)
     require('chat.windows').on_message(session_id, message)
+    sessions.write_cache(session_id)
   end
 end
 

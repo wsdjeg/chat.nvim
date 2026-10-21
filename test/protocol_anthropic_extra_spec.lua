@@ -22,6 +22,7 @@ local sessions_methods = {
   'on_progress_partial',
   'on_progress_exit',
   'append_message',
+  'write_cache',
   'get_messages',
   'get_request_messages',
   'has_pending_async_tools',
@@ -55,6 +56,7 @@ local function reset_mocks()
   sessions.on_progress_partial = function() end
   sessions.on_progress_exit = function() end
   sessions.append_message = function() end
+  sessions.write_cache = function() end
   sessions.get_messages = function() return { { role = 'assistant', content = 'x' } } end
   sessions.get_request_messages = function() return { { role = 'assistant', content = 'x' } } end
   sessions.has_pending_async_tools = function() return false end
