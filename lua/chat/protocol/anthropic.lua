@@ -229,25 +229,25 @@ function M.on_exit(id, code, signal)
       if ok and chunk.error then
         local error_msg = chunk.error.message or 'Unknown error'
         local error_type = chunk.error.type or 'unknown'
+        -- Decide the rotation BEFORE report_error() consumes the
+        -- job -> key binding; should() reads it for the budget check
+        local rotate = not rotating
+          and failover.should(id, session, error_type, error_msg, had_stream)
         tokens.report_error(id, error_type, error_msg)
-        if not rotating then
-          if
-            failover.should(id, session, error_type, error_msg, had_stream)
-          then
-            failover.mark(id, session)
-            rotating = true
-          else
-            local message = {
-              error = string.format(
-                'Anthropic API Error (%s): %s',
-                error_type,
-                error_msg
-              ),
-              created = os.time(),
-            }
-            sessions.append_message(session, message)
-            require('chat.windows').on_message(session, message)
-          end
+        if rotate then
+          failover.mark(id, session)
+          rotating = true
+        elseif not rotating then
+          local message = {
+            error = string.format(
+              'Anthropic API Error (%s): %s',
+              error_type,
+              error_msg
+            ),
+            created = os.time(),
+          }
+          sessions.append_message(session, message)
+          require('chat.windows').on_message(session, message)
         end
       end
     end

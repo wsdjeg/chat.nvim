@@ -700,3 +700,78 @@ function TestProtocolAnthropic:test_exit_reason_length_shows_hint_when_failed()
   lu.assertStrContains(S.appended[1].error, 'truncated')
 end
 
+
+-----------------------------------------------------------------------
+-- Multi-key failover: an exit-body / SSE error must rotate the api key
+-- instead of surfacing the error, when the job is bound to a key and
+-- another usable key exists.
+-----------------------------------------------------------------------
+
+local tokens = require('chat.tokens')
+local failover = require('chat.sessions.failover')
+local config = require('chat.config')
+
+TestProtocolFailover = {}
+
+function TestProtocolFailover:setUp()
+  reset_state()
+  self.proto = load_protocol_fresh('openai')
+  self.saved_api_key = config.config.api_key
+  config.config.api_key = { testprov = { 'k1', 'k2' } }
+  tokens.reset()
+  failover.cancel('sess-proto')
+  self.real_defer = failover._defer
+  self.deferred = {}
+  failover._defer = function(fn, delay)
+    table.insert(self.deferred, { fn = fn, delay = delay })
+    return { stop = function() end }
+  end
+end
+
+function TestProtocolFailover:tearDown()
+  restore_modules()
+  config.config.api_key = self.saved_api_key
+  tokens.reset()
+  failover.cancel('sess-proto')
+  failover._defer = self.real_defer
+end
+
+function TestProtocolFailover:test_exit_body_error_rotates_key()
+  -- Regression: the volcengine coding-plan quota error arrives as a
+  -- buffered 4xx body (no SSE framing). must() used to run AFTER
+  -- tokens.report_error() had already dropped the job -> key binding,
+  -- so the rotation budget check always failed and the error leaked to
+  -- the user even though a second key was available.
+  tokens.bind(31, 'testprov', 1)
+  self.proto.on_stdout(31, {
+    '{"error":{"code":"AccountQuotaExceeded","message":"You have exceeded the 5-hour usage quota"}}',
+    '',
+  })
+  flush()
+  self.proto.on_exit(31, 0, 0)
+  flush()
+  -- No error surfaced: the second key takes over silently
+  lu.assertEquals(#S.appended, 0)
+  lu.assertEquals(#S.ui_messages, 0)
+  -- Rotation scheduled
+  lu.assertEquals(#self.deferred, 1)
+  lu.assertEquals(failover.get_attempts('sess-proto'), 1)
+  -- Key #1 cooled down, the next request picks key #2
+  lu.assertEquals(tokens.next('testprov'), 'k2')
+end
+
+function TestProtocolFailover:test_sse_error_rotates_key()
+  tokens.bind(32, 'testprov', 1)
+  self.proto.on_stdout(32, {
+    'data: {"error":{"code":"rate_limit_exceeded","message":"rate limited, retry later"}}',
+    '',
+  })
+  flush()
+  self.proto.on_exit(32, 0, 0)
+  flush()
+  lu.assertEquals(#S.appended, 0)
+  lu.assertEquals(#self.deferred, 1)
+  lu.assertEquals(failover.get_attempts('sess-proto'), 1)
+  lu.assertEquals(tokens.next('testprov'), 'k2')
+end
+
