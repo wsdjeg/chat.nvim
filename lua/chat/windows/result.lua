@@ -298,7 +298,7 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
   )
   vim.fn.matchadd(
     'Comment',
-    '^\\[[^]]*\\] [🤖👤❌]',
+    '^\\[[^]]*\\] [🤖👤❌🔁]',
     10,
     -1,
     { window = result_win }

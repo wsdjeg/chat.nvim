@@ -96,6 +96,94 @@ function TestFailover:test_mark_is_pending_clear()
   lu.assertFalse(failover.is_pending(120))
 end
 
+---------------------------------------------------- mark / notice reason
+
+function TestFailover:test_mark_with_error_info_stashes_reason()
+  -- Called with code / msg while the binding is alive: the failed key is
+  -- remembered for the UI notice
+  tokens.bind(170, 'multi', 2)
+  failover.mark(
+    170,
+    's1',
+    'AccountQuotaExceeded',
+    'You have exceeded the 5-hour usage quota'
+  )
+  local reason = failover.get_reason(170)
+  lu.assertNotNil(reason)
+  lu.assertEquals(reason.session, 's1')
+  lu.assertEquals(reason.provider, 'multi')
+  lu.assertEquals(reason.key_index, 2)
+  lu.assertEquals(reason.class, 'quota')
+end
+
+function TestFailover:test_mark_without_binding_stashes_no_reason()
+  failover.mark(171, 's1', 429, 'rate limit reached')
+  lu.assertNil(failover.get_reason(171))
+end
+
+function TestFailover:test_mark_without_error_info_stashes_no_reason()
+  -- Two-arg callers (tests, legacy call sites) keep working
+  tokens.bind(172, 'multi', 1)
+  failover.mark(172, 's1')
+  lu.assertTrue(failover.is_pending(172))
+  lu.assertNil(failover.get_reason(172))
+end
+
+function TestFailover:test_mark_non_token_error_stashes_no_reason()
+  tokens.bind(173, 'multi', 1)
+  failover.mark(173, 's1', 400, 'invalid request')
+  lu.assertNil(failover.get_reason(173))
+end
+
+function TestFailover:test_consume_pops_reason()
+  tokens.bind(174, 'multi', 1)
+  failover.mark(174, 's1', 429, 'rate limit reached')
+  lu.assertNotNil(failover.get_reason(174))
+  failover.consume(174, 's1')
+  lu.assertNil(failover.get_reason(174))
+end
+
+function TestFailover:test_consume_wrong_session_pops_reason()
+  tokens.bind(175, 'multi', 1)
+  failover.mark(175, 's1', 429, 'rate limit reached')
+  lu.assertFalse(failover.consume(175, 's2'))
+  lu.assertNil(failover.get_reason(175))
+end
+
+function TestFailover:test_clear_pops_reason()
+  tokens.bind(176, 'multi', 1)
+  failover.mark(176, 's1', 429, 'rate limit reached')
+  failover.clear(176)
+  lu.assertNil(failover.get_reason(176))
+end
+
+function TestFailover:test_cancel_pops_reason()
+  tokens.bind(177, 'multi', 1)
+  failover.mark(177, 's1', 429, 'rate limit reached')
+  failover.cancel('s1')
+  lu.assertNil(failover.get_reason(177))
+end
+
+function TestFailover:test_notice_text()
+  lu.assertEquals(
+    failover.notice_text({
+      provider = 'volcengine_coding_plan',
+      key_index = 1,
+      class = 'quota',
+    }),
+    'API key #1 (volcengine_coding_plan) hit its quota, '
+      .. 'retrying with the next api key...'
+  )
+  lu.assertEquals(
+    failover.notice_text({ provider = 'multi', key_index = 2, class = 'rate_limit' }),
+    'API key #2 (multi) hit a rate limit, retrying with the next api key...'
+  )
+  lu.assertEquals(
+    failover.notice_text({ provider = 'multi', key_index = 3, class = 'server' }),
+    'API key #3 (multi) hit a server error, retrying with the next api key...'
+  )
+end
+
 --------------------------------------------------------------- consume()
 
 function TestFailover:test_consume_schedules_rotation_and_counts_attempt()

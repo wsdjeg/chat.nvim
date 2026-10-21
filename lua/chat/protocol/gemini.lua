@@ -87,8 +87,8 @@ function M.on_stdout(id, data)
             end
             local session = sessions.get_progress_session(id)
             -- Api-key errors (rate limit / quota / server) rotate the key
-            -- and transparently re-send the request; nothing is appended
-            -- to the session in that case (multi-token support).
+            -- and transparently re-send the request; a UI notice is shown
+            -- once the rotated request starts (multi-token support).
             local rotate = sessions.get_progress_finish_reason(id) == nil
               and failover.should(
                 id,
@@ -97,11 +97,10 @@ function M.on_stdout(id, data)
                 error_msg,
                 streamed[id] ~= nil
               )
-            -- Cool the failed key down in both branches; should() reads
-            -- the binding first because report_error() consumes it
-            tokens.report_error(id, error_code, error_msg)
+            -- mark() reads the job -> key binding for the notice, so it
+            -- must run before report_error() consumes it
             if rotate then
-              failover.mark(id, session)
+              failover.mark(id, session, error_code, error_msg)
             else
               local message = {
                 error = string.format(
@@ -114,6 +113,8 @@ function M.on_stdout(id, data)
               sessions.append_message(session, message)
               require('chat.windows').on_message(session, message)
             end
+            -- Cool the failed key down in both branches
+            tokens.report_error(id, error_code, error_msg)
           end
         end
       end
@@ -162,11 +163,11 @@ function M.on_exit(id, code, signal)
         end
         -- Decide the rotation BEFORE report_error() consumes the
         -- job -> key binding; should() reads it for the budget check
+        -- and mark() for the UI notice
         local rotate = not rotating
           and failover.should(id, session, error_code, error_msg, had_stream)
-        tokens.report_error(id, error_code, error_msg)
         if rotate then
-          failover.mark(id, session)
+          failover.mark(id, session, error_code, error_msg)
           rotating = true
         elseif not rotating then
           local message = {
@@ -180,6 +181,8 @@ function M.on_exit(id, code, signal)
           sessions.append_message(session, message)
           require('chat.windows').on_message(session, message)
         end
+        -- Cool the failed key down in both branches
+        tokens.report_error(id, error_code, error_msg)
       end
     end
 

@@ -176,6 +176,22 @@ function M.generate_message(message, session)
     end
     table.insert(msg, '')
     return msg
+  elseif message.notice then
+    -- UI-only status line (e.g. api-key rotation): kept in the session
+    -- history but never sent to the model
+    local base = string.format(
+      '[%s] 🔁 : ',
+      os.date(config.config.strftime, message.created)
+    )
+    local notice_lines = vim.split(message.notice, '\n')
+    local msg = { base .. notice_lines[1] }
+    if #notice_lines > 1 then
+      for i = 2, #notice_lines do
+        table.insert(msg, string.rep(' ', vim.api.nvim_strwidth(base)) .. notice_lines[i])
+      end
+    end
+    table.insert(msg, '')
+    return msg
   else
     return {}
   end

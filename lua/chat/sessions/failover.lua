@@ -4,8 +4,10 @@
 -- exhausted, server error) BEFORE any content has streamed, the request is
 -- transparently re-sent with the next api key:
 --
---   * nothing is appended to the session (the model never learns that
---     multiple keys exist, no system prompt injection)
+--   * nothing about the keys is sent to the model: the rotation is
+--     surfaced as a UI-only `notice` message in the chat window
+--     ("API key #1 hit its quota, retrying with the next api key..."),
+--     stored with the session but excluded from the request messages
 --   * the failed key is cooled down by the tokens module, so the retry
 --     naturally picks another key
 --   * at most (#keys - 1) rotations per request; once the budget is gone
@@ -16,7 +18,7 @@
 -- and starts the new request on a short timer (avoids racing the spinner
 -- / job bookkeeping of the dying job). If the user cancels the request
 -- (ctrl-c) or takes over the turn during the delay window, the rotation is
--- dropped.
+-- dropped and no notice is shown.
 local M = {}
 
 local log = require('chat.log')
@@ -28,6 +30,11 @@ local attempts = {}
 -- jobid -> session_id: an api-key error was seen on this job, waiting for
 -- the job's exit handler to start the rotation
 local pending = {}
+
+-- jobid -> { session, provider, key_index, class }: why the rotation was
+-- triggered, stashed by mark() while the job -> key binding is still
+-- alive. Consumed by the rotated request to build the UI notice.
+local reasons = {}
 
 -- session_id -> timer handle of a scheduled (not yet started) rotation
 local timers = {}
@@ -82,10 +89,28 @@ function M.should(jobid, session, code, msg, streamed)
 end
 
 --- Mark a job for rotation. The exit handler later consumes the mark.
+--- Must be called BEFORE tokens.report_error(): the job -> key binding is
+--- read here to remember which key failed, for the UI notice shown when
+--- the rotated request starts. `code` / `msg` are optional; without them
+--- no notice is emitted (mark-only callers keep working).
 --- @param jobid integer The failing job id
 --- @param session string Session id of the failing job
-function M.mark(jobid, session)
+--- @param code number|string|nil Error code from the API response
+--- @param msg string|nil Error message from the API response
+function M.mark(jobid, session, code, msg)
   pending[jobid] = session
+  local binding = tokens.get_binding(jobid)
+  if binding and code ~= nil then
+    local class = tokens.classify_error(code, msg)
+    if class then
+      reasons[jobid] = {
+        session = session,
+        provider = binding.provider,
+        key_index = binding.key_index,
+        class = class,
+      }
+    end
+  end
 end
 
 --- Check whether a job is marked for rotation.
@@ -95,15 +120,55 @@ function M.is_pending(jobid)
   return pending[jobid] ~= nil
 end
 
---- Drop a job's rotation mark (user cancelled, or session vanished).
+--- Get the rotation reason stashed for a job (for tests).
 --- @param jobid integer
-function M.clear(jobid)
-  pending[jobid] = nil
+--- @return table|nil { session, provider, key_index, class }
+function M.get_reason(jobid)
+  return reasons[jobid]
+end
+
+--- Build the UI notice text for a rotation reason.
+--- @param reason table { provider = string, key_index = integer, class = string }
+--- @return string
+function M.notice_text(reason)
+  local why = ({
+    quota = 'hit its quota',
+    rate_limit = 'hit a rate limit',
+    server = 'hit a server error',
+  })[reason.class] or 'failed'
+  return string.format(
+    'API key #%d (%s) %s, retrying with the next api key...',
+    reason.key_index,
+    reason.provider,
+    why
+  )
+end
+
+--- Show the rotation in the chat window as a UI-only notice message:
+--- stored in the session history but never sent to the model (messages
+--- without a user / assistant / tool role are excluded from
+--- get_request_messages).
+--- @param session_id string Session identifier
+--- @param reason table { provider, key_index, class }
+local function show_notice(session_id, reason)
+  local sessions = require('chat.sessions')
+  if not sessions.exists(session_id) then
+    return
+  end
+  local message = {
+    notice = M.notice_text(reason),
+    created = os.time(),
+  }
+  sessions.append_message(session_id, message)
+  require('chat.windows').on_message(session_id, message)
+  require('chat.sessions.storage').write_cache(session_id)
 end
 
 --- Start the rotated request (called on a timer after the old job exited).
 --- @param session_id string Session identifier
-local function start_request(session_id)
+--- @param reason table|nil Stashed rotation reason, shown as a UI notice
+---   once the retry is really running
+local function start_request(session_id, reason)
   local sessions = require('chat.sessions')
   if not sessions.exists(session_id) then
     attempts[session_id] = 0
@@ -123,6 +188,10 @@ local function start_request(session_id)
   })
 
   if jobid and jobid > 0 then
+    -- The retry is really running: now the rotation is worth showing
+    if reason then
+      show_notice(session_id, reason)
+    end
     if session_id == require('chat.windows').current_session() then
       require('chat.spinners').start()
     end
@@ -150,9 +219,12 @@ end
 --- @return boolean True when a rotation was scheduled
 function M.consume(jobid, session)
   if pending[jobid] ~= session then
+    reasons[jobid] = nil
     return false
   end
   pending[jobid] = nil
+  local reason = reasons[jobid]
+  reasons[jobid] = nil
   attempts[session] = (attempts[session] or 0) + 1
 
   if timers[session] then
@@ -161,7 +233,7 @@ function M.consume(jobid, session)
   end
   timers[session] = M._defer(function()
     timers[session] = nil
-    start_request(session)
+    start_request(session, reason)
   end, DELAY)
   return true
 end
@@ -194,8 +266,16 @@ function M.cancel(session_id)
   for jobid, sid in pairs(pending) do
     if sid == session_id then
       pending[jobid] = nil
+      reasons[jobid] = nil
     end
   end
+end
+
+--- Drop a job's rotation mark (user cancelled, or session vanished).
+--- @param jobid integer
+function M.clear(jobid)
+  pending[jobid] = nil
+  reasons[jobid] = nil
 end
 
 return M
