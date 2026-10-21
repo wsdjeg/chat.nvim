@@ -753,10 +753,13 @@ end
 
 function TestProtocolFailover:test_exit_body_error_rotates_key()
   -- Regression: the volcengine coding-plan quota error arrives as a
-  -- buffered 4xx body (no SSE framing). must() used to run AFTER
-  -- tokens.report_error() had already dropped the job -> key binding,
-  -- so the rotation budget check always failed and the error leaked to
-  -- the user even though a second key was available.
+  -- buffered 4xx body (no SSE framing). failover.should() used to run
+  -- AFTER tokens.report_error() had already dropped the job -> key
+  -- binding, so the rotation budget check always failed and the error
+  -- leaked to the user even though a second key was available.
+  -- Since af839bb the raw API error is surfaced (session + window +
+  -- cache) even while rotating, so the user sees WHY the key was
+  -- switched.
   tokens.bind(31, 'testprov', 1)
   self.proto.on_stdout(31, {
     '{"error":{"code":"AccountQuotaExceeded","message":"You have exceeded the 5-hour usage quota"}}',
@@ -765,10 +768,13 @@ function TestProtocolFailover:test_exit_body_error_rotates_key()
   flush()
   self.proto.on_exit(31, 0, 0)
   flush()
-  -- No error surfaced: the second key takes over silently
-  lu.assertEquals(#S.appended, 0)
-  lu.assertEquals(#S.ui_messages, 0)
-  -- Rotation scheduled
+  -- The error is surfaced and persisted alongside the rotation
+  lu.assertEquals(#S.appended, 1)
+  lu.assertStrContains(S.appended[1].error, 'AccountQuotaExceeded')
+  lu.assertStrContains(S.appended[1].error, '5-hour usage quota')
+  lu.assertEquals(#S.ui_messages, 1)
+  lu.assertEquals(S.cached, 1)
+  -- Rotation scheduled with the second key
   lu.assertEquals(#self.deferred, 1)
   lu.assertEquals(failover.get_attempts('sess-proto'), 1)
   -- Key #1 cooled down, the next request picks key #2
