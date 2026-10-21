@@ -318,9 +318,31 @@ function M.write_file(action, ctx)
     if vim.fn.filereadable(filepath) == 0 then
       return { error = string.format('File does not exist: %s', filepath) }
     end
-    local ok, err = pcall(vim.fn.delete, filepath)
+    -- vim.fn.delete() reports failure via its return value (-1), not by
+    -- raising an error, so pcall alone cannot detect a failed deletion.
+    local ok, result = pcall(vim.fn.delete, filepath)
     if not ok then
-      return { error = string.format('Failed to delete file: %s', err) }
+      return {
+        error = string.format(
+          'Failed to delete file: %s\n%s',
+          filepath,
+          result
+        ),
+      }
+    end
+    if result ~= 0 then
+      return {
+        error = string.format(
+          'Failed to delete file: %s (delete() returned %s).\n'
+            .. 'The file may be locked by another process or read-only. '
+            .. 'On Windows this happens when another program still holds an open '
+            .. 'handle (editor, terminal, Explorer preview, antivirus) or the '
+            .. 'read-only attribute is set. Close the holder or clear the '
+            .. 'read-only bit, then retry.',
+          filepath,
+          tostring(result)
+        ),
+      }
     end
     return {
       content = string.format('Successfully removed file: %s', filepath),

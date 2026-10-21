@@ -213,6 +213,53 @@ function TestWriteFile:testWriteFileRemoveNonExistent()
   lu.assertStrContains(result.error, 'does not exist')
 end
 
+function TestWriteFile:testWriteFileRemoveReportsFailureWhenLocked()
+  -- Regression test: remove must report an error when the OS refuses the
+  -- deletion instead of claiming success (vim.fn.delete returns -1 on
+  -- failure but does not raise). Keep an open file handle to force a
+  -- genuine deletion failure: on Windows, an open handle without
+  -- FILE_SHARE_DELETE blocks DeleteFile with a sharing violation.
+  if vim.fn.has('win32') == 0 then
+    -- On unix, open handles never block unlink(); nothing to assert.
+    print(
+      'Skipping testWriteFileRemoveReportsFailureWhenLocked: '
+        .. 'open handles do not block deletion on this platform'
+    )
+    return
+  end
+  local test_file = self.test_dir .. '/test_remove_locked.lua'
+  vim.fn.writefile({ 'locked content' }, test_file)
+
+  -- Lua's io.open (MSVCRT) does not pass FILE_SHARE_DELETE, so deletion
+  -- must fail while this handle is held open.
+  local fh = assert(io.open(test_file, 'a'))
+
+  local result = tools.call('write_file', {
+    filepath = test_file,
+    action = 'remove',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+
+  lu.assertNotNil(result)
+  lu.assertNotNil(
+    result.error,
+    'Expected error when deletion is refused, got: ' .. (result.content or 'unknown')
+  )
+  lu.assertStrContains(result.error, 'Failed to delete file')
+  lu.assertEquals(vim.fn.filereadable(test_file), 1)
+
+  -- Release the handle; deletion should succeed now.
+  fh:close()
+  local cleanup = tools.call('write_file', {
+    filepath = test_file,
+    action = 'remove',
+  }, { cwd = vim.fs.normalize(vim.fn.getcwd()) })
+  lu.assertNil(
+    cleanup.error,
+    'remove should succeed after releasing the handle: ' .. (cleanup.error or '')
+  )
+  lu.assertEquals(vim.fn.filereadable(test_file), 0)
+end
+
 function TestWriteFile:testWriteFileSecurityOutsideCwd()
   local result = tools.call('write_file', {
     filepath = '../../../etc/passwd',
