@@ -122,9 +122,29 @@ require('chat').setup({
   api_key = {
     deepseek = 'your-deepseek-api-key',
     openai = 'your-openai-api-key',
-    -- ...
+    -- Multiple keys per provider: rotated round-robin, a key that hits a
+    -- rate limit / quota / server error is cooled down automatically
+    -- (token_cooldown = 30s, quota_cooldown = 3600s) and skipped
+    volcengine_coding_plan = {
+      'uuid-of-account-1',
+      'uuid-of-account-2',
+    },
   },
 })
+```
+
+### Multi-key rotation
+
+A provider key can be a single string (old behavior) or a list of keys.
+When a request fails on an api-key error **before any content streamed**
+(rate limit, quota exhausted, server error), the request is transparently
+re-sent with the next key: nothing is appended to the session, the model
+never sees the rotation. Per-key cooldowns:
+
+| Error class | Config | Default |
+|-------------|---------|---------|
+| Rate limit (429, QPS throttle) | `token_cooldown` | 30s |
+| Quota exhausted (e.g. coding-plan 5h limit, balance, arrears) | `quota_cooldown` | 3600s |
 ```
 
 ## ⚙️ Basic Usage

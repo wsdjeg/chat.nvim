@@ -1,5 +1,5 @@
 -- Multi-token support: multiple api keys per provider with round-robin
--- rotation and per-key cooldown on rate-limit / server errors.
+-- rotation and per-key cooldown on api-key errors.
 --
 -- Configuration (backward compatible):
 --   api_key = {
@@ -11,8 +11,12 @@
 --   }
 --
 -- Rotation is per provider and shared across sessions. A key whose request
--- fails with a rate limit (429) or server error (5xx) is put on cooldown
--- for `token_cooldown` seconds (default 30) and skipped until it expires.
+-- fails with a rate limit (429), quota-exhausted or server error (5xx) is
+-- put on cooldown and skipped until it expires:
+--   * quota-exhausted errors (e.g. "5 hour quota used up", coding-plan
+--     limits) cool a key for `quota_cooldown` seconds (default 3600)
+--   * plain rate limits / server errors cool for `token_cooldown`
+--     seconds (default 30)
 -- Network errors (connection refused, timeouts, ...) do NOT cool a key
 -- down; those are handled by the retry module instead.
 local M = {}
@@ -87,6 +91,14 @@ local function cooldown_ms()
   return seconds * 1000
 end
 
+local function quota_cooldown_ms()
+  local seconds = config.config.quota_cooldown
+  if type(seconds) ~= 'number' or seconds < 0 then
+    seconds = 3600
+  end
+  return seconds * 1000
+end
+
 --- Return the next usable api key and its 1-based index.
 --- Round-robins across keys, skipping keys in cooldown. When every key is
 --- cooling down, falls back to the key whose cooldown expires soonest, so
@@ -137,19 +149,22 @@ end
 --- next key.
 --- @param provider string Provider name
 --- @param key_index integer 1-based index of the failed key
-function M.fail(provider, key_index)
+--- @param class? string Error class from classify_error: 'quota' uses the
+---   long quota cooldown, anything else the short token cooldown
+function M.fail(provider, key_index, class)
   local keys = M.normalize(provider)
   if not keys or #keys == 0 or key_index < 1 then
     return
   end
   local s = ensure_state(provider)
-  local cd = cooldown_ms()
+  local cd = class == 'quota' and quota_cooldown_ms() or cooldown_ms()
   s.cooldown[key_index] = M._clock() + cd
   s.index = (key_index % #keys) + 1
   log.warn(string.format(
-    'chat.nvim: api key #%d for %s hit a rate limit / server error, cooling down for %gs',
+    'chat.nvim: api key #%d for %s failed (%s), cooling down for %gs',
     key_index,
     provider,
+    class or 'error',
     cd / 1000
   ))
 end
@@ -183,16 +198,40 @@ function M.unbind(jobid)
   jobs[jobid] = nil
 end
 
--- Error signals that justify switching to another api key: per-key limits
--- (429 / rate limit / quota) and server errors (5xx). Normal completions
--- (max_tokens truncation, content filter) are NOT token errors and must
--- never cool a key down.
-local TOKEN_ERROR_PATTERNS = {
+--- Read the job -> key binding without consuming it.
+--- Used by the failover module to find the provider of a failed job.
+--- @param jobid integer The job id
+--- @return table|nil binding { provider = string, key_index = number }
+function M.get_binding(jobid)
+  return jobs[jobid]
+end
+
+-- Text signals for plain rate limiting (per-minute / QPS): short cooldown.
+local RATE_LIMIT_PATTERNS = {
   'rate[%-_%s]?limit', -- "rate limit", "rate_limit", "RateLimitError"
   'too many requests',
-  'throttl', -- "throttle", "throttling", "Throttling.RateQuota"
+  'throttl', -- "throttle", "Throttling.RateQuota" (QPS, not budget)
+}
+
+-- Text signals for quota / budget exhaustion: the account's budget for a
+-- long window (hours) is used up. These justify a long cooldown
+-- (quota_cooldown, default 1h) because retrying sooner only burns a
+-- request.
+local QUOTA_ERROR_PATTERNS = {
   'quota', -- "QuotaExceeded", "check quota"
   'exhausted', -- Gemini "RESOURCE_EXHAUSTED"
+  '总额度', -- volcengine "已用完5小时总额度"
+  '用完', -- volcengine "已用完"
+  '额度', -- "额度不足", "额度已用尽"
+  'insufficient[%-_%s]?balance', -- prepaid accounts out of credit
+  'billing', -- "billing hard limit"
+  'arrears', -- account in arrears
+  '欠费',
+  'expired', -- expired api key / trial ended
+}
+
+-- Text signals for server-side trouble (5xx family): short cooldown.
+local SERVER_ERROR_PATTERNS = {
   'server[%-_%s]?error', -- "server_error", "internal server error"
   'internal server',
   'bad gateway',
@@ -202,21 +241,8 @@ local TOKEN_ERROR_PATTERNS = {
   'overloaded', -- Anthropic "overloaded_error" (529)
 }
 
---- Check whether an API error code / message looks like a rate limit or a
---- server error, i.e. worth rotating the api key.
---- @param code number|string|nil Error code from the API response
---- @param msg string|nil Error message from the API response
---- @return boolean
-function M.is_token_error(code, msg)
-  if code ~= nil then
-    -- tonumber() errors on userdata (vim.NIL), tostring() first
-    local n = tonumber(tostring(code))
-    if n and (n == 429 or (n >= 500 and n <= 599)) then
-      return true
-    end
-  end
-  local text = string.format('%s %s', tostring(code or ''), tostring(msg or '')):lower()
-  for _, pattern in ipairs(TOKEN_ERROR_PATTERNS) do
+local function matches_any(text, patterns)
+  for _, pattern in ipairs(patterns) do
     if text:find(pattern) then
       return true
     end
@@ -224,24 +250,72 @@ function M.is_token_error(code, msg)
   return false
 end
 
+--- Classify an API error for key-rotation purposes.
+--- Order matters: rate-limit text first (a "Throttling.RateQuota" is a
+--- QPS limit, not a budget), then quota text ("429 quota exhausted" is a
+--- quota problem, not something that resets in seconds), then codes,
+--- then server text.
+--- @param code number|string|nil Error code from the API response
+--- @param msg string|nil Error message from the API response
+--- @return string|nil 'quota' | 'rate_limit' | 'server' | nil (not a key error)
+function M.classify_error(code, msg)
+  local text = string.format('%s %s', tostring(code or ''), tostring(msg or '')):lower()
+
+  if matches_any(text, RATE_LIMIT_PATTERNS) then
+    return 'rate_limit'
+  end
+  if matches_any(text, QUOTA_ERROR_PATTERNS) then
+    return 'quota'
+  end
+
+  if code ~= nil then
+    -- tonumber() errors on userdata (vim.NIL), tostring() first
+    local n = tonumber(tostring(code))
+    if n == 429 then
+      return 'rate_limit'
+    end
+    if n and n >= 500 and n <= 599 then
+      return 'server'
+    end
+  end
+
+  if matches_any(text, SERVER_ERROR_PATTERNS) then
+    return 'server'
+  end
+  return nil
+end
+
+--- Check whether an API error code / message looks like a rate limit,
+--- quota exhaustion or server error, i.e. worth rotating the api key.
+--- @param code number|string|nil Error code from the API response
+--- @param msg string|nil Error message from the API response
+--- @return boolean
+function M.is_token_error(code, msg)
+  return M.classify_error(code, msg) ~= nil
+end
+
 --- Report an API error for a finished job: cool the key down when the
---- error looks like a rate limit / server error. Safe to call from
+--- error looks like a rate limit / quota / server error. Safe to call from
 --- protocol error handlers; jobs without a key binding are ignored.
 --- @param jobid integer The job id
 --- @param code number|string|nil Error code from the API response
 --- @param msg string|nil Error message from the API response
+--- @return string|nil class The error class (see classify_error), nil when
+---   the job has no key binding or the error is not a key error
 function M.report_error(jobid, code, msg)
   local binding = jobs[jobid]
   if not binding then
-    return
+    return nil
   end
-  if not M.is_token_error(code, msg) then
-    return
+  local class = M.classify_error(code, msg)
+  if not class then
+    return nil
   end
   -- Clear the binding first: a duplicated error event for the same job
   -- (stream chunk + buffered body) must not cool the key down twice.
   jobs[jobid] = nil
-  M.fail(binding.provider, binding.key_index)
+  M.fail(binding.provider, binding.key_index, class)
+  return class
 end
 
 return M

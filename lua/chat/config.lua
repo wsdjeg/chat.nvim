@@ -32,6 +32,7 @@ local M = {}
 ---@field retry? table
 ---@field continuation? table
 ---@field token_cooldown? number Seconds an api key is skipped after a rate-limit / server error (default: 30)
+---@field quota_cooldown? number Seconds an api key is skipped after a quota-exhausted error, e.g. coding-plan limits (default: 3600)
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
@@ -46,7 +47,7 @@ local default = {
   provider = 'deepseek',
   model = 'deepseek-v4-flash',
   border = 'rounded',
-  -- Highlight groups for the floating window
+  -- Highlight groups for floating windows
   highlights = {
     -- Title text highlight group
     title = 'ChatNvimTitle',
@@ -146,6 +147,10 @@ local default = {
   -- Multi-api_key rotation: seconds an api key is skipped after a rate
   -- limit (429) or server error (5xx) before it is tried again
   token_cooldown = 30,
+  -- Seconds an api key is skipped after a quota-exhausted error
+  -- (coding-plan / per-account limits), much longer than a plain rate
+  -- limit because the quota window itself is long
+  quota_cooldown = 3600,
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',
 }

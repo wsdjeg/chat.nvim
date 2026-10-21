@@ -74,6 +74,7 @@ function M.nudge_if_dirty(session_id)
 
   -- Trigger new request
   sessions.reset_retry_count(session_id)
+  require('chat.sessions.failover').reset(session_id)
   local protocol = require('chat.protocol')
   local jobid = protocol.request({
     session = session_id,

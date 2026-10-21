@@ -72,6 +72,9 @@ function M.continue(session_id)
   -- A continuation is a brand-new request, so connection retries start fresh.
   require('chat.sessions.retry').reset_retry_count(session_id)
 
+  -- ... and the api-key failover budget starts fresh too
+  require('chat.sessions.failover').reset(session_id)
+
   local messages =
     require('chat.sessions.messages').get_request_messages(session_id)
   local protocol = require('chat.protocol')

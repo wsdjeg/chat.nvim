@@ -4,9 +4,16 @@ local curl = require('chat.curl')
 local log = require('chat.log')
 local sessions = require('chat.sessions')
 local tokens = require('chat.tokens')
+local failover = require('chat.sessions.failover')
 
 local sse_buffers = {}
 local body_buffers = {}
+
+-- jobid -> true once any content / reasoning / tool delta was received.
+-- Api-key errors before the first delta can be transparently retried with
+-- another key (failover); after the first delta the output is visible and
+-- must not be duplicated.
+local streamed = {}
 
 function M.on_stdout(id, data)
   if not sse_buffers[id] then
@@ -42,6 +49,7 @@ function M.on_stdout(id, data)
                   and choice.delta.tool_calls ~= vim.NIL
                 then
                   log.debug('handle tool_calls chunk')
+                  streamed[id] = true
                   for _, tool_call in ipairs(choice.delta.tool_calls) do
                     sessions.on_progress_tool_call(id, tool_call)
                   end
@@ -54,6 +62,7 @@ function M.on_stdout(id, data)
                     'handle reasoning content: '
                       .. choice.delta.reasoning_content
                   )
+                  streamed[id] = true
                   sessions.on_progress_reasoning_content(
                     id,
                     choice.delta.reasoning_content
@@ -64,6 +73,7 @@ function M.on_stdout(id, data)
                   and #choice.delta.content > 0
                 then
                   log.debug('handle content: ' .. choice.delta.content)
+                  streamed[id] = true
                   sessions.on_progress(id, choice.delta.content)
                 end
               end
@@ -73,20 +83,35 @@ function M.on_stdout(id, data)
             elseif chunk.error then
               local error_msg = chunk.error.message or 'Unknown error'
               local error_code = chunk.error.code or chunk.error.type or 'unknown'
-              -- Rate limit / server errors cool the api key down so the
-              -- next request rotates to another key (multi-token support)
-              tokens.report_error(id, error_code, error_msg)
-              local message = {
-                error = string.format(
-                  'API Error (%s): %s',
-                  error_code,
-                  error_msg
-                ),
-                created = os.time(),
-              }
               local session = sessions.get_progress_session(id)
-              sessions.append_message(session, message)
-              require('chat.windows').on_message(session, message)
+              -- Api-key errors (rate limit / quota / server) rotate the key
+              -- and transparently re-send the request; nothing is appended
+              -- to the session in that case (multi-token support).
+              local rotate = sessions.get_progress_finish_reason(id) == nil
+                and failover.should(
+                  id,
+                  session,
+                  error_code,
+                  error_msg,
+                  streamed[id] ~= nil
+                )
+              -- Cool the failed key down in both branches; should() reads
+              -- the binding first because report_error() consumes it
+              tokens.report_error(id, error_code, error_msg)
+              if rotate then
+                failover.mark(id, session)
+              else
+                local message = {
+                  error = string.format(
+                    'API Error (%s): %s',
+                    error_code,
+                    error_msg
+                  ),
+                  created = os.time(),
+                }
+                sessions.append_message(session, message)
+                require('chat.windows').on_message(session, message)
+              end
             else
               log.debug('Received chunk without choices: ' .. text)
             end
@@ -120,9 +145,17 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_exit(id, code, signal)
       sse_buffers[id] = nil
       body_buffers[id] = nil
+      streamed[id] = nil
+      failover.clear(id)
       tokens.unbind(id)
       return
     end
+
+    -- A rotation marked by the stream error handler must suppress the
+    -- error message, connection retry and follow-up requests below
+    local rotating = failover.is_pending(id)
+    local had_stream = streamed[id] ~= nil
+    streamed[id] = nil
 
     if body_buffers[id] and #body_buffers[id] > 0 then
       local text = table.concat(body_buffers[id], '\n')
@@ -135,30 +168,48 @@ function M.on_exit(id, code, signal)
         local error_msg = chunk.error.message or 'Unknown error'
         local error_code = chunk.error.code or chunk.error.type or 'unknown'
         tokens.report_error(id, error_code, error_msg)
-        local message = {
-          error = string.format(
-            'API Error (%s): %s',
-            error_code,
-            error_msg
-          ),
-          created = os.time(),
-        }
-        sessions.append_message(session, message)
-        require('chat.windows').on_message(session, message)
+        if not rotating then
+          if
+            failover.should(id, session, error_code, error_msg, had_stream)
+          then
+            failover.mark(id, session)
+            rotating = true
+          else
+            local message = {
+              error = string.format(
+                'API Error (%s): %s',
+                error_code,
+                error_msg
+              ),
+              created = os.time(),
+            }
+            sessions.append_message(session, message)
+            require('chat.windows').on_message(session, message)
+          end
+        end
       elseif ok and chunk.code then
         local error_msg = chunk.msg or 'Unknown error'
         local error_code = chunk.code or chunk.type or 'unknown'
         tokens.report_error(id, error_code, error_msg)
-        local message = {
-          error = string.format(
-            'API Error (%s): %s',
-            error_code,
-            error_msg
-          ),
-          created = os.time(),
-        }
-        sessions.append_message(session, message)
-        require('chat.windows').on_message(session, message)
+        if not rotating then
+          if
+            failover.should(id, session, error_code, error_msg, had_stream)
+          then
+            failover.mark(id, session)
+            rotating = true
+          else
+            local message = {
+              error = string.format(
+                'API Error (%s): %s',
+                error_code,
+                error_msg
+              ),
+              created = os.time(),
+            }
+            sessions.append_message(session, message)
+            require('chat.windows').on_message(session, message)
+          end
+        end
       end
     end
 
@@ -193,6 +244,10 @@ function M.on_exit(id, code, signal)
       end
     end
     if signal == 2 then
+      -- User cancelled: drop any pending rotation, the turn belongs to
+      -- the user now
+      failover.clear(id)
+      rotating = false
       local message = {
         error = 'Request cancelled by user. Press r to retry.',
         created = os.time(),
@@ -200,29 +255,32 @@ function M.on_exit(id, code, signal)
       sessions.append_message(session, message)
       require('chat.windows').on_message(session, message)
     elseif code ~= 0 then
-      -- Check if error is retryable (connection failure or timeout)
-      local retry = require('chat.sessions.retry')
-      local retry_hint = retry.handle_exit_error(session, code)
+      -- Connection-level failures keep the retry module unless a key
+      -- rotation is already pending
+      if not rotating then
+        local retry = require('chat.sessions.retry')
+        local retry_hint = retry.handle_exit_error(session, code)
 
-      -- Always append error message (with retry hint if available)
-      local error_msg = curl.get_error_message(code)
-        or string.format(
-          'Curl failed with exit code %d. Run `curl --help` for details.',
-          code
-        )
+        -- Always append error message (with retry hint if available)
+        local error_msg = curl.get_error_message(code)
+          or string.format(
+            'Curl failed with exit code %d. Run `curl --help` for details.',
+            code
+          )
 
-      if retry_hint then
-        error_msg = error_msg .. '\n' .. retry_hint
+        if retry_hint then
+          error_msg = error_msg .. '\n' .. retry_hint
+        end
+
+        local message = {
+          error = error_msg,
+          created = os.time(),
+        }
+        sessions.append_message(session, message)
+        require('chat.windows').on_message(session, message)
       end
-
-      local message = {
-        error = error_msg,
-        created = os.time(),
-      }
-      sessions.append_message(session, message)
-      require('chat.windows').on_message(session, message)
     end
-    if code == 0 and signal == 0 and reason ~= 'length' then
+    if not rotating and code == 0 and signal == 0 and reason ~= 'length' then
       local session_messages = sessions.get_messages(session)
       if #session_messages == 0 or session_messages[#session_messages].error then
         log.error('API error detected, skip sending tool results')
@@ -246,6 +304,12 @@ function M.on_exit(id, code, signal)
     sse_buffers[id] = nil
     body_buffers[id] = nil
     tokens.unbind(id)
+
+    -- Everything is cleaned up: schedule the rotated request with the
+    -- next api key
+    if rotating then
+      failover.consume(id, session)
+    end
   end)
 end
 

@@ -496,6 +496,9 @@ function M.retry(session_id)
   -- Reset retry count for manual retry
   require('chat.sessions.retry').reset_retry_count(session_id)
 
+  -- Manual retry starts a fresh api-key failover budget
+  require('chat.sessions.failover').reset(session_id)
+
   local protocol = require('chat.protocol')
   local jobid = protocol.request({
     session = session_id,

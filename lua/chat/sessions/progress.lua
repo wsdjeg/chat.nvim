@@ -206,6 +206,10 @@ function M.on_progress_done(jobid, opts)
   -- Reset retry count on successful response
   require('chat.sessions.retry').reset_retry_count(session_id)
 
+  -- A successful response also resets the api-key failover budget, so
+  -- the next turn can rotate keys again
+  require('chat.sessions.failover').reset(session_id)
+
   require('chat.sessions.storage').write_cache(session_id)
 end
 
@@ -332,6 +336,9 @@ function M.cancel_progress(session_id)
       require('chat.spinners').stop()
     end
   end
+
+  -- Cancel any pending api-key failover rotation first
+  require('chat.sessions.failover').cancel(session_id)
 
   -- Cancel any pending auto-retry first
   local retry = require('chat.sessions.retry')

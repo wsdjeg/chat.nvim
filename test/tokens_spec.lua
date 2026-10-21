@@ -9,6 +9,7 @@ function TestTokens:setUp()
   -- Isolate api_key config and rotation state (never touch real config)
   self.saved_api_key = config.config.api_key
   self.saved_cooldown = config.config.token_cooldown
+  self.saved_quota_cooldown = config.config.quota_cooldown
   config.config.api_key = {
     multi = { 'key-1', 'key-2', 'key-3' },
     single = 'only-key',
@@ -16,6 +17,7 @@ function TestTokens:setUp()
     empty = {},
   }
   config.config.token_cooldown = 30
+  config.config.quota_cooldown = 3600
 
   -- Fake monotonic clock (milliseconds)
   self.now = 100000
@@ -30,6 +32,7 @@ end
 function TestTokens:tearDown()
   config.config.api_key = self.saved_api_key
   config.config.token_cooldown = self.saved_cooldown
+  config.config.quota_cooldown = self.saved_quota_cooldown
   tokens._clock = self.saved_clock
   tokens.reset()
 end
@@ -167,6 +170,114 @@ function TestTokens:test_fail_unknown_provider_or_index()
   tokens.fail('multi', 99)
 end
 
+------------------------------------------------------------ quota cooldown
+
+function TestTokens:test_fail_quota_uses_long_cooldown()
+  config.config.quota_cooldown = 7200
+  tokens.next('multi') -- key-1, cursor -> key-2
+  tokens.fail('multi', 1, 'quota') -- key-1 cooling until now + 7200s
+
+  -- 31 seconds later: plain token_cooldown would have released the key,
+  -- a quota cooldown must not
+  self.now = self.now + 31000
+  lu.assertEquals(tokens.next('multi'), 'key-2')
+  -- cursor -> key-3
+
+  self.now = 100000 + 7200000 - 1 -- 1ms before the quota cooldown ends
+  lu.assertEquals(tokens.next('multi'), 'key-3')
+  lu.assertEquals(tokens.next('multi'), 'key-2', 'key-1 still cooling just before expiry')
+  -- cursor -> key-3
+
+  self.now = 100000 + 7200000 -- quota cooldown expired
+  lu.assertEquals(tokens.next('multi'), 'key-3')
+  lu.assertEquals(tokens.next('multi'), 'key-1', 'key-1 recovers after quota cooldown')
+end
+
+function TestTokens:test_fail_quota_cooldown_config_respected()
+  config.config.quota_cooldown = 1 -- 1 second
+  tokens.next('multi')
+  tokens.fail('multi', 1, 'quota')
+  self.now = self.now + 1500
+  lu.assertEquals(tokens.next('multi'), 'key-2')
+  lu.assertEquals(tokens.next('multi'), 'key-3')
+  lu.assertEquals(tokens.next('multi'), 'key-1', '1s quota cooldown already expired')
+end
+
+function TestTokens:test_fail_quota_cooldown_invalid_falls_back_to_default()
+  config.config.quota_cooldown = 'bogus'
+  tokens.next('multi')
+  tokens.fail('multi', 1, 'quota')
+  -- Default 3600s
+  self.now = self.now + 3599999
+  lu.assertEquals(tokens.next('multi'), 'key-2', 'still cooling at 3599.999s')
+  self.now = self.now + 1
+  lu.assertEquals(tokens.next('multi'), 'key-3')
+  lu.assertEquals(tokens.next('multi'), 'key-1', 'default 1h quota cooldown expired')
+end
+
+--------------------------------------------------------------- classify_error
+
+function TestTokens:test_classify_error_quota()
+  lu.assertEquals(
+    tokens.classify_error('QuotaExceeded', 'You exceeded your current quota'),
+    'quota'
+  )
+  lu.assertEquals(
+    tokens.classify_error(429, 'quota exceeded, check your plan and billing details'),
+    'quota'
+  )
+  lu.assertEquals(
+    tokens.classify_error(
+      nil,
+      '当前API Key已用完5小时总额度，请更换API Key或等待额度重置'
+    ),
+    'quota'
+  )
+  lu.assertEquals(
+    tokens.classify_error('RESOURCE_EXHAUSTED', 'Resource has been exhausted'),
+    'quota'
+  )
+  lu.assertEquals(tokens.classify_error(nil, 'insufficient balance'), 'quota')
+  lu.assertEquals(tokens.classify_error(nil, 'account is in arrears'), 'quota')
+  lu.assertEquals(tokens.classify_error(nil, '账户已欠费'), 'quota')
+  lu.assertEquals(tokens.classify_error(nil, 'trial expired'), 'quota')
+end
+
+function TestTokens:test_classify_error_rate_limit()
+  lu.assertEquals(tokens.classify_error(429, 'rate limit reached'), 'rate_limit')
+  lu.assertEquals(tokens.classify_error('rate_limit_error', 'too fast'), 'rate_limit')
+  lu.assertEquals(tokens.classify_error(nil, 'Too Many Requests'), 'rate_limit')
+  lu.assertEquals(
+    tokens.classify_error('Throttling.RateQuota', 'Requests too frequent'),
+    'rate_limit'
+  )
+end
+
+function TestTokens:test_classify_error_server()
+  lu.assertEquals(tokens.classify_error(500, 'oops'), 'server')
+  lu.assertEquals(tokens.classify_error('502', 'bad gateway'), 'server')
+  lu.assertEquals(tokens.classify_error('overloaded_error', 'Overloaded'), 'server')
+  lu.assertEquals(tokens.classify_error('UNAVAILABLE', nil), 'server')
+  lu.assertEquals(tokens.classify_error(503, 'service unavailable'), 'server')
+end
+
+function TestTokens:test_classify_error_negative_cases()
+  -- Client errors and normal completions must NOT rotate the key
+  lu.assertNil(tokens.classify_error(400, 'invalid request'))
+  lu.assertNil(tokens.classify_error(401, 'invalid api key'))
+  lu.assertNil(tokens.classify_error(403, 'permission denied'))
+  lu.assertNil(tokens.classify_error('invalid_request_error', 'max tokens too large'))
+  lu.assertNil(tokens.classify_error('length', 'max_tokens truncation'))
+  lu.assertNil(tokens.classify_error('content_filter', 'content filtered'))
+  lu.assertNil(tokens.classify_error(nil, nil))
+  lu.assertNil(tokens.classify_error('404', 'model not found'))
+end
+
+function TestTokens:test_classify_error_vim_nil_safe()
+  lu.assertNil(tokens.classify_error(vim.NIL, vim.NIL))
+  lu.assertEquals(tokens.classify_error(vim.NIL, 'rate limit reached'), 'rate_limit')
+end
+
 -------------------------------------------------------------------- reset
 
 function TestTokens:test_reset_provider()
@@ -205,6 +316,7 @@ function TestTokens:test_is_token_error_texts()
   lu.assertTrue(tokens.is_token_error('overloaded_error', 'Overloaded'))
   lu.assertTrue(tokens.is_token_error('server_error', 'Internal server error'))
   lu.assertTrue(tokens.is_token_error(nil, 'Too Many Requests'))
+  lu.assertTrue(tokens.is_token_error(nil, '当前API Key已用完5小时总额度'))
 end
 
 function TestTokens:test_is_token_error_negative_cases()
@@ -274,6 +386,51 @@ function TestTokens:test_bind_invalid_jobid_ignored()
   tokens.bind(-1, 'multi', 1)
   tokens.report_error(0, 429, 'rate limit reached')
   lu.assertEquals(tokens.next('multi'), 'key-1')
+end
+
+function TestTokens:test_report_error_returns_class()
+  tokens.bind(46, 'multi', 1)
+  lu.assertEquals(tokens.report_error(46, 429, 'rate limit reached'), 'rate_limit')
+
+  tokens.bind(47, 'multi', 1)
+  lu.assertEquals(
+    tokens.report_error(47, 429, '当前API Key已用完5小时总额度'),
+    'quota'
+  )
+
+  tokens.bind(48, 'multi', 1)
+  lu.assertEquals(tokens.report_error(48, 500, 'oops'), 'server')
+
+  tokens.bind(49, 'multi', 1)
+  lu.assertNil(tokens.report_error(49, 400, 'invalid request'))
+end
+
+function TestTokens:test_report_error_quota_uses_long_cooldown()
+  config.config.quota_cooldown = 3600
+  tokens.bind(50, 'multi', 1)
+  lu.assertEquals(
+    tokens.report_error(50, 429, 'quota exceeded, 已用完5小时总额度'),
+    'quota'
+  )
+
+  -- key-1 cooling for 3600s, not 30s
+  self.now = self.now + 31000
+  lu.assertEquals(tokens.next('multi'), 'key-2', 'quota-cooled key is skipped')
+
+  -- Default 3600s cooldown still active long after token_cooldown
+  self.now = 100000 + 3599999
+  lu.assertEquals(tokens.next('multi'), 'key-3', 'key-1 still quota-cooling')
+  self.now = 100000 + 3600000
+  lu.assertEquals(tokens.next('multi'), 'key-1', 'quota cooldown expired')
+end
+
+function TestTokens:test_get_binding()
+  tokens.bind(51, 'multi', 2)
+  local binding = tokens.get_binding(51)
+  lu.assertEquals(binding.provider, 'multi')
+  lu.assertEquals(binding.key_index, 2)
+
+  lu.assertNil(tokens.get_binding(52))
 end
 
 -------------------------------------------------------------- config wiring
