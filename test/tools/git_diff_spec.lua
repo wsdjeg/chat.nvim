@@ -41,6 +41,11 @@ local function create_temp_git_repo(name)
     .. math.random(10000, 99999)
   vim.fn.mkdir(temp_dir, 'p')
   vim.fn.system('git -C "' .. temp_dir .. '" init')
+  -- Hermetic config: disable GPG signing. Machines with
+  -- tag.gpgsign/commit.gpgsign=true invoke gpg on tag/commit, which
+  -- blocks headless nvim forever waiting for a passphrase.
+  vim.fn.system('git -C "' .. temp_dir .. '" config commit.gpgsign false')
+  vim.fn.system('git -C "' .. temp_dir .. '" config tag.gpgsign false')
   vim.fn.system(
     'git -C "' .. temp_dir .. '" config user.email "test@test.com"'
   )
