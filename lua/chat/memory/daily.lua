@@ -2,6 +2,7 @@
 local M = {}
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
+local atomic = require('chat.memory.atomic')
 
 local daily_memories = {}
 
@@ -107,17 +108,10 @@ function M.load()
   end
 end
 
+-- 保存（原子写入，rename 失败时回退直接写，见 chat.memory.atomic）
 function M.save()
   local path = config.get_memory_storage_dir() .. 'daily_memories.json'
-  local tmp_path = path .. '.tmp'
-
-  -- 原子写入：先写临时文件，再 rename
-  local file = io.open(tmp_path, 'w')
-  if file then
-    file:write(vim.json.encode(daily_memories))
-    file:close()
-    os.rename(tmp_path, path)
-  end
+  return atomic.atomic_write(path, vim.json.encode(daily_memories))
 end
 -- 获取所有日常记忆
 function M.get_all()

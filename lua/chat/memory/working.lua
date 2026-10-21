@@ -1,6 +1,7 @@
 local M = {}
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
+local atomic = require('chat.memory.atomic')
 
 local working_memories = {}
 
@@ -314,11 +315,12 @@ function M.load()
   M.cleanup_expired()
 end
 
--- Save working memories
+-- Save working memories (atomic write with rename-failure fallback,
+-- see chat.memory.atomic)
 function M.save()
   local storage_dir = config.get_memory_storage_dir()
   if not storage_dir then
-    return
+    return false
   end
 
   -- Ensure directory exists
@@ -327,15 +329,7 @@ function M.save()
   end
 
   local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
-  local tmp_path = path .. '.tmp'
-
-  -- 原子写入：先写临时文件，再 rename
-  local file = io.open(tmp_path, 'w')
-  if file then
-    file:write(vim.json.encode(working_memories))
-    io.close(file)
-    os.rename(tmp_path, path)
-  end
+  return atomic.atomic_write(path, vim.json.encode(working_memories))
 end
 
 -- Delete specified memory

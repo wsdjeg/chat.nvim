@@ -2,6 +2,7 @@
 local M = {}
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
+local atomic = require('chat.memory.atomic')
 
 local long_term_memories = {}
 
@@ -456,20 +457,14 @@ function M.load()
   return long_term_memories
 end
 
--- 保存记忆
+-- 保存记忆（原子写入，rename 失败时回退直接写，见 chat.memory.atomic）
 function M.save()
   init_storage()
 
-  local path = get_storage_path()
-  local tmp_path = path .. '.tmp'
-
-  -- 原子写入：先写临时文件，再 rename
-  local file = io.open(tmp_path, 'w')
-  if file then
-    file:write(vim.json.encode(long_term_memories))
-    io.close(file)
-    os.rename(tmp_path, path)
-  end
+  return atomic.atomic_write(
+    get_storage_path(),
+    vim.json.encode(long_term_memories)
+  )
 end
 
 -- 批量操作接口

@@ -368,6 +368,155 @@ function TestMemory:testAtomicWriteReloadConsistency()
   lu.assertTrue(found, 'memory should survive save+reload cycle')
 end
 
+-- === Atomic write failure-path tests ===
+-- Real file locking only exists on Windows (io.open does not lock on
+-- Linux), so failure paths are simulated by stubbing os.rename /
+-- io.open. Stubs are always restored even when assertions fail.
+
+function TestMemory:testLongTermSaveFallsBackWhenRenameFails()
+  local session = 'test-atomic-fallback-lt'
+  local long_term = require('chat.memory.long_term')
+  local marker = 'long-term rename fallback marker payload'
+
+  -- Seed the file through the happy path first
+  long_term.store(session, 'user', 'before lock')
+
+  local path = vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/long_term_memories.json'
+  )
+
+  local real_rename = os.rename
+  os.rename = function() return nil, 'simulated: target locked' end
+  local ok, err = pcall(function()
+    -- Store more data while rename is forced to fail: the
+    -- direct-write fallback must still persist it
+    local id = long_term.store(session, 'user', marker)
+    lu.assertNotNil(id)
+
+    lu.assertTrue(long_term.save(),
+      'save should succeed via direct-write fallback')
+
+    local file = io.open(path, 'r')
+    lu.assertNotNil(file)
+    local content = file:read('*a')
+    file:close()
+    lu.assertNotNil(content:find(marker, 1, true),
+      'new data must reach disk despite rename failure')
+    local json_ok = pcall(vim.json.decode, content)
+    lu.assertTrue(json_ok, 'file must stay valid JSON')
+    lu.assertNil(io.open(path .. '.tmp', 'r'),
+      'no .tmp should remain after fallback write')
+  end)
+  os.rename = real_rename
+  if not ok then error(err) end
+end
+
+function TestMemory:testLongTermTotalWriteFailureKeepsOriginalData()
+  local session = 'test-atomic-totalfail-lt'
+  local long_term = require('chat.memory.long_term')
+  local marker_old = 'original baseline data for total failure test'
+  local marker_new = 'completely different unsaved payload'
+
+  -- Seed the file through the happy path first
+  long_term.store(session, 'user', marker_old)
+
+  local path = vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/long_term_memories.json'
+  )
+
+  local real_rename, real_open = os.rename, io.open
+  os.rename = function() return nil, 'simulated: target locked' end
+  io.open = function(p, mode)
+    -- Only the direct-write open of the target fails;
+    -- temp-file writes keep working
+    if p == path and mode == 'w' then
+      return nil
+    end
+    return real_open(p, mode)
+  end
+  local ok, err = pcall(function()
+    -- New data cannot be persisted: rename and direct write both fail
+    long_term.store(session, 'user', marker_new)
+    lu.assertFalse(long_term.save(), 'save should report failure')
+
+    -- Original data must stay intact
+    local file = io.open(path, 'r')
+    lu.assertNotNil(file)
+    local content = file:read('*a')
+    file:close()
+    lu.assertNotNil(content:find(marker_old, 1, true),
+      'original data must stay intact')
+    lu.assertNil(content:find(marker_new, 1, true),
+      'unsaved data must not leak into the file')
+
+    -- .tmp keeps the newest data as a recovery artifact
+    local tmp = io.open(path .. '.tmp', 'r')
+    lu.assertNotNil(tmp, '.tmp recovery artifact should be kept')
+    local tmp_content = tmp:read('*a')
+    tmp:close()
+    lu.assertNotNil(tmp_content:find(marker_new, 1, true),
+      '.tmp should contain the newest data for manual recovery')
+  end)
+  os.rename, io.open = real_rename, real_open
+  if not ok then error(err) end
+end
+
+function TestMemory:testDailySaveFallsBackWhenRenameFails()
+  local session = 'test-atomic-fallback-daily'
+  local daily = require('chat.memory.daily')
+  local marker = 'daily rename fallback marker payload'
+
+  local path = config.get_memory_storage_dir() .. 'daily_memories.json'
+
+  local real_rename = os.rename
+  os.rename = function() return nil, 'simulated: target locked' end
+  local ok, err = pcall(function()
+    local id = daily.store(session, 'user', marker)
+    lu.assertNotNil(id)
+
+    lu.assertTrue(daily.save(), 'save should succeed via fallback')
+
+    local file = io.open(path, 'r')
+    lu.assertNotNil(file)
+    local content = file:read('*a')
+    file:close()
+    lu.assertNotNil(content:find(marker, 1, true),
+      'daily data must reach disk despite rename failure')
+    lu.assertNil(io.open(path .. '.tmp', 'r'))
+  end)
+  os.rename = real_rename
+  if not ok then error(err) end
+end
+
+function TestMemory:testWorkingSaveFallsBackWhenRenameFails()
+  local session = 'test-atomic-fallback-work'
+  local working = require('chat.memory.working')
+  local marker = 'working rename fallback marker payload'
+
+  local path = vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/working_memories.json'
+  )
+
+  local real_rename = os.rename
+  os.rename = function() return nil, 'simulated: target locked' end
+  local ok, err = pcall(function()
+    local id = working.store(session, 'user', marker)
+    lu.assertNotNil(id)
+
+    lu.assertTrue(working.save(), 'save should succeed via fallback')
+
+    local file = io.open(path, 'r')
+    lu.assertNotNil(file)
+    local content = file:read('*a')
+    file:close()
+    lu.assertNotNil(content:find(marker, 1, true),
+      'working data must reach disk despite rename failure')
+    lu.assertNil(io.open(path .. '.tmp', 'r'))
+  end)
+  os.rename = real_rename
+  if not ok then error(err) end
+end
+
 -- === Daily TTL cleanup tests ===
 
 function TestMemory:testDailyCleanupExpiredRemovesOldMemories()
@@ -628,4 +777,88 @@ function TestMemory:testWorkingMemoryMarkCompleted()
   lu.assertFalse(result, 'mark_completed should fail for non-existent memory')
 end
 
+-- === Atomic write helper tests ===
+
+TestAtomicWrite = {}
+
+function TestAtomicWrite:setUp()
+  self.dir = vim.fs.normalize(vim.fn.tempname() .. '_atomic/')
+  vim.fn.mkdir(self.dir, 'p')
+  self.path = self.dir .. 'data.json'
+end
+
+function TestAtomicWrite:tearDown()
+  vim.fn.delete(self.dir, 'rf')
+end
+
+function TestAtomicWrite:read_file(p)
+  local f = io.open(p, 'r')
+  if not f then
+    return nil
+  end
+  local c = f:read('*a')
+  f:close()
+  return c
+end
+
+function TestAtomicWrite:testSuccessReplacesTarget()
+  local atomic = require('chat.memory.atomic')
+
+  lu.assertTrue(atomic.atomic_write(self.path, '{"v":1}'))
+  lu.assertEquals(self:read_file(self.path), '{"v":1}')
+  lu.assertNil(self:read_file(self.path .. '.tmp'),
+    'no .tmp should remain after successful write')
+end
+
+function TestAtomicWrite:testRenameFailureFallsBackToDirectWrite()
+  local atomic = require('chat.memory.atomic')
+
+  -- Seed the target through the happy path first
+  lu.assertTrue(atomic.atomic_write(self.path, 'first'))
+
+  local real_rename = os.rename
+  os.rename = function() return nil, 'simulated: target locked' end
+  local ok, err = pcall(function()
+    lu.assertTrue(atomic.atomic_write(self.path, 'second'),
+      'fallback write should succeed')
+
+    lu.assertEquals(self:read_file(self.path), 'second',
+      'target must contain the new data')
+    lu.assertNil(self:read_file(self.path .. '.tmp'),
+      'temp file should be cleaned up after fallback')
+  end)
+  os.rename = real_rename
+  if not ok then error(err) end
+end
+
+function TestAtomicWrite:testTotalFailureKeepsOriginalAndTemp()
+  local atomic = require('chat.memory.atomic')
+
+  -- Seed the target through the happy path first
+  lu.assertTrue(atomic.atomic_write(self.path, 'original'))
+
+  local real_rename, real_open = os.rename, io.open
+  os.rename = function() return nil, 'simulated: target locked' end
+  io.open = function(p, mode)
+    -- Only the direct-write open of the target fails;
+    -- temp-file writes keep working
+    if p == self.path and mode == 'w' then
+      return nil
+    end
+    return real_open(p, mode)
+  end
+  local ok, err = pcall(function()
+    lu.assertFalse(atomic.atomic_write(self.path, 'newdata'),
+      'should report failure when both rename and direct write fail')
+
+    lu.assertEquals(self:read_file(self.path), 'original',
+      'original data must stay intact')
+    lu.assertEquals(self:read_file(self.path .. '.tmp'), 'newdata',
+      '.tmp must keep the new data as recovery artifact')
+  end)
+  os.rename, io.open = real_rename, real_open
+  if not ok then error(err) end
+end
+
 return TestMemory
+
