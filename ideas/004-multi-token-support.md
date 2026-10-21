@@ -1,6 +1,6 @@
 # 004 - 多 token 支持（多账号 api_key 轮询/故障切换）
 
-**状态:** draft
+**状态:** done（落地记录见文末）
 
 ## 动机
 
@@ -235,3 +235,28 @@ local cmd = curl.build_request({
   `on_exit` 里按 HTTP 信号 `tokens.fail()`
 - `http.lua` 的 retry 逻辑核对，明确与 token 切换的边界
 - 文档：`docs/` 里 provider / config 相关说明同步
+
+## 落地记录
+
+2026-10 已全部落地，提交链：`7b2eda3`（多 key 配置 + 全部 provider 接入）
+→ `439c131`（透明 failover + quota 冷却）→ `add26fc`（report_error 前先判定
+是否换 key）→ `62067aa`（聊天窗口显示换 key 提示）→ `0f3ded5`（错误信息落
+session 缓存）→ `af839bb`（换 key 时显示错误信息）。
+
+与原方案的偏差（均为实现中发现的更优解）：
+
+1. **失败信号不靠 on_exit 解析 stderr**，改在协议层做：provider 拿到
+   `key, idx` 后 `tokens.bind(jobid, provider, idx)`，协议错误回调统一走
+   `tokens.report_error(jobid, code, msg)`，同一 job 的重复错误事件只冷却
+   一次（bind 后即清除）。
+2. **错误分三类而非两类**：`classify_error` 返回 `rate_limit`（短冷却，默认
+   `token_cooldown=30s`）/ `quota`（额度用尽，长冷却，新增
+   `quota_cooldown=3600s`，识别"已用完5小时总额度"、"额度不足"、
+   `RESOURCE_EXHAUSTED`、欠费等）/ `server`（5xx，短冷却）。401/403、
+   `max_tokens` 截断、`content_filter` 不触发切换。
+3. **全冷却时选型落在 (a)(b) 折中**：不报错也不硬等，退回复活最快的那个
+   key 继续试，让 API 错误可见而不是静默失败。
+4. **与 retry 的边界**：网络错误（连接拒绝/超时）不冷却 key，交给 retry 模
+   块同 key 重试；只有 API 层 429/额度/5xx 才触发换 key。
+5. 测试 `test/tokens_spec.lua` 覆盖 normalize/get_token/next/fail 回绕、
+   两档冷却、classify 正反例、bind/report_error 幂等等，约 40 个用例。

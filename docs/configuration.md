@@ -37,6 +37,8 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `storage_dir`     | string             | `stdpath('data') .. '/chat.nvim/'`                             | Base storage directory for all persistent data (sessions, plans, scheduler, etc.) |
 | `highlights`      | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
 | `winhighlight`    | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
+| `token_cooldown` | number             | `30`                                                           | Seconds an api key is skipped after a rate-limit (429) or server (5xx) error |
+| `quota_cooldown` | number             | `3600`                                                         | Seconds an api key is skipped after a quota-exhausted error (e.g. coding-plan limits) |
 
 ### Example
 
@@ -176,6 +178,32 @@ api_key = {
 {: .highlight }
 
 > Only configure keys for providers you plan to use; others can be omitted.
+
+### Multiple API Keys per Provider (Rotation)
+
+Each provider key accepts a single string (default) **or a list of strings**. With a list, requests are rotated round-robin across the keys. A key that fails with a rate limit (429), quota exhaustion or a server error (5xx) is put on cooldown and skipped automatically until it recovers:
+
+```lua
+api_key = {
+  volcengine_coding_plan = {           -- multiple keys: rotated automatically
+    'uuid-of-account-1',
+    'uuid-of-account-2',
+    'uuid-of-account-3',
+  },
+  deepseek = 'sk-xxxxxxxxxxxx',        -- single key keeps the old behavior
+}
+```
+
+| Option           | Type   | Default | Description                                                                     |
+| ---------------- | ------ | ------- | ------------------------------------------------------------------------------- |
+| `token_cooldown` | number | `30`    | Seconds a key is skipped after a rate-limit (429) or server (5xx) error          |
+| `quota_cooldown` | number | `3600`  | Seconds a key is skipped after a quota-exhausted error (e.g. "已用完5小时总额度") |
+
+{: .info }
+
+> - Quota-exhausted errors (e.g. volcengine "已用完5小时总额度", Gemini `RESOURCE_EXHAUSTED`) cool a key for `quota_cooldown` because the quota window itself is long; plain rate limits only cool for `token_cooldown`
+> - Rotation state is in-memory only; restarting Neovim resets it
+> - When every key is cooling down, the key that recovers soonest is retried so the API error stays visible instead of failing silently
 
 ---
 

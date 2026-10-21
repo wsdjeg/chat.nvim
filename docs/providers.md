@@ -25,6 +25,10 @@ chat.nvim uses a two-layer architecture for AI service integration:
 
 Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`. Providers can specify a custom protocol via the `protocol` field if needed.
 
+{: .info }
+
+> Every provider accepts either a single api key **or a list of keys**. A list is rotated round-robin, and keys that hit rate limits / quota errors are skipped automatically. See [Multiple API Keys per Provider](configuration.md#multiple-api-keys-per-provider-rotation) for details.
+
 ---
 
 ## Built-in Providers
