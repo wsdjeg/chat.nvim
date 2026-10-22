@@ -160,12 +160,15 @@ api_key = {
   openrouter = 'sk-or-xxxxxxxx',       -- OpenRouter
   qwen = 'qwen-xxxxxxxx',              -- Alibaba Qwen (DashScope)
   aliyuncs = 'sk-xxxxxxxxxxxx',        -- Alibaba Cloud (Bailian)
+  aliyuncs_coding_plan = 'sk-xxxxxxxxxxxx',  -- Alibaba Cloud Coding Plan (also used by aliyuncs_coding_plan_anthropic)
   siliconflow = 'xxxxxxxx-xxxx-xxxx',  -- SiliconFlow
   tencent = 'xxxxxxxx-xxxx-xxxx',      -- Tencent Hunyuan
   baidu = 'xxxxxxxx-xxxx-xxxx',        -- Baidu Qianfan
   bigmodel = 'xxxxxxxx-xxxx-xxxx',     -- BigModel AI (Zhipu)
   volcengine = 'xxxxxxxx-xxxx-xxxx',   -- Volcengine AI (Doubao)
+  volcengine_coding_plan = 'uuid-xxxxxxxx',  -- Volcengine Coding Plan (or a list of keys)
   xiaomi = 'xxxxxxxx-xxxx-xxxx',       -- Xiaomi MiMo
+  xiaomi_token_plan = 'xxxxxxxx-xxxx-xxxx', -- Xiaomi Token Plan
   openai = 'sk-xxxxxxxxxxxx',          -- OpenAI
   anthropic = 'sk-ant-xxxxxxxxxxxx',   -- Anthropic Claude
   gemini = 'AIxxxxxxxxxxxxxxxxxxxx',   -- Google Gemini
@@ -419,7 +422,7 @@ The following curl exit codes are considered retryable:
 
 {: .warning }
 
-> HTTP errors (e.g., 400, 429, 500) are **not** retried, as they indicate API-level issues rather than network problems.
+> HTTP errors (e.g., 400, 429, 500) are **not** retried, as they indicate API-level issues rather than network problems. (With multiple keys configured, 429/5xx/quota errors instead put the used key on cooldown and the next key is rotated in.)
 
 ---
 
@@ -486,7 +489,7 @@ system_prompt = function()
   local hour = tonumber(os.date("%H"))
   local day = os.date("%A")
   return string.format('Good %s! Today is %s. I am your AI assistant.',
-    hour < 12 and 'morning' or hour < 18 and 'afternoon' or 'evening',
+    hour < 12 and 'morning' or 'afternoon' or 'evening',
     day)
 end
 ```
@@ -510,6 +513,10 @@ require('chat').setup({
     deepseek = 'sk-xxxxxxxxxxxx',
     github = 'github_pat_xxxxxxxx',
   },
+
+  -- Multi-key rotation cooldowns (seconds)
+  token_cooldown = 30,
+  quota_cooldown = 3600,
 
   -- HTTP server configuration
   http = {
@@ -620,7 +627,7 @@ require('chat').setup({
 {: .info }
 
 > 1. **Path Security**: `allowed_path` restricts which file paths tools can access. Empty string disables all file access. Recommended to set to your current project directory for security.
-> 2. **API Keys**: Only configure keys for providers you plan to use. Providers can be switched at runtime via the picker.
+> 2. **API Keys**: Only configure keys for providers you plan to use. Providers can be switched at runtime via the picker. Each key can be a single string or a list of strings; lists are rotated round-robin and failing keys are put on cooldown automatically (see [Multiple API Keys per Provider](#multiple-api-keys-per-provider-rotation)).
 > 3. **Memory System**: Enabled by default, automatically extracts facts and preferences from conversations. Can be disabled with `memory.enable = false`.
 > 4. **HTTP Server**: Configure `http.api_key` to enable the HTTP server. The server binds to localhost by default for security.
 > 5. **Dynamic Updates**: Some configurations (like provider and model) can be changed dynamically at runtime via the picker.

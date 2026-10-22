@@ -27,13 +27,13 @@ Most AI services use OpenAI-compatible APIs, so the default protocol is `openai`
 
 {: .info }
 
-> Every provider accepts either a single api key **or a list of keys**. A list is rotated round-robin, and keys that hit rate limits / quota errors are skipped automatically. See [Multiple API Keys per Provider](configuration.md#multiple-api-keys-per-provider-rotation) for details.
+> Every cloud provider accepts either a single api key **or a list of keys**. A list is rotated round-robin, and keys that hit rate limits / quota errors are skipped automatically. (Ollama runs locally and needs no key.) See [Multiple API Keys per Provider](configuration.md#multiple-api-keys-per-provider-rotation) for details.
 
 ---
 
 ## Built-in Providers
 
-chat.nvim comes with built-in support for 19+ AI providers:
+chat.nvim comes with 23 built-in providers:
 
 ### 1. DeepSeek
 
@@ -368,6 +368,96 @@ api_key = {
 - Uses OpenAI-compatible API endpoint (`dashscope.aliyuncs.com/compatible-mode/v1/`)
 - Supports streaming and thinking mode (`enable_thinking`)
 
+### 20. Volcengine Coding Plan
+
+[Volcengine Coding Plan](https://console.volcengine.com) - subscription endpoint for DeepSeek, Kimi, GLM and Doubao models
+
+```lua
+provider = 'volcengine_coding_plan'
+model = 'deepseek-v4-pro'
+```
+
+**Configuration:**
+
+```lua
+api_key = {
+  volcengine_coding_plan = 'uuid-of-your-account',  -- or a list of keys for rotation
+}
+```
+
+**Notes:**
+
+- Coding-plan quotas are per-account; quota-exhausted errors put a key on cooldown for `quota_cooldown` (see [Multiple API Keys per Provider](configuration.md#multiple-api-keys-per-provider-rotation))
+- Supports streaming and thinking mode
+
+### 21. Xiaomi Token Plan
+
+[Xiaomi MiMo](https://www.xiaomimimo.com/) - token-plan subscription endpoint
+
+```lua
+provider = 'xiaomi_token_plan'
+model = 'mimo-v2.5-pro'
+```
+
+**Configuration:**
+
+```lua
+api_key = {
+  xiaomi_token_plan = 'xxxxxxxx-xxxx-xxxx',
+}
+```
+
+**Notes:**
+
+- Available models: `mimo-v2.5-pro`, `mimo-v2.5`, `mimo-v2-pro`, `mimo-v2`
+- Supports thinking mode (`thinking.type = 'enabled'`)
+
+### 22. Alibaba Cloud Coding Plan
+
+[Alibaba Cloud Coding Plan](https://www.aliyun.com/product/bailian) - subscription-based coding endpoint (`coding.dashscope.aliyuncs.com`)
+
+```lua
+provider = 'aliyuncs_coding_plan'
+model = 'qwen3.5-plus'
+```
+
+**Available Models:**
+
+- `qwen3.6-plus`, `qwen3.5-plus`, `qwen3-max-2026-01-23`
+- `qwen3-coder-next`, `qwen3-coder-plus`
+- `kimi-k2.5`, `glm-5`, `glm-4.7`, `MiniMax-M2.5`
+
+**Configuration:**
+
+```lua
+api_key = {
+  aliyuncs_coding_plan = 'sk-xxxxxxxxxxxx',
+}
+```
+
+### 23. Alibaba Cloud Coding Plan (Anthropic Protocol)
+
+Same service as `aliyuncs_coding_plan` above, but speaks the Anthropic protocol.
+
+```lua
+provider = 'aliyuncs_coding_plan_anthropic'
+model = 'qwen3.5-plus'
+```
+
+**Configuration:**
+
+Shares the `aliyuncs_coding_plan` key - no extra key needed:
+
+```lua
+api_key = {
+  aliyuncs_coding_plan = 'sk-xxxxxxxxxxxx',
+}
+```
+
+{: .warning }
+
+> This provider uses the `anthropic` protocol instead of the default OpenAI protocol.
+
 ---
 
 ## Provider Selection
@@ -486,7 +576,7 @@ local M = {}
 local job = require('job')
 local curl = require('chat.curl')
 local sessions = require('chat.sessions')
-local config = require('chat.config')
+local tokens = require('chat.tokens')
 
 function M.available_models()
   return {
@@ -497,6 +587,13 @@ function M.available_models()
 end
 
 function M.request(opt)
+  -- tokens.next() supports both a single key and a list of keys
+  -- (rotated round-robin, failing keys skipped automatically)
+  local api_key, key_index = tokens.next('my_provider')
+  if not api_key then
+    return nil
+  end
+
   local body = vim.json.encode({
     model = sessions.get_session_model(opt.session),
     messages = opt.messages,
@@ -510,7 +607,7 @@ function M.request(opt)
     method = 'POST',
     headers = {
       'Content-Type: application/json',
-      'Authorization: Bearer ' .. config.config.api_key.my_provider,
+      'Authorization: Bearer ' .. api_key,
     },
     stdin_body = true,
   })
@@ -520,6 +617,8 @@ function M.request(opt)
     on_stderr = opt.on_stderr,
     on_exit = opt.on_exit,
   })
+  -- bind the job so token errors cool down the key actually used
+  tokens.bind(jobid, 'my_provider', key_index)
   job.send(jobid, body)
   job.send(jobid, nil)
   sessions.set_session_jobid(opt.session, jobid)
@@ -553,7 +652,7 @@ require('chat').setup({
   provider = 'my_provider',
   model = 'model-1',
   api_key = {
-    my_provider = 'your-api-key-here',
+    my_provider = 'your-api-key-here',  -- or a list of keys for rotation
   },
 })
 ```
@@ -682,6 +781,25 @@ require('chat').setup({
 })
 ```
 
+### Multiple Keys per Provider
+
+Any provider key also accepts a **list of keys**. Requests are rotated round-robin across the list, and keys that hit rate limits or quota errors are put on cooldown automatically:
+
+```lua
+require('chat').setup({
+  provider = 'volcengine_coding_plan',
+  api_key = {
+    volcengine_coding_plan = {
+      'uuid-of-account-1',
+      'uuid-of-account-2',
+    },
+    deepseek = 'sk-xxxxxxxxxxxx',  -- single key keeps the old behavior
+  },
+})
+```
+
+See [Multiple API Keys per Provider](configuration.md#multiple-api-keys-per-provider-rotation) for cooldown options (`token_cooldown`, `quota_cooldown`) and error classification details.
+
 ### Environment Variables
 
 You can also use environment variables:
@@ -749,7 +867,7 @@ This will show all available models for the current provider.
 ### Anthropic
 
 - **Default model**: `claude-3-5-sonnet-20241022`
-- **API Base**: `https://api.anthropic.com`
+- **API Base**: `https://www.anthropic.com`
 - **Protocol**: Uses `anthropic` protocol (not OpenAI-compatible)
 - **Supports**: Streaming, function calling
 

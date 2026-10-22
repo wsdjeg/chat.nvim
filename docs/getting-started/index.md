@@ -7,9 +7,9 @@ has_children: true
 
 <!-- prettier-ignore-start -->
 # Getting Started
-{: .no_toc }
+{: .no_toc}
 ## Table of contents
-{: .no_toc }
+{: .no_toc}
 <!-- prettier-ignore-end -->
 
 <!-- prettier-ignore -->
@@ -68,6 +68,8 @@ require('chat').setup({
 })
 ```
 
+Each key also accepts a **list of keys** that is rotated round-robin, with failing keys skipped automatically - see [Multiple API Keys per Provider](../configuration/#multiple-api-keys-per-provider-rotation).
+
 ### 3. Start Chatting
 
 Open the chat window and start your first conversation:
@@ -86,3 +88,4 @@ After getting started, explore:
 - [Tools](../tools/) - Learn about available tools
 - [Memory System](../memory/) - Understand the memory architecture
 - [IM Integration](../integrations/) - Connect messaging platforms
+
