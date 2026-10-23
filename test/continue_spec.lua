@@ -7,9 +7,15 @@ local lu = require('luaunit')
 local continue = require('chat.sessions.continue')
 local config = require('chat.config')
 
-local real_protocol = package.loaded['chat.protocol']
-local real_messages = package.loaded['chat.sessions.messages']
-local real_retry = package.loaded['chat.sessions.retry']
+-- Real modules must be required (not just read from package.loaded): this
+-- file loads before any other spec has required them, so package.loaded is
+-- still nil here. Restoring nil in tearDown would evict the module cache and
+-- silently reload fresh copies mid-suite, breaking stubs installed by later
+-- specs (they would stub the stale table while production code requires the
+-- reloaded one).
+local real_protocol = package.loaded['chat.protocol'] or require('chat.protocol')
+local real_messages = package.loaded['chat.sessions.messages'] or require('chat.sessions.messages')
+local real_retry = package.loaded['chat.sessions.retry'] or require('chat.sessions.retry')
 
 local captured = {}
 
