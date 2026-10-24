@@ -1,5 +1,92 @@
 # Changelog
 
+## [1.11.0](https://github.com/wsdjeg/chat.nvim/compare/v1.10.0...v1.11.0) (2026-10-24)
+
+
+### Features
+
+* add read-only mastodon tool (fetch/search/timeline) ([387f244](https://github.com/wsdjeg/chat.nvim/commit/387f244741c9a84b6ee3ed89441d486494c17384))
+* **file_info:** show octal mode alongside symbolic permissions ([ff940ad](https://github.com/wsdjeg/chat.nvim/commit/ff940ad4b5986c96db569316aa0879caa023323e))
+* **http:** add session message search via GET /messages?q= ([a64bc53](https://github.com/wsdjeg/chat.nvim/commit/a64bc53a7fb4b285c38babb531ee30e05ffb5df8))
+* include real delta content in protocol debug logs ([03f00e3](https://github.com/wsdjeg/chat.nvim/commit/03f00e364dbac09120f03174e231d4f544e652dd))
+* **providers:** support multiple api keys per provider ([7b2eda3](https://github.com/wsdjeg/chat.nvim/commit/7b2eda3d20e1cdde490c47a2d112b0f2d339bbab))
+* **providers:** update volcengine coding plan model list ([9068da2](https://github.com/wsdjeg/chat.nvim/commit/9068da2d7884424c32adb22d290ef5c37ad7ddf7))
+* **sessions:** auto-continue responses truncated by max_tokens ([f211a37](https://github.com/wsdjeg/chat.nvim/commit/f211a37fbf01a9f244c0e97c218a855e304cb9b3))
+* **sessions:** log auto-continue requests at warn level ([1b76809](https://github.com/wsdjeg/chat.nvim/commit/1b768096ea37af11713fa6266d893a82ee88da10))
+* **tokens:** add transparent api-key failover and quota cooldown ([439c131](https://github.com/wsdjeg/chat.nvim/commit/439c13127ea072d30fcda038f61eec293a906c16))
+* **tools:** add chmod action to write_file tool ([cb956dd](https://github.com/wsdjeg/chat.nvim/commit/cb956dd94bde6ea8019c3df4898153bebc120eba))
+* **tools:** add markdown param to fetch_web ([44691a9](https://github.com/wsdjeg/chat.nvim/commit/44691a9624650a212a0b4dfa05c96845648160bb))
+* **tools:** add send_email tool via system mail command ([a2aa11e](https://github.com/wsdjeg/chat.nvim/commit/a2aa11edfa3a3c2b8d8f73119004e6701768939e))
+* **tools:** show api-key rotation notice in the chat window ([62067aa](https://github.com/wsdjeg/chat.nvim/commit/62067aa8e7f75754d3e4faf57a4cce7ef5fd9704))
+* **ui:** add names config for role display names ([8bae9bf](https://github.com/wsdjeg/chat.nvim/commit/8bae9bfcc29d9347d8bad947601ce5025b7e8d58))
+* **ui:** use custom names in HTML preview role badges ([06e37fb](https://github.com/wsdjeg/chat.nvim/commit/06e37fb4bb9f4448384ba567ec45d56c3a6cfb77))
+* **user:** auto-detect system username when id is empty ([e9ba2d9](https://github.com/wsdjeg/chat.nvim/commit/e9ba2d9256e057096d41dfa018701f1ee0f811a5))
+* **volcengine:** update coding plan model list ([e120bb0](https://github.com/wsdjeg/chat.nvim/commit/e120bb0d2f2cef883654198c94d300a787ef22b5))
+* **weixin:** retry failed message sends once before logging error ([f29b1ac](https://github.com/wsdjeg/chat.nvim/commit/f29b1acaed11636fe9849843f7d7c7fa0f5f4e7b))
+
+
+### Bug Fixes
+
+* address code review findings ([025e709](https://github.com/wsdjeg/chat.nvim/commit/025e7094e87379a0551a01e3d4ca8cc1b1640b12))
+* **context:** append context notice at message list end ([eac6d50](https://github.com/wsdjeg/chat.nvim/commit/eac6d500a370d0532a1ea3dbf2bd4a73ea5d150e))
+* display error message when switch api key ([af839bb](https://github.com/wsdjeg/chat.nvim/commit/af839bb3649f1010541a5cb696fe9002ff9d46a0))
+* **docs:** add bigdecimal gem for Ruby 3.4 compatibility ([f3818e3](https://github.com/wsdjeg/chat.nvim/commit/f3818e37931b34ade0c2c9cc27ba42b17b262f1a))
+* **docs:** add csv gem for Ruby 3.4 compatibility ([d4a056e](https://github.com/wsdjeg/chat.nvim/commit/d4a056e8298cccbd731935e56d90123512339c5d))
+* **docs:** patch liquid taint_check from Gemfile for ruby 3.2+ ([84b1c10](https://github.com/wsdjeg/chat.nvim/commit/84b1c1059e2c57d0bf1f5af3519f3d752dd8e8ac))
+* **docs:** replace github-pages gem with modern Jekyll 4.4 stack ([07ffa18](https://github.com/wsdjeg/chat.nvim/commit/07ffa181e736c5e29c4c03eb941df2d94203bb93))
+* **docs:** stub liquid taint_check for ruby 3.2+ ([dec7f42](https://github.com/wsdjeg/chat.nvim/commit/dec7f4250ceff03e702305f80e1c77de915afa14))
+* **http:** use UTF-8 safe truncation for session title and message preview ([e95cff8](https://github.com/wsdjeg/chat.nvim/commit/e95cff8ab65fa45b54877c58a311e6258e787e54))
+* **memory:** fall back to direct write when atomic rename fails ([094d633](https://github.com/wsdjeg/chat.nvim/commit/094d6336f67973e954ebc4624e51a692537c1aff))
+* **protocol:** decide key rotation before report_error drops job binding ([add26fc](https://github.com/wsdjeg/chat.nvim/commit/add26fceff724892b0ea8742713b2b042511e541))
+* **protocol:** guard auto-continue and request edge cases ([fe6b198](https://github.com/wsdjeg/chat.nvim/commit/fe6b1989a759abba7fb7e2dc5603dd84e95e385d))
+* **protocol:** persist error messages to session cache ([0f3ded5](https://github.com/wsdjeg/chat.nvim/commit/0f3ded52822f9de099a4c6f9fcf3ffe25fd3fa4d))
+* **sessions:** guard on_progress_exit against nil session ([9bd7f9d](https://github.com/wsdjeg/chat.nvim/commit/9bd7f9d73e70b5dfdf6151cca474be76d4125dcf))
+* **sessions:** include reasoning length in auto-continue log ([e5658fe](https://github.com/wsdjeg/chat.nvim/commit/e5658fe9f0c510338eff3b165292bb2979f94aa4))
+* **sessions:** log argument decode failures at warn level ([9a46893](https://github.com/wsdjeg/chat.nvim/commit/9a468938881348643dbda4c6bbc88bdcd754cad8))
+* **sessions:** preserve notice field in HTTP GET /messages ([2e75340](https://github.com/wsdjeg/chat.nvim/commit/2e753405433b971c381d6004902b5678213a86c1))
+* **sessions:** release deadlocked sessions when tool callbacks crash ([000aadb](https://github.com/wsdjeg/chat.nvim/commit/000aadb0044ba4cca9988069451e9578ca2ee9f6))
+* **test:** align failover regression test with error-display behavior ([bd8fa97](https://github.com/wsdjeg/chat.nvim/commit/bd8fa970b2fb4be3b3bba9a10764841a91f53e73))
+* **tools:** align git_add scheme with implementation via anyOf ([00a28d3](https://github.com/wsdjeg/chat.nvim/commit/00a28d3d631c7e2cd9c7e3af8c7436324f4fd4f5))
+* **tools:** coerce numeric string params in fetch_web to prevent on_exit crash ([d197a6e](https://github.com/wsdjeg/chat.nvim/commit/d197a6ec37116b5ac65d88658cf77b29dc1e46ec))
+* **tools:** fail fast when job.start cannot spawn the process ([b105fca](https://github.com/wsdjeg/chat.nvim/commit/b105fcacbfd710d5f03c2fa4612fe3c21ec04169))
+* **tools:** normalize tool arguments against scheme at entry point ([6a17f75](https://github.com/wsdjeg/chat.nvim/commit/6a17f75ab1b6922b972f01a4738f35aea0f2d9dc))
+* **tools:** report error when write_file remove fails ([f97f43a](https://github.com/wsdjeg/chat.nvim/commit/f97f43a610c906281b24dc26eb0b328a7ec0f371))
+* **tools:** tolerate bare values when decoding tool call arguments ([556a969](https://github.com/wsdjeg/chat.nvim/commit/556a96993dc5cedc98cfd8791ab75ea79c18c7c4))
+
+
+### Code Refactoring
+
+* **http:** decouple message search into dedicated endpoint ([20b1cf8](https://github.com/wsdjeg/chat.nvim/commit/20b1cf8fc9b07b4a8598421d8dd25f34c7aad2f0))
+* **log:** correct log levels across modules to match semantics ([ab576d3](https://github.com/wsdjeg/chat.nvim/commit/ab576d3433f6cf30d3336a2ff97d9635e8d8979b))
+* **providers:** drop deprecated glm-5.2, glm-latest, minimax-m2.7, kimi-k2.6 models ([812ee43](https://github.com/wsdjeg/chat.nvim/commit/812ee4327cf7efc7a182bb8b57de9e5269b3e0fa))
+
+
+### Documentation
+
+* add ideas/ pool with project-scoped tools proposal ([abc6204](https://github.com/wsdjeg/chat.nvim/commit/abc62049b55fb8f005c837aadd916d4750604b45))
+* add MCP 2.0 stateless client design idea ([1ffca6d](https://github.com/wsdjeg/chat.nvim/commit/1ffca6d08a20638192e5504b5388d45bd1dcb486))
+* **agents:** make commit body mandatory ([82fd045](https://github.com/wsdjeg/chat.nvim/commit/82fd04551c8beb5d78286bc3bf6196b69696dafa))
+* **agents:** require set_prompt after modifying agent prompt file ([d2dfd2f](https://github.com/wsdjeg/chat.nvim/commit/d2dfd2fb3d125738da7ae47ab58ed45ce47bedef))
+* audit README against current code ([b616930](https://github.com/wsdjeg/chat.nvim/commit/b616930cda7feb34fa178b1737aab05f541e9fba))
+* **http:** add message search examples to clients ([2bea903](https://github.com/wsdjeg/chat.nvim/commit/2bea903b641e57d0cde4146f433109ef30743365))
+* **ideas:** add finish_reason handling idea ([1578e95](https://github.com/wsdjeg/chat.nvim/commit/1578e9523630f41430d2fa449eb20bcd08e76493))
+* **ideas:** add multi-token support idea draft ([44b851a](https://github.com/wsdjeg/chat.nvim/commit/44b851a5676e46c106b75d2264f37f0e5333d2e9))
+* sync provider and multi-key documentation with code ([1fb7a29](https://github.com/wsdjeg/chat.nvim/commit/1fb7a2949a1dca86a0f75e2722c4ba1915ac7bc0))
+* **tokens:** document multi-key api rotation and cooldown options ([e961776](https://github.com/wsdjeg/chat.nvim/commit/e961776de7db1b9db9c6e89fbb4c715b21fb8a8e))
+* **util:** add doc comment to iso_to_snowflake ([87e578a](https://github.com/wsdjeg/chat.nvim/commit/87e578a6524f86c46d2594c9dd619901246334eb))
+
+
+### Tests
+
+* add coverage for tools, sessions, memory, and protocol modules ([0ebfde4](https://github.com/wsdjeg/chat.nvim/commit/0ebfde4d6e33833f629322ecf23c5ffcab36a9d5))
+* add coverage for windows UI, MCP transports, HTTP server, integrations ([7442ac5](https://github.com/wsdjeg/chat.nvim/commit/7442ac569ec91e3f92bf5c6f457f223d575af0cd))
+* **context:** cover auto-continue trailing-assistant invariant ([82d348b](https://github.com/wsdjeg/chat.nvim/commit/82d348b061c6b76de67897bfedc283b14238f332))
+* cover scheduler timer firing and skills builtin handlers ([e1cec12](https://github.com/wsdjeg/chat.nvim/commit/e1cec12ae52b0919b68a607a769834fb952d1407))
+* **ffmpeg:** clean up test temp dir left by async jobs ([0af997c](https://github.com/wsdjeg/chat.nvim/commit/0af997ca062eb1f9dc2f1596371a7052945eabec))
+* raise coverage from 85% to 89%, lift 17 files above 80% ([7001c1e](https://github.com/wsdjeg/chat.nvim/commit/7001c1e2775ccda3fc74adf793f4a9e1c764258a))
+* raise coverage from 89% to 91%, every file now above 80% ([01ed28b](https://github.com/wsdjeg/chat.nvim/commit/01ed28b4260769ec0e70172bb0c259c270253934))
+* **tools:** disable GPG signing in temp git repos to fix Windows hang ([85c76b7](https://github.com/wsdjeg/chat.nvim/commit/85c76b7c9f2b5f6b18b3a89d7a96922b84279ac0))
+
 ## [1.10.0](https://github.com/wsdjeg/chat.nvim/compare/v1.9.0...v1.10.0) (2026-09-11)
 
 
