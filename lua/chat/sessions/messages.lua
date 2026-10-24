@@ -125,6 +125,7 @@ function M.get_messages(session_id)
       on_complete = m.on_complete,
       usage = m.usage,
       error = m.error,
+      notice = m.notice,
       tool_call_state = m.tool_call_state,
     })
   end

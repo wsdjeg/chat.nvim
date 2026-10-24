@@ -357,16 +357,25 @@ Get the message list for a specific session, with optional pagination.
     "role": "assistant",
     "content": "Hi there! How can I help you?",
     "reasoning_content": "The user is greeting me...",
-    "tool_calls": null,
-    "tool_call_id": null,
     "created": 1705315800,
     "usage": {
       "total_tokens": 50,
       "prompt_tokens": 20,
       "completion_tokens": 30
+    }
+  },
+  {
+    "notice": "openai: API key #1 hit rate limit, retrying with the next api key...",
+    "created": 1705315810
+  },
+  {
+    "on_complete": true,
+    "usage": {
+      "total_tokens": 80,
+      "prompt_tokens": 50,
+      "completion_tokens": 30
     },
-    "error": null,
-    "tool_call_state": null
+    "created": 1705315820
   }
 ]
 ```
@@ -375,15 +384,29 @@ Get the message list for a specific session, with optional pagination.
 
 | Field | Type | Description |
 |---|---|---|
-| `role` | string | Role: `user` / `assistant` / `tool` / `system` |
-| `content` | string\|null | Message content (may be null for tool calls) |
-| `reasoning_content` | string\|null | Reasoning content (for thinking models) |
-| `tool_calls` | array\|null | Tool calls made by assistant |
-| `tool_call_id` | string\|null | Tool call ID (for tool role messages) |
-| `created` | number\|null | Unix timestamp |
-| `usage` | object\|null | Token usage statistics (`total_tokens`, `prompt_tokens`, `completion_tokens`) |
-| `error` | string\|null | Error message if request failed |
-| `tool_call_state` | string\|null | Tool call execution state |
+| `role` | string | Message role: `user` / `assistant` / `tool`. Absent for UI-only messages (see note below) |
+| `content` | string | Message content; absent for tool-call-only messages and UI-only messages |
+| `reasoning_content` | string | Reasoning content (for thinking models) |
+| `tool_calls` | array | Tool calls made by assistant |
+| `tool_call_id` | string | Tool call ID (for `tool` role messages) |
+| `created` | number | Unix timestamp |
+| `notice` | string | UI-only notice text (e.g., API key rotation from provider failover); message has no `role` |
+| `on_complete` | boolean | UI-only marker set to `true` when a tool-call round finishes (carries that round's `usage`); message has no `role` |
+| `usage` | object | Token usage statistics (`total_tokens`, `prompt_tokens`, `completion_tokens`) |
+| `error` | string | Error message if the request failed |
+| `tool_call_state` | string | Tool call execution state |
+
+> **Note:** Each message object contains only its own set fields — unset fields
+> are omitted from the JSON, not emitted as `null`.
+
+**Message Filtering:**
+
+The response returns the session's **complete stored history** — messages are
+never filtered out by role. However, UI-only messages without a `role` (e.g.
+`notice` entries and `on_complete` markers) are kept in history only for
+display: they are **never sent to the model**. LLM requests only include
+messages with `user` / `assistant` / `tool` roles, plus the injected `system`
+prompt.
 
 **Response Status Codes:**
 

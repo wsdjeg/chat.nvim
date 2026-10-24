@@ -714,6 +714,18 @@ function TestHTTPRoutes:test_get_messages()
   lu.assertEquals(#data, 2)
 end
 
+function TestHTTPRoutes:test_get_messages_preserves_notice()
+  sessions.append_message(self.sid, { role = 'user', content = 'm1', created = os.time() })
+  sessions.append_message(self.sid, { notice = 'switched provider', created = os.time() })
+  local _, status, body = req('GET', '/messages?session=' .. self.sid)
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(#data, 2)
+  -- UI-only notice: no role key, notice text preserved
+  lu.assertNil(data[2].role)
+  lu.assertEquals(data[2].notice, 'switched provider')
+end
+
 function TestHTTPRoutes:test_get_messages_since()
   sessions.append_message(self.sid, { role = 'user', content = 'm1', created = os.time() })
   sessions.append_message(self.sid, { role = 'assistant', content = 'm2', created = os.time() })
