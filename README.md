@@ -145,7 +145,6 @@ never sees the rotation. Per-key cooldowns:
 |-------------|---------|---------|
 | Rate limit (429, QPS throttle) | `token_cooldown` | 30s |
 | Quota exhausted (e.g. coding-plan 5h limit, balance, arrears) | `quota_cooldown` | 3600s |
-```
 
 ## ⚙️ Basic Usage
 
