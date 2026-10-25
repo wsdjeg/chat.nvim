@@ -202,12 +202,26 @@ function TestFfmpegExtra:setUp()
   vim.fn.writefile({ '\137PNG fake image data' }, self.input)
 
   self.getfsize_orig = vim.fn.getfsize
+
+  -- ffmpeg is not preinstalled on every runner (e.g. windows-latest):
+  -- make the reloaded module see it as available so the job-callback
+  -- branches are reachable everywhere. The job layer is intercepted, so
+  -- no real ffmpeg process ever spawns.
+  self.executable_orig = vim.fn.executable
+  package.loaded['chat.tools.ffmpeg'] = nil
+  vim.fn.executable = function(cmd)
+    if cmd == 'ffmpeg' then
+      return 1
+    end
+    return self.executable_orig(cmd)
+  end
 end
 
 function TestFfmpegExtra:tearDown()
   restore_all(self.orig)
   job.reset()
   config.config.allowed_path = self.allowed_path_orig
+  vim.fn.executable = self.executable_orig
   vim.fn.getfsize = self.getfsize_orig
   if vim.fn.isdirectory(self.dir) == 1 then
     vim.fn.delete(self.dir, 'rf')
