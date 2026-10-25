@@ -12,7 +12,18 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      # luarocks.org occasionally has transient API failures (e.g. the
+      # /api/1/status health check), so allow one retry via
+      # continue-on-error + a conditional retry step.
       - name: LuaRocks Upload
+        id: luarocks-upload
+        uses: nvim-neorocks/luarocks-tag-release@v7
+        continue-on-error: true
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+      - name: LuaRocks Upload (retry)
+        if: steps.luarocks-upload.outcome == 'failure'
         uses: nvim-neorocks/luarocks-tag-release@v7
         env:
           LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+
