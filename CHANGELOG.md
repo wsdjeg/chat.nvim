@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/wsdjeg/chat.nvim/compare/v1.11.0...v1.11.1) (2026-10-25)
+
+
+### Tests
+
+* **ffmpeg:** stub ffmpeg availability in job-callback tests ([fd3e185](https://github.com/wsdjeg/chat.nvim/commit/fd3e185b8f32c08eb3074f9a006bf02cb9287bee))
+
 ## [1.11.0](https://github.com/wsdjeg/chat.nvim/compare/v1.10.0...v1.11.0) (2026-10-24)
 
 
