@@ -213,6 +213,20 @@ function M.on_exit(id, code, signal)
         require('chat.windows').on_message(session, message)
         sessions.write_cache(session)
       end
+    elseif code == 0 and signal == 0 and not rotating then
+      -- Any other terminal reason: content_filter (safety), recitation, or a
+      -- stream that ended without a finishReason at all. The model already
+      -- streamed a reply, so commit it to the history instead of dropping
+      -- text the user saw on screen. An error reported for this turn (last
+      -- message) owns the exit path.
+      local pending = sessions.get_progress_message(session)
+        or sessions.get_progress_reasoning_content(session)
+      local session_messages = sessions.get_messages(session)
+      local last = session_messages and session_messages[#session_messages]
+      if pending and not (last and last.error) then
+        sessions.on_progress_done(id)
+        sessions.on_complete(session, id)
+      end
     end
 
     sessions.on_progress_exit(id, code, signal)

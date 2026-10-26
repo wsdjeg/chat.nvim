@@ -56,6 +56,12 @@ local function sessions_stub()
     on_complete = function()
       S.complete = true
     end,
+    get_progress_message = function()
+      return S.progress_text
+    end,
+    get_progress_reasoning_content = function()
+      return S.reasoning_text
+    end,
     on_progress_tool_call_done = function()
       S.tool_done = true
     end,
@@ -138,6 +144,8 @@ local function reset_state()
     session = 'sess-proto',
     progress = {},
     reasoning = {},
+    progress_text = nil,
+    reasoning_text = nil,
     tool_calls = {},
     appended = {},
     ui_messages = {},
@@ -414,6 +422,62 @@ function TestProtocolOpenAI:test_exit_no_finish_reason()
   lu.assertTrue(S.exited)
 end
 
+function TestProtocolOpenAI:test_exit_content_filter_flushes_streamed_text()
+  -- Regression: a chunk that carries BOTH delta.content and
+  -- finish_reason == "content_filter" (e.g. deepseek refusals) used to be
+  -- streamed into the window, but no protocol branch ever flushed the
+  -- buffer, so `on_progress_exit` dropped it and the text vanished from the
+  -- message list after the turn.
+  self.proto.on_stdout(40, {
+    'data: {"choices":[{"delta":{"content":"抱歉，您的问题我无法识别。","role":"assistant"},"finish_reason":"content_filter","index":0}]}',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.progress, { '抱歉，您的问题我无法识别。' })
+  lu.assertEquals(S.finish_reason, 'content_filter')
+
+  S.progress_text = '抱歉，您的问题我无法识别。'
+  self.proto.on_exit(40, 0, 0)
+  flush()
+  lu.assertTrue(S.done, 'buffered content is flushed into an assistant message')
+  lu.assertTrue(S.complete)
+  lu.assertFalse(S.partial)
+end
+
+function TestProtocolOpenAI:test_exit_unknown_reason_without_content_is_noop()
+  S.finish_reason = 'content_filter'
+  self.proto.on_exit(41, 0, 0)
+  flush()
+  lu.assertFalse(S.done, 'nothing was streamed, nothing to flush')
+  lu.assertTrue(S.exited)
+end
+
+function TestProtocolOpenAI:test_exit_unknown_reason_skips_after_error()
+  S.finish_reason = 'content_filter'
+  S.progress_text = 'partial'
+  S.messages = { { error = 'API Error (429): rate limited' } }
+  self.proto.on_exit(42, 0, 0)
+  flush()
+  lu.assertFalse(S.done, 'the error path owns the exit')
+end
+
+function TestProtocolOpenAI:test_exit_unknown_reason_not_on_failed_exit()
+  S.finish_reason = 'content_filter'
+  S.progress_text = 'partial'
+  self.proto.on_exit(43, 28, 0)
+  flush()
+  lu.assertFalse(S.done, 'curl failures are retried, not committed')
+end
+
+function TestProtocolOpenAI:test_exit_unknown_reason_not_on_cancel()
+  S.finish_reason = 'content_filter'
+  S.progress_text = 'partial'
+  self.proto.on_exit(45, 0, 2)
+  flush()
+  lu.assertFalse(S.done, 'a cancelled turn is not committed as a response')
+  lu.assertTrue(S.exited)
+end
+
 function TestProtocolOpenAI:test_exit_reason_length_continues()
   S.finish_reason = 'length'
   self.proto.on_exit(27, 0, 0)
@@ -662,6 +726,25 @@ function TestProtocolGemini:test_exit_length_curl_error_skips_continue()
   lu.assertStrContains(S.appended[1].error, 'Operation timeout')
 end
 
+function TestProtocolGemini:test_exit_content_filter_flushes_streamed_text()
+  -- Safety-filtered replies still carry text: commit it instead of dropping
+  -- the buffer on exit.
+  S.finish_reason = 'content_filter'
+  S.progress_text = 'I cannot help with that.'
+  self.proto.on_exit(25, 0, 0)
+  flush()
+  lu.assertTrue(S.done)
+  lu.assertTrue(S.complete)
+end
+
+function TestProtocolGemini:test_exit_content_filter_without_content_is_noop()
+  S.finish_reason = 'content_filter'
+  self.proto.on_exit(26, 0, 0)
+  flush()
+  lu.assertFalse(S.done)
+  lu.assertTrue(S.exited)
+end
+
 TestProtocolAnthropic = {}
 
 function TestProtocolAnthropic:setUp()
@@ -715,6 +798,24 @@ function TestProtocolAnthropic:test_exit_reason_length_shows_hint_when_failed()
   lu.assertEquals(S.cached, 1)
 end
 
+function TestProtocolAnthropic:test_exit_unknown_stop_reason_flushes_streamed_text()
+  -- e.g. stop_reason "refusal" / "max_tokens" variants: text already streamed
+  -- must not be lost.
+  S.finish_reason = 'refusal'
+  S.progress_text = 'I cannot answer that.'
+  self.proto.on_exit(5, 0, 0)
+  flush()
+  lu.assertTrue(S.done)
+  lu.assertTrue(S.complete)
+end
+
+function TestProtocolAnthropic:test_exit_unknown_stop_reason_without_content_is_noop()
+  S.finish_reason = 'refusal'
+  self.proto.on_exit(6, 0, 0)
+  flush()
+  lu.assertFalse(S.done)
+  lu.assertTrue(S.exited)
+end
 
 -----------------------------------------------------------------------
 -- Multi-key failover: an exit-body / SSE error must rotate the api key
