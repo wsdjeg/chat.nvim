@@ -146,11 +146,19 @@ function M.truncate_messages(messages, config)
   end
   cleaned = cleaned2
 
-  -- Build final result: system messages + context notice + cleaned messages
+  -- Build final result: static system messages + cleaned history, with the
+  -- volatile notice placed as late as possible.
+  --
+  -- The notice embeds per-request numbers (total messages, window bounds),
+  -- so its content changes on every request once truncation has fired.
+  -- Sitting right after the system prompt it invalidates the provider's
+  -- prefix cache for the entire conversation on each request; placed just
+  -- before the newest user message the invalidation stays local to the
+  -- current turn, which is the only part that can change anyway.
   local result = {}
   vim.list_extend(result, system_messages)
 
-  table.insert(result, {
+  local notice = {
     role = 'system',
     content = M._generate_context_notice(
       #messages,
@@ -158,9 +166,18 @@ function M.truncate_messages(messages, config)
       start_idx,
       #other_messages
     ),
-  })
+  }
 
-  vim.list_extend(result, cleaned)
+  local insert_at = M._notice_insert_index(cleaned)
+  for i, msg in ipairs(cleaned) do
+    if i == insert_at then
+      table.insert(result, notice)
+    end
+    table.insert(result, msg)
+  end
+  if insert_at > #cleaned then
+    table.insert(result, notice)
+  end
 
   log.info(
     string.format(
@@ -173,6 +190,35 @@ function M.truncate_messages(messages, config)
   )
 
   return result, true
+end
+
+--- Where to insert the volatile context notice inside the kept history.
+---
+--- The notice carries per-request numbers, so it must never sit in front of
+--- content that is supposed to stay cached:
+---   1. Right before the newest user message: the notice is still read
+---      before the turn it describes, while the prefix of all earlier
+---      turns stays untouched.
+---   2. No user message in the window: append at the end.
+---   3. Never after a trailing assistant message: auto-continue
+---      (finish_reason == "length") resends the request with the truncated
+---      assistant message last, so the notice goes right before it.
+--- @param cleaned table[] Kept conversation messages
+--- @return integer index 1-based insert position (may be #cleaned + 1)
+function M._notice_insert_index(cleaned)
+  local count = #cleaned
+  if count == 0 then
+    return 1
+  end
+  for i = count, 1, -1 do
+    if cleaned[i].role == 'user' then
+      return i
+    end
+  end
+  if cleaned[count].role == 'assistant' then
+    return count
+  end
+  return count + 1
 end
 
 --- Generate context window notice message

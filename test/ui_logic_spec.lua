@@ -397,6 +397,18 @@ local function make_messages(n, pattern)
   return msgs
 end
 
+--- Index of the volatile "[Context Window Notice]" system message, or nil.
+local function find_notice(list)
+  for i, m in ipairs(list) do
+    if m.role == 'system' and m.content and m.content:find(
+      '[Context Window Notice]', 1, true
+    ) then
+      return i
+    end
+  end
+  return nil
+end
+
 function TestContextTruncate:test_no_truncation_below_threshold()
   local msgs = make_messages(10)
   local result, truncated = context.truncate_messages(msgs)
@@ -419,10 +431,17 @@ function TestContextTruncate:test_truncation_basic()
   local result, truncated = context.truncate_messages(msgs)
   lu.assertTrue(truncated)
   lu.assertEquals(result[1].role, 'system')
-  lu.assertEquals(result[2].role, 'system', 'context notice is a system message')
-  lu.assertStrContains(result[2].content, 'Context Window Notice')
+  lu.assertEquals(result[1].content, 'sys')
   -- 59 non-system msgs, keep_recent=10 -> start ~50
   lu.assertTrue(#result < #msgs)
+
+  -- The volatile notice (counts change on every request) sits at the tail,
+  -- right before the newest user message, never in front of cached history.
+  local notice_index = find_notice(result)
+  lu.assertNotNil(notice_index, 'notice emitted after truncation')
+  lu.assertEquals(result[notice_index].role, 'system')
+  lu.assertEquals(notice_index, #result - 1, 'notice precedes newest user message')
+  lu.assertEquals(result[#result].role, 'user')
 end
 
 function TestContextTruncate:test_truncation_respects_config()
@@ -435,7 +454,11 @@ function TestContextTruncate:test_truncation_respects_config()
   -- 60 msgs, cutoff backtracks from idx 57 to nearest user (56),
   -- kept = 56..60 (5 msgs) + 1 context notice
   lu.assertEquals(#result, 6)
-  lu.assertEquals(result[1].role, 'system', 'context notice first')
+  -- kept window is user, assistant, user, user, assistant: the notice goes
+  -- right before the newest user message, the trailing assistant stays last
+  lu.assertEquals(result[1].role, 'user')
+  lu.assertEquals(result[#result].role, 'assistant')
+  lu.assertEquals(find_notice(result), #result - 2)
 end
 
 function TestContextTruncate:test_cutoff_before_first_user_no_truncation()
@@ -588,10 +611,13 @@ function TestContextTruncate:test_truncation_keeps_trailing_assistant_last()
   )
   lu.assertEquals(result[#result].content, 'partial answer')
 
-  -- The notice is still emitted, but at the head (right after system msgs),
-  -- never after the trailing assistant.
-  lu.assertEquals(result[2].role, 'system')
-  lu.assertStrContains(result[2].content, 'Context Window Notice')
+  -- The notice is still emitted, but at the tail: it must never be the last
+  -- entry (auto-continue needs the trailing assistant) and must never sit in
+  -- front of the cached history.
+  local notice_index = find_notice(result)
+  lu.assertNotNil(notice_index, 'notice emitted after truncation')
+  lu.assertTrue(notice_index > 1, 'notice must not sit at the head')
+  lu.assertTrue(notice_index < #result, 'notice must not be the last entry')
 end
 
 TestQueue = {}

@@ -257,6 +257,7 @@ context = {
 - When conversation exceeds `trigger_threshold` messages, older messages may be summarized or removed
 - The `keep_recent` parameter ensures recent context is preserved
 - Helps prevent token limit errors during long conversations
+- After truncation, the `[Context Window Notice]` is appended right before the newest user message (never in front of the system prompt, and never after a trailing assistant message). Its counts change on every request, so keeping it at the tail limits how much of the provider's prompt cache is invalidated
 
 ---
 
