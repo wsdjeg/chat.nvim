@@ -428,7 +428,12 @@ end
 function M.request_tools(session_id)
   local cfg = require('chat.config').config.tools or {}
   if cfg.lazy == false then
-    return M.available_tools()
+    local all = M.available_tools()
+    -- The cache probe needs the exact array that goes into the body.
+    pcall(function()
+      require('chat.sessions.cache_probe').record_tools(session_id, all)
+    end)
+    return all
   end
 
   local all = M.available_tools()
@@ -490,6 +495,12 @@ function M.request_tools(session_id)
       table.insert(selected, scheme)
     end
   end
+
+  -- The cache probe needs the exact array that goes into the body; a probe
+  -- failure must never break tool selection.
+  pcall(function()
+    require('chat.sessions.cache_probe').record_tools(session_id, selected)
+  end)
 
   return selected
 end

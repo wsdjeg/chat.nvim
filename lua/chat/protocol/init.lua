@@ -3,6 +3,13 @@ local M = {}
 local sessions = require('chat.sessions')
 
 function M.request(opt)
+  -- Fingerprint the request prefix before the provider builds the body.
+  -- This is the single funnel every request passes through, so the cache
+  -- probe sees all of them; a probe failure must never break the request.
+  pcall(function()
+    require('chat.sessions.cache_probe').begin_request(opt.session, opt.messages)
+  end)
+
   local ok, provider = pcall(
     require,
     'chat.providers.' .. sessions.get_session_provider(opt.session)

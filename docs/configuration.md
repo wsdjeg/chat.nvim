@@ -261,6 +261,50 @@ context = {
 
 ---
 
+## Prefix Cache Probe
+
+Providers bill cached prompt tokens at a fraction of the normal price, but
+only while the request prefix stays byte-identical: system prompt + tools +
+the messages already sent. The probe fingerprints every request and reports
+the first position where it diverges from the previous request of the same
+session.
+
+```lua
+cache = {
+  probe = true, -- log where consecutive requests stop sharing a prefix
+}
+```
+
+Every request is compared against the previous one and logged as one of:
+
+| Reason      | Meaning                                                          |
+| ----------- | ---------------------------------------------------------------- |
+| `append`    | the previous prefix is intact, only new messages were added      |
+| `system`    | the leading system block changed                                 |
+| `tools`     | the tools array changed (order or membership)                    |
+| `messages`  | an already-sent message was rewritten, or the window moved       |
+| `truncated` | the request got shorter than the previous one (windowing)        |
+
+`append` is the healthy case for an ongoing turn; the others mean
+everything after the reported index has to be re-prefilled.
+
+### Reading the counters
+
+```lua
+local stats = require('chat.sessions').cache_stats(session_id)
+-- stats.requests / stats.appends / stats.breaks
+-- stats.breaks_per_request   cache invalidations per request
+-- stats.prompt_tokens / stats.cached_tokens / stats.hit_ratio
+-- stats.last_reason / stats.last_break_index
+```
+
+`hit_ratio` uses the provider-reported cache numbers
+(`prompt_tokens_details.cached_tokens`, `cache_read_input_tokens`,
+`prompt_cache_hit_tokens`) and stays `0` for providers that report none.
+Set `cache.probe = false` to disable all probe bookkeeping.
+
+---
+
 ## Memory System Configuration
 
 chat.nvim implements a sophisticated three-tier memory system inspired by cognitive psychology.
@@ -584,6 +628,11 @@ require('chat').setup({
   continuation = {
     enable = true,
     max_continuations = 3,
+  },
+
+  -- Prefix cache observability
+  cache = {
+    probe = true,
   },
 
   -- User profile system (人物画像)

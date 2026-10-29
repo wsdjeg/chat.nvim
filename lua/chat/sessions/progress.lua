@@ -31,6 +31,15 @@ end
 --- @param usage table Usage statistics table (prompt_tokens, completion_tokens, etc.)
 function M.set_progress_usage(jobid, usage)
   progress_usage[jobid] = usage
+  -- Feed provider-reported cache hits to the probe so `cache_stats()`
+  -- exposes a hit ratio next to the prefix-divergence counters.
+  local session_id = jobid_session[jobid]
+  if session_id then
+    local ok, probe = pcall(require, 'chat.sessions.cache_probe')
+    if ok and probe then
+      pcall(probe.record_usage, session_id, usage)
+    end
+  end
 end
 
 --- Retrieves usage statistics for a job

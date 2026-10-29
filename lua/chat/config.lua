@@ -33,6 +33,7 @@ local M = {}
 ---@field continuation? table
 ---@field token_cooldown? number Seconds an api key is skipped after a rate-limit / server error (default: 30)
 ---@field quota_cooldown? number Seconds an api key is skipped after a quota-exhausted error, e.g. coding-plan limits (default: 3600)
+---@field cache? table Prefix cache probe configuration
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
@@ -151,6 +152,18 @@ local default = {
   -- (coding-plan / per-account limits), much longer than a plain rate
   -- limit because the quota window itself is long
   quota_cooldown = 3600,
+  -- Prefix cache observability. Providers bill cached prompt tokens at a
+  -- fraction of the normal price, but only while the request prefix stays
+  -- byte-identical (system prompt + tools + already sent messages). The
+  -- probe fingerprints every request and logs the first position that
+  -- diverges from the previous request of the same session.
+  cache = {
+    -- Log divergences (`[cache] ... break=#N/M reason=tools|system|
+    -- messages|truncated`) and keep per-session counters, see
+    -- `require('chat.sessions').cache_stats(session)`.
+    -- Set false to disable all probe bookkeeping.
+    probe = true,
+  },
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',
 }
