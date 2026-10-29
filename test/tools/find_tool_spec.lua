@@ -54,6 +54,12 @@ local function contains(list, value)
   return false
 end
 
+--- get_activated_tools returns an ordered name list (not a set), so
+--- membership has to be checked explicitly.
+local function activated_has(session_id, name)
+  return contains(tools.get_activated_tools(session_id), name)
+end
+
 --------------------------------------------------------------------
 -- scheme()
 --------------------------------------------------------------------
@@ -141,10 +147,10 @@ function TestFindTool:test_request_tools_after_activation()
   local names = names_of(tools.request_tools(SID))
   lu.assertTrue(contains(names, 'write_file'))
   lu.assertTrue(contains(names, 'find_tool'))
-  -- activation is retrievable and clearable
-  lu.assertTrue(tools.get_activated_tools(SID).write_file)
+  -- activation is retrievable (ordered list) and clearable
+  lu.assertTrue(activated_has(SID, 'write_file'))
   tools.clear_activated_tools(SID)
-  lu.assertNil(tools.get_activated_tools(SID).write_file)
+  lu.assertFalse(activated_has(SID, 'write_file'))
   names = names_of(tools.request_tools(SID))
   lu.assertFalse(contains(names, 'write_file'))
 end
@@ -251,8 +257,8 @@ function TestFindTool:test_turn_end_clears_activated_tools()
   tools.activate_tool(sid, 'write_file')
   -- text-only response: the turn is complete, no further request follows
   progress.on_progress_done(jobid)
-  lu.assertNil(
-    tools.get_activated_tools(sid).write_file,
+  lu.assertFalse(
+    activated_has(sid, 'write_file'),
     'activated tools must be cleared when the turn ends without tool calls'
   )
   local names = names_of(tools.request_tools(sid))
@@ -273,7 +279,7 @@ function TestFindTool:test_tool_call_turn_keeps_activated_tools()
     },
   })
   lu.assertTrue(
-    tools.get_activated_tools(sid).write_file,
+    activated_has(sid, 'write_file'),
     'activated tools must survive while the turn continues with tool calls'
   )
 end
@@ -290,7 +296,7 @@ function TestFindTool:test_handler_exact_name()
   lu.assertEquals(data.tool.name, 'get_time')
   lu.assertNotNil(data.tool.parameters)
   -- tool got activated for the session
-  lu.assertTrue(tools.get_activated_tools(SID).get_time)
+  lu.assertTrue(activated_has(SID, 'get_time'))
 end
 
 function TestFindTool:test_handler_case_insensitive()

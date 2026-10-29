@@ -115,6 +115,7 @@ require('chat').setup({
 > - With lazy loading the `find_tool` tool is always included; it lets the AI model discover other tools by keyword and activate them for the current turn
 > - Activation resets when the turn ends (text-only response, no tool calls), so each turn starts from the essential toolset
 > - Tools already called in the still-open turn are automatically re-included (self-healing after an abort or restart mid tool-call loop)
+> - The tools array has a fixed, append-only order (`tools.essential` → tools called in this turn → tools activated via `find_tool` → `find_tool` last). It sits right after the system prompt in every request body, so a deterministic order keeps the provider's prompt cache valid; activating a tool only appends one entry instead of reshuffling the array
 
 ---
 

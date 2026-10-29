@@ -9,8 +9,14 @@ local util = require('chat.util')
 ---@field user? string  -- 用户信息
 ---@field callback? function async tool callback
 
--- session_id -> set of activated tool names (via find_tool)
-local activated = {} ---@type table<string, table<string, boolean>>
+-- session_id -> ordered list of tool names activated via find_tool.
+--
+-- A list, not a set: the tools array sits directly after the system prompt
+-- in every request body, so its order must be deterministic and
+-- append-only. Iterating a hash table (pairs) reshuffles positions whenever
+-- a tool is added, which invalidates the provider's prefix cache for the
+-- whole conversation. With a list, activating a tool only appends one entry.
+local activated = {} ---@type table<string, string[]>
 
 -- 延迟加载 MCP 模块（避免循环依赖）
 local mcp = nil
@@ -319,19 +325,31 @@ function M.catalog_lines()
 end
 
 --- Activate a tool for a session: it will be included in subsequent requests.
+--- Activation is append-only and idempotent: re-activating an already
+--- activated tool keeps its original position, so the tools array stays a
+--- stable prefix for the provider's prompt cache.
 ---@param session_id string
 ---@param name string Tool name
 function M.activate_tool(session_id, name)
-  if not session_id or not name then
+  if not session_id or not name or name == '' then
     return
   end
-  activated[session_id] = activated[session_id] or {}
-  activated[session_id][name] = true
+  local list = activated[session_id]
+  if not list then
+    list = {}
+    activated[session_id] = list
+  end
+  for _, existing in ipairs(list) do
+    if existing == name then
+      return
+    end
+  end
+  table.insert(list, name)
 end
 
---- Get activated tool names for a session.
+--- Get activated tool names for a session, in activation order.
 ---@param session_id string
----@return table<string, boolean>
+---@return string[] ordered_names
 function M.get_activated_tools(session_id)
   return vim.deepcopy(activated[session_id] or {})
 end
@@ -344,16 +362,22 @@ function M.clear_activated_tools(session_id)
   activated[session_id] = nil
 end
 
---- Scan session history and collect tool names called in the current turn.
+--- Scan session history and collect tool names called in the current turn,
+--- in call order (first call first, duplicates dropped).
 --- A turn starts with a user message and ends when the assistant replies
 --- with text only (no tool calls). Tool names are reset at such turn-end
 --- messages, so finished turns do not leak their tools into later turns,
 --- while tools called within the still-open turn are re-included. This
 --- keeps tool activation self-healing across aborts/restarts mid-loop.
+---
+--- Returning an ordered list (instead of a set) keeps the request's tools
+--- array deterministic: the same history always produces the same order,
+--- which is what the provider's prefix cache keys on.
 ---@param session_id string
----@return table<string, boolean>
+---@return string[] ordered_names
 local function scan_history_tool_names(session_id)
   local names = {}
+  local seen = {}
   if not session_id then
     return names
   end
@@ -371,14 +395,16 @@ local function scan_history_tool_names(session_id)
       if #tcs > 0 then
         for _, tc in ipairs(tcs) do
           local n = tc['function'] and tc['function'].name
-          if n and n ~= '' then
-            names[n] = true
+          if n and n ~= '' and not seen[n] then
+            seen[n] = true
+            table.insert(names, n)
           end
         end
       else
         -- Text-only assistant reply: this turn is finished. Tools used in
         -- earlier turns are not carried into the next one.
         names = {}
+        seen = {}
       end
     end
   end
@@ -388,6 +414,15 @@ end
 --- Get tools to send with a request for a session.
 --- In lazy mode: essential tools + tools activated via find_tool (or already
 --- called in history) + find_tool. Otherwise all available tools.
+---
+--- Order is deterministic and append-only, because the tools array is part
+--- of the cached request prefix:
+---   1. `tools.essential`, in config order
+---   2. tools called in the current turn, in call order
+---   3. tools activated via find_tool, in activation order
+---   4. find_tool, always last
+--- The same session state therefore always yields the same array, and
+--- activating a new tool only inserts one entry before find_tool.
 ---@param session_id string
 ---@return table
 function M.request_tools(session_id)
@@ -414,16 +449,19 @@ function M.request_tools(session_id)
   end
 
   -- 2. tools already called in the current turn (self-healing after abort
-  --    or restart mid-loop; finished turns do not carry tools over)
-  for name in pairs(scan_history_tool_names(session_id)) do
+  --    or restart mid-loop; finished turns do not carry tools over).
+  --    Iterated in call order so the array stays deterministic.
+  for _, name in ipairs(scan_history_tool_names(session_id)) do
     if by_name[name] and not seen[name] then
       seen[name] = true
       table.insert(selected, by_name[name])
     end
   end
 
-  -- 3. tools activated via find_tool in this session
-  for name in pairs(activated[session_id] or {}) do
+  -- 3. tools activated via find_tool in this session, in activation order
+  --    (append-only: a newly activated tool lands right before find_tool
+  --    and never reorders the entries already in the array)
+  for _, name in ipairs(activated[session_id] or {}) do
     if by_name[name] and not seen[name] then
       seen[name] = true
       table.insert(selected, by_name[name])

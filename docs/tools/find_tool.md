@@ -43,6 +43,7 @@ With lazy tool loading (default), only essential tools are sent with each reques
 - Tools returned by `find_tool` are activated for the current turn only: when the model replies with plain text (no tool calls), the turn is complete and activation is cleared
 - The next turn starts fresh from the essential toolset plus `find_tool`
 - Tools that were already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop)
+- The request's tools array keeps a deterministic, append-only order: `tools.essential` → tools called in this turn → activated tools (in activation order) → `find_tool` last. Activating a tool only appends one entry, so the provider's prompt cache for the preceding prefix stays valid
 
 ## Example Flow
 
