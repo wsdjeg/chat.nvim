@@ -2,6 +2,7 @@
 local M = {}
 
 local config = require('chat.config')
+local usage_util = require('chat.usage')
 
 -- Helper function to escape HTML
 local function escape_html(text)
@@ -320,28 +321,24 @@ local function generate_message(msg)
   if msg.on_complete then
     html = html
       .. '<div class="on-complete"><div class="on-complete-header">Completed</div>'
-    if msg.usage then
+    -- Usage block: normalized, so DeepSeek/Anthropic cache hits show up as
+    -- well instead of only the OpenAI prompt_tokens_details shape.
+    if type(msg.usage) == 'table' then
+      local u = usage_util.normalize(msg.usage)
       html = html
         .. string.format(
           '<div class="usage-stats">Tokens: %d (%d↑/%d↓)</div>',
-          msg.usage.total_tokens or 0,
-          msg.usage.prompt_tokens or 0,
-          msg.usage.completion_tokens or 0
+          u.total_tokens,
+          u.prompt_tokens,
+          u.completion_tokens
         )
 
-      if
-        msg.usage.prompt_tokens_details
-        and msg.usage.prompt_tokens_details ~= vim.NIL
-        and msg.usage.prompt_tokens_details.cached_tokens
-        and msg.usage.prompt_tokens_details.cached_tokens > 0
-      then
-        local cached = msg.usage.prompt_tokens_details.cached_tokens
-        local percent = math.floor(cached / msg.usage.prompt_tokens * 100)
+      if u.cached_tokens > 0 then
         html = html
           .. string.format(
             '<div class="usage-stats cached">Cached: %d tokens (%d%%)</div>',
-            cached,
-            percent
+            u.cached_tokens,
+            math.floor(usage_util.hit_ratio(msg.usage) * 100)
           )
       end
     end
