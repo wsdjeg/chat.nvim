@@ -187,6 +187,44 @@ function TestFormatter:test_on_complete_with_cached_tokens()
   lu.assertStrContains(lines[1], '💾 40%')
 end
 
+function TestFormatter:test_on_complete_cached_tokens_other_providers()
+  -- DeepSeek reports prompt_cache_hit_tokens
+  local lines = formatter.generate_message({
+    on_complete = true,
+    usage = {
+      total_tokens = 2000,
+      prompt_tokens = 2000,
+      completion_tokens = 0,
+      prompt_cache_hit_tokens = 1500,
+    },
+    created = os.time(),
+  })
+  lu.assertStrContains(lines[1], '💾 75%')
+
+  -- Anthropic reports cache_read_input_tokens
+  lines = formatter.generate_message({
+    on_complete = true,
+    usage = {
+      total_tokens = 4000,
+      prompt_tokens = 4000,
+      completion_tokens = 0,
+      cache_read_input_tokens = 1000,
+    },
+    created = os.time(),
+  })
+  lu.assertStrContains(lines[1], '💾 25%')
+end
+
+function TestFormatter:test_on_complete_ignores_non_table_usage()
+  local lines = formatter.generate_message({
+    on_complete = true,
+    usage = vim.NIL,
+    created = os.time(),
+  })
+  lu.assertStrContains(lines[1], '✅ Completed')
+  lu.assertNil(lines[1]:find('Tokens'))
+end
+
 function TestFormatter:test_error_message()
   local lines = formatter.generate_message({
     role = nil,
@@ -297,6 +335,46 @@ function TestPreview:test_generate_html_reasoning_and_tools()
   lu.assertStrContains(html, 'deep thought')
   lu.assertStrContains(html, 'read_file')
   lu.assertStrContains(html, 'not json')
+end
+
+function TestPreview:test_generate_html_usage_cached_deepseek()
+  -- cache hits from non-OpenAI providers must reach the exported HTML
+  local html = preview.generate_html({
+    id = 's',
+    messages = {
+      {
+        role = 'assistant',
+        content = 'hi',
+        on_complete = true,
+        usage = {
+          total_tokens = 1000,
+          prompt_tokens = 1000,
+          completion_tokens = 0,
+          prompt_cache_hit_tokens = 500,
+        },
+        created = os.time(),
+      },
+    },
+  })
+  lu.assertStrContains(html, 'Tokens: 1000 (1000↑/0↓)')
+  lu.assertStrContains(html, 'Cached: 500 tokens (50%)')
+end
+
+function TestPreview:test_generate_html_usage_without_cache()
+  local html = preview.generate_html({
+    id = 's',
+    messages = {
+      {
+        role = 'assistant',
+        content = 'hi',
+        on_complete = true,
+        usage = { total_tokens = 10, prompt_tokens = 10 },
+        created = os.time(),
+      },
+    },
+  })
+  lu.assertStrContains(html, 'Tokens: 10 (10↑/0↓)')
+  lu.assertNil(html:find('Cached:', 1, true))
 end
 
 function TestPreview:test_generate_html_tool_error_and_result()

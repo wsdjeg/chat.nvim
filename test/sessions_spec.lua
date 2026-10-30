@@ -149,6 +149,36 @@ function TestSessions:testGetTotalTokensSumsMessageUsage()
   lu.assertEquals(completion2, 40)
 end
 
+function TestSessions:testAppendMessageAccumulatesCachedTokens()
+  local session_id = sessions.new()
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'a',
+    created = os.time(),
+    usage = {
+      prompt_tokens = 100,
+      completion_tokens = 10,
+      prompt_cache_hit_tokens = 60,
+    },
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'b',
+    created = os.time(),
+    usage = {
+      prompt_tokens = 50,
+      completion_tokens = 5,
+      cached_tokens = 20,
+    },
+  })
+
+  local session_usage =
+    require('chat.sessions.storage').sessions[session_id].usage
+  lu.assertEquals(session_usage.cached_tokens, 80)
+  -- total falls back to prompt + completion for both payloads
+  lu.assertEquals(session_usage.total_tokens, 165)
+end
+
 function TestSessions:testGetTotalTokensPartialUsageFields()
   local session_id = sessions.new()
   -- Missing fields default to 0. When a payload omits total_tokens the total
