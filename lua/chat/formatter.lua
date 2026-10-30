@@ -4,6 +4,7 @@ local config = require('chat.config')
 local tools = require('chat.tools')
 local sessions = require('chat.sessions')
 local util = require('chat.util')
+local usage_util = require('chat.usage')
 
 --- Build role labels from the `names` config (emoji + name + colon)
 ---@return string bot_label label for assistant messages, e.g. '🤖 Bot:'
@@ -134,24 +135,24 @@ function M.generate_message(message, session)
     return vim.split(message.content, '\n')
   elseif message.on_complete then
     local complete_str = ' ✅ Completed'
-    if message.usage then
+    -- Normalized usage: cache hits are read through chat.usage so DeepSeek
+    -- and Anthropic payloads report a real percentage, not a hardcoded 0.
+    if type(message.usage) == 'table' then
+      local u = usage_util.normalize(message.usage)
       complete_str = complete_str
         .. string.format(
           ' • Tokens: %s (%s↑/%s↓)',
-          util.format_number(message.usage.total_tokens),
-          util.format_number(message.usage.prompt_tokens),
-          util.format_number(message.usage.completion_tokens)
+          util.format_number(u.total_tokens),
+          util.format_number(u.prompt_tokens),
+          util.format_number(u.completion_tokens)
         )
 
-      if
-        message.usage.prompt_tokens_details
-        and message.usage.prompt_tokens_details ~= vim.NIL
-        and message.usage.prompt_tokens_details.cached_tokens
-        and message.usage.prompt_tokens_details.cached_tokens > 0
-      then
-        local cached = message.usage.prompt_tokens_details.cached_tokens
-        local percent = math.floor(cached / message.usage.prompt_tokens * 100)
-        complete_str = complete_str .. string.format(' 💾 %d%%', percent)
+      if u.cached_tokens > 0 then
+        complete_str = complete_str
+          .. string.format(
+            ' 💾 %d%%',
+            math.floor(usage_util.hit_ratio(message.usage) * 100)
+          )
       end
     end
     return {
