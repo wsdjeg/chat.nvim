@@ -24,6 +24,7 @@
 local M = {}
 
 local log = require('chat.log')
+local usage_util = require('chat.usage')
 
 -- Bytes of a string that take part in the fingerprint. Tool outputs can be
 -- huge; the head is enough to detect changes, and the length is mixed in so
@@ -239,40 +240,18 @@ function M._finalize(session_id, tools_hash)
   ))
 end
 
---- Provider-reported cache hit rate, clamped to a single usage object.
----@param usage any
----@return integer prompt_tokens, integer cached_tokens
-local function usage_cache_tokens(usage)
-  if type(usage) ~= 'table' then
-    return 0, 0
-  end
-  local prompt = type(usage.prompt_tokens) == 'number' and usage.prompt_tokens
-    or 0
-  local cached = 0
-  local details = usage.prompt_tokens_details
-  if type(details) == 'table' and type(details.cached_tokens) == 'number' then
-    -- OpenAI / OpenAI-compatible
-    cached = details.cached_tokens
-  elseif type(usage.cache_read_input_tokens) == 'number' then
-    -- Anthropic
-    cached = usage.cache_read_input_tokens
-  elseif type(usage.prompt_cache_hit_tokens) == 'number' then
-    -- DeepSeek
-    cached = usage.prompt_cache_hit_tokens
-  end
-  return prompt, cached
-end
-
 --- Accumulate provider-reported token counts so `stats()` can report a
 --- cache hit ratio. Providers that report nothing simply keep it at 0.
+--- Cached-token extraction lives in `chat.usage` so every UI surface reads
+--- the provider payload the same way.
 --- @param session_id string
 --- @param usage table|nil
 function M.record_usage(session_id, usage)
   if not session_id or not M.enabled() then
     return
   end
-  local prompt, cached = usage_cache_tokens(usage)
-  if prompt <= 0 and cached <= 0 then
+  local u = usage_util.normalize(usage)
+  if u.prompt_tokens <= 0 and u.cached_tokens <= 0 then
     return
   end
   local s = stats[session_id]
@@ -280,8 +259,8 @@ function M.record_usage(session_id, usage)
     s = new_stats()
     stats[session_id] = s
   end
-  s.prompt_tokens = s.prompt_tokens + prompt
-  s.cached_tokens = s.cached_tokens + cached
+  s.prompt_tokens = s.prompt_tokens + u.prompt_tokens
+  s.cached_tokens = s.cached_tokens + u.cached_tokens
 end
 
 --- Cache probe statistics for a session.
@@ -298,8 +277,10 @@ function M.stats(session_id)
   end
   local out = vim.deepcopy(s)
   out.breaks_per_request = s.requests > 0 and (s.breaks / s.requests) or 0
-  out.hit_ratio = s.prompt_tokens > 0 and (s.cached_tokens / s.prompt_tokens)
-    or 0
+  out.hit_ratio = usage_util.hit_ratio({
+    prompt_tokens = s.prompt_tokens,
+    cached_tokens = s.cached_tokens,
+  })
   return out
 end
 
