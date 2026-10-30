@@ -151,7 +151,9 @@ end
 
 function TestSessions:testGetTotalTokensPartialUsageFields()
   local session_id = sessions.new()
-  -- missing fields default to 0
+  -- Missing fields default to 0. When a payload omits total_tokens the total
+  -- falls back to prompt + completion (chat.usage.normalize), so a partial
+  -- message still contributes its real size instead of 0.
   sessions.append_message(session_id, {
     role = 'assistant',
     content = 'a',
@@ -179,7 +181,7 @@ function TestSessions:testGetTotalTokensPartialUsageFields()
   })
 
   local total, prompt, completion = sessions.get_total_tokens(session_id)
-  lu.assertEquals(total, 10)
+  lu.assertEquals(total, 17)
   lu.assertEquals(prompt, 4)
   lu.assertEquals(completion, 3)
 end

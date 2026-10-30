@@ -3,6 +3,7 @@ local M = {}
 
 local storage = require('chat.sessions.storage')
 local util = require('chat.util')
+local usage_util = require('chat.usage')
 
 -- Messages already sanitized in this process, keyed weakly by table
 -- reference.
@@ -79,31 +80,12 @@ function M.append_message(session_id, message)
 
   if message.usage then
     local s = storage.sessions[session_id]
-    if not s.usage then
-      local total = 0
-      local prompt = 0
-      local completion = 0
-      for _, msg in ipairs(s.messages) do
-        if msg.usage then
-          total = total + (msg.usage.total_tokens or 0)
-          prompt = prompt + (msg.usage.prompt_tokens or 0)
-          completion = completion + (msg.usage.completion_tokens or 0)
-        end
-      end
-      s.usage = {
-        total_tokens = total,
-        prompt_tokens = prompt,
-        completion_tokens = completion,
-      }
+    if s.usage then
+      s.usage = usage_util.add(s.usage, message.usage)
     else
-      s.usage = {
-        total_tokens = s.usage.total_tokens
-          + (message.usage.total_tokens or 0),
-        prompt_tokens = s.usage.prompt_tokens
-          + (message.usage.prompt_tokens or 0),
-        completion_tokens = s.usage.completion_tokens
-          + (message.usage.completion_tokens or 0),
-      }
+      -- Legacy/cleared session: rebuild the running total from the history
+      -- so messages appended before the counter existed are not lost.
+      s.usage = usage_util.sum(s.messages)
     end
   end
 end

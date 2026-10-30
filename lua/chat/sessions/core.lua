@@ -200,11 +200,7 @@ function M.clear(session_id)
       return false
     else
       storage.sessions[session_id].messages = {}
-      storage.sessions[session_id].usage = {
-        total_tokens = 0,
-        prompt_tokens = 0,
-        completion_tokens = 0,
-      }
+      storage.sessions[session_id].usage = require('chat.usage').empty()
       storage.sessions[session_id].cleared_at = os.time()
       require('chat.sessions.storage').write_cache(session_id)
       if session_id == windows.current_session() then
@@ -452,21 +448,7 @@ function M.get_total_tokens(session_id)
   end
 
   if not session.usage then
-    local total = 0
-    local prompt = 0
-    local completion = 0
-    for _, msg in ipairs(session.messages) do
-      if msg.usage then
-        total = total + (msg.usage.total_tokens or 0)
-        prompt = prompt + (msg.usage.prompt_tokens or 0)
-        completion = completion + (msg.usage.completion_tokens or 0)
-      end
-    end
-    session.usage = {
-      total_tokens = total,
-      prompt_tokens = prompt,
-      completion_tokens = completion,
-    }
+    session.usage = require('chat.usage').sum(session.messages)
   end
   return session.usage.total_tokens,
     session.usage.prompt_tokens,
