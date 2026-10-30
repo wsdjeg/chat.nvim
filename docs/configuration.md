@@ -303,6 +303,34 @@ local stats = require('chat.sessions').cache_stats(session_id)
 `prompt_cache_hit_tokens`) and stays `0` for providers that report none.
 Set `cache.probe = false` to disable all probe bookkeeping.
 
+### Where the numbers show up
+
+Every surface reads usage through `chat.usage`, so the same payload is
+interpreted identically no matter which provider sent it:
+
+- completed-message footer in the result window:
+  `✅ Completed • Tokens: 12.3K (10.0K↑/2.3K↓) 💾 45%`
+- HTML preview (`GET /session?id=<session_id>` on the HTTP server): a
+  `Cached: N tokens (P%)` line under the token count
+- `cache_stats(session_id)` (see above)
+
+The `💾` / `Cached:` part is omitted when the provider reports no cache
+numbers, and `total_tokens` falls back to `prompt_tokens + completion_tokens`
+when the payload omits it.
+
+Plugin authors can reuse the same normalization:
+
+```lua
+local usage = require('chat.usage')
+
+usage.normalize(msg.usage)
+-- { total_tokens, prompt_tokens, completion_tokens, cached_tokens }
+usage.cached_tokens(msg.usage) -- cache field of any supported provider
+usage.hit_ratio(msg.usage)     -- cached / prompt, 0..1
+usage.sum(messages)            -- totals for a whole history
+usage.summary(msg.usage)       -- "12.3K tokens · 45% cached"
+```
+
 ---
 
 ## Memory System Configuration
