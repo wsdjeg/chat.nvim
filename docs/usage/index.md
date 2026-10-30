@@ -517,7 +517,8 @@ Each session is stored as a JSON file with the following structure:
   "usage": {
     "total_tokens": 30,
     "prompt_tokens": 10,
-    "completion_tokens": 20
+    "completion_tokens": 20,
+    "cached_tokens": 0
   }
 }
 ```
@@ -537,8 +538,8 @@ Each session is stored as a JSON file with the following structure:
 | `messages[].role`         | string  | Message role (`user`, `assistant`, `tool`)           |
 | `messages[].content`      | string  | Message content                                      |
 | `messages[].created`      | integer | Unix timestamp (seconds)                             |
-| `messages[].usage`        | object  | Token usage (assistant messages only, optional)      |
-| `usage`                   | object  | Cumulative token usage for the session               |
+| `messages[].usage`        | object  | Raw provider usage payload (assistant messages only, optional); cache hits may appear under provider-specific fields (e.g., `prompt_tokens_details.cached_tokens` / `prompt_cache_hit_tokens` / `cache_read_input_tokens`) |
+| `usage`                   | object  | Cumulative token usage for the session (`total_tokens`, `prompt_tokens`, `completion_tokens`, `cached_tokens`) |
 | `last_user_message_time`  | integer | Unix timestamp of last user message (optional)       |
 
 ### Session Commands
@@ -603,15 +604,23 @@ chat.nvim supports streaming responses from AI providers:
 
 ### Token Usage Tracking
 
-Real-time token consumption is displayed for each response:
+Real-time token consumption is displayed after each completed response:
 
 ```
-Input: 150 tokens | Output: 75 tokens | Total: 225 tokens
+✅ Completed • Tokens: 225 (150↑/75↓)
 ```
+
+When the provider reports prompt cache hits, a cache hit ratio is appended:
+
+```
+✅ Completed • Tokens: 225 (150↑/75↓) 💾 66%
+```
+
+Cache hits are read from provider-specific fields (`prompt_tokens_details.cached_tokens` for OpenAI-compatible APIs, `prompt_cache_hit_tokens` for DeepSeek, `cache_read_input_tokens` for Anthropic, `prompt_tokens_details.cached_tokens` for DashScope, and plain `cached_tokens` for generic payloads).
 
 {: .info }
 
-> Token counts are displayed in the result window after each response, helping you monitor API usage.
+> Token counts are displayed in the result window after each response, helping you monitor API usage. `cached_tokens` in the session's cumulative `usage` object is the sum of cache hits across all responses.
 
 ---
 
