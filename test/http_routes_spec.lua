@@ -159,6 +159,7 @@ function TestHTTPRoutes:test_list_sessions()
   lu.assertEquals(mine[1].usage.total_tokens, 0)
   lu.assertEquals(mine[1].usage.prompt_tokens, 0)
   lu.assertEquals(mine[1].usage.completion_tokens, 0)
+  lu.assertEquals(mine[1].usage.cached_tokens, 0)
   -- pin defaults to false; in_progress is nil-or-boolean
   lu.assertFalse(mine[1].pin)
   lu.assertNil(mine[1].in_progress)
@@ -193,6 +194,7 @@ function TestHTTPRoutes:test_get_session()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
 function TestHTTPRoutes:test_get_session_404()
@@ -226,6 +228,7 @@ function TestHTTPRoutes:test_sessions_usage_tokens()
       total_tokens = 50,
       prompt_tokens = 30,
       completion_tokens = 20,
+      prompt_cache_hit_tokens = 10,
     },
   })
 
@@ -236,6 +239,8 @@ function TestHTTPRoutes:test_sessions_usage_tokens()
   lu.assertEquals(data.usage.total_tokens, 170)
   lu.assertEquals(data.usage.prompt_tokens, 130)
   lu.assertEquals(data.usage.completion_tokens, 40)
+  -- deepseek-style cache field is normalized into cached_tokens
+  lu.assertEquals(data.usage.cached_tokens, 10)
 
   -- GET /sessions returns the same usage for this session
   local _, status2, body2 = req('GET', '/sessions')
@@ -248,6 +253,7 @@ function TestHTTPRoutes:test_sessions_usage_tokens()
   lu.assertEquals(mine[1].usage.total_tokens, 170)
   lu.assertEquals(mine[1].usage.prompt_tokens, 130)
   lu.assertEquals(mine[1].usage.completion_tokens, 40)
+  lu.assertEquals(mine[1].usage.cached_tokens, 10)
 end
 
 function TestHTTPRoutes:test_sessions_usage_independent_per_session()
@@ -305,6 +311,7 @@ function TestHTTPRoutes:test_sessions_usage_zero_after_clear()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
   lu.assertNotNil(data.cleared_at)
 end
 
@@ -370,6 +377,7 @@ function TestHTTPRoutes:test_new_session_default()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_with_provider_model()
@@ -385,6 +393,7 @@ function TestHTTPRoutes:test_new_session_with_provider_model()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_invalid_body_ignored()
@@ -395,6 +404,7 @@ function TestHTTPRoutes:test_new_session_invalid_body_ignored()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
 function TestHTTPRoutes:test_new_session_empty_fields_ignored()
@@ -406,6 +416,7 @@ function TestHTTPRoutes:test_new_session_empty_fields_ignored()
   lu.assertEquals(data.usage.total_tokens, 0)
   lu.assertEquals(data.usage.prompt_tokens, 0)
   lu.assertEquals(data.usage.completion_tokens, 0)
+  lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
 -- ─── DELETE /session/:id ────────────────────────────────

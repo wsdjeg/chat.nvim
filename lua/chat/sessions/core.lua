@@ -441,10 +441,11 @@ end
 --- @return integer total_tokens Total tokens used
 --- @return integer prompt_tokens Prompt tokens used
 --- @return integer completion_tokens Completion tokens used
+--- @return integer cached_tokens Prompt tokens served from the provider prefix cache
 function M.get_total_tokens(session_id)
   local session = storage.sessions[session_id]
   if not session then
-    return 0, 0, 0
+    return 0, 0, 0, 0
   end
 
   if not session.usage then
@@ -452,7 +453,8 @@ function M.get_total_tokens(session_id)
   end
   return session.usage.total_tokens,
     session.usage.prompt_tokens,
-    session.usage.completion_tokens
+    session.usage.completion_tokens,
+    session.usage.cached_tokens
 end
 
 --- Retries the last request for a session

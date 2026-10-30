@@ -103,18 +103,21 @@ end
 -- ─── get_total_tokens ───────────────────────────────────
 
 function TestSessions:testGetTotalTokensNonexistentSession()
-  local total, prompt, completion = sessions.get_total_tokens('no-such-session')
+  local total, prompt, completion, cached =
+    sessions.get_total_tokens('no-such-session')
   lu.assertEquals(total, 0)
   lu.assertEquals(prompt, 0)
   lu.assertEquals(completion, 0)
+  lu.assertEquals(cached, 0)
 end
 
 function TestSessions:testGetTotalTokensEmptySession()
   local session_id = sessions.new()
-  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  local total, prompt, completion, cached = sessions.get_total_tokens(session_id)
   lu.assertEquals(total, 0)
   lu.assertEquals(prompt, 0)
   lu.assertEquals(completion, 0)
+  lu.assertEquals(cached, 0)
 end
 
 function TestSessions:testGetTotalTokensSumsMessageUsage()
@@ -137,16 +140,18 @@ function TestSessions:testGetTotalTokensSumsMessageUsage()
     usage = { total_tokens = 50, prompt_tokens = 30, completion_tokens = 20 },
   })
 
-  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  local total, prompt, completion, cached = sessions.get_total_tokens(session_id)
   lu.assertEquals(total, 170)
   lu.assertEquals(prompt, 130)
   lu.assertEquals(completion, 40)
+  lu.assertEquals(cached, 0)
 
   -- second call returns the same cached values
-  local total2, prompt2, completion2 = sessions.get_total_tokens(session_id)
+  local total2, prompt2, completion2, cached2 = sessions.get_total_tokens(session_id)
   lu.assertEquals(total2, 170)
   lu.assertEquals(prompt2, 130)
   lu.assertEquals(completion2, 40)
+  lu.assertEquals(cached2, 0)
 end
 
 function TestSessions:testAppendMessageAccumulatesCachedTokens()
@@ -210,10 +215,11 @@ function TestSessions:testGetTotalTokensPartialUsageFields()
     usage = {},
   })
 
-  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  local total, prompt, completion, cached = sessions.get_total_tokens(session_id)
   lu.assertEquals(total, 17)
   lu.assertEquals(prompt, 4)
   lu.assertEquals(completion, 3)
+  lu.assertEquals(cached, 0)
 end
 
 function TestSessions:testGetTotalTokensRecomputesLegacySession()
@@ -235,16 +241,17 @@ function TestSessions:testGetTotalTokensRecomputesLegacySession()
   -- session-level usage cache is missing
   require('chat.sessions.storage').sessions[session_id].usage = nil
 
-  local total, prompt, completion = sessions.get_total_tokens(session_id)
+  local total, prompt, completion, cached = sessions.get_total_tokens(session_id)
   lu.assertEquals(total, 40)
   lu.assertEquals(prompt, 30)
   lu.assertEquals(completion, 10)
+  lu.assertEquals(cached, 0)
 
   -- computed result is cached back onto the session
-  local cached = require('chat.sessions.storage').sessions[session_id].usage
-  lu.assertEquals(cached.total_tokens, 40)
-  lu.assertEquals(cached.prompt_tokens, 30)
-  lu.assertEquals(cached.completion_tokens, 10)
+  local cached_usage = require('chat.sessions.storage').sessions[session_id].usage
+  lu.assertEquals(cached_usage.total_tokens, 40)
+  lu.assertEquals(cached_usage.prompt_tokens, 30)
+  lu.assertEquals(cached_usage.completion_tokens, 10)
 end
 
 function TestSessions:testSetSessionProvider()

@@ -47,7 +47,7 @@ local function build_session_info(id, data)
     }
   end
 
-  local total_tokens, prompt_tokens, completion_tokens =
+  local total_tokens, prompt_tokens, completion_tokens, cached_tokens =
     sessions.get_total_tokens(id)
 
   return {
@@ -64,6 +64,7 @@ local function build_session_info(id, data)
       total_tokens = total_tokens,
       prompt_tokens = prompt_tokens,
       completion_tokens = completion_tokens,
+      cached_tokens = cached_tokens,
     },
     cleared_at = data.cleared_at,
   }
@@ -325,6 +326,7 @@ local function handle_new_session(client, body, content_length)
       total_tokens = 0,
       prompt_tokens = 0,
       completion_tokens = 0,
+      cached_tokens = 0,
     },
   })
 end

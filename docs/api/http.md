@@ -147,7 +147,8 @@ Get a list of all sessions with details.
     "usage": {
       "total_tokens": 12345,
       "prompt_tokens": 10000,
-      "completion_tokens": 2345
+      "completion_tokens": 2345,
+      "cached_tokens": 4000
     },
     "cleared_at": null
   }
@@ -185,6 +186,7 @@ Get a list of all sessions with details.
 | `total_tokens` | number | Total tokens used (prompt + completion, all requests summed) |
 | `prompt_tokens` | number | Total prompt tokens used |
 | `completion_tokens` | number | Total completion tokens used |
+| `cached_tokens` | number | Prompt tokens served from the provider prefix cache (provider-specific fields are normalized: OpenAI/DashScope `prompt_tokens_details.cached_tokens`, DeepSeek `prompt_cache_hit_tokens`, Anthropic `cache_read_input_tokens`) |
 
 **Example:**
 
@@ -392,7 +394,7 @@ Get the message list for a specific session, with optional pagination.
 | `created` | number | Unix timestamp |
 | `notice` | string | UI-only notice text (e.g., API key rotation from provider failover); message has no `role` |
 | `on_complete` | boolean | UI-only marker set to `true` when a tool-call round finishes (carries that round's `usage`); message has no `role` |
-| `usage` | object | Token usage statistics (`total_tokens`, `prompt_tokens`, `completion_tokens`) |
+| `usage` | object | Token usage statistics (`total_tokens`, `prompt_tokens`, `completion_tokens`; cache hits may appear under provider-specific fields, e.g. `prompt_tokens_details.cached_tokens` / `prompt_cache_hit_tokens` / `cache_read_input_tokens`) |
 | `error` | string | Error message if the request failed |
 | `tool_call_state` | string | Tool call execution state |
 
@@ -579,7 +581,8 @@ Create a new session, optionally specifying the provider and model.
   "usage": {
     "total_tokens": 0,
     "prompt_tokens": 0,
-    "completion_tokens": 0
+    "completion_tokens": 0,
+    "cached_tokens": 0
   }
 }
 ```
