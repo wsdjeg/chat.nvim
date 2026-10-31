@@ -134,6 +134,9 @@ end
 --- Prepends system prompt and user profile if configured, applies context truncation
 --- All string content is sanitized to valid UTF-8, which also repairs history
 --- polluted by non-UTF-8 tool output in legacy caches
+--- reasoning_content is intentionally excluded: providers ignore or reject
+--- reasoning on input, and resending it inflates token counts and breaks the
+--- prefix cache (see the inline comment in the copy loop)
 --- @param session_id string The session identifier
 --- @return table Array of messages formatted for API request (system, user, assistant, tool roles only)
 function M.get_request_messages(session_id)
@@ -166,10 +169,18 @@ function M.get_request_messages(session_id)
       -- output (e.g. git output with GBK-encoded filenames), healing
       -- legacy caches on the first request.
       ensure_sanitized(m)
+      -- reasoning_content is deliberately NOT copied into requests:
+      -- providers ignore or reject reasoning on input (DeepSeek docs:
+      -- "the reasoning_content field in the input should be removed"),
+      -- and providers that do not reject it still tokenize and bill it.
+      -- Resending a reasoning-heavy window inflated requests by tens of
+      -- thousands of tokens and made the request shape depend on which
+      -- history path built it, breaking the provider prefix cache. The
+      -- history keeps reasoning_content for UI display, the /messages
+      -- endpoint and the get_history tool.
       table.insert(message, {
         role = m.role,
         content = m.content,
-        reasoning_content = m.reasoning_content,
         tool_calls = m.tool_calls,
         tool_call_id = m.tool_call_id,
       })

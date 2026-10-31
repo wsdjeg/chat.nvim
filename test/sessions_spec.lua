@@ -295,6 +295,44 @@ function TestSessions:testGetRequestMessages()
   lu.assertEquals(request_messages[3].role, 'assistant')
 end
 
+function TestSessions:testGetRequestMessagesExcludesReasoningContent()
+  -- Regression: reasoning_content must never be resent in requests.
+  -- Providers ignore or reject reasoning on input, and those that keep it
+  -- tokenize and bill it: resending a reasoning-heavy window inflated
+  -- requests by tens of thousands of tokens and alternated the request
+  -- shape between turns, breaking the provider prefix cache. History
+  -- keeps reasoning_content for UI display and the get_history tool.
+  local session_id = sessions.new()
+
+  sessions.set_session_prompt(session_id, 'You are helpful.')
+
+  sessions.append_message(session_id, {
+    role = 'user',
+    content = 'Question',
+    created = os.time(),
+  })
+  sessions.append_message(session_id, {
+    role = 'assistant',
+    content = 'Answer',
+    reasoning_content = 'internal chain of thought',
+    created = os.time(),
+  })
+
+  local request_messages = sessions.get_request_messages(session_id)
+  for _, m in ipairs(request_messages) do
+    lu.assertNil(
+      m.reasoning_content,
+      'request messages must not carry reasoning_content'
+    )
+  end
+  lu.assertEquals(request_messages[2].content, 'Question')
+  lu.assertEquals(request_messages[3].content, 'Answer')
+
+  -- History (UI display / get_history tool) still exposes the reasoning.
+  local history = sessions.get_messages(session_id)
+  lu.assertEquals(history[2].reasoning_content, 'internal chain of thought')
+end
+
 function TestSessions:testGetRequestMessagesNoticeTrailsTruncatedAssistant()
   -- Auto-continue (finish_reason == "length") strips the trailing notice
   -- and resends the truncated assistant as the final entry (regression for
