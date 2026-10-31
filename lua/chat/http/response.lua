@@ -1,6 +1,35 @@
 local uv = vim.loop
+local log = require('chat.log')
 
 local M = {}
+
+--------------------------------------------------
+-- Request correlation
+--------------------------------------------------
+
+-- Per-client request binding, keyed by the client handle.
+-- Weak keys so entries vanish when a connection handle is GC'd.
+local pending_requests = setmetatable({}, { __mode = 'k' })
+
+--- Bind the request being dispatched to a client handle, so response
+--- senders can log "METHOD /path -> status" for diagnostics.
+--- Called by routes.handle_request before dispatching to a handler.
+--- @param client table uv tcp handle
+--- @param method string HTTP method
+--- @param path string request path
+function M.bind_request(client, method, path)
+  pending_requests[client] = { method = method, path = path }
+end
+
+--- Log a completed response: "[http] METHOD /path -> 200 (123 bytes)"
+local function log_completion(client, status, size)
+  local req = pending_requests[client]
+  if not req then
+    return
+  end
+  pending_requests[client] = nil
+  log.debug(string.format('[http] %s %s -> %d (%d bytes)', req.method, req.path, status, size))
+end
 
 --- HTTP status text mapping
 local status_texts = {
@@ -78,6 +107,7 @@ function M.send_raw(client, status, content_type, data)
     #data,
     data
   )
+  log_completion(client, status, #data)
   write_and_close(client, resp)
 end
 
@@ -94,6 +124,7 @@ function M.send_json(client, status, data)
     #json_data,
     json_data
   )
+  log_completion(client, status, #json_data)
   write_and_close(client, resp)
 end
 
@@ -110,6 +141,7 @@ function M.send_error(client, status, message)
     #body,
     body
   )
+  log_completion(client, status, #body)
   write_and_close(client, resp)
 end
 
@@ -123,6 +155,7 @@ function M.send_response(client, status, message)
     status,
     message or status_text(status)
   )
+  log_completion(client, status, 0)
   write_and_close(client, resp)
 end
 

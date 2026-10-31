@@ -5,6 +5,7 @@ local M = {}
 local config = require('chat.config')
 local routes = require('chat.http.routes')
 local response = require('chat.http.response')
+local log = require('chat.log')
 
 -- Connection timeout in milliseconds (120s for idle/incomplete connections)
 -- Longer timeout for Termux background where event loop may be throttled
@@ -77,6 +78,8 @@ function M.start()
 
     timer:start(CONNECTION_TIMEOUT_MS, 0, function()
       if not handled then
+        log.warn(string.format('[http] connection timed out without a complete request (%s %s)',
+          saved_method or '-', saved_path or '-'))
         close_client()
       end
     end)
@@ -84,6 +87,8 @@ function M.start()
     client:read_start(function(read_err, chunk)
       if read_err or not chunk then
         if not handled then
+          log.debug(string.format('[http] client disconnected before completing request (%s %s)',
+            saved_method or '-', saved_path or '-'))
           close_client()
         end
         return
@@ -126,6 +131,9 @@ function M.start()
         client:read_stop()
         cleanup()
 
+        log.debug(string.format('[http] %s %s received (body %d bytes)',
+          saved_method or '-', saved_path or '-', content_length))
+
         vim.schedule_wrap(function()
           local ok, route_err = pcall(
             routes.handle_request,
@@ -149,6 +157,9 @@ function M.start()
           handled = true
           client:read_stop()
           cleanup()
+
+          log.debug(string.format('[http] %s %s received (body %d bytes)',
+            saved_method or '-', saved_path or '-', content_length))
 
           vim.schedule_wrap(function()
             local ok, route_err = pcall(

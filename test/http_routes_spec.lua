@@ -129,6 +129,15 @@ function TestHTTPRoutes:test_auth_required()
   routes.handle_request(c, 'GET', '/sessions', {}, '', 0)
   lu.assertTrue(#c.written > 0)
   lu.assertStrContains(c.written[1], '401')
+  -- 401 carries a JSON body so clients can tell an auth rejection
+  -- apart from a dropped connection
+  lu.assertStrContains(c.written[1], 'Content-Type: application/json')
+  lu.assertStrContains(c.written[1], '"error":"Unauthorized"')
+
+  -- wrong key: same shape
+  local _, status, body_text = req('GET', '/sessions', '', { ['x-api-key'] = 'nope' })
+  lu.assertEquals(status, 401)
+  lu.assertStrContains(body_text, 'Unauthorized')
 end
 
 function TestHTTPRoutes:test_unknown_route_404()

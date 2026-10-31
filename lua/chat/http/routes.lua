@@ -1112,6 +1112,9 @@ end
 
 --- Handle HTTP request (separated for vim.schedule_wrap)
 function M.handle_request(client, method, path, headers, body, content_length)
+  -- Bind request info so response senders can log "METHOD /path -> status"
+  response.bind_request(client, method, path)
+
   -- GET /session?id=...: HTML preview (no auth required)
   if method == 'GET' and path:match('^/session%?') then
     handle_session_preview(client, path)
@@ -1120,7 +1123,8 @@ function M.handle_request(client, method, path, headers, body, content_length)
 
   -- API key check (use header: X-API-Key)
   if headers['x-api-key'] ~= config.config.http.api_key then
-    response.send_response(client, 401)
+    log.warn(string.format('[http] %s %s -> 401 (missing or invalid x-api-key header)', method, path))
+    response.send_error(client, 401, 'Unauthorized')
     return
   end
 

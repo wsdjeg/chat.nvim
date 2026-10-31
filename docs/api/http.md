@@ -1425,6 +1425,14 @@ These status codes apply across all endpoints:
 | 401 | Invalid or missing API key |
 | 404 | Resource not found or wrong method/path |
 
+Error responses carry a JSON body, so clients can tell a rejection apart from a dropped connection:
+
+```json
+{"error": "Unauthorized"}
+```
+
+For debugging, the server logs each request/response pair (`[http] METHOD /path -> status`) at debug level, and warns on 401 rejections and connections that time out without a complete request. Retrieve them via the `GET /logs` endpoint.
+
 ---
 
 ## Usage Examples
