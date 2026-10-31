@@ -38,7 +38,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `highlights`      | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
 | `winhighlight`    | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
 | `token_cooldown` | number             | `30`                                                           | Seconds an api key is skipped after a rate-limit (429) or server (5xx) error |
-| `quota_cooldown` | number             | `3600`                                                         | Seconds an api key is skipped after a quota-exhausted error (e.g. coding-plan limits) |
+| `quota_cooldown` | number             | `3600`                                                         | Seconds an api key is skipped after a quota-exhaustion error (e.g. coding-plan limits) |
 
 ### Example
 
@@ -201,11 +201,11 @@ api_key = {
 | Option           | Type   | Default | Description                                                                     |
 | ---------------- | ------ | ------- | ------------------------------------------------------------------------------- |
 | `token_cooldown` | number | `30`    | Seconds a key is skipped after a rate-limit (429) or server (5xx) error          |
-| `quota_cooldown` | number | `3600`  | Seconds a key is skipped after a quota-exhausted error (e.g. "已用完5小时总额度") |
+| `quota_cooldown` | number | `3600`  | Seconds a key is skipped after a quota-exhaustion error (e.g. "已用完5小时总额度") |
 
 {: .info }
 
-> - Quota-exhausted errors (e.g. volcengine "已用完5小时总额度", Gemini `RESOURCE_EXHAUSTED`) cool a key for `quota_cooldown` because the quota window itself is long; plain rate limits only cool for `token_cooldown`
+> - Quota-exhaustion errors (e.g. volcengine "已用完5小时总额度", Gemini `RESOURCE_EXHAUSTED`) cool a key for `quota_cooldown` because the quota window itself is long; plain rate limits only cool for `token_cooldown`
 > - Rotation state is in-memory only; restarting Neovim resets it
 > - When every key is cooling down, the key that recovers soonest is retried so the API error stays visible instead of failing silently
 
@@ -249,6 +249,7 @@ context = {
   enable = true,           -- Enable/disable context truncation
   trigger_threshold = 50,  -- Number of messages to trigger truncation
   keep_recent = 10,        -- Keep recent N messages (not included in truncation search)
+  slide_step = 0,          -- Advance the cutoff only once every N messages (cache-friendly)
 }
 ```
 
@@ -258,6 +259,7 @@ context = {
 - The `keep_recent` parameter ensures recent context is preserved
 - Helps prevent token limit errors during long conversations
 - After truncation, the `[Context Window Notice]` is appended right before the newest user message (never in front of the system prompt, and never after a trailing assistant message). Its counts change on every request, so keeping it at the tail limits how much of the provider's prompt cache is invalidated
+- `slide_step > 1` batches the cutoff: it only advances once every `slide_step` messages, so the front of the kept window stays byte-identical while history grows and the provider's prompt cache keeps matching across requests instead of breaking on every message (the probe logs that as `reason=messages`). The window then oscillates between `keep_recent` and `keep_recent + slide_step` messages, and the first truncation can happen a bit later than `trigger_threshold`. `0` (default) and `1` keep the legacy behavior of sliding the cutoff on every message
 
 ---
 
@@ -287,6 +289,12 @@ Every request is compared against the previous one and logged as one of:
 
 `append` is the healthy case for an ongoing turn; the others mean
 everything after the reported index has to be re-prefilled.
+
+Frequent `messages` breaks at the very front of the history are the classic
+symptom of the sliding truncation window: the cutoff moves on every request,
+so each request starts at a new message. Setting
+`context.slide_step > 1` batches the window movement and restores cache
+hits (see [Context Window Configuration](#context-window-configuration)).
 
 ### Reading the counters
 
@@ -447,10 +455,10 @@ require('chat').setup({
 
 Each skill spec contains:
 
-| Field          | Type     | Description                                              |
-| -------------- | -------- | -------------------------------------------------------- |
-| `name`         | string   | Unique identifier (used as `/name`)                      |
-| `description`  | string   | Short description shown in `/help`                       |
+| Field          | Type    | Description                                              |
+| -------------- | ------- | -------------------------------------------------------- |
+| `name`         | string  | Unique identifier (used as `/name`)                      |
+| `description`  | string  | Short description shown in `/help`                       |
 | `handler`      | function | `function(args: string, ctx: table): string|ChatSkillResult|nil` |
 | `complete`     | function | Optional completion function `(args) -> string[]`        |
 
@@ -628,6 +636,14 @@ require('chat').setup({
     return 'You are a helpful programming assistant.'
   end,
 
+  -- Context truncation (cache-friendly window batching)
+  context = {
+    enable = true,
+    trigger_threshold = 50,
+    keep_recent = 10,
+    slide_step = 40, -- window front only moves every 40 messages
+  },
+
   -- Memory system
   memory = {
     enable = true,
@@ -718,6 +734,7 @@ require('chat').setup({
 > 11. **User Profiles**: The `user` option configures the user profile system (人物画像). When enabled, the AI can use `@user_profile` to read and update user profiles for personalized assistance. Profiles are stored as markdown files under `user.storage_dir` (auto-derived from `storage_dir` if not set).
 > 12. **Skills**: The `skills` option allows registering custom slash commands. Type `/name [args]` in the prompt window to invoke a skill without sending to the LLM. Built-in skills include `/clear`, `/new`, `/delete`, `/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, and `/help`. See [Usage > Skills](./usage/#skills-slash-commands) for details.
 > 13. **Auto-Continuation**: The `continuation` option configures automatic continuation of responses truncated by `max_tokens` (finish reason `length`). The truncated content is kept as an assistant message and the request is re-sent directly (no synthetic user message) until the response completes or the budget is exhausted.
+> 14. **Context Truncation**: The `context` option configures automatic context truncation. `trigger_threshold` starts truncation, `keep_recent` protects the newest messages, and `slide_step > 1` batches the cutoff so the window front stays byte-identical between steps, keeping the provider's prompt cache valid (the cache probe logs sliding-window breaks as `reason=messages`).
 
 ---
 

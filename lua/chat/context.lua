@@ -9,6 +9,7 @@ local log = require('chat.log')
 M.DEFAULT_CONFIG = {
   trigger_threshold = 50, -- Trigger truncation at this message count
   keep_recent = 10, -- Don't include recent N messages in truncation search
+  slide_step = 0, -- Advance the cutoff only every N messages (0/1 = every message)
 }
 
 --- Truncate conversation messages to fit context window
@@ -35,11 +36,26 @@ function M.truncate_messages(messages, config)
     end
   end
 
-  -- Calculate cutoff position
-  local cutoff_idx = #other_messages - config.keep_recent
-
-  if cutoff_idx < 1 then
+  -- Calculate cutoff position. With slide_step > 1 the cutoff is
+  -- floor-batched: it only advances once every slide_step messages, so the
+  -- front of the kept window stays byte-identical while history grows and
+  -- the provider's prefix cache keeps matching across requests instead of
+  -- breaking on every message. The window then oscillates between
+  -- keep_recent and keep_recent + slide_step messages.
+  local raw_cutoff = #other_messages - config.keep_recent
+  if raw_cutoff < 1 then
     return messages, false
+  end
+  local cutoff_idx = raw_cutoff
+  local step = tonumber(config.slide_step) or 0
+  if step > 1 then
+    cutoff_idx = math.floor(raw_cutoff / step) * step
+    if cutoff_idx < 1 then
+      -- Not a full step accumulated yet: keep the whole window instead of
+      -- sliding early. Truncation simply starts a bit later than
+      -- trigger_threshold; the window cap is keep_recent + slide_step.
+      return messages, false
+    end
   end
 
   -- Find nearest user message at or before cutoff.

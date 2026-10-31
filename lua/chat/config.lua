@@ -32,7 +32,7 @@ local M = {}
 ---@field retry? table
 ---@field continuation? table
 ---@field token_cooldown? number Seconds an api key is skipped after a rate-limit / server error (default: 30)
----@field quota_cooldown? number Seconds an api key is skipped after a quota-exhausted error, e.g. coding-plan limits (default: 3600)
+---@field quota_cooldown? number Seconds an api key is skipped after a quota-exhaustion error, e.g. coding-plan limits (default: 3600)
 ---@field cache? table Prefix cache probe configuration
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
@@ -76,6 +76,7 @@ local default = {
     enable = true,
     trigger_threshold = 50, -- 触发截断的消息数
     keep_recent = 10, -- 最近 N 条不参与截断搜索
+    slide_step = 0, -- >1 时窗口每累计 N 条消息才前移一次（缓存友好；0/1 = 每条都滑）
   },
   -- Base storage directory for all persistent data (plans, sessions, scheduler, etc.)
   -- Individual sub-modules use sub-directories under this path.
@@ -148,7 +149,7 @@ local default = {
   -- Multi-api_key rotation: seconds an api key is skipped after a rate
   -- limit (429) or server error (5xx) before it is tried again
   token_cooldown = 30,
-  -- Seconds an api key is skipped after a quota-exhausted error
+  -- Seconds an api key is skipped after a quota-exhaustion error
   -- (coding-plan / per-account limits), much longer than a plain rate
   -- limit because the quota window itself is long
   quota_cooldown = 3600,
