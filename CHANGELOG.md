@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.12.0](https://github.com/wsdjeg/chat.nvim/compare/v1.11.1...v1.12.0) (2026-10-31)
+
+
+### Features
+
+* **cache:** probe where the request prefix stops matching ([9fea496](https://github.com/wsdjeg/chat.nvim/commit/9fea4962adbac06c6aa1fd0d7a9e9a065f42bbdf))
+* **context:** add slide_step for cache-stable truncation window ([6c477dc](https://github.com/wsdjeg/chat.nvim/commit/6c477dcba1dcf09e1457a21971bc06271c49fde6))
+* **http:** expose cached_tokens in session usage ([7e5c298](https://github.com/wsdjeg/chat.nvim/commit/7e5c2986ec41b252f6ce99fc3b89c4e408e363a8))
+* **http:** return JSON body on 401 and log request lifecycle ([fc18a7f](https://github.com/wsdjeg/chat.nvim/commit/fc18a7f4cd82280a204e607afbc4b2e71f71d390))
+* **usage:** add normalized token usage module ([4dce6fe](https://github.com/wsdjeg/chat.nvim/commit/4dce6fec4e3a031b38758e646a2e6d6ebe4741c8))
+
+
+### Bug Fixes
+
+* **context:** move context notice to the tail so prefix cache survives ([4f402a8](https://github.com/wsdjeg/chat.nvim/commit/4f402a86bde94ca21f3d6cbce0f70311947bd139))
+* **formatter:** show cache hit rate for every provider ([0f4549c](https://github.com/wsdjeg/chat.nvim/commit/0f4549c22359e4adb4aa232fe19a8c187d5d1356))
+* **preview:** render cached tokens for every provider ([4464b2c](https://github.com/wsdjeg/chat.nvim/commit/4464b2cbb7028e48f5d589cbc09fa2b65505f2f3))
+* **protocol:** keep responses finished with unknown reasons in history ([dd0bcd1](https://github.com/wsdjeg/chat.nvim/commit/dd0bcd14aa9cd3db04c619c8fffdc4e6c56b10e2))
+* **sessions:** stop resending reasoning_content in request messages ([e70b6bf](https://github.com/wsdjeg/chat.nvim/commit/e70b6bf45cd7eb6af60334e9d638f926fd659f1c))
+* **tools:** bypass proxy for loopback URLs in fetch_web ([6a8d1d9](https://github.com/wsdjeg/chat.nvim/commit/6a8d1d9464e7851986fcbd4ddee7fd36a091fd45))
+
+
+### Code Refactoring
+
+* **cache:** reuse chat.usage for cached token extraction ([20bd858](https://github.com/wsdjeg/chat.nvim/commit/20bd8581210a4836e1311c19e447bb5bbea96eb4))
+* **sessions:** accumulate token usage through chat.usage ([1ae048f](https://github.com/wsdjeg/chat.nvim/commit/1ae048f8dc561f03568125f84fca824a772063a1))
+
+
+### Performance Improvements
+
+* **context:** move the volatile window notice to the tail ([3d44a5c](https://github.com/wsdjeg/chat.nvim/commit/3d44a5c4ba31b1612ea2cb3436a795ac3cccceac))
+* **tools:** keep request tools array ordered append-only ([26385d2](https://github.com/wsdjeg/chat.nvim/commit/26385d27959e4a9196ce983c4c4f3cbb2ea5831c))
+
+
+### Documentation
+
+* **configuration:** document where usage and cache numbers show up ([d6729ed](https://github.com/wsdjeg/chat.nvim/commit/d6729ed64ffa21a22679724e41add69dc968c0fc))
+* document cached_tokens in session file format and usage display ([6440c53](https://github.com/wsdjeg/chat.nvim/commit/6440c53d0aaba0f2465751cacce30b0ae8ee4368))
+* **readme:** restructure for faster onboarding ([75e7f82](https://github.com/wsdjeg/chat.nvim/commit/75e7f82f8c4ca8535d65e37c918bbbfb5fdf4550))
+* remove stray code fence breaking Basic Usage heading ([a2a3900](https://github.com/wsdjeg/chat.nvim/commit/a2a3900e5e9315958a9702d274540e05985198ed))
+* sync tool/provider counts and add /toggle-force-push skill ([c0bdac5](https://github.com/wsdjeg/chat.nvim/commit/c0bdac5b3bbee52a24295b4900115841bc2ece36))
+
+
+### Tests
+
+* **usage:** cover provider cache shapes in UI and session totals ([21b2fd0](https://github.com/wsdjeg/chat.nvim/commit/21b2fd021a454a043b06ea963f9b61a9564c4271))
+
 ## [1.11.1](https://github.com/wsdjeg/chat.nvim/compare/v1.11.0...v1.11.1) (2026-10-25)
 
 
