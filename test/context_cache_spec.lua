@@ -5,9 +5,11 @@
 -- window bounds), so its text changes on every request once truncation has
 -- fired. It used to be inserted right after the system messages, which meant
 -- the provider's prefix cache was invalidated from message #2 onward on each
--- request. It now goes as late as possible: right before the newest user
--- message, and never after a trailing assistant message (auto-continue
--- resends the truncated assistant last).
+-- request; the interim "right before the newest user message" placement
+-- still poisoned the head whenever the window started at that user message
+-- (a single-turn window). It now is the very last request message: the
+-- invalidation stays confined to the suffix. Flows that inspect the last
+-- request message use context.strip_trailing_notice() first.
 
 local lu = require('luaunit')
 local context = require('chat.context')
@@ -62,61 +64,67 @@ local function last_index_of_role(list, role)
   return nil
 end
 
---------------------------------------------------------------------
--- _notice_insert_index
---------------------------------------------------------------------
-
-function TestContextNoticePlacement:test_insert_index_empty()
-  lu.assertEquals(context._notice_insert_index({}), 1)
+local function make_notice()
+  return {
+    role = 'system',
+    content = context._generate_context_notice(100, 40, 10, 60),
+  }
 end
 
-function TestContextNoticePlacement:test_insert_index_before_newest_user()
+--------------------------------------------------------------------
+-- is_context_notice / strip_trailing_notice
+--------------------------------------------------------------------
+
+function TestContextNoticePlacement:test_is_context_notice()
+  lu.assertTrue(context.is_context_notice(make_notice()))
+  lu.assertFalse(context.is_context_notice({
+    role = 'system',
+    content = 'AGENTS.md persona',
+  }))
+  lu.assertFalse(context.is_context_notice({
+    role = 'user',
+    content = '[Context Window Notice] spoofed in a user message',
+  }))
+  lu.assertFalse(context.is_context_notice(nil))
+end
+
+function TestContextNoticePlacement:test_strip_removes_trailing_notice()
   local msgs = {
     { role = 'user', content = 'a' },
     { role = 'assistant', content = 'b' },
-    { role = 'user', content = 'c' },
-    { role = 'assistant', content = 'd' },
+    make_notice(),
   }
-  -- newest user is index 3 -> notice goes right before it
-  lu.assertEquals(context._notice_insert_index(msgs), 3)
+  local stripped = context.strip_trailing_notice(msgs)
+  lu.assertEquals(#stripped, 2)
+  lu.assertEquals(stripped[#stripped].role, 'assistant')
+  -- the original list is not mutated
+  lu.assertEquals(#msgs, 3)
 end
 
-function TestContextNoticePlacement:test_insert_index_appends_after_trailing_user()
-  local msgs = {
-    { role = 'assistant', content = 'a' },
-    { role = 'user', content = 'b' },
-  }
-  lu.assertEquals(context._notice_insert_index(msgs), 2)
-end
-
-function TestContextNoticePlacement:test_insert_index_before_user_that_started_a_tool_turn()
+function TestContextNoticePlacement:test_strip_returns_same_list_without_notice()
   local msgs = {
     { role = 'user', content = 'a' },
-    { role = 'assistant', tool_calls = {} },
-    { role = 'tool', content = 'r' },
-  }
-  -- the newest user message is the turn boundary: the notice goes there and
-  -- the tool result stays last
-  lu.assertEquals(context._notice_insert_index(msgs), 1)
-end
-
-function TestContextNoticePlacement:test_insert_index_appends_when_no_user_message()
-  local msgs = {
-    { role = 'assistant', tool_calls = {} },
-    { role = 'tool', content = 'r' },
-  }
-  -- no user message in the kept window: append, the tool result stays last
-  lu.assertEquals(context._notice_insert_index(msgs), 3)
-end
-
-function TestContextNoticePlacement:test_insert_index_never_after_trailing_assistant()
-  local msgs = {
-    { role = 'assistant', content = 'a' },
     { role = 'assistant', content = 'b' },
   }
-  -- auto-continue resends this array: the notice must go before the
-  -- trailing assistant, never after it
-  lu.assertEquals(context._notice_insert_index(msgs), 2)
+  lu.assertEquals(context.strip_trailing_notice(msgs), msgs)
+end
+
+function TestContextNoticePlacement:test_strip_empty_and_nil()
+  lu.assertNil(context.strip_trailing_notice(nil))
+  lu.assertEquals(#context.strip_trailing_notice({}), 0)
+end
+
+function TestContextNoticePlacement:test_strip_leaves_mid_list_notice_alone()
+  -- only the tail entry can be the current notice: an older one stuck in
+  -- the middle must not be removed
+  local msgs = {
+    { role = 'user', content = 'a' },
+    make_notice(),
+    { role = 'assistant', content = 'b' },
+  }
+  local stripped = context.strip_trailing_notice(msgs)
+  lu.assertEquals(#stripped, 3)
+  lu.assertNotNil(find_notice(stripped))
 end
 
 --------------------------------------------------------------------
@@ -142,17 +150,14 @@ function TestContextNoticePlacement:test_truncate_keeps_notice_out_of_system_blo
 
   local notice = find_notice(result)
   lu.assertNotNil(notice, 'notice emitted')
-  lu.assertTrue(
-    notice > 2,
-    'notice must not be part of the leading system block'
-  )
-  -- a cached history message precedes the notice, so the system block really
-  -- is untouched
+  lu.assertEquals(notice, #result, 'notice is the very last entry')
   lu.assertNotEquals(result[notice - 1].role, 'system')
-  lu.assertEquals(result[notice + 1].role, 'user')
+  lu.assertEquals(result[1].role, 'system')
+  lu.assertEquals(result[2].role, 'system')
+  lu.assertEquals(result[3].role, 'user')
 end
 
-function TestContextNoticePlacement:test_truncate_notice_precedes_newest_user()
+function TestContextNoticePlacement:test_truncate_notice_is_last()
   local msgs = {}
   for i = 1, 40 do
     table.insert(msgs, { role = 'user', content = 'm' .. i })
@@ -164,8 +169,8 @@ function TestContextNoticePlacement:test_truncate_notice_precedes_newest_user()
   })
   local notice = find_notice(result)
   lu.assertNotNil(notice)
-  lu.assertEquals(result[notice + 1].role, 'user')
-  lu.assertEquals(notice, #result - 1)
+  lu.assertEquals(notice, #result, 'notice is the very last entry')
+  lu.assertEquals(result[#result - 1].role, 'user')
 end
 
 --------------------------------------------------------------------
@@ -190,14 +195,15 @@ function TestContextNoticePlacement:test_request_messages_notice_is_at_tail()
   local notice = find_notice(request)
   lu.assertNotNil(notice, 'truncation fired and notice emitted')
   lu.assertTrue(notice > 1, 'notice is not the second message anymore')
-  -- the newest turn sits after the notice
-  lu.assertNotNil(last_index_of_role(request, 'user'))
-  lu.assertTrue(notice < last_index_of_role(request, 'user'))
+  lu.assertEquals(notice, #request, 'notice is the very last entry')
+  -- the newest turn sits before the notice
+  lu.assertTrue(notice > last_index_of_role(request, 'user'))
 end
 
-function TestContextNoticePlacement:test_request_messages_keeps_trailing_tool()
-  -- send_tool_results() only re-sends when the last request message is a
-  -- tool result: the notice must never displace it
+function TestContextNoticePlacement:test_request_messages_notice_trails_tool_result()
+  -- send_tool_results() strips the trailing notice and re-sends when the
+  -- real last request message is a tool result: the notice must never
+  -- displace it from the flow's point of view.
   local sid = sessions.new()
   sessions.set_session_prompt(sid, 'sys')
   for i = 1, 28 do
@@ -226,12 +232,15 @@ function TestContextNoticePlacement:test_request_messages_keeps_trailing_tool()
   })
 
   local request = sessions.get_request_messages(sid)
-  lu.assertEquals(request[#request].role, 'tool', 'tool result stays last')
   lu.assertNotNil(find_notice(request), 'notice emitted')
+  local stripped = context.strip_trailing_notice(request)
+  lu.assertEquals(stripped[#stripped].role, 'tool', 'tool result stays the last real entry')
+  lu.assertEquals(stripped[#stripped].content, 'file body')
 end
 
-function TestContextNoticePlacement:test_request_messages_keeps_trailing_assistant()
-  -- auto-continue resends the truncated assistant message as the last entry
+function TestContextNoticePlacement:test_request_messages_notice_trails_assistant()
+  -- auto-continue resends the truncated assistant message as the final
+  -- entry after stripping the notice (see chat.sessions.continue)
   local sid = sessions.new()
   sessions.set_session_prompt(sid, 'sys')
   for i = 1, 30 do
@@ -248,12 +257,13 @@ function TestContextNoticePlacement:test_request_messages_keeps_trailing_assista
   })
 
   local request = sessions.get_request_messages(sid)
-  lu.assertEquals(request[#request].role, 'assistant')
-  lu.assertEquals(request[#request].content, 'partial answer')
-
   local notice = find_notice(request)
-  lu.assertNotNil(notice)
-  lu.assertTrue(notice < #request)
+  lu.assertNotNil(notice, 'notice emitted')
+  lu.assertEquals(notice, #request, 'notice is the very last entry')
+
+  local stripped = context.strip_trailing_notice(request)
+  lu.assertEquals(stripped[#stripped].role, 'assistant')
+  lu.assertEquals(stripped[#stripped].content, 'partial answer')
 end
 
 function TestContextNoticePlacement:test_system_block_stable_when_history_grows()
@@ -291,6 +301,78 @@ function TestContextNoticePlacement:test_system_block_stable_when_history_grows(
   lu.assertEquals(system_block(first), system_block(second))
   lu.assertStrContains(system_block(first), 'stable prompt')
   lu.assertNil(system_block(first):find('Context Window Notice', 1, true))
+end
+
+function TestContextNoticePlacement:test_prefix_stays_stable_across_rounds()
+  -- The cache payoff: with the notice at the tail, every message the
+  -- previous request sent stays byte-identical in the next one; only the
+  -- notice and freshly appended rounds differ. Mirrors a single-turn
+  -- window (one user message followed by assistant/tool rounds): the
+  -- snap-back always finds the same user message, so the window front
+  -- cannot slide and the request grows purely by append.
+  local sid = sessions.new()
+  sessions.set_session_prompt(sid, 'stable prompt')
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'the question',
+    created = os.time(),
+  })
+  for i = 1, 14 do
+    sessions.append_message(sid, {
+      role = 'assistant',
+      tool_calls = {
+        {
+          id = 'call_' .. i,
+          type = 'function',
+          ['function'] = { name = 'read_file', arguments = '{}' },
+        },
+      },
+      created = os.time(),
+    })
+    sessions.append_message(sid, {
+      role = 'tool',
+      content = 'output ' .. i,
+      tool_call_id = 'call_' .. i,
+      created = os.time(),
+    })
+  end
+
+  local first_raw = sessions.get_request_messages(sid)
+  lu.assertEquals(find_notice(first_raw), #first_raw, 'notice trails the first round')
+
+  sessions.append_message(sid, {
+    role = 'assistant',
+    tool_calls = {
+      {
+        id = 'call_15',
+        type = 'function',
+        ['function'] = { name = 'read_file', arguments = '{}' },
+      },
+    },
+    created = os.time(),
+  })
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = 'output 15',
+    tool_call_id = 'call_15',
+    created = os.time(),
+  })
+  local second_raw = sessions.get_request_messages(sid)
+  lu.assertEquals(find_notice(second_raw), #second_raw, 'notice trails the second round')
+
+  local first = context.strip_trailing_notice(first_raw)
+  local second = context.strip_trailing_notice(second_raw)
+
+  -- every entry of `first` must appear unchanged at the same position in
+  -- `second` (pure append growth): this is what the provider prefix cache
+  -- needs to hit
+  lu.assertTrue(#second > #first, 'window grew')
+  for i = 1, #first do
+    lu.assertEquals(second[i].role, first[i].role, 'role stable at ' .. i)
+    if type(first[i].content) == 'string' then
+      lu.assertEquals(second[i].content, first[i].content, 'content stable at ' .. i)
+    end
+  end
 end
 
 return TestContextNoticePlacement

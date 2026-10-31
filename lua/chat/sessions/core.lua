@@ -472,8 +472,10 @@ function M.retry(session_id)
     return nil
   end
 
-  -- Only retry if last message is not from assistant
-  if messages[#messages].role == 'assistant' then
+  -- Only retry if last message is not from assistant. The request ends
+  -- with the context notice: judge by the real last message.
+  local stripped = require('chat.context').strip_trailing_notice(messages)
+  if stripped[#stripped].role == 'assistant' then
     return nil
   end
 

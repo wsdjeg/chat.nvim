@@ -513,13 +513,13 @@ function TestContextTruncate:test_truncation_basic()
   -- 59 non-system msgs, keep_recent=10 -> start ~50
   lu.assertTrue(#result < #msgs)
 
-  -- The volatile notice (counts change on every request) sits at the tail,
-  -- right before the newest user message, never in front of cached history.
+  -- The volatile notice (counts change on every request) is the very last
+  -- entry, never in front of cached history.
   local notice_index = find_notice(result)
   lu.assertNotNil(notice_index, 'notice emitted after truncation')
   lu.assertEquals(result[notice_index].role, 'system')
-  lu.assertEquals(notice_index, #result - 1, 'notice precedes newest user message')
-  lu.assertEquals(result[#result].role, 'user')
+  lu.assertEquals(notice_index, #result, 'notice is the last entry')
+  lu.assertEquals(result[#result - 1].role, 'user')
 end
 
 function TestContextTruncate:test_truncation_respects_config()
@@ -532,11 +532,11 @@ function TestContextTruncate:test_truncation_respects_config()
   -- 60 msgs, cutoff backtracks from idx 57 to nearest user (56),
   -- kept = 56..60 (5 msgs) + 1 context notice
   lu.assertEquals(#result, 6)
-  -- kept window is user, assistant, user, user, assistant: the notice goes
-  -- right before the newest user message, the trailing assistant stays last
+  -- kept window is user, assistant, user, user, assistant: the notice is
+  -- the very last entry, the trailing assistant stays the last real message
   lu.assertEquals(result[1].role, 'user')
-  lu.assertEquals(result[#result].role, 'assistant')
-  lu.assertEquals(find_notice(result), #result - 2)
+  lu.assertEquals(result[#result - 1].role, 'assistant')
+  lu.assertEquals(find_notice(result), #result)
 end
 
 function TestContextTruncate:test_cutoff_before_first_user_no_truncation()
@@ -667,12 +667,11 @@ function TestContextTruncate:test_get_stats()
   lu.assertEquals(stats.system_count, 1)
 end
 
-function TestContextTruncate:test_truncation_keeps_trailing_assistant_last()
-  -- Auto-continue (finish_reason == "length") resends the request messages
-  -- unchanged and relies on the truncated assistant message being the final
-  -- entry. The context notice must be inserted before the kept history, never
-  -- appended after the trailing assistant: otherwise the continuation would
-  -- end with the notice and the assistant turn would stop being resumed.
+function TestContextTruncate:test_truncation_notice_last_assistant_second_to_last()
+  -- Auto-continue (finish_reason == "length") strips the trailing notice
+  -- (see chat.sessions.continue) and resends the truncated assistant as the
+  -- final entry. The notice is the very last request message: no volatile
+  -- content may precede the cached history.
   local msgs = { { role = 'system', content = 'sys' } }
   for i = 1, 58 do
     table.insert(msgs, { role = 'user', content = 'm' .. i })
@@ -683,19 +682,23 @@ function TestContextTruncate:test_truncation_keeps_trailing_assistant_last()
 
   lu.assertTrue(truncated)
   lu.assertEquals(
-    result[#result].role,
+    result[#result - 1].role,
     'assistant',
-    'trailing assistant stays last for auto-continue'
+    'trailing assistant stays the last real entry for auto-continue'
   )
-  lu.assertEquals(result[#result].content, 'partial answer')
+  lu.assertEquals(result[#result - 1].content, 'partial answer')
 
-  -- The notice is still emitted, but at the tail: it must never be the last
-  -- entry (auto-continue needs the trailing assistant) and must never sit in
-  -- front of the cached history.
+  -- The notice is still emitted, but as the very last entry: it must never
+  -- sit in front of the cached history.
   local notice_index = find_notice(result)
   lu.assertNotNil(notice_index, 'notice emitted after truncation')
   lu.assertTrue(notice_index > 1, 'notice must not sit at the head')
-  lu.assertTrue(notice_index < #result, 'notice must not be the last entry')
+  lu.assertEquals(notice_index, #result, 'notice is the last entry')
+
+  -- The continue flow strips the notice before resending
+  local stripped = context.strip_trailing_notice(result)
+  lu.assertEquals(stripped[#stripped].role, 'assistant')
+  lu.assertEquals(stripped[#stripped].content, 'partial answer')
 end
 
 TestQueue = {}

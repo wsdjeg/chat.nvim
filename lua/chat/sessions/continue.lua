@@ -77,6 +77,10 @@ function M.continue(session_id)
 
   local messages =
     require('chat.sessions.messages').get_request_messages(session_id)
+  -- The request ends with the volatile context notice; the continuation
+  -- must end with the truncated assistant message instead. Stripping the
+  -- notice also keeps the resent prefix inside the provider cache.
+  messages = require('chat.context').strip_trailing_notice(messages)
   local protocol = require('chat.protocol')
   local log = require('chat.log')
 

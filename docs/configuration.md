@@ -258,7 +258,7 @@ context = {
 - When conversation exceeds `trigger_threshold` messages, older messages may be summarized or removed
 - The `keep_recent` parameter ensures recent context is preserved
 - Helps prevent token limit errors during long conversations
-- After truncation, the `[Context Window Notice]` is appended right before the newest user message (never in front of the system prompt, and never after a trailing assistant message). Its counts change on every request, so keeping it at the tail limits how much of the provider's prompt cache is invalidated
+- After truncation, the `[Context Window Notice]` is appended as the very last request message. Its counts change on every request, so at the tail it only invalidates the suffix of the prompt cache: every message the previous request sent stays byte-identical. Flows that inspect the last request message (auto-continue, tool-result resend, retry) strip the trailing notice first via `context.strip_trailing_notice`
 - `slide_step > 1` batches the cutoff: it only advances once every `slide_step` messages, so the front of the kept window stays byte-identical while history grows and the provider's prompt cache keeps matching across requests instead of breaking on every message (the probe logs that as `reason=messages`). The window then oscillates between `keep_recent` and `keep_recent + slide_step` messages, and the first truncation can happen a bit later than `trigger_threshold`. `0` (default) and `1` keep the legacy behavior of sliding the cutoff on every message
 
 ---
@@ -295,6 +295,11 @@ symptom of the sliding truncation window: the cutoff moves on every request,
 so each request starts at a new message. Setting
 `context.slide_step > 1` batches the window movement and restores cache
 hits (see [Context Window Configuration](#context-window-configuration)).
+
+While truncation is active, a `messages` break at the very end of the
+request (right where the previous request ended) is expected and healthy:
+that position holds the previous request's context notice, and only the
+suffix after the break is re-prefilled.
 
 ### Reading the counters
 

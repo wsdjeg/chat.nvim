@@ -371,7 +371,10 @@ function M.send_tool_results(session_id)
   end
 
   local msg = require('chat.sessions.messages').get_request_messages(session_id)
-  local last = msg and msg[#msg] or nil
+  -- The request ends with the context notice: check the real last message,
+  -- but send the list as built (the trailing notice is cache-friendly).
+  local stripped = require('chat.context').strip_trailing_notice(msg)
+  local last = stripped and stripped[#stripped] or nil
   if last and last.role == 'tool' then
     -- Reset retry count for new tool result request
     require('chat.sessions.retry').reset_retry_count(session_id)

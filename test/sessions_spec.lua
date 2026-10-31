@@ -295,11 +295,11 @@ function TestSessions:testGetRequestMessages()
   lu.assertEquals(request_messages[3].role, 'assistant')
 end
 
-function TestSessions:testGetRequestMessagesKeepsTrailingAssistantForContinuation()
-  -- Auto-continue (finish_reason == "length") resends get_request_messages
-  -- unchanged, so the truncated assistant message must stay the final entry
-  -- even after context truncation. Regression for eac6d50, which moved the
-  -- context notice to the END and thereby displaced the assistant.
+function TestSessions:testGetRequestMessagesNoticeTrailsTruncatedAssistant()
+  -- Auto-continue (finish_reason == "length") strips the trailing notice
+  -- and resends the truncated assistant as the final entry (regression for
+  -- eac6d50, which displaced the assistant). The notice itself is the very
+  -- last request message so it never invalidates the cached prefix.
   local session_id = sessions.new()
   sessions.set_session_prompt(session_id, 'You are helpful.')
 
@@ -318,12 +318,8 @@ function TestSessions:testGetRequestMessagesKeepsTrailingAssistantForContinuatio
 
   local request_messages = sessions.get_request_messages(session_id)
 
-  lu.assertEquals(request_messages[#request_messages].role, 'assistant')
-  lu.assertEquals(request_messages[#request_messages].content, 'partial answer')
-
-  -- 60 messages exceed trigger_threshold (50), so truncation fires and
-  -- emits the context notice; it must sit at the head, never after the
-  -- trailing assistant.
+  -- 59 history messages exceed trigger_threshold (50), so truncation fires
+  -- and emits the context notice at the very end of the request.
   local notice_index = nil
   for i, m in ipairs(request_messages) do
     if m.role == 'system' and m.content:find('Context Window Notice', 1, true) then
@@ -332,7 +328,17 @@ function TestSessions:testGetRequestMessagesKeepsTrailingAssistantForContinuatio
     end
   end
   lu.assertNotNil(notice_index, 'context notice emitted after truncation')
-  lu.assertTrue(notice_index < #request_messages, 'notice precedes trailing assistant')
+  lu.assertEquals(notice_index, #request_messages, 'notice is the last entry')
+
+  -- The truncated assistant stays the last real message; the continue flow
+  -- sees it after strip_trailing_notice().
+  lu.assertEquals(request_messages[#request_messages - 1].role, 'assistant')
+  lu.assertEquals(request_messages[#request_messages - 1].content, 'partial answer')
+
+  local stripped =
+    require('chat.context').strip_trailing_notice(request_messages)
+  lu.assertEquals(stripped[#stripped].role, 'assistant')
+  lu.assertEquals(stripped[#stripped].content, 'partial answer')
 end
 
 function TestSessions:testChangeCwd()

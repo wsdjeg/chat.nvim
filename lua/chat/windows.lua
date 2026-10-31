@@ -322,7 +322,11 @@ function M.open(opt)
           return
         end
         local messages = sessions.get_request_messages(current_session)
-        if #messages > 0 and messages[#messages].role ~= 'assistant' then
+        -- The request ends with the context notice: judge by the real
+        -- last message whether this turn can be retried.
+        local stripped =
+          require('chat.context').strip_trailing_notice(messages)
+        if #stripped > 0 and stripped[#stripped].role ~= 'assistant' then
           sessions.reset_retry_count(current_session)
           local jobid = protocol.request({
             session = current_session,

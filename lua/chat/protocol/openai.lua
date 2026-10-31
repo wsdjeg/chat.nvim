@@ -308,7 +308,11 @@ function M.on_exit(id, code, signal)
         log.error('API error detected, skip sending tool results')
       else
         local messages = sessions.get_request_messages(session)
-        if messages[#messages].role == 'tool' then
+        -- The request ends with the context notice: judge by the real
+        -- last message whether tool results are still in flight.
+        local stripped =
+          require('chat.context').strip_trailing_notice(messages)
+        if stripped[#stripped].role == 'tool' then
           if not sessions.has_pending_async_tools(session) then
             sessions.send_tool_results(session)
           end
