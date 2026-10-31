@@ -602,5 +602,60 @@ function TestFetchWeb:testInfoInvalidJson()
   lu.assertEquals(info, 'fetch_web')
 end
 
+-- ============================
+-- Loopback proxy bypass
+-- ============================
+-- http_proxy env vars route loopback URLs through proxy tools (clash,
+-- v2ray, ...) which can answer with empty or truncated bodies. Loopback
+-- fetches must always go direct (--noproxy '*').
+
+function TestFetchWeb:testLoopbackIpv4BypassesProxy()
+  if not curl_available then
+    print('Skipping testLoopbackIpv4BypassesProxy: curl not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({ url = 'http://127.0.0.1:7777/sessions' }, ctx)
+  lu.assertNil(res.error)
+  local cmdline = table.concat(job.jobs[res.jobid].cmd, ' ')
+  lu.assertStrContains(cmdline, '--noproxy *')
+end
+
+function TestFetchWeb:testLoopbackLocalhostBypassesProxy()
+  if not curl_available then
+    print('Skipping testLoopbackLocalhostBypassesProxy: curl not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({ url = 'http://localhost:7777/logs' }, ctx)
+  lu.assertNil(res.error)
+  local cmdline = table.concat(job.jobs[res.jobid].cmd, ' ')
+  lu.assertStrContains(cmdline, '--noproxy *')
+end
+
+function TestFetchWeb:testLoopbackIpv6BypassesProxy()
+  if not curl_available then
+    print('Skipping testLoopbackIpv6BypassesProxy: curl not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({ url = 'http://[::1]:7777/logs' }, ctx)
+  lu.assertNil(res.error)
+  local cmdline = table.concat(job.jobs[res.jobid].cmd, ' ')
+  lu.assertStrContains(cmdline, '--noproxy *')
+end
+
+function TestFetchWeb:testExternalUrlKeepsProxyEnv()
+  if not curl_available then
+    print('Skipping testExternalUrlKeepsProxyEnv: curl not available')
+    return
+  end
+  local ctx = make_ctx()
+  local res = fetch_web.fetch_web({ url = 'https://example.com' }, ctx)
+  lu.assertNil(res.error)
+  local cmdline = table.concat(job.jobs[res.jobid].cmd, ' ')
+  lu.assertNotStrContains(cmdline, '--noproxy')
+end
+
 return TestFetchWeb
 

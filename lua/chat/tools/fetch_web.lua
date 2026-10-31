@@ -138,6 +138,19 @@ function M.fetch_web(action, ctx)
     }
   end
 
+  -- Loopback bypass: requests to 127.0.0.0/8, localhost or [::1] must skip
+  -- any proxy configured via environment variables (http_proxy, etc.).
+  -- Proxy tools (clash/v2ray-style setups, common on Termux) can intercept
+  -- loopback traffic and answer with empty or truncated bodies, silently
+  -- corrupting tool results — observed live against the local HTTP API.
+  local host = action.url:match('^https?://([^/:?#]+)')
+  if host then
+    host = host:lower()
+  end
+  local is_loopback = action.url:match('^https?://%[::1%]') ~= nil
+    or host == 'localhost'
+    or (host ~= nil and host:match('^127%.%d+%.%d+%.%d+$') ~= nil)
+
   -- Build curl command via unified module
   local cmd = curl.build_request({
     url = action.url,
@@ -151,6 +164,7 @@ function M.fetch_web(action, ctx)
     insecure = action.insecure,
     user_agent = user_agent,
     output = output_path,
+    no_proxy = is_loopback,
   })
 
   local stdout = {}
