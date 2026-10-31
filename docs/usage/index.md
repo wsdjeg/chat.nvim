@@ -319,6 +319,7 @@ chat.nvim includes a built-in skill system that lets you type `/name [args]` in 
 | `/pin`            | Toggle pin status of current session                 |
 | `/title [text]`   | Set session title (shows input UI if no text given)  |
 | `/retry`          | Retry last request                                   |
+| `/toggle-force-push` | Toggle force push protection for current session |
 | `/help`           | Show all available skills                            |
 
 ### Usage
