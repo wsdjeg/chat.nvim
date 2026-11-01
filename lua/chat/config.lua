@@ -34,6 +34,7 @@ local M = {}
 ---@field token_cooldown? number Seconds an api key is skipped after a rate-limit / server error (default: 30)
 ---@field quota_cooldown? number Seconds an api key is skipped after a quota-exhaustion error, e.g. coding-plan limits (default: 3600)
 ---@field cache? table Prefix cache probe configuration
+---@field usage_stats? table Per provider/model request & token accounting
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
@@ -164,6 +165,17 @@ local default = {
     -- `require('chat.sessions').cache_stats(session)`.
     -- Set false to disable all probe bookkeeping.
     probe = true,
+  },
+  -- Per provider/model request & token accounting, written to
+  -- {storage_dir}/usage_stats.json on every completed request.
+  -- Query with require('chat.usage_stats'): total() / range(since).
+  usage_stats = {
+    -- Set false to stop recording (queries then return empty tables).
+    enable = true,
+    -- Hourly buckets older than this many days are dropped (default: 7).
+    hourly_days = 7,
+    -- Daily buckets older than this many days are dropped (default: 365).
+    daily_days = 365,
   },
   -- Window highlight configuration for floating windows
   winhighlight = 'NormalFloat:Normal,FloatBorder:WinSeparator',

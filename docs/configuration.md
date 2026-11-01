@@ -39,6 +39,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `winhighlight`    | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
 | `token_cooldown` | number             | `30`                                                           | Seconds an api key is skipped after a rate-limit (429) or server (5xx) error |
 | `quota_cooldown` | number             | `3600`                                                         | Seconds an api key is skipped after a quota-exhaustion error (e.g. coding-plan limits) |
+| `usage_stats`    | table              | `{ enable = true, hourly_days = 7, daily_days = 365 }`         | Per provider/model request & token accounting (see [Usage Statistics](#usage-statistics)) |
 
 ### Example
 
@@ -343,6 +344,56 @@ usage.hit_ratio(msg.usage)     -- cached / prompt, 0..1
 usage.sum(messages)            -- totals for a whole history
 usage.summary(msg.usage)       -- "12.3K tokens · 45% cached"
 ```
+
+---
+
+## Usage Statistics
+
+Every finished request is counted once per provider/model, with tokens
+normalized through `chat.usage` (so provider-specific cache fields
+accumulate identically). Statistics are persisted to
+`{storage_dir}/usage_stats.json` in three layers with the same record
+shape (`requests`, `total_tokens`, `prompt_tokens`, `completion_tokens`,
+`cached_tokens`):
+
+| Layer    | Bucket key       | Retention (default) | Purpose                              |
+| -------- | ---------------- | ------------------- | ------------------------------------ |
+| `total`  | —                | never dropped       | all-time per provider/model totals   |
+| `hourly` | `YYYY-MM-DDTHH`  | `hourly_days` = 7   | short windows ("last 5 hours")       |
+| `daily`  | `YYYY-MM-DD`     | `daily_days` = 365  | longer windows ("last week / month") |
+
+```lua
+usage_stats = {
+  enable = true,      -- set false to stop recording
+  hourly_days = 7,    -- hourly buckets older than this are dropped
+  daily_days = 365,   -- daily buckets older than this are dropped
+}
+```
+
+### Querying
+
+```lua
+local stats = require('chat.usage_stats')
+
+stats.total()                 -- all-time [provider][model] = record
+stats.range(os.time() - 5 * 3600)   -- last 5 hours (merges hourly buckets)
+stats.range(os.time() - 7 * 86400)  -- last week (merges daily buckets)
+stats.range(os.time() - 30 * 86400) -- last month (merges daily buckets)
+stats.reset()                 -- clear everything
+```
+
+`range(since)` picks the layer automatically: spans under 48 hours merge
+hourly buckets, longer spans merge daily buckets. The bucket containing
+the window start is included whole, so a window may overshoot by at
+most one bucket. Bucket keys are fixed-width ISO strings, so
+lexicographic order is chronological and retention/vacuum is a plain
+string comparison — expired buckets are dropped lazily on the next
+`record()`.
+
+Accounting happens in `sessions.on_complete` (the same funnel that
+writes the usage footer message), so tool-call rounds and
+auto-continuation chains each count as one request, and failed
+requests (no usage reported) are not counted.
 
 ---
 

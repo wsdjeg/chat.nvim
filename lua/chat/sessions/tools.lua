@@ -350,6 +350,17 @@ end
 function M.on_complete(session_id, jobid)
   local progress = require('chat.sessions.progress')
   local usage = progress.get_progress_usage(jobid)
+  -- Per provider/model accounting: exactly one record per finished
+  -- request (tool-call rounds and continuation chains each get their
+  -- own on_complete). Stats must never break the message flow.
+  local core = require('chat.sessions.core')
+  pcall(function()
+    require('chat.usage_stats').record(
+      core.get_session_provider(session_id),
+      core.get_session_model(session_id),
+      usage
+    )
+  end)
   local message = {
     on_complete = true,
     usage = usage,
