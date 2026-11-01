@@ -29,12 +29,12 @@ nav_order: 1
   </div>
   
   <div class="feature-card">
-    <h3>🤖 19+ AI Providers</h3>
+    <h3>🤖 23 AI Providers</h3>
     <p>Built-in support for DeepSeek, OpenAI, Anthropic, GitHub AI, Gemini, Ollama, and many more AI services.</p>
   </div>
   
   <div class="feature-card">
-    <h3>🛠️ 40+ Built-in Tools</h3>
+    <h3>🛠️ 46 Built-in Tools</h3>
     <p>File operations, Git integration, web search, memory management, scheduling, user profiles, and extensible custom tools.</p>
   </div>
   

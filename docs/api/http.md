@@ -43,6 +43,38 @@ require('chat').setup({
 
 ---
 
+## Headless Mode
+
+Run chat.nvim as a backend service without opening any UI windows. Call `require('chat').start()` after `setup()` — it starts the message queue, the HTTP server (when `http.api_key` is set), IM integrations, and MCP servers, but never opens the floating chat windows:
+
+```lua
+require('chat').setup({
+  api_key = 'your-provider-api-key',
+  http = {
+    host = '127.0.0.1',
+    port = 7777,
+    api_key = 'your-secret-key',  -- Required to enable server
+  },
+})
+
+require('chat').start()
+```
+
+Unlike `require('chat').open()`, `start()`:
+
+- Does **not** create a session — in headless mode, sessions are created on demand via `POST /session/new`
+- Accepts an optional options table: `require('chat').start({ cwd = '/path/to/project' })` changes the cwd of the current session, if one exists (ignored while a request is in progress)
+- Returns the current session ID if one was restored, otherwise `nil`
+- Requires a non-empty `api_key` (the provider key); otherwise it warns and returns without starting any services
+
+Keep the headless Neovim process alive so the server keeps running:
+
+```bash
+nvim --headless -c "luafile server.lua"
+```
+
+---
+
 ## Endpoints Overview
 
 | Endpoint | Method | Description |

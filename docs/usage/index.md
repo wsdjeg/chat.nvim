@@ -320,7 +320,12 @@ chat.nvim includes a built-in skill system that lets you type `/name [args]` in 
 | `/title [text]`   | Set session title (shows input UI if no text given)  |
 | `/retry`          | Retry last request                                   |
 | `/toggle-force-push` | Toggle force push protection for current session |
+| `/nvim-messages`  | Capture `:messages` output and ask the LLM to fix errors |
+| `/setup-nvim-plugin-test` | Scaffold a Neovim plugin test system for the current project |
 | `/help`           | Show all available skills                            |
+
+{: .info }
+> `/toggle-force-push`, `/nvim-messages` and `/setup-nvim-plugin-test` are bundled runtime skills that ship with chat.nvim itself (see [Runtime Skills](#runtime-skills-file-based-auto-load)).
 
 ### Usage
 
@@ -684,7 +689,7 @@ chat.nvim provides powerful features beyond basic chatting:
 
 - **Memory System**: Three-tier memory for context retention
 - **MCP Protocol**: Extended tool capabilities via external servers
-- **Tools**: 40+ built-in tools for file operations, Git, web search, etc.
+- **Tools**: 46 built-in tools for file operations, Git, web search, etc.
 - **Skills**: Slash commands for quick actions without LLM round-trips
 
 ---
@@ -712,7 +717,7 @@ Learn more: [MCP](../mcp/)
 
 ### Built-in Tools
 
-40+ built-in tools for various operations:
+46 built-in tools for various operations:
 
 - File: `read_file`, `write_file`, `find_files`, `search_text`
 - Git: `git_add`, `git_commit`, `git_diff`, `git_log`, etc.

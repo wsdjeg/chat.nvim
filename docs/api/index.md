@@ -27,6 +27,7 @@ chat.nvim offers HTTP API for external applications to interact with your chat s
 - **HTTP Server**: Built-in server for receiving messages
 - **Session Management**: List and preview sessions via API
 - **External Integration**: Connect scripts, CI/CD, monitoring tools
+- **Headless Mode**: Run chat.nvim as a backend service via `require('chat').start()` without opening UI windows
 
 ---
 ### Endpoints
@@ -86,6 +87,7 @@ curl -X POST http://127.0.0.1:7777/ \
 2. **Set API Key**: Configure `http.api_key` for authentication (requests must include `X-API-Key` header)
 3. **Choose Port**: Default is `7777`, configurable via `http.port`
 4. **Build Your App**: Use any HTTP client to interact with the API
+5. **Run Headless (optional)**: Call `require('chat').start()` to run chat.nvim as a background service without opening the chat window — see [Headless Mode](./http/#headless-mode)
 
 See [HTTP API](./http/) for complete API reference.
 
