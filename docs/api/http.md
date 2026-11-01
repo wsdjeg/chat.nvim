@@ -97,7 +97,7 @@ nvim --headless -c "luafile server.lua"
 | `/session/{id}/clear` | POST | Clear all messages in a session |
 | `/session/{id}/retry` | POST | Retry the last message |
 | `/session/{id}/messages/{index}` | DELETE | Delete a specific message |
-| `/session/{id}/provider` | PUT | Set the provider for a session |
+| `/session/{id}/provider` | PUT | Set the provider for a session (auto-selects the first available model when `model` is omitted) |
 | `/session/{id}/model` | PUT | Set the model for a session |
 | `/session/{id}/cwd` | PUT | Set the working directory for a session |
 | `/session/{id}/upload-dir` | GET | Get the upload directory for a session |
@@ -681,7 +681,7 @@ Create a new session, optionally specifying the provider and model.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `provider` | string | No | Provider to use |
-| `model` | string | No | Model to use |
+| `model` | string | No | Model to use; when `provider` is given but `model` is omitted, the provider's first available model is auto-selected |
 
 **Response (200 OK):**
 
@@ -856,7 +856,7 @@ curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/messages/3 \
 
 ### PUT `/session/{id}/provider`
 
-Set the provider for a session.
+Set the provider for a session. When `model` is omitted, the provider's first available model is auto-selected (same behavior as the `/provider` skill in the TUI).
 
 **Request Body:**
 
@@ -865,6 +865,22 @@ Set the provider for a session.
   "provider": "anthropic"
 }
 ```
+
+`model` is optional and takes precedence over auto-selection:
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-3-5-sonnet-20241022"
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `provider` | string | Yes | Provider name |
+| `model` | string | No | Model name; defaults to the provider's first available model |
 
 **Response Status Codes:**
 
@@ -877,10 +893,17 @@ Set the provider for a session.
 **Example:**
 
 ```bash
+# Provider only: model auto-selected from the provider's model list
 curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \
   -d '{"provider": "anthropic"}'
+
+# Provider + model: explicit model wins
+curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
+  -H "X-API-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "anthropic", "model": "claude-3-5-haiku-20241022"}'
 ```
 
 ---
@@ -1575,7 +1598,7 @@ curl -X POST http://127.0.0.1:7777/session/new \
   -H "Content-Type: application/json" \
   -d '{"provider": "openai", "model": "gpt-4o"}'
 
-# Set provider
+# Set provider (model auto-selected from the provider's model list)
 curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/provider \
   -H "X-API-Key: your-secret-key" \
   -H "Content-Type: application/json" \

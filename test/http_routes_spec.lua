@@ -405,6 +405,42 @@ function TestHTTPRoutes:test_new_session_with_provider_model()
   lu.assertEquals(data.usage.cached_tokens, 0)
 end
 
+function TestHTTPRoutes:test_new_session_provider_only_auto_model()
+  -- provider without model: first available model is auto-selected
+  package.loaded['chat.providers.routes-auto-test'] = nil
+  package.preload['chat.providers.routes-auto-test'] = function()
+    return {
+      available_models = function()
+        return { 'auto-model-1', 'auto-model-2' }
+      end,
+    }
+  end
+  local _, status, body = req(
+    'POST',
+    '/session/new',
+    '{"provider":"routes-auto-test"}'
+  )
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.provider, 'routes-auto-test')
+  lu.assertEquals(data.model, 'auto-model-1')
+  package.preload['chat.providers.routes-auto-test'] = nil
+  package.loaded['chat.providers.routes-auto-test'] = nil
+end
+
+function TestHTTPRoutes:test_new_session_provider_only_unknown_module()
+  -- provider module that cannot be required: default model retained
+  local _, status, body = req(
+    'POST',
+    '/session/new',
+    '{"provider":"routes-ghost-test"}'
+  )
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.provider, 'routes-ghost-test')
+  lu.assertEquals(data.model, 'test-model')
+end
+
 function TestHTTPRoutes:test_new_session_invalid_body_ignored()
   local _, status, body = req('POST', '/session/new', 'not-json{')
   lu.assertEquals(status, 200)
@@ -523,6 +559,83 @@ function TestHTTPRoutes:test_set_provider_wrong_type()
     '{"provider":123}'
   )
   lu.assertEquals(status, 400)
+end
+
+function TestHTTPRoutes:test_set_provider_auto_picks_first_model()
+  -- provider without model: first available model is auto-selected
+  package.loaded['chat.providers.routes-auto-test'] = nil
+  package.preload['chat.providers.routes-auto-test'] = function()
+    return {
+      available_models = function()
+        return { 'auto-model-1', 'auto-model-2' }
+      end,
+    }
+  end
+  local _, status = req(
+    'PUT',
+    '/session/' .. self.sid .. '/provider',
+    '{"provider":"routes-auto-test"}'
+  )
+  lu.assertEquals(status, 204)
+  lu.assertEquals(sessions.get_session_provider(self.sid), 'routes-auto-test')
+  lu.assertEquals(sessions.get_session_model(self.sid), 'auto-model-1')
+  package.preload['chat.providers.routes-auto-test'] = nil
+  package.loaded['chat.providers.routes-auto-test'] = nil
+end
+
+function TestHTTPRoutes:test_set_provider_with_model_skips_auto()
+  -- explicit model wins over auto-selection
+  package.loaded['chat.providers.routes-auto-test'] = nil
+  package.preload['chat.providers.routes-auto-test'] = function()
+    return {
+      available_models = function()
+        return { 'auto-model-1', 'auto-model-2' }
+      end,
+    }
+  end
+  local _, status = req(
+    'PUT',
+    '/session/' .. self.sid .. '/provider',
+    '{"provider":"routes-auto-test","model":"explicit-model"}'
+  )
+  lu.assertEquals(status, 204)
+  lu.assertEquals(sessions.get_session_model(self.sid), 'explicit-model')
+  package.preload['chat.providers.routes-auto-test'] = nil
+  package.loaded['chat.providers.routes-auto-test'] = nil
+end
+
+function TestHTTPRoutes:test_set_provider_no_models_keeps_model()
+  -- empty model list: keep the current model
+  package.loaded['chat.providers.routes-empty-test'] = nil
+  package.preload['chat.providers.routes-empty-test'] = function()
+    return {
+      available_models = function()
+        return {}
+      end,
+    }
+  end
+  local before = sessions.get_session_model(self.sid)
+  local _, status = req(
+    'PUT',
+    '/session/' .. self.sid .. '/provider',
+    '{"provider":"routes-empty-test"}'
+  )
+  lu.assertEquals(status, 204)
+  lu.assertEquals(sessions.get_session_model(self.sid), before)
+  package.preload['chat.providers.routes-empty-test'] = nil
+  package.loaded['chat.providers.routes-empty-test'] = nil
+end
+
+function TestHTTPRoutes:test_set_provider_unknown_module_keeps_model()
+  -- provider module that cannot be required: model untouched
+  local before = sessions.get_session_model(self.sid)
+  local _, status = req(
+    'PUT',
+    '/session/' .. self.sid .. '/provider',
+    '{"provider":"routes-ghost-test"}'
+  )
+  lu.assertEquals(status, 204)
+  lu.assertEquals(sessions.get_session_model(self.sid), before)
 end
 
 -- ─── PUT /session/:id/model ─────────────────────────────

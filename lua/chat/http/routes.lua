@@ -89,6 +89,25 @@ local function ensure_session_exists(client, session_id)
   return true
 end
 
+--- Best effort: switch the session model to the provider's first
+--- available model. No-op when the provider module is missing or its
+--- model list is unavailable/empty (e.g. dynamic lists still loading).
+--- @param session_id string The session identifier
+--- @param provider_name string The provider name
+local function set_first_available_model(session_id, provider_name)
+  local ok, provider = pcall(require, 'chat.providers.' .. provider_name)
+  if not ok or type(provider) ~= 'table' or not provider.available_models then
+    return
+  end
+  local ok_models, models = pcall(provider.available_models)
+  if not ok_models or type(models) ~= 'table' then
+    return
+  end
+  if #models > 0 then
+    sessions.set_session_model(session_id, models[1])
+  end
+end
+
 --------------------------------------------------
 -- Endpoint handlers
 --------------------------------------------------
@@ -345,11 +364,19 @@ local function handle_new_session(client, body, content_length)
   if content_length and content_length > 0 then
     local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
     if ok and type(obj) == 'table' then
-      if obj.provider and type(obj.provider) == 'string' and obj.provider ~= '' then
+      local has_provider = obj.provider
+        and type(obj.provider) == 'string' and obj.provider ~= ''
+      local has_model = obj.model
+        and type(obj.model) == 'string' and obj.model ~= ''
+
+      if has_provider then
         sessions.set_session_provider(new_id, obj.provider)
       end
-      if obj.model and type(obj.model) == 'string' and obj.model ~= '' then
+      if has_model then
         sessions.set_session_model(new_id, obj.model)
+      elseif has_provider then
+        -- Model omitted: auto-select the provider's first available model
+        set_first_available_model(new_id, obj.provider)
       end
     end
   end
@@ -480,6 +507,15 @@ local function handle_set_provider(client, path, body, content_length)
   end
 
   sessions.set_session_provider(session_id, provider)
+
+  -- Model is optional: use it when given, otherwise auto-select the
+  -- provider's first available model
+  local model = obj.model
+  if type(model) == 'string' and model ~= '' then
+    sessions.set_session_model(session_id, model)
+  else
+    set_first_available_model(session_id, provider)
+  end
   response.send_response(client, 204)
 end
 
