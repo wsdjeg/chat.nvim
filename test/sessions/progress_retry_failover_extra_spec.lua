@@ -173,8 +173,11 @@ function TestProgressExtra:testOnProgressDoneAppendsAssistantMessage()
   lu.assertEquals(1, #msgs)
   lu.assertEquals('assistant', msgs[1].role)
   lu.assertEquals('the answer', msgs[1].content)
-  -- no continuation pending: integrations not notified here
-  lu.assertEquals(0, #self.on_response)
+  -- plain (non-continuation) reply: append_message notifies integrations,
+  -- so the reply reaches the chat platforms exactly once
+  lu.assertEquals(1, #self.on_response)
+  lu.assertEquals(self.sid, self.on_response[1].sid)
+  lu.assertEquals('the answer', self.on_response[1].content)
   -- progress buffer flushed
   lu.assertNil(progress.get_progress_message(self.sid))
   lu.assertTrue(self.cache_writes >= 1)
@@ -212,6 +215,9 @@ function TestProgressExtra:testOnProgressPartialKeepsPendingMessage()
   lu.assertNotNil(pending)
   lu.assertEquals('partial answer', pending.content)
   lu.assertEquals('assistant', pending.role)
+  -- truncated fragment must NOT reach the integrations: the chain may still
+  -- be extended, so pushing now would leak partial output to chat platforms
+  lu.assertEquals(0, #self.on_response)
 end
 
 function TestProgressExtra:testOnProgressExitClearsState()

@@ -139,7 +139,7 @@ end
 --- @param session_id string The session identifier
 --- @param opts ChatProgressDoneOpt|nil
 --- @return table|nil
-local function flush_progress(session_id, opts)
+local function flush_progress(session_id, opts, notify)
   local has_content = progress_messages[session_id] ~= nil
 
   local reasoning_content
@@ -153,21 +153,26 @@ local function flush_progress(session_id, opts)
     return nil
   end
 
-  local message = continue.get_pending(session_id)
-  if not message then
-    message = {
+  -- Drain the streamed buffer before touching the message: append_message()
+  -- notifies integrations from the message content, so the content has to be
+  -- in place at append time. Filling it afterwards (as this used to) left
+  -- message.content nil during the notification, so plain replies were never
+  -- pushed to the chat platforms.
+  local content
+  if has_content then
+    content = progress_messages[session_id]
+    progress_messages[session_id] = nil
+  end
+
+  local pending = continue.get_pending(session_id)
+  local message = pending
+    or {
       role = 'assistant',
       created = os.time(),
     }
-    require('chat.sessions.messages').append_message(session_id, message)
-  end
 
-  if has_content then
-    local content = progress_messages[session_id]
-    progress_messages[session_id] = nil
-    if content and content ~= '' then
-      message.content = (message.content or '') .. content
-    end
+  if content and content ~= '' then
+    message.content = (message.content or '') .. content
   end
 
   if reasoning_content and reasoning_content ~= '' then
@@ -177,6 +182,15 @@ local function flush_progress(session_id, opts)
 
   if has_tool_calls then
     message.tool_calls = opts.tool_calls
+  end
+
+  -- A pending message is already in the history: only new messages get
+  -- appended. The continuation chain notifies integrations once, when it
+  -- completes (see on_progress_done).
+  if not pending then
+    require('chat.sessions.messages').append_message(session_id, message, {
+      notify = notify,
+    })
   end
 
   return message
@@ -231,7 +245,10 @@ function M.on_progress_partial(jobid)
     return
   end
 
-  local message = flush_progress(session_id, nil)
+  -- Partial output must not reach the chat platforms: this is only a fragment
+  -- of a reply that auto-continuation is still extending. The complete content
+  -- is pushed once the chain finishes (see on_progress_done).
+  local message = flush_progress(session_id, nil, false)
   if message then
     continue.set_pending(session_id, message)
   end

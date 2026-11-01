@@ -51,17 +51,30 @@ local function ensure_sanitized(message)
   sanitized[message] = true
 end
 
+--- @class ChatAppendMessageOpt
+--- @field notify? boolean Notify integrations about this assistant reply
+---   (default true). Set false when the content is still incomplete, e.g. a
+---   truncated response awaiting auto-continuation, so partial output never
+---   reaches the chat platforms.
+
 --- Appends a message to a session's message history
 --- Updates usage statistics if provided and notifies integrations for assistant responses
 --- @param session_id string The session identifier
 --- @param message ChatMessage The message object to append
-function M.append_message(session_id, message)
+--- @param opts ChatAppendMessageOpt|nil
+function M.append_message(session_id, message, opts)
+  opts = opts or {}
+
   -- Sanitize to valid UTF-8 before storing, so invalid bytes from tool
   -- output never enter the request history or the session cache.
   ensure_sanitized(message)
 
+  -- The message must already carry its content when appended: integrations
+  -- are notified here, and only here (plus the single continuation-complete
+  -- notification in progress.on_progress_done).
   if
-    message.role == 'assistant'
+    opts.notify ~= false
+    and message.role == 'assistant'
     and message.content
     and message.content ~= ''
   then
