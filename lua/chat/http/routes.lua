@@ -288,6 +288,51 @@ local function handle_clear_logs(client)
   response.send_response(client, 204)
 end
 
+--- GET /usage-stats: per provider/model request & token statistics.
+--- Query: ?since=<unix ts> | ?hours=N | ?days=N (window ending now;
+---        that priority order). Without a query parameter, returns
+---        all-time totals.
+local function handle_get_usage_stats(client, path)
+  local query = path:match('^/usage%-stats%?(.*)$')
+  local usage_stats = require('chat.usage_stats')
+
+  local result, window
+  if not query or query == '' then
+    result = usage_stats.total()
+    window = 'total'
+  else
+    local since = query:match('since=(%d+)')
+    local hours = query:match('hours=(%d+)')
+    local days = query:match('days=(%d+)')
+    if since then
+      since = tonumber(since)
+      result = usage_stats.range(since)
+      window = 'since=' .. since
+    elseif hours then
+      hours = tonumber(hours)
+      result = usage_stats.range(os.time() - hours * 3600)
+      window = 'hours=' .. hours
+    elseif days then
+      days = tonumber(days)
+      result = usage_stats.range(os.time() - days * 86400)
+      window = 'days=' .. days
+    else
+      response.send_json(client, 400, {
+        error = 'Invalid query parameters, expected: since, hours or days',
+      })
+      return
+    end
+  end
+
+  response.send_json(client, 200, { window = window, stats = result })
+end
+
+--- DELETE /usage-stats: clear all usage statistics (total/hourly/daily layers)
+local function handle_reset_usage_stats(client)
+  require('chat.usage_stats').reset()
+  response.send_response(client, 204)
+end
+
 --- POST /session/new: create new session
 local function handle_new_session(client, body, content_length)
   local new_id, err = sessions.new()
@@ -1143,6 +1188,10 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_get_logs(client, path)
   elseif method == 'DELETE' and path == '/logs' then
     handle_clear_logs(client)
+  elseif method == 'GET' and (path == '/usage-stats' or path:match('^/usage%-stats%?')) then
+    handle_get_usage_stats(client, path)
+  elseif method == 'DELETE' and path == '/usage-stats' then
+    handle_reset_usage_stats(client)
   elseif method == 'POST' and path == '/session/new' then
     handle_new_session(client, body, content_length)
   elseif method == 'DELETE' and path:match('^/session/[^/]+$') then

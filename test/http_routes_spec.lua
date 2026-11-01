@@ -1139,3 +1139,166 @@ function TestHTTPRoutes:test_delete_logs_clears_runtime_log()
   lu.assertEquals(data.count, 0)
 end
 
+-- ─── /usage-stats routes ────────────────────────────────
+
+--- Seed usage_stats.json directly with a record for one provider/model.
+--- Mirrors the record shape written by usage_stats.record().
+local function seed_usage_stats(provider, model, record)
+  local usage_stats = require('chat.usage_stats')
+  local stats = usage_stats.load()
+  stats.total[provider] = stats.total[provider] or {}
+  stats.total[provider][model] = record
+  local now = os.time()
+  local hour_key = os.date('%Y-%m-%dT%H', now)
+  stats.hourly[hour_key] = stats.hourly[hour_key] or {}
+  stats.hourly[hour_key][provider] = stats.hourly[hour_key][provider] or {}
+  stats.hourly[hour_key][provider][model] = record
+  local day_key = os.date('%Y-%m-%d', now)
+  stats.daily[day_key] = stats.daily[day_key] or {}
+  stats.daily[day_key][provider] = stats.daily[day_key][provider] or {}
+  stats.daily[day_key][provider][model] = record
+  usage_stats.save(stats)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_total()
+  seed_usage_stats('openai', 'gpt-4o', {
+    requests = 3,
+    total_tokens = 300,
+    prompt_tokens = 200,
+    completion_tokens = 100,
+    cached_tokens = 50,
+  })
+  local _, status, body = req('GET', '/usage-stats')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.window, 'total')
+  lu.assertEquals(data.stats.openai['gpt-4o'].requests, 3)
+  lu.assertEquals(data.stats.openai['gpt-4o'].total_tokens, 300)
+  lu.assertEquals(data.stats.openai['gpt-4o'].prompt_tokens, 200)
+  lu.assertEquals(data.stats.openai['gpt-4o'].completion_tokens, 100)
+  lu.assertEquals(data.stats.openai['gpt-4o'].cached_tokens, 50)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_empty()
+  local _, status, body = req('GET', '/usage-stats')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.window, 'total')
+  lu.assertEquals(data.stats, {})
+end
+
+function TestHTTPRoutes:test_get_usage_stats_hours_window()
+  seed_usage_stats('anthropic', 'claude-sonnet-4', {
+    requests = 1,
+    total_tokens = 42,
+    prompt_tokens = 30,
+    completion_tokens = 12,
+    cached_tokens = 0,
+  })
+  -- last 5 hours includes the current hour bucket
+  local _, status, body = req('GET', '/usage-stats?hours=5')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.window, 'hours=5')
+  lu.assertEquals(data.stats.anthropic['claude-sonnet-4'].requests, 1)
+  lu.assertEquals(data.stats.anthropic['claude-sonnet-4'].total_tokens, 42)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_days_window()
+  seed_usage_stats('deepseek', 'deepseek-chat', {
+    requests = 2,
+    total_tokens = 20,
+    prompt_tokens = 15,
+    completion_tokens = 5,
+    cached_tokens = 5,
+  })
+  local _, status, body = req('GET', '/usage-stats?days=7')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.window, 'days=7')
+  lu.assertEquals(data.stats.deepseek['deepseek-chat'].requests, 2)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_since_window()
+  seed_usage_stats('openai', 'gpt-4o', {
+    requests = 1,
+    total_tokens = 10,
+    prompt_tokens = 6,
+    completion_tokens = 4,
+    cached_tokens = 0,
+  })
+  -- since = now - 1h, includes the current hour bucket
+  local _, status, body = req('GET', '/usage-stats?since=' .. (os.time() - 3600))
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertStrContains(data.window, 'since=')
+  lu.assertEquals(data.stats.openai['gpt-4o'].total_tokens, 10)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_since_excludes_old_buckets()
+  -- Bucket in the far past (year 2020) must not appear in a recent window
+  local usage_stats = require('chat.usage_stats')
+  local stats = usage_stats.load()
+  stats.hourly['2020-01-01T00'] = {
+    openai = {
+      ['gpt-4o'] = {
+        requests = 99,
+        total_tokens = 999,
+        prompt_tokens = 900,
+        completion_tokens = 99,
+        cached_tokens = 0,
+      },
+    },
+  }
+  usage_stats.save(stats)
+  local _, status, body = req('GET', '/usage-stats?hours=1')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertNil(data.stats.openai)
+end
+
+function TestHTTPRoutes:test_get_usage_stats_invalid_query_400()
+  local _, status, body = req('GET', '/usage-stats?bogus=1')
+  lu.assertEquals(status, 400)
+  lu.assertStrContains(body, 'Invalid query')
+end
+
+function TestHTTPRoutes:test_get_usage_stats_zero_hours()
+  -- hours=0 -> since = now -> current bucket still included whole
+  seed_usage_stats('openai', 'gpt-4o', {
+    requests = 1,
+    total_tokens = 10,
+    prompt_tokens = 5,
+    completion_tokens = 5,
+    cached_tokens = 0,
+  })
+  local _, status, body = req('GET', '/usage-stats?hours=0')
+  lu.assertEquals(status, 200)
+  local data = vim.json.decode(body)
+  lu.assertEquals(data.window, 'hours=0')
+  lu.assertEquals(data.stats.openai['gpt-4o'].requests, 1)
+end
+
+function TestHTTPRoutes:test_delete_usage_stats_resets()
+  seed_usage_stats('openai', 'gpt-4o', {
+    requests = 5,
+    total_tokens = 500,
+    prompt_tokens = 400,
+    completion_tokens = 100,
+    cached_tokens = 0,
+  })
+  local _, status = req('DELETE', '/usage-stats')
+  lu.assertEquals(status, 204)
+  local stats = require('chat.usage_stats').load()
+  lu.assertEquals(stats.total, {})
+  lu.assertEquals(stats.hourly, {})
+  lu.assertEquals(stats.daily, {})
+end
+
+function TestHTTPRoutes:test_usage_stats_requires_auth()
+  local c = make_client()
+  routes.handle_request(c, 'GET', '/usage-stats', {}, '', 0)
+  lu.assertTrue(#c.written > 0)
+  lu.assertStrContains(c.written[1], '401')
+end
+

@@ -89,6 +89,8 @@ nvim --headless -c "luafile server.lua"
 | `/session/{id}/search` | GET | Search a session's messages (returns match count and indices) |
 | `/logs` | GET | Get runtime log lines (supports `level`, `name`, `tail` filters) |
 | `/logs` | DELETE | Clear the runtime log |
+| `/usage-stats` | GET | Get per provider/model request & token statistics (supports `since`, `hours`, `days` windows) |
+| `/usage-stats` | DELETE | Clear all usage statistics |
 | `/session/new` | POST | Create a new session |
 | `/session/{id}` | DELETE | Delete a session |
 | `/session/{id}/stop` | POST | Stop generation |
@@ -574,6 +576,89 @@ Clear the in-memory runtime log (shared across all plugins using logger.nvim).
 
 ```bash
 curl -X DELETE http://127.0.0.1:7777/logs -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### GET `/usage-stats`
+
+Get per provider/model request and token statistics (see [Usage Statistics](../configuration.md#usage-statistics)). Returns all-time totals by default.
+
+**Query Parameters** (pick one; priority order `since` > `hours` > `days`):
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `since` | number | No | Window start as a unix timestamp (window ends now) |
+| `hours` | number | No | Window of the last N hours |
+| `days` | number | No | Window of the last N days |
+
+Windows under 48 hours merge hourly buckets; longer windows merge daily buckets. The bucket containing the window start is included whole, so a window may overshoot by at most one bucket.
+
+**Response (200 OK):**
+
+```json
+{
+  "window": "total",
+  "stats": {
+    "openai": {
+      "gpt-4o": {
+        "requests": 12,
+        "total_tokens": 45000,
+        "prompt_tokens": 40000,
+        "completion_tokens": 5000,
+        "cached_tokens": 15000
+      }
+    }
+  }
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `window` | string | Which window was queried: `total`, `since=<ts>`, `hours=N` or `days=N` |
+| `stats` | object | `[provider][model]` = record with `requests`, `total_tokens`, `prompt_tokens`, `completion_tokens`, `cached_tokens` |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success |
+| 400 | Unrecognized query parameter |
+
+**Examples:**
+
+```bash
+# All-time totals
+curl http://127.0.0.1:7777/usage-stats -H "X-API-Key: your-secret-key"
+
+# Last 24 hours
+curl "http://127.0.0.1:7777/usage-stats?hours=24" -H "X-API-Key: your-secret-key"
+
+# Last 7 days
+curl "http://127.0.0.1:7777/usage-stats?days=7" -H "X-API-Key: your-secret-key"
+
+# Since a specific unix timestamp
+curl "http://127.0.0.1:7777/usage-stats?since=1700000000" -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### DELETE `/usage-stats`
+
+Clear all usage statistics (the `total`, `hourly` and `daily` layers of `{storage_dir}/usage_stats.json`).
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success - statistics cleared |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/usage-stats -H "X-API-Key: your-secret-key"
 ```
 
 ---
