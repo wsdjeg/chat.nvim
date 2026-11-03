@@ -10,22 +10,33 @@ local lu = require('luaunit')
 
 TestLog = {}
 
+local OPTIONAL_MODULES = { 'logger', 'logger.base', 'notify' }
+
 function TestLog:setUp()
   self.orig_chat_log = package.loaded['chat.log']
-  self.orig_logger = package.loaded['logger']
-  self.orig_logger_base = package.loaded['logger.base']
-  self.orig_notify = package.loaded['notify']
+  self.orig_loaded = {}
+  self.orig_preload = {}
+  for _, name in ipairs(OPTIONAL_MODULES) do
+    self.orig_loaded[name] = package.loaded[name]
+    self.orig_preload[name] = package.preload[name]
+    -- Make the optional module look unavailable even when logger.nvim or
+    -- notify.nvim really are installed on the test runtime. Clearing
+    -- package.loaded lets package.preload (checked before the file
+    -- searchers) win, so `require` fails instead of loading the plugin.
+    package.loaded[name] = nil
+    package.preload[name] = function()
+      error(name .. ' is not installed (test stub)')
+    end
+  end
   package.loaded['chat.log'] = nil
 end
 
 function TestLog:tearDown()
-  package.loaded['logger'] = self.orig_logger
-  package.loaded['logger.base'] = self.orig_logger_base
-  package.loaded['notify'] = self.orig_notify
+  for _, name in ipairs(OPTIONAL_MODULES) do
+    package.loaded[name] = self.orig_loaded[name]
+    package.preload[name] = self.orig_preload[name]
+  end
   package.loaded['chat.log'] = self.orig_chat_log
-  package.preload['logger'] = nil
-  package.preload['logger.base'] = nil
-  package.preload['notify'] = nil
 end
 
 function TestLog:test_derived_logger_receives_all_levels()
@@ -75,8 +86,8 @@ function TestLog:test_derive_failure_disables_logging()
 end
 
 function TestLog:test_without_logger_module_calls_are_swallowed()
-  -- No `logger` module in the test runtime: require fails, the module
-  -- marks itself as failed and all logging calls become silent no-ops.
+  -- `logger` is unavailable (see setUp): require fails, the module marks
+  -- itself as failed and all logging calls become silent no-ops.
   local M = require('chat.log')
   M.set_level(3) -- before any call: log is nil, no-op
   lu.assertNil(M.info('a'))

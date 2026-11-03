@@ -41,11 +41,13 @@ function TestMoveFileExtra:setUp()
 
   self.rename_orig = vim.fn.rename
   self.delete_orig = vim.fn.delete
+  self.getftype_orig = vim.fn.getftype
 end
 
 function TestMoveFileExtra:tearDown()
   vim.fn.rename = self.rename_orig
   vim.fn.delete = self.delete_orig
+  vim.fn.getftype = self.getftype_orig
   config.config.allowed_path = self.allowed_path_orig
   if vim.fn.isdirectory(self.dir) == 1 then
     vim.fn.delete(self.dir, 'rf')
@@ -100,13 +102,18 @@ function TestMoveFileExtra:testRenameFailureCopiesDirectoryTree()
 end
 
 function TestMoveFileExtra:testRenameFailureUnsupportedSourceType()
-  local target = self.dir .. '/target.txt'
-  vim.fn.writefile({ 'x' }, target)
+  -- A symlink source hits the "unsupported file type" branch of the copy
+  -- fallback. Creating a real symlink needs extra privileges on Windows,
+  -- so report the type through getftype instead.
   local link = self.dir .. '/link-to-target'
-  vim.uv.fs_symlink(target, link)
-  if vim.fn.getftype(link) == '' then
-    lu.fail('could not create a symlink for the test')
-    return
+  vim.fn.writefile({ 'x' }, link)
+  -- tools.resolve() normalizes the path, so compare normalized forms
+  local norm_link = vim.fs.normalize(link)
+  vim.fn.getftype = function(path)
+    if vim.fs.normalize(path) == norm_link then
+      return 'link'
+    end
+    return self.getftype_orig(path)
   end
   stub_rename_fails()
 
