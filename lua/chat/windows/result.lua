@@ -4,6 +4,7 @@ local config = require('chat.config')
 local sessions = require('chat.sessions')
 local formatter = require('chat.formatter')
 local util = require('chat.util')
+local usage_util = require('chat.usage')
 
 -- Result window state
 local result_win = -1
@@ -33,27 +34,55 @@ function M.is_buf_valid()
   return vim.api.nvim_buf_is_valid(result_buf)
 end
 
-function M.set_title(text, session)
-  if vim.api.nvim_win_is_valid(result_win) then
-    local total, prompt, complete = sessions.get_total_tokens(session)
-    local title = text
+--- Build the window title string: session title | tokens | cache hit ratio.
+--- The cache part is only appended when the provider reported cache hits,
+--- so providers without cache reporting show a clean title.
+--- @param session string Session ID
+--- @param text string Base title text
+--- @return string title
+function M.build_title(session, text)
+  local title = text
 
-    -- Show session title if set
-    local session_title = sessions.get_session_title(session) or ''
-    if session_title ~= '' then
-      title = session_title .. ' | ' .. title
-    end
+  -- Show session title if set
+  local session_title = sessions.get_session_title(session) or ''
+  if session_title ~= '' then
+    title = session_title .. ' | ' .. title
+  end
 
-    if total > 0 then
+  local total, prompt, complete, cached = sessions.get_total_tokens(session)
+  if total and total > 0 then
+    title = title
+      .. ' | '
+      .. string.format(
+        'Tokens: %s (%s↑/%s↓)',
+        util.format_number(total),
+        util.format_number(prompt or 0),
+        util.format_number(complete or 0)
+      )
+
+    -- Cache hit ratio: same normalization the per-message line uses, so
+    -- DeepSeek/Anthropic payloads report a real percentage.
+    if cached and cached > 0 then
       title = title
-        .. ' | '
         .. string.format(
-          'Tokens: %s (%s↑/%s↓)',
-          util.format_number(total),
-          util.format_number(prompt),
-          util.format_number(complete)
+          ' 💾 %d%%',
+          math.floor(
+            usage_util.hit_ratio({
+              prompt_tokens = prompt or 0,
+              cached_tokens = cached,
+            })
+              * 100
+          )
         )
     end
+  end
+
+  return title
+end
+
+function M.set_title(text, session)
+  if vim.api.nvim_win_is_valid(result_win) then
+    local title = M.build_title(session, text)
 
     vim.api.nvim_win_set_config(result_win, {
       title = {
