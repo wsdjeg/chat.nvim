@@ -8,6 +8,38 @@ local integrations = require('chat.integrations')
 local prompt_win = -1
 local prompt_buf = -1
 
+--- Build the prompt window title text.
+-- Format: `| <title> | <provider> | <model> | <cwd> <integrations>`
+-- @param session string session id
+-- @return string title text
+local function build_title(session)
+  local session_integrations = integrations.get_integrations(session) or {}
+  local ins = ''
+  for _, i in ipairs(session_integrations) do
+    ins = ins .. '| ' .. i .. ' '
+  end
+
+  local title = sessions.get_session_title(session) or ''
+  local title_part = ''
+  if title ~= '' then
+    title_part = title .. ' | '
+  end
+
+  local provider = sessions.get_session_provider(session) or ''
+  local model = sessions.get_session_model(session) or ''
+  local cwd = sessions.getcwd(session) or ''
+
+  return ' Input '
+    .. string.format(
+      '| %s%s | %s | %s %s',
+      title_part,
+      provider,
+      model,
+      cwd,
+      ins
+    )
+end
+
 function M.get_win()
   return prompt_win
 end
@@ -42,37 +74,19 @@ function M.close()
   end
 end
 
+function M.build_title(session)
+  return build_title(session)
+end
+
 function M.redraw_title(session)
   if not vim.api.nvim_win_is_valid(prompt_win) then
     return
   end
 
-  local session_integrations = integrations.get_integrations(session)
-  local ins = ''
-  for _, i in ipairs(session_integrations) do
-    ins = ins .. '| ' .. i .. ' '
-  end
-
-  local title = sessions.get_session_title(session) or ''
-  local title_part = ''
-  if title ~= '' then
-    title_part = title .. ' | '
-  end
-
   vim.api.nvim_win_set_config(prompt_win, {
     title = {
       { '', config.config.highlights.title_badge },
-      {
-        ' Input ' .. string.format(
-          '| %s%s %s | %s %s',
-          title_part,
-          sessions.get_session_provider(session),
-          sessions.get_session_model(session),
-          sessions.getcwd(session),
-          ins
-        ),
-        config.config.highlights.title,
-      },
+      { build_title(session), config.config.highlights.title },
       { '', config.config.highlights.title_badge },
     },
     title_pos = 'center',
@@ -86,34 +100,12 @@ function M.create_buffer()
 end
 
 function M.open_window(buf, start_col, start_row, screen_width, session)
-  local session_integrations = integrations.get_integrations(session)
-  local ins = ''
-  for _, i in ipairs(session_integrations) do
-    ins = ins .. '| ' .. i .. ' '
-  end
-
-  local title = sessions.get_session_title(session) or ''
-  local title_part = ''
-  if title ~= '' then
-    title_part = title .. ' | '
-  end
-
   prompt_win = vim.api.nvim_open_win(buf, true, {
     relative = 'editor',
     border = config.config.border,
     title = {
       { '', config.config.highlights.title_badge },
-      {
-        ' Input ' .. string.format(
-          '| %s%s %s | %s %s',
-          title_part,
-          sessions.get_session_provider(session),
-          sessions.get_session_model(session),
-          sessions.getcwd(session),
-          ins
-        ),
-        config.config.highlights.title,
-      },
+      { build_title(session), config.config.highlights.title },
       { '', config.config.highlights.title_badge },
     },
     title_pos = 'center',

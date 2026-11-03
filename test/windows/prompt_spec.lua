@@ -88,4 +88,36 @@ function TestWindowsPrompt:testGetWinAndBuf()
   lu.assertEquals(-1, prompt.get_buf())
 end
 
+-- Title composition ----------------------------------------------------------
+
+function TestWindowsPrompt:testBuildTitleSeparatesProviderAndModel()
+  local title = prompt.build_title('sess')
+  lu.assertStrContains(title, 'openai | gpt')
+  lu.assertStrContains(title, 't | openai | gpt')
+end
+
+function TestWindowsPrompt:testBuildTitleWithoutTitle()
+  sessions.get_session_title = function() return '' end
+  local title = prompt.build_title('sess')
+  -- No title prefix, so provider directly follows "Input |"
+  lu.assertStrContains(title, 'Input | openai | gpt')
+end
+
+function TestWindowsPrompt:testBuildTitleWithIntegrations()
+  integrations.get_integrations = function() return { 'discord', 'lark' } end
+  local title = prompt.build_title('sess')
+  lu.assertStrContains(title, '| discord | lark')
+end
+
+function TestWindowsPrompt:testWindowTitleUsesBuildTitle()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  local text = ''
+  for _, part in ipairs(conf.title or {}) do
+    text = text .. tostring(part[1])
+  end
+  lu.assertStrContains(text, 'openai | gpt')
+end
+
 return TestWindowsPrompt
+
