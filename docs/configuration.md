@@ -35,7 +35,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt`   | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
 | `storage_dir`     | string             | `stdpath('data') .. '/chat.nvim/'`                             | Base storage directory for all persistent data (sessions, plans, scheduler, etc.) |
-| `highlights`      | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge'}` | Highlight groups for title text and decorative badges                      |
+| `highlights`      | table              | `{title = 'ChatNvimTitle', title_badge = 'ChatNvimTitleBadge', placeholder = 'ChatNvimPlaceholder'}` | Highlight groups for title text, decorative badges and the prompt placeholder (see [Prompt Placeholder](#prompt-placeholder)) |
 | `winhighlight`    | string             | `'NormalFloat:Normal,FloatBorder:WinSeparator'`                | Window highlight configuration for floating windows                         |
 | `token_cooldown` | number             | `30`                                                           | Seconds an api key is skipped after a rate-limit (429) or server (5xx) error |
 | `quota_cooldown` | number             | `3600`                                                         | Seconds an api key is skipped after a quota-exhaustion error (e.g. coding-plan limits) |
@@ -55,6 +55,44 @@ require('chat').setup({
   names = { bot = 'Nova', user = 'You' },
 })
 ```
+
+---
+
+## Prompt Placeholder
+
+When the input window is empty, chat.nvim renders a placeholder (`输入消息...`)
+as virtual text. It lives in its own extmark namespace, so it never leaks into
+`get_content()` and is invisible to the buffer lines.
+
+Only two highlight groups are involved:
+
+| Editor state                      | Highlight group                                  |
+| --------------------------------- | ------------------------------------------------ |
+| Insert mode                       | `Comment`                                        |
+| Normal mode, `cursorline` enabled | `highlights.placeholder` (default `ChatNvimPlaceholder`) |
+| Normal mode, `cursorline` unset   | `Comment`                                        |
+
+Insert mode always uses `Comment` because `CursorLine` is not drawn there. In
+Normal mode the placeholder switches to the configured group only when the
+prompt window has `cursorline` enabled — that group derives its foreground from
+`Comment` and its background from `CursorLine`, so the placeholder blends into
+the cursor line instead of punching a hole into it.
+
+```lua
+require('chat').setup({
+  highlights = {
+    -- Customize the cursorline-aware placeholder group
+    placeholder = 'MyPlaceholder',
+  },
+})
+
+-- Fully override the colors (chat.nvim only sets them when the group is empty)
+vim.api.nvim_set_hl(0, 'MyPlaceholder', { fg = '#7a7a7a', bg = '#2b2b2b' })
+```
+
+The group is (re)applied on `ColorScheme`, and the placeholder is re-rendered on
+`TextChanged`, `TextChangedI`, `TextChangedP`, `ModeChanged`, `InsertEnter`,
+`InsertLeave`, `BufEnter`, `WinEnter` and `OptionSet`.
 
 ---
 

@@ -55,6 +55,9 @@ local default = {
     title = 'ChatNvimTitle',
     -- Title badge highlight group (decorative symbols on both sides of the title)
     title_badge = 'ChatNvimTitleBadge',
+    -- Placeholder highlight used in Normal mode when 'cursorline' is enabled.
+    -- Foreground comes from Comment, background from CursorLine.
+    placeholder = 'ChatNvimPlaceholder',
   },
   api_key = '',
   http = {

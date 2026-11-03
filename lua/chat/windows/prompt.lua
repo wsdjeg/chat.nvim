@@ -7,12 +7,39 @@ local integrations = require('chat.integrations')
 -- Placeholder shown when the prompt buffer is empty. It is rendered as
 -- virtual text only, so it never leaks into get_content().
 M.placeholder = '输入消息...'
-local PLACEHOLDER_HL = 'Comment'
+
+-- Plain placeholder highlight: used in Insert mode, where the prompt window
+-- has no CursorLine to blend with.
+local COMMENT_HL = 'Comment'
+
+-- Decorative title badges, same glyphs the result window uses.
+local TITLE_BADGE_LEFT = '\238\130\182'
+local TITLE_BADGE_RIGHT = '\238\130\180'
 
 -- Prompt window state
 local prompt_win = -1
 local prompt_buf = -1
 local placeholder_ns = vim.api.nvim_create_namespace('chat.nvim.prompt')
+
+--- Pick the placeholder highlight group for the current editor state.
+--- - Insert mode: plain Comment, because CursorLine is not drawn there.
+--- - Normal mode with 'cursorline': dedicated group whose foreground matches
+---   Comment and whose background matches CursorLine, so the placeholder does
+---   not punch a hole into the cursor line.
+--- - Normal mode without 'cursorline': plain Comment.
+--- @return string highlight group name
+function M.placeholder_hl()
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then
+    return COMMENT_HL
+  end
+  if
+    vim.api.nvim_win_is_valid(prompt_win)
+    and vim.api.nvim_get_option_value('cursorline', { win = prompt_win })
+  then
+    return config.config.highlights.placeholder or COMMENT_HL
+  end
+  return COMMENT_HL
+end
 
 --- Get the namespace used by the placeholder extmark (mainly for tests).
 --- @return number
@@ -57,6 +84,17 @@ local function build_title(session)
   return ' ' .. table.concat(parts, ' | ') .. ' '
 end
 
+--- Build the full title chunk list (left badge, text, right badge).
+--- @param session string session id
+--- @return table[]
+local function title_chunks(session)
+  return {
+    { TITLE_BADGE_LEFT, config.config.highlights.title_badge },
+    { build_title(session), config.config.highlights.title },
+    { TITLE_BADGE_RIGHT, config.config.highlights.title_badge },
+  }
+end
+
 --- Check whether the prompt buffer holds no user text.
 --- @return boolean
 local function is_empty()
@@ -83,12 +121,13 @@ function M.render_placeholder()
   end
 
   pcall(vim.api.nvim_buf_set_extmark, prompt_buf, placeholder_ns, 0, 0, {
-    virt_text = { { M.placeholder, PLACEHOLDER_HL } },
+    virt_text = { { M.placeholder, M.placeholder_hl() } },
     virt_text_pos = 'overlay',
   })
 end
 
---- Refresh the placeholder whenever the prompt content changes.
+--- Refresh the placeholder whenever the prompt content, the mode, or the
+--- 'cursorline' setting changes.
 --- @param buf number buffer handle
 local function attach_placeholder_autocmds(buf)
   local group = vim.api.nvim_create_augroup(
@@ -99,8 +138,12 @@ local function attach_placeholder_autocmds(buf)
     'TextChanged',
     'TextChangedI',
     'TextChangedP',
+    'ModeChanged',
+    'InsertEnter',
     'InsertLeave',
     'BufEnter',
+    'WinEnter',
+    'OptionSet',
   }, {
     group = group,
     buffer = buf,
@@ -154,11 +197,7 @@ function M.redraw_title(session)
   end
 
   vim.api.nvim_win_set_config(prompt_win, {
-    title = {
-      { '', config.config.highlights.title_badge },
-      { build_title(session), config.config.highlights.title },
-      { '', config.config.highlights.title_badge },
-    },
+    title = title_chunks(session),
     title_pos = 'center',
   })
 end
@@ -175,11 +214,7 @@ function M.open_window(buf, start_col, start_row, screen_width, session)
   prompt_win = vim.api.nvim_open_win(buf, true, {
     relative = 'editor',
     border = config.config.border,
-    title = {
-      { '', config.config.highlights.title_badge },
-      { build_title(session), config.config.highlights.title },
-      { '', config.config.highlights.title_badge },
-    },
+    title = title_chunks(session),
     title_pos = 'center',
     col = start_col,
     row = start_row,

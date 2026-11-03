@@ -14,6 +14,7 @@ function TestWindowsPrompt:setUp()
     highlights = {
       title_badge = 'Normal',
       title = 'Normal',
+      placeholder = 'ChatNvimPlaceholder',
     },
     winhighlight = '',
   })
@@ -90,7 +91,8 @@ end
 
 -- Title composition ----------------------------------------------------------
 -- The prompt window title no longer repeats the session title nor contains
--- the "Input" label: it only carries provider / model / cwd / integrations.
+-- the "Input" label: it only carries provider / model / cwd / integrations,
+-- wrapped in the same powerline badges the result window uses.
 
 function TestWindowsPrompt:testBuildTitleSeparatesProviderAndModel()
   local title = prompt.build_title('sess')
@@ -134,6 +136,24 @@ function TestWindowsPrompt:testWindowTitleUsesBuildTitle()
   lu.assertNotStrContains(text, 'Input')
 end
 
+function TestWindowsPrompt:testWindowTitleHasBadges()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  lu.assertEquals(3, #conf.title)
+  -- powerline glyphs on both sides, same as the result window
+  lu.assertEquals('\238\130\182', conf.title[1][1])
+  lu.assertEquals('\238\130\180', conf.title[3][1])
+end
+
+function TestWindowsPrompt:testRedrawTitleKeepsBadges()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  prompt.redraw_title('sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  lu.assertEquals(3, #conf.title)
+  lu.assertEquals('\238\130\182', conf.title[1][1])
+  lu.assertEquals('\238\130\180', conf.title[3][1])
+end
+
 -- Placeholder ---------------------------------------------------------------
 
 local function placeholder_marks()
@@ -151,7 +171,6 @@ function TestWindowsPrompt:testPlaceholderShownWhenEmpty()
   local marks = placeholder_marks()
   lu.assertEquals(1, #marks)
   lu.assertEquals(prompt.placeholder, marks[1][4].virt_text[1][1])
-  lu.assertEquals('Comment', marks[1][4].virt_text[1][2])
   lu.assertEquals('overlay', marks[1][4].virt_text_pos)
 end
 
@@ -174,6 +193,61 @@ function TestWindowsPrompt:testPlaceholderNotInContent()
   local content = prompt.get_content()
   lu.assertEquals(1, #content)
   lu.assertEquals('', content[1])
+end
+
+-- Placeholder highlight selection --------------------------------------------
+-- Insert mode always uses Comment (no CursorLine is drawn there). In Normal
+-- mode the placeholder only switches to the dedicated group when 'cursorline'
+-- is enabled in the prompt window, so its background matches the cursor line.
+
+function TestWindowsPrompt:testPlaceholderHlNormalWithoutCursorline()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  vim.api.nvim_set_option_value('cursorline', false, { win = prompt.get_win() })
+  -- nvim_get_mode() reports the headless mode; the insert branch is only taken
+  -- for real insert sessions, so normal mode falls through to the option check.
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then
+    print('Skipping testPlaceholderHlNormalWithoutCursorline: in insert mode')
+    return
+  end
+  lu.assertEquals('Comment', prompt.placeholder_hl())
+end
+
+function TestWindowsPrompt:testPlaceholderHlNormalWithCursorline()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  vim.api.nvim_set_option_value('cursorline', true, { win = prompt.get_win() })
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then
+    print('Skipping testPlaceholderHlNormalWithCursorline: in insert mode')
+    return
+  end
+  lu.assertEquals(
+    config.config.highlights.placeholder,
+    prompt.placeholder_hl()
+  )
+end
+
+function TestWindowsPrompt:testPlaceholderHlFallsBackWhenNoWindow()
+  prompt.set_win(-1)
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then
+    print('Skipping testPlaceholderHlFallsBackWhenNoWindow: in insert mode')
+    return
+  end
+  lu.assertEquals('Comment', prompt.placeholder_hl())
+end
+
+function TestWindowsPrompt:testPlaceholderMarkUsesCursorlineHl()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  vim.api.nvim_set_option_value('cursorline', true, { win = prompt.get_win() })
+  prompt.clear()
+  local marks = placeholder_marks()
+  lu.assertEquals(1, #marks)
+  if vim.api.nvim_get_mode().mode:sub(1, 1) == 'i' then
+    lu.assertEquals('Comment', marks[1][4].virt_text[1][2])
+  else
+    lu.assertEquals(
+      config.config.highlights.placeholder,
+      marks[1][4].virt_text[1][2]
+    )
+  end
 end
 
 return TestWindowsPrompt

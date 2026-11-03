@@ -49,6 +49,19 @@ local function setup_highlights(config)
       bg = normal.bg,
     })
   end
+
+  -- Prompt placeholder shown in Normal mode while 'cursorline' is enabled:
+  -- foreground from Comment, background from CursorLine, so the placeholder
+  -- blends into the cursor line instead of punching a hole into it.
+  local placeholder = config.config.highlights.placeholder
+  if placeholder and vim.fn.hlexists(placeholder) == 0 then
+    local comment = vim.api.nvim_get_hl(0, { name = 'Comment' })
+    local cursorline = vim.api.nvim_get_hl(0, { name = 'CursorLine' })
+    vim.api.nvim_set_hl(0, placeholder, {
+      fg = comment.fg,
+      bg = cursorline.bg or normal.bg,
+    })
+  end
 end
 
 function M.setup(opt)
