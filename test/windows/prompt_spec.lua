@@ -89,24 +89,38 @@ function TestWindowsPrompt:testGetWinAndBuf()
 end
 
 -- Title composition ----------------------------------------------------------
+-- The prompt window title no longer repeats the session title nor contains
+-- the "Input" label: it only carries provider / model / cwd / integrations.
 
 function TestWindowsPrompt:testBuildTitleSeparatesProviderAndModel()
   local title = prompt.build_title('sess')
   lu.assertStrContains(title, 'openai | gpt')
-  lu.assertStrContains(title, 't | openai | gpt')
 end
 
-function TestWindowsPrompt:testBuildTitleWithoutTitle()
-  sessions.get_session_title = function() return '' end
+function TestWindowsPrompt:testBuildTitleHasNoInputLabel()
   local title = prompt.build_title('sess')
-  -- No title prefix, so provider directly follows "Input |"
-  lu.assertStrContains(title, 'Input | openai | gpt')
+  lu.assertNotStrContains(title, 'Input')
+end
+
+function TestWindowsPrompt:testBuildTitleOmitsSessionTitle()
+  sessions.get_session_title = function() return 'My Session' end
+  local title = prompt.build_title('sess')
+  lu.assertNotStrContains(title, 'My Session')
+  lu.assertStrContains(title, 'openai | gpt')
 end
 
 function TestWindowsPrompt:testBuildTitleWithIntegrations()
   integrations.get_integrations = function() return { 'discord', 'lark' } end
   local title = prompt.build_title('sess')
-  lu.assertStrContains(title, '| discord | lark')
+  lu.assertStrContains(title, 'discord | lark')
+end
+
+function TestWindowsPrompt:testBuildTitleFallback()
+  sessions.get_session_provider = function() return '' end
+  sessions.get_session_model = function() return '' end
+  sessions.getcwd = function() return '' end
+  local title = prompt.build_title('sess')
+  lu.assertStrContains(title, 'chat.nvim')
 end
 
 function TestWindowsPrompt:testWindowTitleUsesBuildTitle()
@@ -117,6 +131,49 @@ function TestWindowsPrompt:testWindowTitleUsesBuildTitle()
     text = text .. tostring(part[1])
   end
   lu.assertStrContains(text, 'openai | gpt')
+  lu.assertNotStrContains(text, 'Input')
+end
+
+-- Placeholder ---------------------------------------------------------------
+
+local function placeholder_marks()
+  return vim.api.nvim_buf_get_extmarks(
+    prompt.get_buf(),
+    prompt.get_placeholder_ns(),
+    0,
+    -1,
+    { details = true }
+  )
+end
+
+function TestWindowsPrompt:testPlaceholderShownWhenEmpty()
+  prompt.clear()
+  local marks = placeholder_marks()
+  lu.assertEquals(1, #marks)
+  lu.assertEquals(prompt.placeholder, marks[1][4].virt_text[1][1])
+  lu.assertEquals('Comment', marks[1][4].virt_text[1][2])
+  lu.assertEquals('overlay', marks[1][4].virt_text_pos)
+end
+
+function TestWindowsPrompt:testPlaceholderHiddenWhenTyping()
+  vim.api.nvim_buf_set_lines(self.buf, 0, -1, false, { 'hello' })
+  prompt.render_placeholder()
+  lu.assertEquals(0, #placeholder_marks())
+end
+
+function TestWindowsPrompt:testPlaceholderRestoredAfterClear()
+  vim.api.nvim_buf_set_lines(self.buf, 0, -1, false, { 'hello' })
+  prompt.render_placeholder()
+  lu.assertEquals(0, #placeholder_marks())
+  prompt.clear()
+  lu.assertEquals(1, #placeholder_marks())
+end
+
+function TestWindowsPrompt:testPlaceholderNotInContent()
+  prompt.clear()
+  local content = prompt.get_content()
+  lu.assertEquals(1, #content)
+  lu.assertEquals('', content[1])
 end
 
 return TestWindowsPrompt
