@@ -60,6 +60,27 @@ local function resolve_and_validate(path, cwd)
   return resolved, nil
 end
 
+--- Delete a file or directory tree, detecting real failures.
+---
+--- vim.fn.delete() reports failure through its return value (-1) instead of
+--- raising an error, so `pcall(vim.fn.delete, path, 'rf')` never catches a
+--- failed deletion and callers silently believed the removal succeeded.
+--- Check both the pcall status and the numeric return value.
+--- @param path string
+--- @param flags string? e.g. 'rf'
+--- @return boolean ok
+--- @return string? error
+local function delete_path(path, flags)
+  local call_ok, result = pcall(vim.fn.delete, path, flags or '')
+  if not call_ok then
+    return false, tostring(result)
+  end
+  if result ~= 0 then
+    return false, string.format('delete() returned %s', tostring(result))
+  end
+  return true, nil
+end
+
 --- Count entries in a directory (recursive)
 ---@param dir string
 ---@return integer file_count
@@ -123,17 +144,19 @@ function M.delete_directory(action, ctx)
   local total_entries = file_count + dir_count
 
   -- Delete recursively (rf = recursive + force)
-  local ok, del_err = pcall(vim.fn.delete, resolved, 'rf')
+  local ok, del_err = delete_path(resolved, 'rf')
   if not ok then
     return {
       error = string.format(
-        'Failed to delete directory: %s\n%s',
+        'Failed to delete directory: %s\n%s\n'
+          .. 'The path may still be in use by another process.',
         resolved, del_err or 'unknown error'
       ),
     }
   end
 
-  -- Verify deletion
+  -- Verify deletion (defence in depth: delete() may report success on some
+  -- platforms while entries remain on disk)
   if vim.fn.getftype(resolved) ~= '' then
     return {
       error = string.format(

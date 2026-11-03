@@ -61,6 +61,27 @@ local function resolve_and_validate(path, cwd, label)
   return resolved, nil
 end
 
+--- Delete a file or directory tree, detecting real failures.
+---
+--- vim.fn.delete() reports failure through its return value (-1) instead of
+--- raising an error, so `pcall(vim.fn.delete, path)` never catches a failed
+--- deletion and callers silently believed the removal succeeded. Check both
+--- the pcall status and the numeric return value.
+--- @param path string
+--- @param flags string? e.g. 'rf'
+--- @return boolean ok
+--- @return string? error
+local function delete_path(path, flags)
+  local call_ok, result = pcall(vim.fn.delete, path, flags or '')
+  if not call_ok then
+    return false, tostring(result)
+  end
+  if result ~= 0 then
+    return false, string.format('delete() returned %s', tostring(result))
+  end
+  return true, nil
+end
+
 --- Fallback copy for cross-device moves
 ---@param source string
 ---@param destination string
@@ -140,10 +161,10 @@ function M.move_file(action, ctx)
       }
     end
     -- Delete existing destination
-    local ok, err = pcall(vim.fn.delete, dest, 'rf')
-    if not ok then
+    local removed, del_err = delete_path(dest, 'rf')
+    if not removed then
       return { error = string.format(
-        'Failed to remove existing destination: %s\n%s', dest, err
+        'Failed to remove existing destination: %s\n%s', dest, del_err
       ) }
     end
   end
@@ -162,8 +183,9 @@ function M.move_file(action, ctx)
   -- Rename failed (likely cross-device): fallback to copy + delete
   local copy_ok, copy_err = copy_recursive(source, dest)
   if not copy_ok then
-    -- Clean up partial copy
-    pcall(vim.fn.delete, dest, 'rf')
+    -- Best-effort cleanup of the partial copy; the copy failure is the
+    -- actionable error, so the cleanup result is intentionally ignored.
+    delete_path(dest, 'rf')
     return {
       error = string.format(
         'Move failed (rename: %s, copy fallback: %s)',
@@ -173,9 +195,10 @@ function M.move_file(action, ctx)
   end
 
   -- Delete source after successful copy
-  local del_ok, del_err = pcall(vim.fn.delete, source, 'rf')
+  local del_ok, del_err = delete_path(source, 'rf')
   if not del_ok then
-    -- Copy succeeded but source deletion failed — warn but don't fail
+    -- Copy succeeded but source deletion failed — warn but don't fail,
+    -- because the data has already been moved to the destination.
     return {
       content = string.format(
         'Moved (with warning): %s -> %s\n'

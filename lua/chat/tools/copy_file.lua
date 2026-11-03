@@ -80,6 +80,27 @@ local function format_size(size)
   end
 end
 
+--- Delete a file or directory tree, detecting real failures.
+---
+--- vim.fn.delete() reports failure through its return value (-1) instead of
+--- raising an error, so `pcall(vim.fn.delete, path)` never catches a failed
+--- deletion and callers silently believed the removal succeeded. Check both
+--- the pcall status and the numeric return value.
+--- @param path string
+--- @param flags string? e.g. 'rf'
+--- @return boolean ok
+--- @return string? error
+local function delete_path(path, flags)
+  local call_ok, result = pcall(vim.fn.delete, path, flags or '')
+  if not call_ok then
+    return false, tostring(result)
+  end
+  if result ~= 0 then
+    return false, string.format('delete() returned %s', tostring(result))
+  end
+  return true, nil
+end
+
 --- Recursive copy using uv
 ---@param source string
 ---@param destination string
@@ -165,10 +186,10 @@ function M.copy_file(action, ctx)
         ),
       }
     end
-    local ok, err = pcall(vim.fn.delete, dest, 'rf')
-    if not ok then
+    local removed, del_err = delete_path(dest, 'rf')
+    if not removed then
       return { error = string.format(
-        'Failed to remove existing destination: %s\n%s', dest, err
+        'Failed to remove existing destination: %s\n%s', dest, del_err
       ) }
     end
   end
@@ -176,7 +197,9 @@ function M.copy_file(action, ctx)
   -- Copy
   local ok, err = copy_recursive(source, dest)
   if not ok then
-    pcall(vim.fn.delete, dest, 'rf')
+    -- Best-effort cleanup of the partial copy; the original failure is what
+    -- the caller cares about, so the cleanup result is intentionally ignored.
+    delete_path(dest, 'rf')
     return {
       error = string.format(
         'Copy failed: %s\n  source: %s\n  destination: %s',
