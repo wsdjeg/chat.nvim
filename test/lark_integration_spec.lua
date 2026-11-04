@@ -6,6 +6,10 @@ local config = require('chat.config')
 
 local function fresh_lark(storage_dir)
   package.loaded['chat.integrations.lark'] = nil
+  -- The tenant token now lives in a shared cache (chat.lark.auth), which
+  -- survives module reloads. Drop it so each fresh instance starts cold,
+  -- matching the old module-local cache and keeping specs independent.
+  require('chat.lark.auth').reset()
   -- configure before loading so STATE_FILE points at temp storage
   config.setup({
     storage_dir = storage_dir,

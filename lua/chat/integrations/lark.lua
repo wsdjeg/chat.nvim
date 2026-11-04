@@ -4,6 +4,7 @@ local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
 local curl = require('chat.curl')
+local auth = require('chat.lark.auth')
 local chunker = require('chat.utils.chunker')
 
 local json = vim.json
@@ -20,8 +21,6 @@ local API_BASE = 'https://open.feishu.cn/open-apis'
 --------------------------------------------------
 local state = {
   timer = nil,
-  tenant_access_token = nil,
-  token_expires_at = 0,
   last_message_id = nil,
   last_message_time = nil,
   callback = nil,
@@ -110,62 +109,10 @@ local function load_state()
 end
 
 --------------------------------------------------
--- Get tenant access token
---------------------------------------------------
-local function get_tenant_access_token(callback)
-  local app_id = config.config.integrations
-    and config.config.integrations.lark
-    and config.config.integrations.lark.app_id
-  local app_secret = config.config.integrations
-    and config.config.integrations.lark
-    and config.config.integrations.lark.app_secret
-
-  if not app_id or not app_secret then
-    log.error('[Lark] app_id or app_secret not configured')
-    return
-  end
-
-  local body = json.encode({
-    app_id = app_id,
-    app_secret = app_secret,
-  })
-  local cmd = curl.build_request({
-    url = API_BASE .. '/auth/v3/tenant_access_token/internal',
-    method = 'POST',
-    headers = {
-      'Content-Type: application/json',
-    },
-    body = body,
-  })
-  local jobid = job.start(cmd, {
-    on_stdout = function(_, lines)
-      local output = table.concat(lines, '\n')
-      if output and output ~= '' then
-        local ok, result = pcall(json.decode, output)
-        if ok and result and result.tenant_access_token then
-          state.tenant_access_token = result.tenant_access_token
-          state.token_expires_at = os.time() + (result.expire or 7200) - 300
-          log.debug('[Lark] Token obtained')
-          if callback then
-            callback(result.tenant_access_token)
-          end
-        else
-          log.error('[Lark] Failed to get token: ' .. output)
-        end
-      end
-    end,
-  })
-end
-
---------------------------------------------------
--- Ensure valid token
+-- Token: delegated to chat.lark.auth (shared with the bitable tool)
 --------------------------------------------------
 local function ensure_token(callback)
-  if state.tenant_access_token and os.time() < state.token_expires_at then
-    callback(state.tenant_access_token)
-  else
-    get_tenant_access_token(callback)
-  end
+  auth.ensure_token(callback)
 end
 
 --------------------------------------------------

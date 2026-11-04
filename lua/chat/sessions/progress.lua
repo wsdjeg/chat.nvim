@@ -400,15 +400,24 @@ function M.cancel_progress(session_id)
     local ok, mcp = pcall(require, 'chat.mcp')
     for _, id in ipairs(pending) do
       if id < 0 then
-        local cancelled = false
-        if ok and mcp then
-          cancelled = mcp.cancel_request(id)
-        end
-        -- The MCP request is already gone (e.g. its callback crashed after
-        -- completion but before ctx.callback was invoked): release the
-        -- leaked pending entry directly.
-        if not cancelled then
+        -- Synthetic handle owned by a built-in tool that is waiting for a
+        -- prerequisite (e.g. bitable fetching a tenant token). Let the tool
+        -- abort first: firing the request anyway would write to the user's
+        -- table after they cancelled. No callback follows, so release the
+        -- pending entry right away.
+        if async.cancel_handle(id) then
           force_finish_dead_tool(session_id, id)
+        else
+          local cancelled = false
+          if ok and mcp then
+            cancelled = mcp.cancel_request(id)
+          end
+          -- The MCP request is already gone (e.g. its callback crashed after
+          -- completion but before ctx.callback was invoked): release the
+          -- leaked pending entry directly.
+          if not cancelled then
+            force_finish_dead_tool(session_id, id)
+          end
         end
       elseif is_job_alive(id) then
         job.stop(id, 2)

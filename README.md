@@ -2,7 +2,7 @@
 
 `chat.nvim` is a lightweight, extensible chat plugin for Neovim with AI integration.
 Chat with AI assistants directly in your editor through a clean floating window:
-23 AI providers, a three-tier memory system, 46 built-in tools, the Model Context
+23 AI providers, a three-tier memory system, 47 built-in tools, the Model Context
 Protocol, IM integrations, and an HTTP API for external access.
 
 Full documentation: **<https://nvim.chat>**
@@ -38,7 +38,7 @@ Full documentation: **<https://nvim.chat>**
 
 - **🤖 23 AI Providers** - DeepSeek, OpenAI, Anthropic, GitHub Models, Gemini, Ollama, Baidu, Xiaomi, Alibaba Cloud, Moonshot, Tencent, OpenRouter, SiliconFlow, and more
 - **🧠 Three-Tier Memory** - Working, daily, and long-term memory with automatic extraction and priority-based retrieval
-- **🛠️ 46 Built-in Tools** - File operations, Git integration, web search and fetch, email, scheduling, user profiles
+- **🛠️ 47 Built-in Tools** - File operations, Git integration, web search and fetch, email, scheduling, user profiles
 - **🧩 Slash Commands** - Built-in skills (`/model`, `/provider`, `/cwd`, `/pin`, `/title`, `/retry`, `/help`, ...) plus your own via `register_skill()`
 - **🔍 Lazy Tool Discovery** - Only essential tools are sent with each request; the rest are activated on demand through a built-in catalog
 - **🔄 Parallel Sessions** - Multiple conversations with different models and working directories at the same time
@@ -240,7 +240,7 @@ priority-based ranking. See the [Memory Guide](https://nvim.chat/memory/) for de
 
 ## 🛠️ Tools
 
-46 built-in tools let AI assistants interact with your environment:
+47 built-in tools let AI assistants interact with your environment:
 
 - **File Operations** - Read, write, copy, move, create and delete files and directories
 - **Search** - Find files, grep text, list directories, inspect metadata

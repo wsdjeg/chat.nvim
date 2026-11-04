@@ -15,6 +15,39 @@ M.cancelled_sessions = {} ---@type table<string, boolean>
 -- pending_tool_contexts[session_id][jobid] = ChatAsyncToolContext
 local pending_tool_contexts = {} ---@type table<string, table<integer, ChatAsyncToolContext>>
 
+-- Cancel handlers for async tools that do not own a job (yet).
+-- A tool that reports a synthetic negative handle while it waits for a
+-- prerequisite (e.g. bitable fetching a token before firing the real
+-- request) registers a handler here. cancel_progress invokes it so the
+-- tool can abort instead of firing the request after the user cancelled.
+-- cancel_handlers[handle_id] = function
+local cancel_handlers = {} ---@type table<integer, function>
+
+--- Registers a cancel handler for a synthetic async handle.
+--- @param handle_id integer Negative handle reported to the session
+--- @param fn function Called on cancel, returns true when it aborted
+function M.register_cancel_handler(handle_id, fn)
+  cancel_handlers[handle_id] = fn
+end
+
+--- Drops a cancel handler without invoking it.
+--- @param handle_id integer
+function M.unregister_cancel_handler(handle_id)
+  cancel_handlers[handle_id] = nil
+end
+
+--- Invokes the cancel handler registered for a synthetic handle.
+--- @param handle_id integer
+--- @return boolean handled True when a handler existed and aborted the work
+function M.cancel_handle(handle_id)
+  local fn = cancel_handlers[handle_id]
+  if not fn then
+    return false
+  end
+  cancel_handlers[handle_id] = nil
+  return fn() ~= false
+end
+
 --- Registers an async tool call as pending for a session
 --- Tracks tool calls that are running asynchronously (background jobs or MCP tools)
 --- @param session_id string The session identifier
