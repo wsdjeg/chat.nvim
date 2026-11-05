@@ -1,9 +1,9 @@
 -- lua/chat/tools/bitable.lua
--- Feishu/Lark Bitable (多维表格) records API.
+-- Feishu/Lark Bitable (多维表格) records and fields API.
 --
--- One tool with an `action` enum instead of eight tools: the Bitable API is
--- shaped uniformly (apps/{app_token}/tables/{table_id}/records/...), so a
--- single schema keeps the tool list small and lets the model pick the
+-- One tool with an `action` enum instead of eleven tools: the Bitable API is
+-- shaped uniformly (apps/{app_token}/tables/{table_id}/records|fields/...), so
+-- a single schema keeps the tool list small and lets the model pick the
 -- action from context. `enum` on `action` is used instead of oneOf, because
 -- many models handle oneOf poorly (see get_weather.lua for the same note).
 --
@@ -32,9 +32,14 @@ local next_handle = HANDLE_BASE
 local pending_handles = {}
 
 --- action -> { method, path template, needs body }
+--- The third `%s` is filled from `field_id` or `record_id`, whichever the
+--- action uses; templates with two placeholders ignore the extra argument.
 local ROUTES = {
   list_tables = { 'GET', '/%s/tables' },
   list_fields = { 'GET', '/%s/tables/%s/fields' },
+  create_field = { 'POST', '/%s/tables/%s/fields' },
+  update_field = { 'PUT', '/%s/tables/%s/fields/%s' },
+  delete_field = { 'DELETE', '/%s/tables/%s/fields/%s' },
   search = { 'POST', '/%s/tables/%s/records/search' },
   get = { 'GET', '/%s/tables/%s/records/%s' },
   create = { 'POST', '/%s/tables/%s/records' },
@@ -48,6 +53,9 @@ local ROUTES = {
 local REQUIRED = {
   list_tables = { 'app_token' },
   list_fields = { 'app_token', 'table_id' },
+  create_field = { 'app_token', 'table_id' },
+  update_field = { 'app_token', 'table_id', 'field_id' },
+  delete_field = { 'app_token', 'table_id', 'field_id' },
   search = { 'app_token', 'table_id' },
   get = { 'app_token', 'table_id', 'record_id' },
   create = { 'app_token', 'table_id' },
@@ -63,6 +71,12 @@ local WRITE_ACTIONS = {
   update = 'fields',
   batch_create = 'records',
   batch_update = 'records',
+}
+
+--- Actions whose body is a single field definition object.
+local FIELD_ACTIONS = {
+  create_field = true,
+  update_field = true,
 }
 
 --- Build the request body for an action; nil when the action has none.
@@ -82,6 +96,29 @@ local function build_body(action, name)
       return nil, 'body must be an object for the search action.'
     end
     return body
+  end
+
+  if FIELD_ACTIONS[name] then
+    -- The field endpoints take the definition at the top level
+    -- ({ field_name, type, property }), not wrapped in a `fields` key.
+    local field = action.field
+    if field == nil or field == vim.NIL then
+      return nil, 'field is required for the ' .. name .. ' action.'
+    end
+    if type(field) ~= 'table' or next(field) == nil then
+      return nil, 'field must be a non-empty object '
+        .. '({ field_name = "...", type = <int>, property = {...} }).'
+    end
+    if name == 'create_field' then
+      if type(field.field_name) ~= 'string' or field.field_name == '' then
+        return nil, 'field.field_name is required for the create_field action.'
+      end
+      if type(field.type) ~= 'number' then
+        return nil, 'field.type is required for the create_field action '
+          .. '(integer field type, see list_fields output).'
+      end
+    end
+    return field
   end
 
   local key = WRITE_ACTIONS[name]
@@ -120,7 +157,7 @@ local function build_url(action, name)
     route[2],
     action.app_token,
     action.table_id or '',
-    action.record_id or ''
+    action.field_id or action.record_id or ''
   )
 
   local query = {}
@@ -255,6 +292,8 @@ end
 ---@field app_token string Bitable app token (bascn...)
 ---@field table_id? string Table id (tbl...)
 ---@field record_id? string Record id (rec...)
+---@field field_id? string Field id (fld...)
+---@field field? table Field definition { field_name, type, property }
 ---@field fields? table Record fields, keyed by field name or field id
 ---@field records? table[] Array of { fields = {...} } for batch actions
 ---@field body? table Raw search request body
@@ -372,13 +411,16 @@ function M.scheme()
     ['function'] = {
       name = 'bitable',
       description = [[
-Read and write Feishu/Lark Bitable (多维表格) records.
+Read and write Feishu/Lark Bitable (多维表格) records and fields.
 
-ENDPOINT SHAPE: apps/{app_token}/tables/{table_id}/records
+ENDPOINT SHAPE: apps/{app_token}/tables/{table_id}/records|fields
 
 ACTIONS:
 - list_tables: list the tables of a Bitable (needs app_token)
 - list_fields: list the fields of a table (needs app_token, table_id)
+- create_field: add a field, i.e. a column/header (needs app_token, table_id, field)
+- update_field: rename or retype a field (needs app_token, table_id, field_id, field)
+- delete_field: remove a field and all its data (needs app_token, table_id, field_id)
 - search: query records (needs app_token, table_id; optional body)
 - get: read one record (needs app_token, table_id, record_id)
 - create: add one record (needs app_token, table_id, fields)
@@ -392,6 +434,19 @@ WHERE TO FIND IDS:
   (https://xxx.feishu.cn/base/bascnXXXX). NOT table_id, NOT a wiki node_token.
 - table_id: the `tbl...` segment, from list_tables or the table URL.
 - record_id: the `rec...` id, from search or get.
+- field_id: the `fld...` id, from list_fields (field_name works only for
+  record values, not for update_field/delete_field).
+
+FIELD DEFINITION (`field`, used by create_field/update_field):
+  {"field_name":"状态","type":3,"property":{"options":[{"name":"Todo"}]}}
+- type is the integer field type; take it from list_fields of a similar table
+  (1=text, 2=number, 3=single select, 4=multi select, 5=datetime, 7=checkbox,
+  11=person, 15=url, 17=attachment, 18=link to another table, 1001=created
+  time, ...). Creating a link field also needs property.table_id.
+- Feishu requires BOTH field_name and type when updating a field: to rename
+  only, first call list_fields and echo the existing type back.
+- Changing the type of a populated field can fail or discard values; the API
+  refuses some conversions outright.
 
 FIELD VALUES (strictly typed — a wrong type silently drops the record):
 - text: "abc" or [{"type":"text","text":"abc"}]
@@ -422,6 +477,9 @@ TROUBLESHOOTING:
             enum = {
               'list_tables',
               'list_fields',
+              'create_field',
+              'update_field',
+              'delete_field',
               'search',
               'get',
               'create',
@@ -443,6 +501,14 @@ TROUBLESHOOTING:
           record_id = {
             type = 'string',
             description = 'Record id ("rec..."), required for get/update/delete',
+          },
+          field_id = {
+            type = 'string',
+            description = 'Field id ("fld..."), required for update_field/delete_field; get it from list_fields',
+          },
+          field = {
+            type = 'object',
+            description = 'Field definition { field_name, type, property } (required for create_field/update_field)',
           },
           fields = {
             type = 'object',
@@ -492,6 +558,9 @@ function M.info(action, _)
   end
   if arguments.record_id then
     parts[#parts + 1] = 'record=' .. arguments.record_id
+  end
+  if arguments.field_id then
+    parts[#parts + 1] = 'field=' .. arguments.field_id
   end
   return table.concat(parts, ' ')
 end

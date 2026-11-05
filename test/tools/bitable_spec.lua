@@ -1,7 +1,7 @@
 -- test/tools/bitable_spec.lua
 -- Covers lua/chat/tools/bitable.lua: argument validation, URL/body building,
--- response mapping, and the two async paths (cached token -> real jobid,
--- cold token -> synthetic handle + cancel).
+-- response mapping, field endpoints, and the two async paths (cached token ->
+-- real jobid, cold token -> synthetic handle + cancel).
 local lu = require('luaunit')
 local tools = require('chat.tools')
 local config = require('chat.config')
@@ -116,6 +116,51 @@ function TestBitable:testBatchCreateRequiresRecords()
   lu.assertStrContains(res.error, 'records must be a non-empty array')
 end
 
+function TestBitable:testCreateFieldRequiresField()
+  local res = call({ action = 'create_field', app_token = 'b', table_id = 'tbl1' })
+  lu.assertNotNil(res.error)
+  lu.assertStrContains(res.error, 'field is required for the create_field action')
+end
+
+function TestBitable:testCreateFieldRequiresFieldName()
+  local res = call({
+    action = 'create_field',
+    app_token = 'b',
+    table_id = 'tbl1',
+    field = { type = 1 },
+  })
+  lu.assertNotNil(res.error)
+  lu.assertStrContains(res.error, 'field.field_name is required')
+end
+
+function TestBitable:testCreateFieldRequiresFieldType()
+  local res = call({
+    action = 'create_field',
+    app_token = 'b',
+    table_id = 'tbl1',
+    field = { field_name = 'Status' },
+  })
+  lu.assertNotNil(res.error)
+  lu.assertStrContains(res.error, 'field.type is required')
+end
+
+function TestBitable:testUpdateFieldRequiresFieldId()
+  local res = call({
+    action = 'update_field',
+    app_token = 'b',
+    table_id = 'tbl1',
+    field = { field_name = 'Status', type = 1 },
+  })
+  lu.assertNotNil(res.error)
+  lu.assertStrContains(res.error, 'field_id is required for the update_field action')
+end
+
+function TestBitable:testDeleteFieldRequiresFieldId()
+  local res = call({ action = 'delete_field', app_token = 'b', table_id = 'tbl1' })
+  lu.assertNotNil(res.error)
+  lu.assertStrContains(res.error, 'field_id is required for the delete_field action')
+end
+
 function TestBitable:testCurlUnavailable()
   -- validation runs first: a bad argument still reports the argument error
   curl.is_available = function()
@@ -204,6 +249,67 @@ function TestBitable:testSearchPassesRawBody()
   local j = first_job('/records/search')
   local body = vim.json.decode(j.stdin[1])
   lu.assertEquals(body.field_names, { 'Name' })
+end
+
+-- ─── field endpoints ────────────────────────────────────
+
+function TestBitable:testCreateFieldUrlAndBody()
+  auth._set_token('t-cached')
+  call({
+    action = 'create_field',
+    app_token = 'bascnABC',
+    table_id = 'tbl1',
+    field = {
+      field_name = 'Status',
+      type = 3,
+      property = { options = { { name = 'Todo' } } },
+    },
+  })
+
+  local j = first_job('tables/tbl1/fields')
+  lu.assertNotNil(j, 'field URL composed')
+  lu.assertStrContains(table.concat(j.cmd, ' '), 'POST')
+  lu.assertNotNil(j.stdin[1], 'field definition piped to stdin')
+
+  -- the definition goes at the top level, NOT wrapped in a `fields` key
+  local body = vim.json.decode(j.stdin[1])
+  lu.assertEquals(body.field_name, 'Status')
+  lu.assertEquals(body.type, 3)
+  lu.assertEquals(body.property.options[1].name, 'Todo')
+  lu.assertNil(body.fields)
+end
+
+function TestBitable:testUpdateFieldUrlAndBody()
+  auth._set_token('t-cached')
+  call({
+    action = 'update_field',
+    app_token = 'bascnABC',
+    table_id = 'tbl1',
+    field_id = 'fld1',
+    field = { field_name = 'Renamed', type = 1 },
+  })
+
+  local j = first_job('tables/tbl1/fields/fld1')
+  lu.assertNotNil(j, 'field id in URL')
+  lu.assertStrContains(table.concat(j.cmd, ' '), 'PUT')
+  local body = vim.json.decode(j.stdin[1])
+  lu.assertEquals(body.field_name, 'Renamed')
+  lu.assertEquals(body.type, 1)
+end
+
+function TestBitable:testDeleteFieldUrlNoBody()
+  auth._set_token('t-cached')
+  call({
+    action = 'delete_field',
+    app_token = 'bascnABC',
+    table_id = 'tbl1',
+    field_id = 'fld1',
+  })
+
+  local j = first_job('tables/tbl1/fields/fld1')
+  lu.assertNotNil(j, 'field id in URL')
+  lu.assertStrContains(table.concat(j.cmd, ' '), 'DELETE')
+  lu.assertNil(j.stdin[1], 'DELETE carries no body')
 end
 
 -- ─── response mapping ───────────────────────────────────
@@ -422,6 +528,33 @@ function TestBitable:testCancelWhileWaitingForToken()
   lu.assertNil(received, 'no callback after cancellation')
 end
 
+function TestBitable:testCancelWhileWaitingForTokenField()
+  local received
+  local res = tools.call('bitable', {
+    action = 'create_field',
+    app_token = 'bascnABC',
+    table_id = 'tbl1',
+    field = { field_name = 'must not be created', type = 1 },
+  }, {
+    cwd = self.cwd,
+    callback = function(r)
+      received = r
+    end,
+  })
+
+  lu.assertTrue(async.cancel_handle(res.mcp_tool_call_id), 'cancel handler invoked')
+
+  local token_job, token_id = first_job('tenant_access_token')
+  lu.assertNotNil(token_job)
+  job.emit_stdout(token_id, { TOKEN_JSON })
+
+  lu.assertNil(
+    first_job('bitable/v1/apps/bascnABC/tables/tbl1/fields'),
+    'cancelled call must not create a field'
+  )
+  lu.assertNil(received, 'no callback after cancellation')
+end
+
 -- ─── scheme / info ──────────────────────────────────────
 
 function TestBitable:testScheme()
@@ -430,8 +563,19 @@ function TestBitable:testScheme()
   lu.assertEquals('bitable', scheme['function'].name)
   local props = scheme['function'].parameters.properties
   lu.assertEquals('string', props.action.type)
-  lu.assertTrue(#props.action.enum >= 9)
+  lu.assertTrue(#props.action.enum >= 12)
   lu.assertEquals({ 'app_token' }, scheme['function'].parameters.required)
+
+  -- field endpoints are exposed to the model
+  lu.assertNotNil(props.field_id)
+  lu.assertNotNil(props.field)
+  local seen = {}
+  for _, name in ipairs(props.action.enum) do
+    seen[name] = true
+  end
+  lu.assertTrue(seen.create_field, 'create_field in action enum')
+  lu.assertTrue(seen.update_field, 'update_field in action enum')
+  lu.assertTrue(seen.delete_field, 'delete_field in action enum')
 end
 
 function TestBitable:testInfo()
@@ -445,6 +589,17 @@ function TestBitable:testInfo()
   lu.assertStrContains(info, 'app=bascn1')
   lu.assertStrContains(info, 'table=tbl1')
   lu.assertStrContains(info, 'record=rec1')
+end
+
+function TestBitable:testInfoField()
+  local info = bitable.info(vim.json.encode({
+    action = 'delete_field',
+    app_token = 'bascn1',
+    table_id = 'tbl1',
+    field_id = 'fld1',
+  }))
+  lu.assertStrContains(info, 'bitable delete_field')
+  lu.assertStrContains(info, 'field=fld1')
 end
 
 function TestBitable:testInfoFallback()

@@ -7,7 +7,7 @@ nav_order: 50
 
 # bitable
 
-Read and write Feishu/Lark Bitable (多维表格) records.
+Read and write Feishu/Lark Bitable (多维表格) records **and fields**.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ require('chat').setup({
 ## Usage
 
 ```
-@bitable action="<action>" app_token="<bascn...>" [table_id="<tbl...>"] [record_id="<rec...>"]
+@bitable action="<action>" app_token="<bascn...>" [table_id="<tbl...>"] [record_id="<rec...>"] [field_id="<fld...>"]
 ```
 
 ## Actions
@@ -44,6 +44,9 @@ require('chat').setup({
 | -------------- | ------ | ----------------------------------------- | ------------------------------ |
 | `list_tables`  | GET    | `app_token`                               | List the tables of a Bitable   |
 | `list_fields`  | GET    | `app_token`, `table_id`                   | List the fields of a table     |
+| `create_field` | POST   | `app_token`, `table_id`, `field`          | Add a field (column)           |
+| `update_field` | PUT    | `app_token`, `table_id`, `field_id`, `field` | Rename or retype a field    |
+| `delete_field` | DELETE | `app_token`, `table_id`, `field_id`       | Remove a field and its data    |
 | `search`       | POST   | `app_token`, `table_id`                   | Query records (see `body`)     |
 | `get`          | GET    | `app_token`, `table_id`, `record_id`      | Read a single record           |
 | `create`       | POST   | `app_token`, `table_id`, `fields`         | Add one record                 |
@@ -62,6 +65,8 @@ require('chat').setup({
 | `app_token`  | string  | Bitable app token, the `bascn...` segment of the base URL (required) |
 | `table_id`   | string  | Table id (`tbl...`), required for every action except `list_tables` |
 | `record_id`  | string  | Record id (`rec...`), required for `get` / `update` / `delete`     |
+| `field_id`   | string  | Field id (`fld...`), required for `update_field` / `delete_field`  |
+| `field`      | object  | Field definition `{ field_name, type, property }` (`create_field` / `update_field`) |
 | `fields`     | object  | Record fields keyed by field name or field id (`create` / `update`) |
 | `records`    | array   | Array of `{ fields = {...} }` objects (`batch_*`)                  |
 | `body`       | object  | Raw search body: `filter` / `sort` / `field_names`                 |
@@ -75,6 +80,40 @@ require('chat').setup({
   a wiki `node_token` — for a Bitable inside a wiki, resolve the node first.
 - **`table_id`**: the `tbl...` segment, from `list_tables` or the table URL.
 - **`record_id`**: the `rec...` id, from `search` or `get`.
+- **`field_id`**: the `fld...` id, from `list_fields`. Field *names* work for
+  record values, but `update_field` / `delete_field` need the id.
+
+## Field definitions
+
+`create_field` / `update_field` take the definition at the top level — it is
+**not** wrapped in a `fields` key:
+
+```json
+{"field_name":"状态","type":3,"property":{"options":[{"name":"Todo"}]}}
+```
+
+| `type` | Field type          | `property` notes                        |
+| ------ | ------------------- | --------------------------------------- |
+| 1      | Text                | —                                       |
+| 2      | Number              | `formatter`                             |
+| 3      | Single select       | `options = [{ name = "..." }]`          |
+| 4      | Multi select        | `options = [{ name = "..." }]`          |
+| 5      | Date / datetime     | `date_formatter`, `auto_fill`           |
+| 7      | Checkbox            | —                                       |
+| 11     | Person              | `multiple`                              |
+| 15     | URL                 | —                                       |
+| 17     | Attachment          | —                                       |
+| 18     | Link to table       | `table_id` of the target table          |
+| 1001   | Created time        | read-only                               |
+
+Notes:
+
+- `create_field` requires both `field_name` and `type`.
+- Feishu requires **both** `field_name` and `type` on update as well. To rename
+  only, call `list_fields` first and echo the existing `type` back.
+- Changing the type of a populated field can fail outright or discard values —
+  the API refuses some conversions.
+- `delete_field` removes the column **and all data in it**, and cannot be undone.
 
 ## Field values
 
@@ -101,6 +140,15 @@ returns both.
 
 # inspect field definitions before writing
 @bitable action="list_fields" app_token="bascnABC123" table_id="tbl1"
+
+# add a single-select field
+@bitable action="create_field" app_token="bascnABC123" table_id="tbl1" field={"field_name":"状态","type":3,"property":{"options":[{"name":"Todo"},{"name":"Done"}]}}
+
+# rename a field (echo the existing type back — Feishu requires both)
+@bitable action="update_field" app_token="bascnABC123" table_id="tbl1" field_id="fld1" field={"field_name":"Status","type":3}
+
+# remove a field and all its data
+@bitable action="delete_field" app_token="bascnABC123" table_id="tbl1" field_id="fld1"
 
 # list records (no filter)
 @bitable action="search" app_token="bascnABC123" table_id="tbl1"
@@ -131,8 +179,8 @@ returns both.
 
 {: .info }
 > - Requires `curl` to be installed and available in PATH
-> - Record bodies are piped over stdin, so values never appear in the process
->   command line
+> - Record and field bodies are piped over stdin, so values never appear in the
+>   process command line
 > - Cancelling while the tenant token is still being fetched aborts the call
 >   without firing the request — a cancelled write never touches your table
 > - The tenant token is cached and shared with the Lark IM integration; a
