@@ -55,6 +55,33 @@ function TestCurl:test_build_request_not_silent()
   lu.assertFalse(vim.tbl_contains(cmd, '-s'))
 end
 
+function TestCurl:test_build_request_show_error()
+  -- `-S` keeps curl's error text on stderr; without it `-s` swallows the
+  -- diagnostics and callers only ever see an empty stderr.
+  local cmd = curl.build_request({
+    url = 'https://example.com',
+    show_error = true,
+  })
+  lu.assertTrue(vim.tbl_contains(cmd, '-s'))
+  lu.assertTrue(vim.tbl_contains(cmd, '-S'))
+end
+
+function TestCurl:test_build_request_show_error_needs_silent()
+  -- -S only has meaning alongside -s, so it must not appear when silent is off.
+  local cmd = curl.build_request({
+    url = 'https://example.com',
+    silent = false,
+    show_error = true,
+  })
+  lu.assertFalse(vim.tbl_contains(cmd, '-s'))
+  lu.assertFalse(vim.tbl_contains(cmd, '-S'))
+end
+
+function TestCurl:test_build_request_default_has_no_show_error()
+  local cmd = curl.build_request({ url = 'https://example.com' })
+  lu.assertFalse(vim.tbl_contains(cmd, '-S'))
+end
+
 function TestCurl:test_build_request_all_flags()
   local cmd = curl.build_request({
     url = 'https://example.com/api',

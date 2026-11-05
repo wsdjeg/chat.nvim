@@ -58,6 +58,7 @@ end
 ---   stdin_body       boolean  if true, read body from stdin (-d @-), caller sends via job.send()
 ---   body_binary      boolean  use --data-binary instead of -d
 ---   silent           boolean  default true, add -s
+---   show_error       boolean  add -S (keep error messages on stderr under -s)
 ---   no_buffer        boolean  add -N (disable output buffering for streaming)
 ---   tcp_nodelay      boolean  add --tcp-nodelay
 ---   connect_timeout  integer  add --connect-timeout N
@@ -81,6 +82,11 @@ function M.build_request(opts)
 
   if opts.silent ~= false then
     table.insert(cmd, '-s')
+    -- -s also suppresses error messages, which turns transport failures into
+    -- empty stderr. -S keeps them, so callers can report a real cause.
+    if opts.show_error then
+      table.insert(cmd, '-S')
+    end
   end
 
   if opts.no_buffer then
