@@ -77,11 +77,20 @@ require('chat').setup({
 
 - **`app_token`**: the `bascn...` segment of the base URL
   (`https://xxx.feishu.cn/base/bascnXXXX`). It is **not** `table_id` and **not**
-  a wiki `node_token` — for a Bitable inside a wiki, resolve the node first.
+  a wiki `node_token`. If the Bitable lives inside a wiki, the URL looks like
+  `/wiki/wikcnXXXX` and that `wikcn...` value does **not** work here — open the
+  Bitable and use *More → Copy link* to get the `bascn...` link instead.
 - **`table_id`**: the `tbl...` segment, from `list_tables` or the table URL.
 - **`record_id`**: the `rec...` id, from `search` or `get`.
 - **`field_id`**: the `fld...` id, from `list_fields`. Field *names* work for
   record values, but `update_field` / `delete_field` need the id.
+
+## Discovery
+
+This tool **cannot enumerate Bitables**. The Bitable API has no list-apps
+endpoint, and the drive / wiki traversal actions (`list_files`, `list_spaces`)
+are not implemented yet. `app_token` always has to come from you (or from the
+base URL) — the tool never guesses one.
 
 ## Field definitions
 

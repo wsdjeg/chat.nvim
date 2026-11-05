@@ -13,6 +13,9 @@
 --     containing knowledge space), otherwise the API answers 91403/1254302
 --   * `app_token` is the `bascn...` segment of the base URL, not `table_id`
 --     (`tbl...`) and not a wiki `node_token`
+--   * there is no discovery action: the Bitable API has no list-apps endpoint,
+--     and the drive / wiki traversal actions (`list_files`, `list_spaces`)
+--     are not implemented. `app_token` has to come from the caller.
 local M = {}
 
 local curl = require('chat.curl')
@@ -429,9 +432,17 @@ ACTIONS:
 - batch_create: add many records (needs app_token, table_id, records)
 - batch_update: modify many records (needs app_token, table_id, records)
 
+DISCOVERY: this tool cannot enumerate Bitables. There is no list-apps endpoint
+in the Bitable API, and the drive/wiki traversal actions (list_files,
+list_spaces) are NOT implemented. app_token must be supplied by the caller —
+never invent one. If the caller has not given a `bascn...` token, ask for the
+base URL instead of guessing.
+
 WHERE TO FIND IDS:
 - app_token: the `bascn...` segment of the base URL
   (https://xxx.feishu.cn/base/bascnXXXX). NOT table_id, NOT a wiki node_token.
+  A wiki URL (`/wiki/wikcnXXXX`) carries a node_token, which does not work
+  here: ask the user for the `bascn...` link (More -> Copy link) instead.
 - table_id: the `tbl...` segment, from list_tables or the table URL.
 - record_id: the `rec...` id, from search or get.
 - field_id: the `fld...` id, from list_fields (field_name works only for
