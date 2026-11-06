@@ -49,6 +49,27 @@ test/integration_spec.lua              -- 多平台绑定关系
 test/lark_integration_spec.lua         -- lark 自身(含 state roundtrip)
 ```
 
+### 1.3 Neovim 侧命令现状
+
+`:Chat bridge` 是平台级命令(见 4.5):
+
+```lua
+-- plugin/chat.lua(现状)
+elseif #opt.fargs > 0 and opt.fargs[1] == 'bridge' then
+  require('chat.integrations').set_session(
+    opt.fargs[2],                              -- 只取平台名
+    require('chat.windows').current_session()  -- 绑定当前窗口 session
+  )
+  require('chat.windows').redraw_title()
+```
+
+- 命令参数只有平台名维度,**没有 chat_id 维度**
+- `:Chat bridge lark` 的语义就是"lark 平台 → 当前 session"
+- chat_id 是 `oc_xxx` 的 30+ 位长串,命令行手输不现实,也不该往这个方向扩展
+
+> 现状小瑕疵(不在本方案范围): bridge 的补全函数会持续返回平台名列表,但处理函数只取
+> `fargs[2]` — `:Chat bridge lark discord` 实际只绑 lark;而 `unbridge` 支持多平台列表。
+
 ---
 
 ## 2. 总体设计
@@ -202,7 +223,7 @@ if not matched and integration.get_bound_sessions then
 end
 ```
 
-**d. `/session` 命令 — 新方法存在才走新路径:**
+**d. 群内 `/session` 命令 — 新方法存在才走新路径:**
 
 ```lua
 -- handle_session_command 里
@@ -213,7 +234,33 @@ else
 end
 ```
 
-### 4.5 回复定向
+### 4.5 绑定入口设计
+
+`:Chat bridge` 命令是平台级的(fargs 只取平台名,绑定当前 session),命令行接口
+**表达不了"绑哪个 chat"**。因此 per-chat 绑定不通过命令行参数扩展,而是用三条入口各司其职:
+
+| 入口 | 谁在用 | 绑哪个 chat | 实现 |
+|------|--------|-------------|------|
+| `:Chat bridge lark` | Neovim 用户 | 主 chat_id(config 的 chat_id) | **语义不变**: `set_session()` 内部同步主 binding |
+| 群内 `/session` | 群成员(过 ACL) | 消息来源 chat_id(天然携带) | `set_binding(message.chat_id, sid)` |
+| Neovim picker | Neovim 用户 | 任意已缓存 chat | 列出 bindings + 缓存的最近聊天,选中绑到当前 session |
+
+**平台级 `set_session` 被定义为主绑定操作**(lark.lua 内部):
+
+```lua
+function M.set_session(session)
+  state.session = session                 -- current_session() 兼容,unbridge/HTTP/标题全不变
+  if session then
+    set_binding(main_chat_id(), session)  -- 主 binding 同步更新: config.chat_id → session
+  end
+  save_state()
+end
+```
+
+旧调用方(`:Chat bridge` 命令、HTTP API、现有 picker)全部无感知,行为与现在一致 —
+区别只是 lark 内部多维护了一张 bindings 表。
+
+### 4.6 回复定向
 
 群里体验更好(回复挂在触发消息下):
 
@@ -221,7 +268,7 @@ end
 POST /im/v1/messages/{message_id}/reply
 ```
 
-### 4.6 影响面
+### 4.7 影响面
 
 `lark.lua` + `init.lua` 约 15 行 nil 守卫,旧集成 **0 行改动**,全部向后兼容。
 
@@ -308,7 +355,9 @@ POST /im/v1/messages/{message_id}/reply
 - [ ] Phase 1: ACL picker(allow / deny / bind session)
 - [ ] Phase 2: bindings 数据结构 + state 持久化 + roundtrip 测试
 - [ ] Phase 2: `get_binding` / `set_binding` / `get_bound_sessions` 可选方法
-- [ ] Phase 2: 共享层 4 处 nil 守卫(handle_message / on_response / send_message / /session)
+- [ ] Phase 2: 共享层 4 处 nil 守卫(handle_message / on_response / send_message / 群内 /session)
+- [ ] Phase 2: `:Chat bridge lark` 主绑定语义保持(平台级 set_session 同步主 binding,旧调用方零感知)
+- [ ] Phase 2: 绑定管理 picker(列出 bindings + 最近聊天 → 绑到当前 session)
 - [ ] Phase 2: reply 定向回复接口
 - [ ] Phase 3: P2P 发现流程(picker → 私发 hello → 拿 chat_id → 持久化)
 - [ ] Phase 3: p2p 免 @ 判定(查 binding 表 chat_type)
