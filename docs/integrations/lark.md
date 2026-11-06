@@ -98,6 +98,9 @@ require('chat').setup({
 - **Authentication**: Tenant Access Token (auto-refresh)
 - **Polling**: 3-second intervals
 - **Message Limit**: 30,720 characters
+- **Message Format**: Replies are sent as an interactive card (schema 2.0) with a
+  `markdown` element, so markdown in AI replies renders in Lark clients instead of
+  showing raw markup
 - **State Persistence**: `stdpath('data')/chat-lark-state.json`
 
 ---
