@@ -474,10 +474,22 @@ local function send_message(content)
   end
 
   ensure_token(function(token)
+    -- Use interactive card (schema 2.0) with markdown element,
+    -- so markdown in AI replies is rendered by Lark clients.
     local body = json.encode({
       receive_id = chat_id,
-      msg_type = 'text',
-      content = json.encode({ text = content }),
+      msg_type = 'interactive',
+      content = json.encode({
+        schema = '2.0',
+        body = {
+          elements = {
+            {
+              tag = 'markdown',
+              content = content,
+            },
+          },
+        },
+      }),
     })
     local cmd = curl.build_request({
       url = API_BASE .. '/im/v1/messages?receive_id_type=chat_id',
