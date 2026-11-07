@@ -69,7 +69,7 @@ MCP tools are automatically available when their servers are configured in the `
 
 ## Available Tools
 
-Here is a list of 47 built-in tools:
+Here is a list of 49 built-in tools:
 
 | Tool                                         | Description                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -120,6 +120,8 @@ Here is a list of 47 built-in tools:
 | [schedule_task](./schedule_task.md)          | Schedule tasks to be executed at a future time (with skip_if_busy)|
 | [send_email](./send_email.md)                | Send an email via the system `mail` command                        |
 | [bitable](./bitable.md)                      | Read and write Feishu/Lark Bitable (多维表格) records              |
+| [lark_sheets](./lark_sheets.md)              | Read and write Feishu/Lark Sheets (电子表格) cell values           |
+| [lark_docx](./lark_docx.md)                  | Read and write Feishu/Lark Docs (云文档) as markdown                |
 
 ---
 
