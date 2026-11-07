@@ -34,7 +34,7 @@ nav_order: 1
   </div>
   
   <div class="feature-card">
-    <h3>🛠️ 47 Built-in Tools</h3>
+    <h3>🛠️ 49 Built-in Tools</h3>
     <p>File operations, Git integration, web search, memory management, scheduling, user profiles, and extensible custom tools.</p>
   </div>
   

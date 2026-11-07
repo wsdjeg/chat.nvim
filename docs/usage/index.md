@@ -691,7 +691,7 @@ chat.nvim provides powerful features beyond basic chatting:
 
 - **Memory System**: Three-tier memory for context retention
 - **MCP Protocol**: Extended tool capabilities via external servers
-- **Tools**: 47 built-in tools for file operations, Git, web search, etc.
+- **Tools**: 49 built-in tools for file operations, Git, web search, etc.
 - **Skills**: Slash commands for quick actions without LLM round-trips
 
 ---
@@ -719,7 +719,7 @@ Learn more: [MCP](../mcp/)
 
 ### Built-in Tools
 
-47 built-in tools for various operations:
+49 built-in tools for various operations:
 
 - File: `read_file`, `write_file`, `find_files`, `search_text`
 - Git: `git_add`, `git_commit`, `git_diff`, `git_log`, etc.
