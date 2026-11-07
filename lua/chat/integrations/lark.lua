@@ -5,6 +5,7 @@ local log = require('chat.log')
 local job = require('job')
 local curl = require('chat.curl')
 local auth = require('chat.lark.auth')
+local identity = require('chat.lark.identity')
 local chunker = require('chat.utils.chunker')
 
 local json = vim.json
@@ -42,6 +43,12 @@ local state = {
     whitelist = {}, -- open_id -> true
     blacklist = {}, -- open_id -> true
   },
+  -- configured text -> open_id, resolved once per config change.
+  -- Successful and failed resolutions live in different fields: see
+  -- M.get_identities() / M.resolve_acl().
+  identities = {}, -- email / mobile / entry text -> open_id
+  identities_hash = nil, -- checksum of the entries it was resolved from
+  acl_resolving = false,
   -- open_id -> { last_seen = ms, name = string|nil }
   recent_senders = {},
 }
@@ -102,6 +109,11 @@ local function save_state()
       whitelist = sorted_keys(state.acl.whitelist),
       blacklist = sorted_keys(state.acl.blacklist),
     },
+    -- 'nova@example.com' -> 'ou_xxx', plus the checksum of the config entries
+    -- it was resolved from, so a config edit re-resolves and an unchanged
+    -- config costs zero requests.
+    identities = state.identities,
+    identities_hash = state.identities_hash,
     recent_senders = state.recent_senders,
   }
 
@@ -190,6 +202,21 @@ local function load_state()
     end
   end
 
+  -- Identity resolution cache: 'nova@example.com' -> 'ou_xxx' plus the
+  -- checksum of the entries it came from. Old state files have neither key,
+  -- so nil guards keep them loading unchanged.
+  state.identities = {}
+  if type(data.identities) == 'table' then
+    for text, open_id in pairs(data.identities) do
+      if type(text) == 'string' and type(open_id) == 'string' then
+        state.identities[text] = open_id
+      end
+    end
+  end
+  state.identities_hash = type(data.identities_hash) == 'string'
+    and data.identities_hash
+    or nil
+
   log.debug('[Lark] State loaded')
   return true
 end
@@ -205,6 +232,151 @@ end
 -- open_id (`ou_xxx`) can not be forged, unlike a display name, so it is the
 -- only identity used here. Runtime grants/denies issued from the chat are
 -- persisted in the state file; config lists are merged on top of them.
+--
+-- Config entries may be written as open_id, email or mobile number. Every
+-- comparison therefore has to happen in open_id space: entries are resolved
+-- once at connect time (see chat.lark.identity) and cached in
+-- state.identities.
+
+--- Checksum of every configured ACL entry, so a config edit invalidates the
+--- resolution cache without re-resolving on every poll.
+--- @return string
+local function acl_entries_hash()
+  local cfg = acl_config()
+  local entries = {}
+  vim.list_extend(entries, cfg.admins or {})
+  vim.list_extend(entries, cfg.whitelist or {})
+  vim.list_extend(entries, cfg.blacklist or {})
+  -- Sorted so the same set always yields the same checksum regardless of
+  -- the order lists were written in.
+  table.sort(entries)
+  return tostring(#entries) .. '|' .. table.concat(entries, '\n')
+end
+
+--- All configured ACL entries, de-duplicated.
+--- @return string[]
+local function acl_entries()
+  local cfg = acl_config()
+  local seen, out = {}, {}
+  -- `pairs`, not `ipairs`: a config without `admins` makes the list sparse
+  -- ({[2]=whitelist, [3]=blacklist}), and ipairs stops at the first nil —
+  -- which silently skipped every whitelist / blacklist entry.
+  local lists = { cfg.admins, cfg.whitelist, cfg.blacklist }
+  for _, list in pairs(lists) do
+    for _, entry in ipairs(list or {}) do
+      if type(entry) == 'string' and entry ~= '' and not seen[entry] then
+        seen[entry] = true
+        table.insert(out, entry)
+      end
+    end
+  end
+  return out
+end
+
+--- Normalize one configured entry into open_id space.
+---
+--- Returns the entry itself when it is already an open_id: that form is
+--- usable without any lookup, so it keeps working even if the contact API is
+--- unavailable. Email / mobile entries return their resolved open_id, or nil
+--- when they were never resolved.
+--- @param entry string
+--- @return string|nil
+local function to_open_id(entry)
+  if type(entry) ~= 'string' then
+    return nil
+  end
+  if entry:match('^ou_') then
+    return entry
+  end
+  return state.identities[entry]
+end
+
+--- Map of resolved ACL identities (`'nova@example.com' -> 'ou_xxx'`).
+--- @return table
+function M.get_identities()
+  local copy = {}
+  for text, open_id in pairs(state.identities) do
+    copy[text] = open_id
+  end
+  return copy
+end
+
+--- Resolve every configured ACL entry into open_id space.
+---
+--- Runs once per connect, and again only when the configured entries changed
+--- since the cache was written. open_id entries cost zero requests; email /
+--- mobile entries go through `contact/v3/users/batch_get_id` (see
+--- chat.lark.identity).
+---
+--- Failure policy follows ideas/lark-acl-bindings.md 3.2.7: an unresolved
+--- entry is simply absent from state.identities, so it never matches. That
+--- fails closed for `admins` / `whitelist` and fails open for `blacklist`.
+---
+--- @param callback? fun() Called once the cache is settled (may be immediate)
+function M.resolve_acl(callback)
+  callback = callback or function() end
+
+  local entries = acl_entries()
+  local hash = acl_entries_hash()
+
+  -- Unchanged config: the persisted cache is still valid, zero requests.
+  if hash == state.identities_hash then
+    log.debug('[Lark] ACL identities unchanged, reusing cache')
+    callback()
+    return
+  end
+
+  if state.acl_resolving then
+    -- connect() was called while a resolution was still in flight.
+    callback()
+    return
+  end
+
+  state.acl_resolving = true
+
+  identity.resolve(entries, function(result)
+    state.acl_resolving = false
+
+    state.identities = {}
+    for text, open_id in pairs(result) do
+      -- `failed` (table) and `error` (string) are metadata, not identities.
+      -- The explicit key check matters: `error` is a string too, so a plain
+      -- type test would store it as a bogus identity.
+      if text == 'failed' or text == 'error' then
+        goto continue
+      end
+      -- Anything that did not resolve is left out on purpose: no match, no
+      -- access.
+      if type(open_id) == 'string' then
+        state.identities[text] = open_id
+      end
+      ::continue::
+    end
+
+    local failed = result.failed or {}
+    if result.error then
+      log.error('[Lark] ACL identity resolution failed: ' .. result.error)
+    end
+    if #failed > 0 then
+      log.warn(
+        '[Lark] Unresolved ACL entries are ignored: '
+          .. table.concat(failed, ', ')
+      )
+    end
+
+    -- Stamp the checksum only when the lookups had a fair chance to run.
+    -- A total failure (no network / missing permission) must be retried on
+    -- the next connect instead of being cached forever.
+    if result.error then
+      state.identities_hash = nil
+    else
+      state.identities_hash = hash
+    end
+
+    save_state()
+    callback()
+  end)
+end
 
 --- Effective ACL mode from config.
 --- @return string 'allow_all' | 'whitelist' | 'blacklist'
@@ -255,9 +427,23 @@ function M.is_allowed(open_id)
   local cfg = acl_config()
 
   if mode == 'whitelist' then
-    return vim.tbl_contains(cfg.whitelist or {}, open_id)
+    -- Fail closed: an email / mobile that never resolved maps to nil and
+    -- simply never matches.
+    for _, entry in ipairs(cfg.whitelist or {}) do
+      if to_open_id(entry) == open_id then
+        return true
+      end
+    end
+    return false
   elseif mode == 'blacklist' then
-    return not vim.tbl_contains(cfg.blacklist or {}, open_id)
+    -- Fail open: an unresolvable entry can not be identified in this message,
+    -- so it does not block anyone (the failure is logged at connect time).
+    for _, entry in ipairs(cfg.blacklist or {}) do
+      if to_open_id(entry) == open_id then
+        return false
+      end
+    end
+    return true
   end
 
   -- allow_all: unchanged behaviour for existing setups.
@@ -265,13 +451,23 @@ function M.is_allowed(open_id)
 end
 
 --- Is this open_id one of the configured admins?
+---
+--- `admins` accepts open_id, email or mobile number, so the comparison always
+--- goes through open_id space. Unresolved entries fail closed: they never
+--- grant admin rights.
 --- @param open_id string|nil
 --- @return boolean
 function M.is_admin(open_id)
   if not open_id then
     return false
   end
-  return vim.tbl_contains(acl_config().admins or {}, open_id)
+
+  for _, configured in ipairs(acl_config().admins or {}) do
+    if to_open_id(configured) == open_id then
+      return true
+    end
+  end
+  return false
 end
 
 --- Grant access: add to the runtime whitelist, drop from the blacklist.
@@ -535,7 +731,13 @@ end
 -- Get bot info
 --------------------------------------------------
 local function get_bot_info()
-  ensure_token(function(token)
+  ensure_token(function(token, err)
+    -- auth.ensure_token passes (nil, err) when the token request fails;
+    -- concatenating nil would crash inside the scheduled callback.
+    if not token then
+      log.error('[Lark] Skip bot info: ' .. (err or 'no tenant_access_token'))
+      return
+    end
     local cmd = curl.build_request({
       url = API_BASE .. '/bot/v3/info',
       method = 'GET',
@@ -629,7 +831,13 @@ local function fetch_messages()
   state.is_fetching = true
   -- log.debug('[Lark] fetch_messages: starting request')
 
-  ensure_token(function(token)
+  ensure_token(function(token, err)
+    -- No token means no request: bail out instead of building 'Bearer .. nil'.
+    if not token then
+      state.is_fetching = false
+      log.error('[Lark] Skip fetch: ' .. (err or 'no tenant_access_token'))
+      return
+    end
     -- Updated endpoint with container_id_type and container_id
     local endpoint = API_BASE
       .. '/im/v1/messages?container_id_type=chat&container_id='
@@ -855,21 +1063,36 @@ function M.connect(callback)
   state.is_running = true
 
   load_state()
-  get_bot_info()
-  log.info('[Lark] Starting polling...')
 
-  state.timer = uv.new_timer()
-  state.timer:start(
-    0,
-    state.poll_interval,
-    vim.schedule_wrap(function()
-      if state.is_running then
-        fetch_messages()
-      end
-    end)
-  )
+  local function start_polling()
+    get_bot_info()
+    log.info('[Lark] Starting polling...')
 
-  log.info('[Lark] Polling started')
+    state.timer = uv.new_timer()
+    state.timer:start(
+      0,
+      state.poll_interval,
+      vim.schedule_wrap(function()
+        if state.is_running then
+          fetch_messages()
+        end
+      end)
+    )
+
+    log.info('[Lark] Polling started')
+  end
+
+  -- Resolve email / mobile ACL entries before the first poll: until the map
+  -- is settled those entries match nothing, so an email-configured admin
+  -- would be locked out during the lookup window. open_id-only configs cost
+  -- zero requests and this callback fires immediately.
+  M.resolve_acl(function()
+    if not state.is_running then
+      -- disconnect() ran while the resolution was in flight.
+      return
+    end
+    start_polling()
+  end)
 end
 
 --------------------------------------------------
@@ -908,7 +1131,18 @@ local function send_message(content)
     return
   end
 
-  ensure_token(function(token)
+  ensure_token(function(token, err)
+    -- Token failure: no request is made. The queue has to be drained here,
+    -- otherwise `send_message_jobid` stays -1 and every queued chunk below
+    -- would wait for an on_exit that never fires.
+    if not token then
+      send_message_jobid = -1
+      log.error('[Lark] Skip send: ' .. (err or 'no tenant_access_token'))
+      if #message_queue > 0 then
+        send_message(table.remove(message_queue, 1))
+      end
+      return
+    end
     -- Use interactive card (schema 2.0) with markdown element,
     -- so markdown in AI replies is rendered by Lark clients.
     local body = json.encode({
