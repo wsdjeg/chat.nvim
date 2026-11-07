@@ -15,6 +15,7 @@ With lazy tool loading (default), only essential tools are sent with each reques
 
 ```
 @find_tool query="<tool name or keyword>"
+@find_tool query=["<tool name 1>", "<tool name 2>"]
 ```
 
 ## Examples
@@ -22,13 +23,36 @@ With lazy tool loading (default), only essential tools are sent with each reques
 - `@find_tool query="git_log"` - Enable `git_log` for this turn
 - `@find_tool query="git log"` - Spaces are normalized (`git_log`)
 - `@find_tool query="git"` - List the names of tools matching the keyword "git"
+- `@find_tool query="gcm"` - Fuzzy (subsequence) match resolves to `git_commit`
+- `@find_tool query=["git_add", "git_commit"]` - Enable several tools in one call
 - `@find_tool query="list"` - Remind that the catalog is in the tool description
 
 ## Parameters
 
-| Parameter | Type   | Description                                    |
-| --------- | ------ | ---------------------------------------------- |
-| `query`   | string | Tool name or keyword to search for (required) |
+| Parameter | Type                   | Description                                          |
+| --------- | ---------------------- | ---------------------------------------------------- |
+| `query`   | string \| string[]     | Tool name(s) or keyword(s) to search for (required)  |
+
+`query` accepts either a single string or an array of strings. The array form
+enables multiple tools in one round trip, which is faster than calling
+`find_tool` once per tool when the model already knows which tools it needs.
+Duplicated entries are activated once and reported once.
+
+## Matching
+
+Each query is resolved in this order:
+
+1. **Exact name** - case-insensitive, spaces normalized to underscores
+   (`git log` → `git_log`).
+2. **Substring** - the query appears in the tool name or its one-line
+   introduction. A unique hit is enabled directly; several hits are listed by
+   name only.
+3. **Fuzzy subsequence** - only when nothing matched above and the query is at
+   least 3 characters long. An abbreviation whose characters appear in order
+   inside a tool name counts as a match (`gcm` → `git_commit`, `wfl` →
+   `write_file`). This stays cheap because it only runs as a fallback, and an
+   ambiguous subsequence still returns the candidate names rather than
+   guessing.
 
 ## Behavior
 
@@ -42,9 +66,12 @@ Responses are deliberately terse - they only report what happened:
 | No match             | `No tool matched "xyz". The catalog of available tools is in the find_tool description above...` |
 | `list` / empty query | Reminder that the catalog is already in the tool description        |
 
+With an array query, one line is emitted per entry, so a single call can report
+both `Enabled tool "git_add".` and `No tool matched "xyz".`.
+
 No schema is echoed back. Once a tool is enabled, its full description and parameter schema appear in the tools list of the **next** request, so returning them here would only duplicate tokens. The catalog likewise already lives in the `find_tool` description, so unknown queries never repeat it.
 
-The only exception: when there is no session to activate the tool in (e.g. a standalone invocation outside a chat session), the full schema is returned, because the tool would otherwise never become callable.
+The only exception: when there is no session to activate the tool in (e.g. a standalone invocation outside a chat session), the full schema is returned, because the tool would otherwise never become callable. For an array query the payload carries a `tools` array with every matched schema.
 
 ## Activation & Turn Scope
 

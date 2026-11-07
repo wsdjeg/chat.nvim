@@ -398,6 +398,90 @@ function TestFindTool:test_call_routes_find_tool()
 end
 
 --------------------------------------------------------------------
+-- query: string | string[] and fuzzy matching
+--------------------------------------------------------------------
+
+function TestFindTool:test_scheme_query_accepts_string_or_array()
+  local scheme = find_tool.scheme()
+  local query = scheme['function'].parameters.properties.query
+  -- anyOf keeps the validator happy (no single target type to coerce to)
+  lu.assertNotNil(query.anyOf)
+  lu.assertEquals(#query.anyOf, 2)
+  local types = {}
+  for _, variant in ipairs(query.anyOf) do
+    types[variant.type] = true
+  end
+  lu.assertTrue(types.string, 'string accepted')
+  lu.assertTrue(types.array, 'array accepted')
+  lu.assertEquals(query.anyOf[2].items.type, 'string')
+end
+
+function TestFindTool:test_handler_array_enables_multiple_tools()
+  local res = find_tool.find_tool({ query = { 'get_time', 'lsp_diagnostics' } }, { session = SID })
+  lu.assertNil(res.error)
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"')
+  lu.assertStrContains(res.content, 'Enabled tool "lsp_diagnostics"')
+  lu.assertTrue(activated_has(SID, 'get_time'))
+  lu.assertTrue(activated_has(SID, 'lsp_diagnostics'))
+end
+
+function TestFindTool:test_handler_array_dedupes_activations()
+  local res = find_tool.find_tool({ query = { 'get_time', 'GET_TIME ' } }, { session = SID })
+  -- same tool twice: one confirmation line only
+  local _, count = res.content:gsub('Enabled tool "get_time"', '')
+  lu.assertEquals(count, 1)
+end
+
+function TestFindTool:test_handler_array_mixes_matches_and_misses()
+  local res = find_tool.find_tool({ query = { 'get_time', 'zzz_nonexistent_xyz' } }, { session = SID })
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"')
+  lu.assertStrContains(res.content, 'No tool matched "zzz_nonexistent_xyz"')
+end
+
+function TestFindTool:test_handler_array_empty_falls_back_to_catalog_hint()
+  local res = find_tool.find_tool({ query = {} }, { session = SID })
+  lu.assertStrContains(res.content, 'find_tool description above')
+end
+
+function TestFindTool:test_handler_catalog_marker_inside_array()
+  local res = find_tool.find_tool({ query = { 'list' } }, { session = SID })
+  lu.assertStrContains(res.content, 'already in the find_tool description')
+end
+
+function TestFindTool:test_handler_fuzzy_abbreviation_matches()
+  -- "gcm" is a subsequence of git_commit (and of no other builtin name)
+  local res = find_tool.find_tool({ query = 'gcm' }, { session = SID })
+  lu.assertNil(res.error)
+  lu.assertStrContains(res.content, 'git_commit')
+end
+
+function TestFindTool:test_handler_fuzzy_respects_min_length()
+  -- < 3 chars never trigger the subsequence fallback (too noisy)
+  local res = find_tool.find_tool({ query = 'gz' }, { session = SID })
+  lu.assertStrContains(res.content, 'No tool matched "gz"')
+end
+
+function TestFindTool:test_handler_substring_wins_over_fuzzy()
+  -- "git l" is a literal substring of git_log: no fuzzy fan-out
+  local res = find_tool.find_tool({ query = 'git_log' }, { session = SID })
+  lu.assertStrContains(res.content, 'Enabled tool "git_log"')
+end
+
+function TestFindTool:test_handler_without_session_returns_schemas_for_array()
+  local res = find_tool.find_tool({ query = { 'get_time', 'lsp_diagnostics' } }, {})
+  local data = vim.json.decode(res.content)
+  lu.assertTrue(data.found)
+  lu.assertEquals(#data.tools, 2)
+  local names = {}
+  for _, t in ipairs(data.tools) do
+    names[t.name] = true
+  end
+  lu.assertTrue(names.get_time)
+  lu.assertTrue(names.lsp_diagnostics)
+  lu.assertStrContains(data.note, 'No session')
+end
+
+--------------------------------------------------------------------
 -- info()
 --------------------------------------------------------------------
 

@@ -26,6 +26,8 @@ chat.nvim supports tool call functionality, allowing the AI assistant to interac
 
 By default, chat.nvim uses lazy tool loading to save prompt tokens: only the essential tools (`tools.essential`) plus the `find_tool` discovery tool are sent with each request. `find_tool` embeds a catalog of all available tools; the AI model looks up any other tool by name or keyword and receives a one-line confirmation (e.g. `Enabled tool "git_log".`), and the enabled tool's full description and parameter schema appear in the tools list of the next request.
 
+`find_tool` accepts either a single `query` string or an array of strings, so several tools can be enabled in one call: `@find_tool query=["git_add", "git_commit"]`. Matching goes exact name → substring (name or introduction) → fuzzy subsequence abbreviation (`gcm` → `git_commit`), with the fuzzy step only used as a fallback so it never overrides an exact or substring hit.
+
 Tool activation is turn-scoped: when the model replies with plain text (no tool calls), the turn is complete and activated tools are cleared, so the next turn starts fresh from the essential toolset. Tools already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop).
 
 A typical turn looks like this:
@@ -83,7 +85,7 @@ Here is a list of 49 built-in tools:
 | [move_file](./move_file.md)                  | Move or rename a file/directory                                    |
 | [find_files](./find_files.md)                | Finds files in the current working directory                       |
 | [search_text](./search_text.md)              | Advanced text search using ripgrep                                 |
-| [find_tool](./find_tool.md)                  | Search and discover tools by name/keyword (lazy loading)           |
+| [find_tool](./find_tool.md)                  | Search and discover tools by name/keyword/fuzzy abbreviation (lazy loading) |
 | [extract_memory](./extract_memory.md)        | Extract memories from conversation text                            |
 | [recall_memory](./recall_memory.md)          | Retrieve relevant information from memory system                   |
 | [set_prompt](./set_prompt.md)                | Set system prompt from file                                        |
