@@ -16,6 +16,11 @@ local uv = vim.uv
 local STATE_FILE = config.config.storage_dir .. 'integration/lark.json'
 local API_BASE = 'https://open.feishu.cn/open-apis'
 
+-- Upper bound for the "recent speakers" cache kept in the state file. The
+-- cache is meant for a future Neovim picker (allow / deny without copying
+-- open_ids from the open platform console), so a handful is plenty.
+local MAX_RECENT_SENDERS = 30
+
 --------------------------------------------------
 -- state
 --------------------------------------------------
@@ -31,7 +36,58 @@ local state = {
   poll_interval = 3000,
   session = nil,
   bot_id = nil,
+  -- ACL runtime entries, persisted in the state file. Config lists are
+  -- merged on top of these (see M.get_acl()).
+  acl = {
+    whitelist = {}, -- open_id -> true
+    blacklist = {}, -- open_id -> true
+  },
+  -- open_id -> { last_seen = ms, name = string|nil }
+  recent_senders = {},
 }
+
+--------------------------------------------------
+-- helpers
+--------------------------------------------------
+local function sorted_keys(map)
+  local list = {}
+  for k in pairs(map) do
+    table.insert(list, k)
+  end
+  table.sort(list)
+  return list
+end
+
+--- Merge a config list with a runtime map into one sorted, de-duplicated list.
+local function merge_ids(config_list, state_map)
+  local result = {}
+  local seen = {}
+
+  for _, id in ipairs(config_list or {}) do
+    if not seen[id] then
+      seen[id] = true
+      table.insert(result, id)
+    end
+  end
+
+  for id in pairs(state_map or {}) do
+    if not seen[id] then
+      seen[id] = true
+      table.insert(result, id)
+    end
+  end
+
+  table.sort(result)
+  return result
+end
+
+local function lark_config()
+  return (config.config.integrations and config.config.integrations.lark) or {}
+end
+
+local function acl_config()
+  return lark_config().acl or {}
+end
 
 --------------------------------------------------
 -- Save state to file
@@ -42,6 +98,11 @@ local function save_state()
     last_message_time = state.last_message_time,
     processed_ids = {},
     session = state.session,
+    acl = {
+      whitelist = sorted_keys(state.acl.whitelist),
+      blacklist = sorted_keys(state.acl.blacklist),
+    },
+    recent_senders = state.recent_senders,
   }
 
   local count = 0
@@ -104,8 +165,363 @@ local function load_state()
     state.session = data.session
   end
 
+  -- Old state files have no `acl` / `recent_senders` keys: nil guards keep
+  -- them loading unchanged.
+  state.acl.whitelist = {}
+  state.acl.blacklist = {}
+  if data.acl then
+    for _, id in ipairs(data.acl.whitelist or {}) do
+      state.acl.whitelist[id] = true
+    end
+    for _, id in ipairs(data.acl.blacklist or {}) do
+      state.acl.blacklist[id] = true
+    end
+  end
+
+  state.recent_senders = {}
+  if type(data.recent_senders) == 'table' then
+    for id, info in pairs(data.recent_senders) do
+      if type(info) == 'table' then
+        state.recent_senders[id] = {
+          last_seen = info.last_seen,
+          name = info.name,
+        }
+      end
+    end
+  end
+
   log.debug('[Lark] State loaded')
   return true
+end
+
+--------------------------------------------------
+-- ACL (Phase 1 of ideas/lark-acl-bindings.md)
+--------------------------------------------------
+-- Three modes:
+--   allow_all  (default) - anyone in the chat may talk to the bot
+--   whitelist            - only listed open_ids
+--   blacklist            - everyone except listed open_ids
+--
+-- open_id (`ou_xxx`) can not be forged, unlike a display name, so it is the
+-- only identity used here. Runtime grants/denies issued from the chat are
+-- persisted in the state file; config lists are merged on top of them.
+
+--- Effective ACL mode from config.
+--- @return string 'allow_all' | 'whitelist' | 'blacklist'
+function M.acl_mode()
+  return acl_config().mode or 'allow_all'
+end
+
+--- Full effective ACL: config lists merged with runtime grants/denies.
+--- @return table { mode = string, admins = string[], whitelist = string[], blacklist = string[] }
+function M.get_acl()
+  local cfg = acl_config()
+  return {
+    mode = M.acl_mode(),
+    admins = cfg.admins or {},
+    whitelist = merge_ids(cfg.whitelist, state.acl.whitelist),
+    blacklist = merge_ids(cfg.blacklist, state.acl.blacklist),
+  }
+end
+
+--- Is this open_id allowed to talk to the bot?
+---
+--- Admins always pass, so they can still recover a whitelist that locked
+--- them out of the management commands.
+---
+--- Runtime entries (issued from the chat, persisted in the state file) win
+--- over the configured mode: an admin can `/deny` (or `/allow`) a user even
+--- while the mode is `allow_all`, which is what keeps the in-chat commands
+--- useful without having to edit the config first.
+--- @param open_id string|nil
+--- @return boolean
+function M.is_allowed(open_id)
+  if not open_id then
+    return false
+  end
+
+  if M.is_admin(open_id) then
+    return true
+  end
+
+  if state.acl.blacklist[open_id] then
+    return false
+  end
+  if state.acl.whitelist[open_id] then
+    return true
+  end
+
+  local mode = M.acl_mode()
+  local cfg = acl_config()
+
+  if mode == 'whitelist' then
+    return vim.tbl_contains(cfg.whitelist or {}, open_id)
+  elseif mode == 'blacklist' then
+    return not vim.tbl_contains(cfg.blacklist or {}, open_id)
+  end
+
+  -- allow_all: unchanged behaviour for existing setups.
+  return true
+end
+
+--- Is this open_id one of the configured admins?
+--- @param open_id string|nil
+--- @return boolean
+function M.is_admin(open_id)
+  if not open_id then
+    return false
+  end
+  return vim.tbl_contains(acl_config().admins or {}, open_id)
+end
+
+--- Grant access: add to the runtime whitelist, drop from the blacklist.
+--- @param open_id string
+--- @return boolean true when the ACL actually changed
+function M.acl_allow(open_id)
+  if not open_id then
+    return false
+  end
+
+  local changed = false
+  if state.acl.blacklist[open_id] then
+    state.acl.blacklist[open_id] = nil
+    changed = true
+  end
+  if not state.acl.whitelist[open_id] then
+    state.acl.whitelist[open_id] = true
+    changed = true
+  end
+
+  if changed then
+    save_state()
+    log.info('[Lark] ACL allow: ' .. open_id)
+  end
+  return changed
+end
+
+--- Revoke access: add to the runtime blacklist, drop from the whitelist.
+--- @param open_id string
+--- @return boolean true when the ACL actually changed
+function M.acl_deny(open_id)
+  if not open_id then
+    return false
+  end
+
+  local changed = false
+  if state.acl.whitelist[open_id] then
+    state.acl.whitelist[open_id] = nil
+    changed = true
+  end
+  if not state.acl.blacklist[open_id] then
+    state.acl.blacklist[open_id] = true
+    changed = true
+  end
+
+  if changed then
+    save_state()
+    log.info('[Lark] ACL deny: ' .. open_id)
+  end
+  return changed
+end
+
+--- Human readable ACL summary, used by the in-chat `/acl` command.
+--- @return string
+function M.acl_status()
+  local acl = M.get_acl()
+  local function fmt(list)
+    if #list == 0 then
+      return '-'
+    end
+    return table.concat(list, ', ')
+  end
+
+  return table.concat({
+    'ACL mode: ' .. acl.mode,
+    'Admins: ' .. fmt(acl.admins),
+    string.format('Whitelist (%d): %s', #acl.whitelist, fmt(acl.whitelist)),
+    string.format('Blacklist (%d): %s', #acl.blacklist, fmt(acl.blacklist)),
+    'Commands: /allow @user, /deny @user, /acl',
+  }, '\n')
+end
+
+--- Recently seen speakers, newest first. Backs a future picker so open_ids
+--- can be picked instead of copied from the open platform console.
+--- @return table[] { id = string, name = string|nil, last_seen = number }
+function M.get_recent_senders()
+  local list = {}
+  for id, info in pairs(state.recent_senders) do
+    table.insert(list, {
+      id = id,
+      name = info.name,
+      last_seen = info.last_seen or 0,
+    })
+  end
+  table.sort(list, function(a, b)
+    return a.last_seen > b.last_seen
+  end)
+  return list
+end
+
+--- Cache a speaker's open_id in the state file, pruning the oldest entries.
+--- @param msg table raw Lark message
+local function record_sender(msg)
+  local sender = msg.sender
+  if not sender or not sender.id then
+    return
+  end
+  -- Bot/app messages are not speakers worth granting access to.
+  if sender.sender_type and sender.sender_type ~= 'user' then
+    return
+  end
+
+  local previous = state.recent_senders[sender.id]
+  state.recent_senders[sender.id] = {
+    last_seen = tonumber(msg.create_time) or (os.time() * 1000),
+    name = sender.name or (previous and previous.name),
+  }
+
+  local count = 0
+  for _ in pairs(state.recent_senders) do
+    count = count + 1
+  end
+  if count <= MAX_RECENT_SENDERS then
+    return
+  end
+
+  local entries = {}
+  for id, info in pairs(state.recent_senders) do
+    table.insert(entries, { id = id, last_seen = info.last_seen or 0 })
+  end
+  table.sort(entries, function(a, b)
+    return a.last_seen > b.last_seen
+  end)
+  for i = MAX_RECENT_SENDERS + 1, #entries do
+    state.recent_senders[entries[i].id] = nil
+  end
+end
+
+--- Strip the leading mention keys (`@_user_1 ...`) Lark puts in front of the
+--- real text, so `@bot /allow @user` reduces to `/allow @user`.
+--- @param text string
+--- @return string
+local function strip_leading_mentions(text)
+  local rest = text or ''
+  -- Mention keys look like `@_user_1`: `%w` alone stops at the underscore,
+  -- so the character class has to include it explicitly.
+  while true do
+    local prefix = rest:match('^%s*@_[%w_]+%s*')
+    if not prefix then
+      break
+    end
+    rest = rest:sub(#prefix + 1)
+  end
+  return (rest:gsub('^%s+', ''))
+end
+
+--- Parse an ACL management command out of a message body.
+---
+--- Lua patterns have no alternation (`|` is a literal), so each command is
+--- probed with a plain prefix check instead of one combined pattern.
+--- @param content string
+--- @return table|nil { command = 'allow'|'deny'|'acl', arg = string }
+local function parse_acl_command(content)
+  local text = strip_leading_mentions(content)
+
+  for _, command in ipairs({ 'allow', 'deny', 'acl' }) do
+    local prefix = '/' .. command
+    if text:sub(1, #prefix) == prefix then
+      local rest = text:sub(#prefix + 1)
+      -- `/allowed` must not be read as `/allow`: require a space or the end.
+      if rest == '' or rest:match('^%s') then
+        return {
+          command = command,
+          arg = (rest:gsub('^%s+', ''):gsub('%s+$', '')),
+        }
+      end
+    end
+  end
+
+  return nil
+end
+
+--- Resolve a command argument to an open_id.
+--- Accepts a mention key from the message text (`@_user_2`), a raw open_id,
+--- or a raw union_id.
+--- @param arg string
+--- @param mentions table|nil the message's mentions array
+--- @return string|nil
+local function resolve_open_id(arg, mentions)
+  local raw = (arg or ''):gsub('^@', ''):gsub('%s+$', '')
+  if raw == '' then
+    return nil
+  end
+
+  for _, mention in ipairs(mentions or {}) do
+    if mention.key then
+      local key = mention.key:gsub('^@', '')
+      if key == raw then
+        return mention.id
+      end
+    end
+  end
+
+  if raw:match('^ou_') or raw:match('^on_') then
+    return raw
+  end
+
+  return nil
+end
+
+--- Execute an ACL management command. Non-admins are dropped silently: a
+--- "permission denied" reply would only spam the group.
+--- @param msg table raw Lark message
+--- @param parsed table { command = ..., arg = ... }
+local function handle_acl_command(msg, parsed)
+  local sender_id = msg.sender and msg.sender.id or nil
+
+  if not M.is_admin(sender_id) then
+    log.warn(
+      string.format(
+        '[Lark] Ignore ACK command from non-admin: %s',
+        sender_id or 'unknown'
+      )
+    )
+    return
+  end
+
+  if parsed.command == 'acl' then
+    M.send_message(M.acl_status())
+    return
+  end
+
+  local target = resolve_open_id(parsed.arg, msg.mentions)
+  if not target then
+    M.send_message(
+      'Usage: /allow @user or /deny @user (mention the user in the command)'
+    )
+    return
+  end
+
+  if target == state.bot_id then
+    M.send_message('Refusing to change ACL for the bot itself.')
+    return
+  end
+
+  local changed
+  if parsed.command == 'allow' then
+    changed = M.acl_allow(target)
+  else
+    changed = M.acl_deny(target)
+  end
+
+  M.send_message(
+    string.format(
+      '%s %s\n\n%s',
+      parsed.command == 'allow' and 'Allowed:' or 'Denied:',
+      target,
+      changed and 'ACL updated.' or 'Already in that state.'
+    )
+  )
 end
 
 --------------------------------------------------
@@ -343,6 +759,10 @@ local function fetch_messages()
             goto continue
           end
 
+          -- Cache the speaker before any filtering: the picker wants to list
+          -- everyone who showed up in the chat, not only those allowed to talk.
+          record_sender(msg)
+
           -- Check if should respond
           local is_mention = is_mention_bot(msg, state.bot_id)
 
@@ -364,6 +784,26 @@ local function fetch_messages()
           end
 
           if content == '' then
+            goto continue
+          end
+
+          local sender_id = msg.sender and msg.sender.id or nil
+          local sender_is_admin = M.is_admin(sender_id)
+
+          -- ACL: admins always pass, so they can recover a whitelist that
+          -- locked them out of management commands.
+          if not sender_is_admin and not M.is_allowed(sender_id) then
+            log.debug(
+              '[Lark] Skip message (sender not allowed): ' .. (sender_id or '?')
+            )
+            goto continue
+          end
+
+          -- In-chat ACL management: must run before the shared handler so
+          -- `/allow` never reaches the LLM as a normal prompt.
+          local acl_command = parse_acl_command(content)
+          if acl_command then
+            handle_acl_command(msg, acl_command)
             goto continue
           end
 
@@ -396,18 +836,13 @@ end
 -- Connect
 --------------------------------------------------
 function M.connect(callback)
-  local lark_config = config.config.integrations
-    and config.config.integrations.lark
-  if
-    not lark_config
-    or not lark_config.app_id
-    or not lark_config.app_secret
-  then
+  local lark_cfg = lark_config()
+  if not lark_cfg.app_id or not lark_cfg.app_secret then
     log.error('[Lark] app_id or app_secret not configured')
     return
   end
 
-  if not lark_config.chat_id then
+  if not lark_cfg.chat_id then
     log.error('[Lark] chat_id not configured')
     return
   end

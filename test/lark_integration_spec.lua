@@ -4,21 +4,28 @@ local lu = require('luaunit')
 local job = require('job')
 local config = require('chat.config')
 
-local function fresh_lark(storage_dir)
+local function fresh_lark(storage_dir, lark_extra)
   package.loaded['chat.integrations.lark'] = nil
   -- The tenant token now lives in a shared cache (chat.lark.auth), which
   -- survives module reloads. Drop it so each fresh instance starts cold,
   -- matching the old module-local cache and keeping specs independent.
   require('chat.lark.auth').reset()
+  -- config.setup() deep-merges, so a previous spec's `acl` table would leak
+  -- into the next one. Clear it on the live config first (nil values are
+  -- ignored by tbl_deep_extend, but direct assignment drops the key).
+  -- guard: on the very first call `integrations` does not exist yet.
+  if config.config.integrations and config.config.integrations.lark then
+    config.config.integrations.lark.acl = nil
+  end
   -- configure before loading so STATE_FILE points at temp storage
   config.setup({
     storage_dir = storage_dir,
     integrations = {
-      lark = {
+      lark = vim.tbl_deep_extend('force', {
         app_id = 'cli_test_app',
         app_secret = 'secret_test',
         chat_id = 'oc_test_chat',
-      },
+      }, lark_extra or {}),
     },
   })
   return require('chat.integrations.lark')
@@ -123,7 +130,7 @@ function TestLarkIntegration:test_connect_requires_chat_id()
   config.config.integrations.lark.chat_id = 'oc_test_chat'
 end
 
-local function feed_token_and_bot()
+local function feed_token_and_bot(lark)
   -- connect() spawns one token job for bot info AND (via the poll timer)
   -- another for the first fetch; feed every pending token job so both
   -- callbacks run regardless of job iteration order
@@ -138,6 +145,7 @@ local function feed_token_and_bot()
     job.emit_stdout(bot_id, { BOT_JSON })
     wait(50)
   end
+  return lark
 end
 
 local function make_msg(id, text, opts)
@@ -158,13 +166,22 @@ local function make_msg(id, text, opts)
   }
 end
 
+--- Deliver one fetch response through the polling job.
+local function deliver(items)
+  local fetch_id = find_job('container_id_type=chat')
+  lu.assertNotNil(fetch_id, 'fetch job started')
+  job.emit_stdout(fetch_id, { vim.json.encode({ data = { items = items } }) })
+  job.emit_exit(fetch_id, 0)
+  wait(200)
+end
+
 function TestLarkIntegration:test_fetch_delivers_mention_message()
   local received = {}
   self.lark.connect(function(msg)
     received[#received + 1] = msg
   end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
 
   local fetch_id = find_job('container_id_type=chat')
   lu.assertNotNil(fetch_id, 'fetch job started')
@@ -192,7 +209,7 @@ function TestLarkIntegration:test_fetch_skips_processed_ids()
     received[#received + 1] = msg
   end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
 
   local items = vim.json.encode({
     data = { items = { make_msg('om_dup', '@_user_1 again') } },
@@ -218,7 +235,7 @@ function TestLarkIntegration:test_fetch_skips_app_sender_and_unmentioned()
     received[#received + 1] = msg
   end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
 
   local items = vim.json.encode({
     data = {
@@ -241,7 +258,7 @@ end
 function TestLarkIntegration:test_fetch_api_error_no_crash()
   self.lark.connect(function() end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
   local fetch_id = find_job('container_id_type=chat')
   job.emit_stdout(fetch_id, { '{"code":999003,"msg":"no permission"}' })
   job.emit_exit(fetch_id, 0)
@@ -252,7 +269,7 @@ end
 function TestLarkIntegration:test_fetch_invalid_json_no_crash()
   self.lark.connect(function() end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
   local fetch_id = find_job('container_id_type=chat')
   job.emit_stdout(fetch_id, { 'garbage{{{' })
   job.emit_exit(fetch_id, 0)
@@ -263,7 +280,7 @@ end
 function TestLarkIntegration:test_fetch_empty_items()
   self.lark.connect(function() end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
   local fetch_id = find_job('container_id_type=chat')
   job.emit_stdout(fetch_id, { '{"data":{"items":[]}}' })
   job.emit_exit(fetch_id, 0)
@@ -288,7 +305,7 @@ function TestLarkIntegration:test_fetch_uses_start_time_from_state()
   self.lark = fresh_lark(storage_dir)
   self.lark.connect(function() end)
   wait(200)
-  feed_token_and_bot()
+  feed_token_and_bot(self.lark)
   local _, fetch_job = find_job('container_id_type=chat')
   lu.assertNotNil(fetch_job)
   local url = table.concat(fetch_job.cmd, ' ')
@@ -351,5 +368,319 @@ function TestLarkIntegration:test_disconnect_idempotent()
   self.lark.disconnect()
   self.lark.disconnect()
   lu.assertTrue(true)
+end
+
+-- ===========================================================================
+-- Phase 1: ACL
+-- https://github.com/wsdjeg/chat.nvim/blob/master/ideas/lark-acl-bindings.md
+-- ===========================================================================
+
+function TestLarkIntegration:test_acl_mode_defaults_to_allow_all()
+  lu.assertEquals('allow_all', self.lark.acl_mode())
+  -- no config: everybody passes, i.e. old behaviour is preserved
+  lu.assertTrue(self.lark.is_allowed('ou_anyone'))
+  -- a missing sender id is never allowed
+  lu.assertFalse(self.lark.is_allowed(nil))
+end
+
+function TestLarkIntegration:test_acl_whitelist_from_config()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', whitelist = { 'ou_alice' } },
+  })
+  lu.assertEquals('whitelist', self.lark.acl_mode())
+  lu.assertTrue(self.lark.is_allowed('ou_alice'))
+  lu.assertFalse(self.lark.is_allowed('ou_bob'))
+end
+
+function TestLarkIntegration:test_acl_blacklist_from_config()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'blacklist', blacklist = { 'ou_bob' } },
+  })
+  lu.assertTrue(self.lark.is_allowed('ou_alice'))
+  lu.assertFalse(self.lark.is_allowed('ou_bob'))
+end
+
+function TestLarkIntegration:test_acl_allow_persists_to_state()
+  self.lark.acl_allow('ou_alice')
+  lu.assertTrue(self.lark.is_allowed('ou_alice'))
+
+  -- runtime grants survive a module reload (read back from the state file)
+  self.lark = fresh_lark(storage_dir, { acl = { mode = 'whitelist' } })
+  self.lark.connect(function() end)
+  wait(100)
+  lu.assertTrue(self.lark.is_allowed('ou_alice'))
+  lu.assertFalse(self.lark.is_allowed('ou_bob'))
+end
+
+function TestLarkIntegration:test_acl_deny_persists_to_state()
+  self.lark.acl_deny('ou_bob')
+  lu.assertFalse(self.lark.is_allowed('ou_bob'))
+  lu.assertTrue(self.lark.is_allowed('ou_alice'))
+
+  self.lark = fresh_lark(storage_dir, { acl = { mode = 'blacklist' } })
+  self.lark.connect(function() end)
+  wait(100)
+  lu.assertFalse(self.lark.is_allowed('ou_bob'))
+end
+
+function TestLarkIntegration:test_acl_allow_moves_id_out_of_deny_list()
+  lu.assertTrue(self.lark.acl_deny('ou_carol'))
+  lu.assertFalse(self.lark.is_allowed('ou_carol'))
+  lu.assertTrue(self.lark.acl_allow('ou_carol'))
+  lu.assertTrue(self.lark.is_allowed('ou_carol'))
+
+  -- alow / deny are idempotent: the second call reports no change
+  lu.assertFalse(self.lark.acl_allow('ou_carol'))
+end
+
+function TestLarkIntegration:test_acl_allow_and_deny_reject_nil()
+  lu.assertFalse(self.lark.acl_allow(nil))
+  lu.assertFalse(self.lark.acl_deny(nil))
+end
+
+function TestLarkIntegration:test_get_acl_merges_config_and_runtime()
+  self.lark = fresh_lark(storage_dir, {
+    acl = {
+      mode = 'whitelist',
+      admins = { 'ou_admin' },
+      whitelist = { 'ou_alice' },
+    },
+  })
+  self.lark.acl_allow('ou_carol')
+
+  local acl = self.lark.get_acl()
+  lu.assertEquals('whitelist', acl.mode)
+  lu.assertEquals({ 'ou_admin' }, acl.admins)
+  lu.assertEquals({ 'ou_alice', 'ou_carol' }, acl.whitelist)
+  lu.assertEquals({}, acl.blacklist)
+end
+
+function TestLarkIntegration:test_is_admin()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { admins = { 'ou_admin' } },
+  })
+  lu.assertTrue(self.lark.is_admin('ou_admin'))
+  lu.assertFalse(self.lark.is_admin('ou_member'))
+  lu.assertFalse(self.lark.is_admin(nil))
+end
+
+function TestLarkIntegration:test_acl_status_report()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' }, whitelist = { 'ou_alice' } },
+  })
+  self.lark.acl_allow('ou_carol')
+
+  local report = self.lark.acl_status()
+  lu.assertStrContains(report, 'ACL mode: whitelist')
+  lu.assertStrContains(report, 'ou_admin')
+  lu.assertStrContains(report, 'Whitelist (2): ou_alice, ou_carol')
+  lu.assertStrContains(report, 'Blacklist (0): -')
+  lu.assertStrContains(report, '/allow')
+end
+
+function TestLarkIntegration:test_recent_senders_cache()
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  deliver({
+    make_msg('om_r1', 'plain text', { mentions = {}, sender_id = 'ou_first' }),
+    make_msg('om_r2', '@_user_1 hi', {
+      create_time = '1700000005000',
+      sender_id = 'ou_second',
+    }),
+    make_msg('om_r3', '@_user_1 from app', { sender_type = 'app' }),
+  })
+
+  local recent = self.lark.get_recent_senders()
+  lu.assertEquals(2, #recent, 'app senders are not cached')
+  lu.assertEquals('ou_second', recent[1].id, 'newest first')
+  lu.assertEquals('ou_first', recent[2].id)
+end
+
+function TestLarkIntegration:test_in_chat_allow_by_admin()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' } },
+  })
+  local received = {}
+  self.lark.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({
+    make_msg('om_allow', '@_user_1 /allow @_user_2', {
+      sender_id = 'ou_admin',
+      mentions = {
+        { id = 'ou_bot_1', key = '@_user_1', name = 'chat.nvim' },
+        { id = 'ou_target', key = '@_user_2', name = 'Zhang San' },
+      },
+    }),
+  })
+
+  lu.assertEquals(1, #replies, 'admin gets a confirmation reply')
+  lu.assertStrContains(replies[1], 'Allowed: ou_target')
+  lu.assertTrue(self.lark.is_allowed('ou_target'))
+  lu.assertEquals(0, #received, '/allow never reaches the LLM')
+end
+
+function TestLarkIntegration:test_in_chat_deny_by_admin()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'blacklist', admins = { 'ou_admin' } },
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({
+    make_msg('om_deny', '@_user_1 /deny @_user_2', {
+      sender_id = 'ou_admin',
+      mentions = {
+        { id = 'ou_bot_1', key = '@_user_1', name = 'chat.nvim' },
+        { id = 'ou_target', key = '@_user_2', name = 'Zhang San' },
+      },
+    }),
+  })
+
+  lu.assertEquals(1, #replies)
+  lu.assertStrContains(replies[1], 'Denied: ou_target')
+  lu.assertFalse(self.lark.is_allowed('ou_target'))
+end
+
+function TestLarkIntegration:test_in_chat_allow_ignored_for_non_admin()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'allow_all', admins = { 'ou_admin' } },
+  })
+  local received = {}
+  self.lark.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({
+    make_msg('om_allow_nonadmin', '@_user_1 /allow @_user_2', {
+      sender_id = 'ou_member',
+      mentions = {
+        { id = 'ou_bot_1', key = '@_user_1', name = 'chat.nvim' },
+        { id = 'ou_target', key = '@_user_2', name = 'Zhang San' },
+      },
+    }),
+  })
+
+  -- silently dropped: no reply, no runtime grant, no LLM hand-off.
+  -- (is_allowed('ou_target') stays true here because the mode is allow_all;
+  -- the point is that the non-admin did not touch the whitelist.)
+  lu.assertEquals(0, #replies)
+  lu.assertFalse(vim.tbl_contains(self.lark.get_acl().whitelist, 'ou_target'))
+  lu.assertEquals(0, #received)
+end
+
+function TestLarkIntegration:test_in_chat_acl_status_command()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' }, whitelist = { 'ou_alice' } },
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({ make_msg('om_acl', '@_user_1 /acl', { sender_id = 'ou_admin' }) })
+
+  lu.assertEquals(1, #replies)
+  lu.assertStrContains(replies[1], 'ACL mode: whitelist')
+  lu.assertStrContains(replies[1], 'ou_alice')
+end
+
+function TestLarkIntegration:test_in_chat_allow_without_target_shows_usage()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' } },
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({ make_msg('om_bare', '@_user_1 /allow', { sender_id = 'ou_admin' }) })
+
+  lu.assertEquals(1, #replies)
+  lu.assertStrContains(replies[1], 'Usage: /allow @user')
+end
+
+function TestLarkIntegration:test_in_chat_allow_refuses_bot_id()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' } },
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  local replies = {}
+  self.lark.send_message = function(content)
+    table.insert(replies, content)
+  end
+
+  deliver({
+    make_msg('om_self', '@_user_1 /allow ou_bot_1', { sender_id = 'ou_admin' }),
+  })
+
+  lu.assertEquals(1, #replies)
+  lu.assertStrContains(replies[1], 'bot itself')
+end
+
+function TestLarkIntegration:test_disallowed_sender_is_ignored()
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', whitelist = { 'ou_alice' } },
+  })
+  local received = {}
+  self.lark.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  deliver({
+    make_msg('om_blocked', '@_user_1 hello', { sender_id = 'ou_bob' }),
+    make_msg('om_allowed', '@_user_1 hello', {
+      create_time = '1700000005000',
+      sender_id = 'ou_alice',
+    }),
+  })
+
+  lu.assertEquals(1, #received, 'only the whitelisted sender reaches the LLM')
+  lu.assertEquals('ou_alice', received[1].author)
+end
+
+function TestLarkIntegration:test_admin_always_passes_acl()
+  -- admins bypass the ACL so they can recover a whitelist that locked them out
+  self.lark = fresh_lark(storage_dir, {
+    acl = { mode = 'whitelist', admins = { 'ou_admin' }, whitelist = {} },
+  })
+  lu.assertTrue(self.lark.is_allowed('ou_admin'))
+  lu.assertFalse(self.lark.is_allowed('ou_member'))
 end
 

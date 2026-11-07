@@ -90,6 +90,75 @@ require('chat').setup({
 | ------------------- | --------------------------------- |
 | `:Chat bridge lark` | Bind current session to Lark chat |
 
+### In-chat commands
+
+Admins listed in `integrations.lark.acl.admins` can manage access control
+directly from the group by mentioning the bot. Requests from non-admins are
+dropped silently - no reply - so the group is not spammed.
+
+| Message          | Effect                                          |
+| ---------------- | ----------------------------------------------- |
+| `/allow @user`   | Grant the mentioned user access to the bot      |
+| `/deny @user`    | Revoke access from the mentioned user           |
+| `/acl`           | Reply with the current ACL mode and id lists    |
+
+The `/allow` and `/deny` entries are written to the Lark state file, so they
+survive restarts without editing the config. They take precedence over the
+configured `acl.mode`, which means an admin can blacklist someone even while
+running in `allow_all` mode.
+
+---
+
+## Access Control (ACL)
+
+By default everyone in the bound chat may talk to the bot. Set
+`integrations.lark.acl` to restrict who can trigger replies.
+
+```lua
+require('chat').setup({
+  integrations = {
+    lark = {
+      app_id = 'YOUR_APP_ID',
+      app_secret = 'YOUR_APP_SECRET',
+      chat_id = 'YOUR_CHAT_ID',
+      acl = {
+        -- allow_all (default) | whitelist | blacklist
+        mode = 'whitelist',
+        -- open_id of users allowed to talk to the bot (whitelist mode)
+        whitelist = { 'ou_xxx' },
+        -- open_id of users blocked from the bot (blacklist mode)
+        blacklist = {},
+        -- open_id of users allowed to run /allow, /deny and /acl
+        admins = { 'ou_admin' },
+      },
+    },
+  },
+})
+```
+
+| Mode        | Behaviour                                              |
+| ----------- | ------------------------------------------------------ |
+| `allow_all` | Default. Everyone in the chat may talk to the bot.     |
+| `whitelist` | Only the listed open_ids (plus admins) may talk to it. |
+| `blacklist` | Everyone except the listed open_ids may talk to it.    |
+
+Notes:
+
+- **open_id only.** Identifiers are matched against the Lark `open_id`
+  (`ou_xxx`), which cannot be forged the way a display name can.
+- **Admins always pass.** An admin bypasses the ACL, so a whitelist that
+  locked them out can still be repaired from inside the group.
+- **Runtime entries win.** IDs granted or revoked via `/allow` and `/deny`
+  override the configured `mode`; config lists and runtime lists are merged
+  by `:Chat`-side helpers such as `lark.get_acl()`.
+- **Recent speakers are cached.** Every non-bot speaker is recorded in the
+  state file (up to 30, newest first) and exposed through
+  `require('chat.integrations.lark').get_recent_senders()`, so open_ids can
+  be picked instead of copied out of the open platform console.
+- **App scope still applies.** The Lark admin console "app availability"
+  setting is the outer, coarse-grained control; the ACL here is the fine
+  one.
+
 ---
 
 ## Technical Details
