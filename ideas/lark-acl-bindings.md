@@ -2,7 +2,7 @@
 
 - **状态**: 待评审 / 待实施
 - **日期**: 2026-11-07
-- **影响模块**: `lua/chat/integrations/lark.lua`, `lua/chat/integrations/init.lua`, `lua/chat/lark/identity.lua`(新增)
+- **影响模块**: `lua/chat/integrations/lark.lua`, `lua/chat/integrations/init.lua`, `lua/chat/integrations/lark/identity.lua`(新增)
 - **兼容性原则**: 只增不改,旧集成 0 行改动,现有测试原样通过
 
 ---
@@ -154,7 +154,7 @@ connect()
 
 归一化后,运行期 ACL 比对只做**纯字符串集合判断**,不产生任何网络开销。
 
-#### 3.2.4 实现骨架(新模块 `lua/chat/lark/identity.lua`)
+#### 3.2.4 实现骨架(新模块 `lua/chat/integrations/lark/identity.lua`)
 
 ```lua
 local M = {}
@@ -290,7 +290,7 @@ integrations = {
 ### 3.4 实现要点
 
 ```lua
-local identity = require('chat.lark.identity')
+local identity = require('chat.integrations.lark.identity')
 
 local function get_acl()
   return config.config.integrations.lark.acl or {}
@@ -378,7 +378,7 @@ end
 
 ### 3.6 影响面
 
-只动 `lark.lua`,新增 `lua/chat/lark/identity.lua`(与 `chat/lark/auth.lua` 同级),
+只动 `lark.lua`,新增 `lua/chat/integrations/lark/identity.lua`(与 `chat.integrations.lark.auth` 同级),
 新增 picker。共享层 **0 行改动**,其他 7 个集成 **0 行改动**。
 
 ---
@@ -590,7 +590,7 @@ ACL 侧同理: 归一化失败时只剩 `ou_xxx` 条目有效,行为等价于"�
 ## 9. 待办清单
 
 - [ ] Phase 1: `is_allowed()` + `is_admin()` + ACL 配置 + 最近发言人缓存
-- [ ] Phase 1: `lua/chat/lark/identity.lua` — 形态判定 + `batch_get_id`(`user_id_type=open_id`,50/批)
+- [ ] Phase 1: `lua/chat/integrations/lark/identity.lua` — 形态判定 + `batch_get_id`(`user_id_type=open_id`,50/批)
 - [ ] Phase 1: `connect()` 时解析 whitelist/blacklist/admins,失败逐条点名(fail closed)
 - [ ] Phase 1: `state.identities` + `identities_config_hash` 持久化与缓存失效,`load_state()` nil 守卫
 - [ ] Phase 1: `us_xxx` 条目显式报错,日志引导改用 open_id / 邮箱 / 手机号

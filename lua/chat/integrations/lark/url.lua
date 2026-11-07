@@ -1,4 +1,4 @@
--- lua/chat/lark/url.lua
+-- lua/chat/integrations/lark/url.lua
 -- Parse the links Feishu/Lark users actually paste, and resolve wiki nodes.
 --
 -- A pasted link is the norm ("here is the sheet"), while the raw tokens the

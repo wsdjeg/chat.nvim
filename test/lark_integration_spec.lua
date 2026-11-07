@@ -6,10 +6,10 @@ local config = require('chat.config')
 
 local function fresh_lark(storage_dir, lark_extra)
   package.loaded['chat.integrations.lark'] = nil
-  -- The tenant token now lives in a shared cache (chat.lark.auth), which
+  -- The tenant token now lives in a shared cache (chat.integrations.lark.auth), which
   -- survives module reloads. Drop it so each fresh instance starts cold,
   -- matching the old module-local cache and keeping specs independent.
-  require('chat.lark.auth').reset()
+  require('chat.integrations.lark.auth').reset()
   -- config.setup() deep-merges, so a previous spec's `acl` table would leak
   -- into the next one. Clear it on the live config first (nil values are
   -- ignored by tbl_deep_extend, but direct assignment drops the key).

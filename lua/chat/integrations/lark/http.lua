@@ -1,4 +1,4 @@
--- lua/chat/lark/http.lua
+-- lua/chat/integrations/lark/http.lua
 -- Shared request runner for the Lark/Feishu Open API tools (sheets, docx).
 --
 -- Three concerns are identical for every token-gated Lark tool:
@@ -20,7 +20,7 @@ local M = {}
 
 local curl = require('chat.curl')
 local job = require('job')
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 
 local HANDLE_BASE = -2000000
 local next_handle = HANDLE_BASE

@@ -18,11 +18,11 @@
 --   * the bot must be added as a collaborator of the document, otherwise the
 --     API answers 91403/1254302
 --   * `document_id` is the `doxcn...` segment of the doc URL, not a wiki
---     `node_token` (a `/wiki/` link is resolved through lark/url.lua)
+--     `node_token` (a `/wiki/` link is resolved through integrations/lark/url.lua)
 local M = {}
 
-local lark_http = require('chat.lark.http')
-local lark_url = require('chat.lark.url')
+local lark_http = require('chat.integrations.lark.http')
+local lark_url = require('chat.integrations.lark.url')
 
 local OPEN_API = 'https://open.feishu.cn/open-apis'
 

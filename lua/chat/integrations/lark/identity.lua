@@ -1,4 +1,4 @@
--- lua/chat/lark/identity.lua
+-- lua/chat/integrations/lark/identity.lua
 -- Normalize ACL identity entries into open_id space.
 --
 -- Feishu has two disjoint user id systems:
@@ -22,7 +22,7 @@ local M = {}
 local curl = require('chat.curl')
 local job = require('job')
 local log = require('chat.log')
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 
 local API_BASE = 'https://open.feishu.cn/open-apis'
 -- Documented limit for one batch_get_id call.

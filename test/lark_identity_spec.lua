@@ -1,5 +1,5 @@
 -- test/lark_identity_spec.lua
--- Covers lua/chat/lark/identity.lua (email / mobile -> open_id resolution) and
+-- Covers lua/chat/integrations/lark/identity.lua (email / mobile -> open_id resolution) and
 -- the email-configured ACL path in lua/chat/integrations/lark.lua.
 --
 -- See ideas/lark-acl-bindings.md 3.2: entries are resolved once at connect
@@ -8,9 +8,9 @@ local lu = require('luaunit')
 local job = require('job')
 local config = require('chat.config')
 local curl = require('chat.curl')
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 
-local identity = require('chat.lark.identity')
+local identity = require('chat.integrations.lark.identity')
 
 local BATCH_FRAGMENT = 'batch_get_id'
 local TOKEN_FRAGMENT = 'tenant_access_token'

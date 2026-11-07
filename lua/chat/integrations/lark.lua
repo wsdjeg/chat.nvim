@@ -4,8 +4,8 @@ local config = require('chat.config')
 local log = require('chat.log')
 local job = require('job')
 local curl = require('chat.curl')
-local auth = require('chat.lark.auth')
-local identity = require('chat.lark.identity')
+local auth = require('chat.integrations.lark.auth')
+local identity = require('chat.integrations.lark.identity')
 local chunker = require('chat.utils.chunker')
 
 local json = vim.json
@@ -235,7 +235,7 @@ end
 --
 -- Config entries may be written as open_id, email or mobile number. Every
 -- comparison therefore has to happen in open_id space: entries are resolved
--- once at connect time (see chat.lark.identity) and cached in
+-- once at connect time (see chat.integrations.lark.identity) and cached in
 -- state.identities.
 
 --- Checksum of every configured ACL entry, so a config edit invalidates the
@@ -306,7 +306,7 @@ end
 --- Runs once per connect, and again only when the configured entries changed
 --- since the cache was written. open_id entries cost zero requests; email /
 --- mobile entries go through `contact/v3/users/batch_get_id` (see
---- chat.lark.identity).
+--- chat.integrations.lark.identity).
 ---
 --- Failure policy follows ideas/lark-acl-bindings.md 3.2.7: an unresolved
 --- entry is simply absent from state.identities, so it never matches. That
@@ -721,7 +721,7 @@ local function handle_acl_command(msg, parsed)
 end
 
 --------------------------------------------------
--- Token: delegated to chat.lark.auth (shared with the bitable tool)
+-- Token: delegated to chat.integrations.lark.auth (shared with the bitable tool)
 --------------------------------------------------
 local function ensure_token(callback)
   auth.ensure_token(callback)

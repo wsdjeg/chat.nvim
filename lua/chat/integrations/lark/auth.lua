@@ -1,4 +1,4 @@
--- lua/chat/lark/auth.lua
+-- lua/chat/integrations/lark/auth.lua
 -- Shared Lark (Feishu) tenant_access_token cache.
 --
 -- The IM integration (integrations/lark.lua) and the bitable tool both need a

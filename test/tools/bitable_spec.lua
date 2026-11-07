@@ -9,7 +9,7 @@ local curl = require('chat.curl')
 local job = require('job')
 
 local bitable = require('chat.tools.bitable')
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 local async = require('chat.sessions.async')
 
 local TOKEN_JSON = vim.json.encode({

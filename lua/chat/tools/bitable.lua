@@ -20,7 +20,7 @@ local M = {}
 
 local curl = require('chat.curl')
 local job = require('job')
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 
 local API_BASE = 'https://open.feishu.cn/open-apis/bitable/v1/apps'
 

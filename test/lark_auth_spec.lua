@@ -1,5 +1,5 @@
 -- test/lark_auth_spec.lua
--- Covers lua/chat/lark/auth.lua: the shared tenant_access_token cache, the
+-- Covers lua/chat/integrations/lark/auth.lua: the shared tenant_access_token cache, the
 -- stdout fast path, and the stderr diagnostics that make transport failures
 -- readable (curl `-s` alone silences them, which produced the empty
 -- "failed to obtain tenant_access_token: " error).
@@ -8,7 +8,7 @@ local job = require('job')
 local config = require('chat.config')
 local curl = require('chat.curl')
 
-local auth = require('chat.lark.auth')
+local auth = require('chat.integrations.lark.auth')
 
 --- Job whose command line contains `fragment`.
 local function find_job(fragment)

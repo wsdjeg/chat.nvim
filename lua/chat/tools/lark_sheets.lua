@@ -19,11 +19,11 @@
 --     the API answers 91403/1254302
 --   * `spreadsheet_token` is the `shtcn...` segment of the sheet URL, not a
 --     wiki `node_token` (a `/wiki/` link is resolved automatically through
---     lark/url.lua when passed as `url`)
+--     integrations/lark/url.lua when passed as `url`)
 local M = {}
 
-local lark_http = require('chat.lark.http')
-local lark_url = require('chat.lark.url')
+local lark_http = require('chat.integrations.lark.http')
+local lark_url = require('chat.integrations.lark.url')
 
 local OPEN_API = 'https://open.feishu.cn/open-apis'
 

@@ -9,8 +9,8 @@ local curl = require('chat.curl')
 local job = require('job')
 
 local lark_sheets = require('chat.tools.lark_sheets')
-local auth = require('chat.lark.auth')
-local lark_http = require('chat.lark.http')
+local auth = require('chat.integrations.lark.auth')
+local lark_http = require('chat.integrations.lark.http')
 local async = require('chat.sessions.async')
 
 local TOKEN_JSON = vim.json.encode({
