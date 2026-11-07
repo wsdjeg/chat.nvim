@@ -7,7 +7,7 @@ nav_order: 47
 
 # find_tool
 
-Search and discover tools by name or keyword, and get the full parameter schema.
+Search and discover tools by name or keyword, and enable them for the current turn.
 
 With lazy tool loading (default), only essential tools are sent with each request to save prompt tokens. The `find_tool` tool embeds a live catalog of all available tools (name + one-line introduction), so the AI model can look up any tool on demand.
 
@@ -19,10 +19,10 @@ With lazy tool loading (default), only essential tools are sent with each reques
 
 ## Examples
 
-- `@find_tool query="git_log"` - Get the full parameter schema of `git_log`
+- `@find_tool query="git_log"` - Enable `git_log` for this turn
 - `@find_tool query="git log"` - Spaces are normalized (`git_log`)
-- `@find_tool query="git"` - List all tools matching the keyword "git"
-- `@find_tool query="list"` - Return the full catalog with introductions
+- `@find_tool query="git"` - List the names of tools matching the keyword "git"
+- `@find_tool query="list"` - Remind that the catalog is in the tool description
 
 ## Parameters
 
@@ -32,15 +32,23 @@ With lazy tool loading (default), only essential tools are sent with each reques
 
 ## Behavior
 
-- Exact name match (case-insensitive): returns the full tool schema and activates the tool for the current turn - it becomes callable in the next response
-- Unique partial match: returns the schema directly (saves a round trip)
-- Multiple matches: returns the candidate list with introductions
-- No match: returns the full catalog to help refine the query
-- `list` / `all` / `catalog` / empty query: returns the full catalog
+Responses are deliberately terse - they only report what happened:
+
+| Situation            | Response                                                            |
+| -------------------- | ------------------------------------------------------------------- |
+| Exact name match     | `Enabled tool "git_log".` - activated for this turn                 |
+| Unique partial match | Same as exact match (enabled directly, saves a round trip)           |
+| Multiple matches     | `"git" matched 4 tools: git_add, git_branch, ...` - names only       |
+| No match             | `No tool matched "xyz". The catalog of available tools is in the find_tool description above...` |
+| `list` / empty query | Reminder that the catalog is already in the tool description        |
+
+No schema is echoed back. Once a tool is enabled, its full description and parameter schema appear in the tools list of the **next** request, so returning them here would only duplicate tokens. The catalog likewise already lives in the `find_tool` description, so unknown queries never repeat it.
+
+The only exception: when there is no session to activate the tool in (e.g. a standalone invocation outside a chat session), the full schema is returned, because the tool would otherwise never become callable.
 
 ## Activation & Turn Scope
 
-- Tools returned by `find_tool` are activated for the current turn only: when the model replies with plain text (no tool calls), the turn is complete and activation is cleared
+- Tools enabled by `find_tool` are activated for the current turn only: when the model replies with plain text (no tool calls), the turn is complete and activation is cleared
 - The next turn starts fresh from the essential toolset plus `find_tool`
 - Tools that were already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop)
 - The request's tools array keeps a deterministic, append-only order: `tools.essential` → tools called in this turn → activated tools (in activation order) → `find_tool` last. Activating a tool only appends one entry, so the provider's prompt cache for the preceding prefix stays valid
@@ -51,7 +59,7 @@ A typical turn with lazy tool loading:
 
 ```
 You   : "Commit my changes"
-Model : @find_tool query="git commit"     git_commit activated for this turn
+Model : @find_tool query="git commit"     -> Enabled tool "git_commit".
 Model : @git_add                          discovery continues in the same turn
 Model : @git_commit message="feat: add x"
 Model : "Committed as abc1234."           plain text, no tool call: turn ends, activation cleared

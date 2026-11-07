@@ -1,7 +1,12 @@
 -- lua/chat/tools/find_tool.lua
--- Tool discovery: search tools by name/keyword and get full parameter schemas.
+-- Tool discovery: search tools by name/keyword and enable them for this turn.
 -- With lazy tool loading, only essential tools are sent with requests.
 -- The full catalog of all other tools is embedded in this tool's description.
+--
+-- Responses are deliberately terse. Once a tool is enabled, its full
+-- description and parameter schema appear in the tools list of the next
+-- request, so echoing the schema (or the catalog already present in this
+-- tool's description) back in the tool result only duplicates tokens.
 
 local M = {}
 
@@ -40,20 +45,22 @@ function M.scheme()
     type = 'function',
     ['function'] = {
       name = 'find_tool',
-      description = [[Search and discover tools by name or keyword, and get the full parameter schema.
+      description = [[Search and discover tools by name or keyword, and enable them.
 
 Most tools are NOT sent with your current request to save tokens. Only the tools listed in the catalog below (plus a few essential ones already available to you) exist. When you need a tool that is not currently callable, look it up here.
 
 How to use:
 1. Find the tool you need in the catalog below.
 2. Call find_tool with the tool name, e.g. query="git_log" (query="git log" also works).
-3. You receive its full parameter schema, and the tool becomes callable in your next response. Activation lasts until you finish the turn with a plain-text reply; later turns need a new find_tool call.
-4. If unsure about the name, query a keyword (e.g. query="git") and you will get matching candidates.
+3. The result is a short confirmation like `Enabled tool "git_log".` - the tool then becomes callable in your next response, where its full description and parameter schema appear in the tools list. Activation lasts until you finish the turn with a plain-text reply; later turns need a new find_tool call.
+4. If unsure about the name, query a keyword (e.g. query="git") and you get the matching tool names.
+
+Since the catalog below is already visible to you, find_tool never repeats it: unknown queries just report the names that matched.
 
 Catalog of all available tools:
 ]] .. catalog .. [[
 
-Calling find_tool with query="list" returns this catalog with introductions.]],
+Calling find_tool with query="list" returns just a reminder that this catalog is above.]],
       parameters = {
         type = 'object',
         properties = {
@@ -68,43 +75,47 @@ Calling find_tool with query="list" returns this catalog with introductions.]],
   }
 end
 
---- Build the full-schema response and activate the tool for the session.
+--- Build the response for a matched tool and activate it for the session.
+--- Terse on purpose: the schema reaches the model with the next request's
+--- tools list, so returning it here would waste tokens.
+--- Falls back to the full schema when there is no session to activate in
+--- (the tool would otherwise never become callable).
 ---@param session_id string|nil
 ---@param scheme table Full tool scheme
 ---@param query string Original query for reference
 ---@return table
-local function schema_response(session_id, scheme, query)
+local function enabled_response(session_id, scheme, query)
   local tools = require('chat.tools')
+  local fn = scheme['function']
+  local name = fn.name
+
   if session_id and type(tools.activate_tool) == 'function' then
-    tools.activate_tool(session_id, scheme['function'].name)
+    tools.activate_tool(session_id, name)
+    return {
+      content = string.format('Enabled tool "%s".', name),
+    }
   end
+
   return {
     content = vim.json.encode({
       query = query,
       found = true,
       tool = {
-        name = scheme['function'].name,
-        description = scheme['function'].description,
-        parameters = scheme['function'].parameters,
+        name = name,
+        description = fn.description,
+        parameters = fn.parameters,
       },
-      note = 'This tool is now callable for the rest of this turn (until you reply with plain text). Call it with the parameters described above.',
+      note = 'No session to enable tools in, so the full schema is returned instead.',
     }),
   }
 end
 
---- Build the catalog response (names + introductions only).
----@param query string Original query for reference
+--- Build the catalog response. The catalog already lives in the find_tool
+--- description, so there is nothing to echo back.
 ---@return table
-local function catalog_response(query)
-  local tools = require('chat.tools')
+local function catalog_response()
   return {
-    content = vim.json.encode({
-      query = query,
-      found = false,
-      action = 'catalog',
-      tools = tools.available_introductions(),
-      hint = 'Call find_tool again with an exact tool name (e.g. query="git_log") to get its full parameter schema and make it callable.',
-    }),
+    content = 'The catalog of available tools is already in the find_tool description above. Call find_tool with an exact tool name to enable it.',
   }
 end
 
@@ -141,7 +152,7 @@ function M.find_tool(action, ctx)
     or q == 'tools'
     or q_name == 'find_tool'
   then
-    return catalog_response(query)
+    return catalog_response()
   end
 
   local intros = tools.available_introductions()
@@ -155,7 +166,7 @@ function M.find_tool(action, ctx)
   for _, t in ipairs(intros) do
     local n = t.name:lower()
     if n == q or n == q_name then
-      return schema_response(ctx and ctx.session, scheme_by_name[t.name], query)
+      return enabled_response(ctx and ctx.session, scheme_by_name[t.name], query)
     end
   end
 
@@ -173,33 +184,32 @@ function M.find_tool(action, ctx)
     end
   end
 
-  -- 3. unique candidate: return its full schema directly (saves a round trip)
+  -- 3. unique candidate: enable it directly (saves a round trip)
   if #candidates == 1 then
     local name = candidates[1].name
     if scheme_by_name[name] then
-      return schema_response(ctx and ctx.session, scheme_by_name[name], query)
+      return enabled_response(ctx and ctx.session, scheme_by_name[name], query)
     end
   end
 
+  -- 4. multiple candidates: names only, the introductions are in the catalog
   if #candidates > 1 then
+    local names = vim.tbl_map(function(t)
+      return t.name
+    end, candidates)
     return {
-      content = vim.json.encode({
-        query = query,
-        found = false,
-        candidates = vim.tbl_map(function(t)
-          return { name = t.name, introduction = t.introduction }
-        end, candidates),
-        hint = 'Multiple tools matched. Call find_tool again with an exact tool name from the candidates above to get its full parameter schema.',
-      }),
+      content = string.format(
+        '"%s" matched %d tools: %s. Call find_tool with one exact name to enable it.',
+        query, #names, table.concat(names, ', ')),
     }
   end
 
-  -- 4. no match: return the full catalog to help the model refine
-  local res = catalog_response(query)
-  local decoded = vim.json.decode(res.content)
-  decoded.note = 'No tool matched the query. See the full catalog below and try again with an exact tool name.'
-  res.content = vim.json.encode(decoded)
-  return res
+  -- 5. no match: the catalog above is the reference, no need to repeat it
+  return {
+    content = string.format(
+      'No tool matched "%s". The catalog of available tools is in the find_tool description above; retry with an exact name from it.',
+      query),
+  }
 end
 
 --- Format tool info for display

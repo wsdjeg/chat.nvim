@@ -24,7 +24,7 @@ chat.nvim supports tool call functionality, allowing the AI assistant to interac
 
 ## Lazy Tool Loading
 
-By default, chat.nvim uses lazy tool loading to save prompt tokens: only the essential tools (`tools.essential`) plus the `find_tool` discovery tool are sent with each request. `find_tool` embeds a catalog of all available tools; the AI model looks up any other tool by name or keyword and receives its full parameter schema, which then becomes callable in the next response.
+By default, chat.nvim uses lazy tool loading to save prompt tokens: only the essential tools (`tools.essential`) plus the `find_tool` discovery tool are sent with each request. `find_tool` embeds a catalog of all available tools; the AI model looks up any other tool by name or keyword and receives a one-line confirmation (e.g. `Enabled tool "git_log".`), and the enabled tool's full description and parameter schema appear in the tools list of the next request.
 
 Tool activation is turn-scoped: when the model replies with plain text (no tool calls), the turn is complete and activated tools are cleared, so the next turn starts fresh from the essential toolset. Tools already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop).
 

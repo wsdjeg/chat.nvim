@@ -285,86 +285,97 @@ function TestFindTool:test_tool_call_turn_keeps_activated_tools()
 end
 
 --------------------------------------------------------------------
--- find_tool handler
+-- find_tool handler: terse responses
+-- The full schema is not echoed back: once a tool is activated it appears
+-- in the next request's tools list, so repeating it in the tool result
+-- would only duplicate tokens.
 --------------------------------------------------------------------
 
 function TestFindTool:test_handler_exact_name()
   local res = find_tool.find_tool({ query = 'get_time' }, { session = SID })
   lu.assertNil(res.error)
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found)
-  lu.assertEquals(data.tool.name, 'get_time')
-  lu.assertNotNil(data.tool.parameters)
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"')
   -- tool got activated for the session
   lu.assertTrue(activated_has(SID, 'get_time'))
 end
 
+function TestFindTool:test_handler_response_does_not_echo_schema()
+  local res = find_tool.find_tool({ query = 'get_time' }, { session = SID })
+  lu.assertStrContains(res.content, 'Enabled tool', true)
+  lu.assertNil(res.content:find('parameters', 1, true))
+  lu.assertNil(res.content:find('description', 1, true))
+  lu.assertTrue(#res.content < 200, 'enabled response must stay terse, got: ' .. res.content)
+end
+
 function TestFindTool:test_handler_case_insensitive()
   local res = find_tool.find_tool({ query = 'GET_TIME' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found)
-  lu.assertEquals(data.tool.name, 'get_time')
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"')
 end
 
 function TestFindTool:test_handler_spaces_normalized()
   -- "git log" should normalize to git_log
   local res = find_tool.find_tool({ query = 'git log' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found)
-  lu.assertEquals(data.tool.name, 'git_log')
+  lu.assertStrContains(res.content, 'Enabled tool "git_log"')
 end
 
 function TestFindTool:test_handler_trailing_space_trimmed()
   local res = find_tool.find_tool({ query = 'get_time ' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found, 'trailing whitespace must be trimmed for exact match')
-  lu.assertEquals(data.tool.name, 'get_time')
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"',
+    'trailing whitespace must be trimmed for exact match')
 end
 
-function TestFindTool:test_handler_list_returns_catalog()
+function TestFindTool:test_handler_list_points_to_embedded_catalog()
   local res = find_tool.find_tool({ query = 'list' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertFalse(data.found)
-  lu.assertEquals(data.action, 'catalog')
-  lu.assertTrue(#data.tools > 10)
-  lu.assertStrContains(data.hint, 'find_tool')
+  lu.assertNil(res.error)
+  lu.assertStrContains(res.content, 'catalog of available tools is already in the find_tool description')
+  -- the catalog itself is in the description, not repeated here
+  lu.assertNil(res.content:find('- get_time:', 1, true))
 end
 
-function TestFindTool:test_handler_empty_query_returns_catalog()
+function TestFindTool:test_handler_empty_query_returns_catalog_hint()
   local res = find_tool.find_tool({ query = '' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertFalse(data.found)
-  lu.assertEquals(data.action, 'catalog')
+  lu.assertStrContains(res.content, 'find_tool description above')
 end
 
-function TestFindTool:test_handler_keyword_multiple_candidates()
+function TestFindTool:test_handler_keyword_lists_candidate_names()
   local res = find_tool.find_tool({ query = 'git' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertFalse(data.found)
-  lu.assertTrue(#data.candidates > 1, 'git should match multiple tools')
-  lu.assertStrContains(data.hint, 'exact tool name')
+  lu.assertNil(res.error)
+  lu.assertStrContains(res.content, 'matched')
+  lu.assertStrContains(res.content, 'git_add')
+  -- names only: no introductions, no schemas
+  lu.assertNil(res.content:find('introduction', 1, true))
+  lu.assertTrue(#res.content < 400, 'candidate response must stay terse')
 end
 
-function TestFindTool:test_handler_unique_partial_match_returns_schema()
+function TestFindTool:test_handler_unique_partial_match_enables_tool()
   local res = find_tool.find_tool({ query = 'lsp' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found, 'unique partial match should return the schema directly')
-  lu.assertEquals(data.tool.name, 'lsp_diagnostics')
+  lu.assertStrContains(res.content, 'Enabled tool "lsp_diagnostics"',
+    'unique partial match should enable the tool directly')
+  lu.assertTrue(activated_has(SID, 'lsp_diagnostics'))
 end
 
-function TestFindTool:test_handler_unknown_query_returns_catalog_with_note()
+function TestFindTool:test_handler_unknown_query_points_to_catalog()
   local res = find_tool.find_tool({ query = 'zzz_nonexistent_xyz' }, { session = SID })
-  local data = vim.json.decode(res.content)
-  lu.assertFalse(data.found)
-  lu.assertStrContains(data.note, 'No tool matched')
-  lu.assertTrue(#data.tools > 10)
+  lu.assertNil(res.error)
+  lu.assertStrContains(res.content, 'No tool matched "zzz_nonexistent_xyz"')
+  lu.assertStrContains(res.content, 'find_tool description above')
 end
 
-function TestFindTool:test_handler_nil_action()
+function TestFindTool:test_handler_nil_action_returns_catalog_hint()
   local res = find_tool.find_tool(nil, { session = SID })
+  lu.assertStrContains(res.content, 'find_tool description above')
+end
+
+--- Without a session there is nowhere to activate the tool, so the full
+--- schema must be returned - otherwise it would never become callable.
+function TestFindTool:test_handler_without_session_returns_schema()
+  local res = find_tool.find_tool({ query = 'get_time' }, {})
+  lu.assertNil(res.error)
   local data = vim.json.decode(res.content)
-  lu.assertFalse(data.found)
-  lu.assertEquals(data.action, 'catalog')
+  lu.assertTrue(data.found)
+  lu.assertEquals(data.tool.name, 'get_time')
+  lu.assertNotNil(data.tool.parameters)
+  lu.assertStrContains(data.note, 'No session')
 end
 
 function TestFindTool:test_handler_stale_tools_module()
@@ -383,9 +394,7 @@ end
 function TestFindTool:test_call_routes_find_tool()
   local res = tools.call('find_tool', { query = 'get_time' }, { session = SID })
   lu.assertNil(res.error)
-  local data = vim.json.decode(res.content)
-  lu.assertTrue(data.found)
-  lu.assertEquals(data.tool.name, 'get_time')
+  lu.assertStrContains(res.content, 'Enabled tool "get_time"')
 end
 
 --------------------------------------------------------------------
