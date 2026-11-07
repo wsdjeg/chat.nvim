@@ -1,5 +1,83 @@
 # Changelog
 
+## [1.12.0](https://github.com/wsdjeg/chat.nvim/compare/v1.11.1...v1.12.0) (2026-11-07)
+
+
+### Features
+
+* **bitable:** add field create/update/delete actions ([c225248](https://github.com/wsdjeg/chat.nvim/commit/c225248916b4c3d51208ba1e94cdfa4a22e196b8))
+* **cache:** probe where the request prefix stops matching ([9fea496](https://github.com/wsdjeg/chat.nvim/commit/9fea4962adbac06c6aa1fd0d7a9e9a065f42bbdf))
+* **context:** add slide_step for cache-stable truncation window ([6c477dc](https://github.com/wsdjeg/chat.nvim/commit/6c477dcba1dcf09e1457a21971bc06271c49fde6))
+* **http:** auto-select first available model when provider set without model ([7183e48](https://github.com/wsdjeg/chat.nvim/commit/7183e48699fd31782b9b88f37ee7d5918184c354))
+* **http:** expose cached_tokens in session usage ([7e5c298](https://github.com/wsdjeg/chat.nvim/commit/7e5c2986ec41b252f6ce99fc3b89c4e408e363a8))
+* **http:** expose usage statistics via GET/DELETE /usage-stats ([e4a2fff](https://github.com/wsdjeg/chat.nvim/commit/e4a2fffe8f026a3af854f216b345fbbadd665830))
+* **http:** return JSON body on 401 and log request lifecycle ([fc18a7f](https://github.com/wsdjeg/chat.nvim/commit/fc18a7f4cd82280a204e607afbc4b2e71f71d390))
+* **integrations:** send Lark messages as interactive card ([8e44036](https://github.com/wsdjeg/chat.nvim/commit/8e44036819668971e9be97797b13c9b16c537b92))
+* **lark:** add ACL layer with in-chat /allow and /deny for admins ([9eaffe7](https://github.com/wsdjeg/chat.nvim/commit/9eaffe7341c4872c62af7e0629305f7bf8445855))
+* **lark:** add lark_sheets and lark_docx tools with wiki link resolution ([728b843](https://github.com/wsdjeg/chat.nvim/commit/728b843f50bd38d323700632bd31ef8989de687a))
+* **lark:** resolve ACL email and mobile entries to open_id ([0fbc9fe](https://github.com/wsdjeg/chat.nvim/commit/0fbc9feb7cbfa59497a2f2e1b1a07d13761886c1))
+* **tools:** add bitable tool for Feishu/Lark Bitable records ([4b0f324](https://github.com/wsdjeg/chat.nvim/commit/4b0f324d5de930e4627eeb98762bce4532d296ea))
+* **usage:** add normalized token usage module ([4dce6fe](https://github.com/wsdjeg/chat.nvim/commit/4dce6fec4e3a031b38758e646a2e6d6ebe4741c8))
+* **usage:** per provider/model request and token accounting ([aba7e70](https://github.com/wsdjeg/chat.nvim/commit/aba7e70cae0cb3b5c388f97c28f1da7a647c5e52))
+* **windows:** show cache hit ratio in result window title ([7ad508f](https://github.com/wsdjeg/chat.nvim/commit/7ad508f791acf0194b7d1887c5c36a9fad5b7bb0))
+* **windows:** simplify prompt title and add input placeholder ([bead1a0](https://github.com/wsdjeg/chat.nvim/commit/bead1a01792b90759955edafa51b11352a617924))
+
+
+### Bug Fixes
+
+* **context:** move context notice to the tail so prefix cache survives ([4f402a8](https://github.com/wsdjeg/chat.nvim/commit/4f402a86bde94ca21f3d6cbce0f70311947bd139))
+* **formatter:** show cache hit rate for every provider ([0f4549c](https://github.com/wsdjeg/chat.nvim/commit/0f4549c22359e4adb4aa232fe19a8c187d5d1356))
+* **integrations:** strip mention prefix in lark messages ([bd423dd](https://github.com/wsdjeg/chat.nvim/commit/bd423dd03d364024698f07b61167ca30573e6aea))
+* **lark:** surface curl stderr when tenant token request fails ([b3fa258](https://github.com/wsdjeg/chat.nvim/commit/b3fa2585b56c0d8d32997e840b1bd799e2667246))
+* **preview:** render cached tokens for every provider ([4464b2c](https://github.com/wsdjeg/chat.nvim/commit/4464b2cbb7028e48f5d589cbc09fa2b65505f2f3))
+* **protocol:** keep responses finished with unknown reasons in history ([dd0bcd1](https://github.com/wsdjeg/chat.nvim/commit/dd0bcd14aa9cd3db04c619c8fffdc4e6c56b10e2))
+* **sessions:** push assistant replies to integrations again ([c862f09](https://github.com/wsdjeg/chat.nvim/commit/c862f09f032ae88fc5e56301cd05c7d3bec4da9e))
+* **sessions:** stop resending reasoning_content in request messages ([e70b6bf](https://github.com/wsdjeg/chat.nvim/commit/e70b6bf45cd7eb6af60334e9d638f926fd659f1c))
+* **test:** make log and move_file specs hardware independent ([369d08b](https://github.com/wsdjeg/chat.nvim/commit/369d08b210fee0a325888605503d5e546c98f621))
+* **tools:** bypass proxy for loopback URLs in fetch_web ([6a8d1d9](https://github.com/wsdjeg/chat.nvim/commit/6a8d1d9464e7851986fcbd4ddee7fd36a091fd45))
+* **tools:** detect failed deletions instead of reporting success ([8be6b59](https://github.com/wsdjeg/chat.nvim/commit/8be6b5964fa3123b6b88dc5f2da53c86389a6af2))
+* **windows:** add missing separator between provider and model in prompt title ([d304b6e](https://github.com/wsdjeg/chat.nvim/commit/d304b6e0be56bfe5adc481d715dca1242f8d4200))
+* **windows:** restore prompt title badges and blend placeholder with CursorLine ([b7f3d70](https://github.com/wsdjeg/chat.nvim/commit/b7f3d70ce4cfdcfa08b600afd518fdc61e567acf))
+
+
+### Code Refactoring
+
+* **cache:** reuse chat.usage for cached token extraction ([20bd858](https://github.com/wsdjeg/chat.nvim/commit/20bd8581210a4836e1311c19e447bb5bbea96eb4))
+* **integrations:** move lark helpers into integrations/lark/ ([4b31445](https://github.com/wsdjeg/chat.nvim/commit/4b314457b996b4d1308e70e352944e7add7ed46b))
+* **sessions:** accumulate token usage through chat.usage ([1ae048f](https://github.com/wsdjeg/chat.nvim/commit/1ae048f8dc561f03568125f84fca824a772063a1))
+* **tools:** return terse confirmations from find_tool ([dbe563c](https://github.com/wsdjeg/chat.nvim/commit/dbe563cbc80fb610a87b34a02c38475435cb9996))
+
+
+### Performance Improvements
+
+* **context:** move the volatile window notice to the tail ([3d44a5c](https://github.com/wsdjeg/chat.nvim/commit/3d44a5c4ba31b1612ea2cb3436a795ac3cccceac))
+* **tools:** keep request tools array ordered append-only ([26385d2](https://github.com/wsdjeg/chat.nvim/commit/26385d27959e4a9196ce983c4c4f3cbb2ea5831c))
+
+
+### Documentation
+
+* add Lark ACL and bindings design proposal ([e382384](https://github.com/wsdjeg/chat.nvim/commit/e38238419a19bcb1f450d2a5cdae5f4e78a98fe6))
+* **bitable:** document that app_token cannot be discovered ([54ac62f](https://github.com/wsdjeg/chat.nvim/commit/54ac62feec110e77ce06832180909c57c487bab0))
+* **configuration:** document where usage and cache numbers show up ([d6729ed](https://github.com/wsdjeg/chat.nvim/commit/d6729ed64ffa21a22679724e41add69dc968c0fc))
+* document cached_tokens in session file format and usage display ([6440c53](https://github.com/wsdjeg/chat.nvim/commit/6440c53d0aaba0f2465751cacce30b0ae8ee4368))
+* document headless start(), bundled skills, and update counts ([b480d3d](https://github.com/wsdjeg/chat.nvim/commit/b480d3df67a7ef4a931a0257ef8e4e48010fd9d1))
+* **ideas:** add lark binding entry design for platform-level bridge command ([ed7776d](https://github.com/wsdjeg/chat.nvim/commit/ed7776d50fda1b19397b77825f5cc7f0b0f217e6))
+* **ideas:** support email/phone/open_id in lark ACL config ([45500bc](https://github.com/wsdjeg/chat.nvim/commit/45500bc75bee7820688cc48f9043516ab0ae06c2))
+* **integrations:** deduplicate and reorganize lark guide ([f1769da](https://github.com/wsdjeg/chat.nvim/commit/f1769da84397bed6df929000a5cac5d6a1bf28fb))
+* **integrations:** rewrite lark setup with app creation, scopes and troubleshooting ([d1c0a2c](https://github.com/wsdjeg/chat.nvim/commit/d1c0a2c9c50cb300d5f5113c12e02d805de9c467))
+* **lark:** note replies are sent as interactive markdown cards ([4065056](https://github.com/wsdjeg/chat.nvim/commit/4065056de3fc2f0dfdb363d9f29da9c79b72e72e))
+* **readme:** restructure for faster onboarding ([75e7f82](https://github.com/wsdjeg/chat.nvim/commit/75e7f82f8c4ca8535d65e37c918bbbfb5fdf4550))
+* remove stray code fence breaking Basic Usage heading ([a2a3900](https://github.com/wsdjeg/chat.nvim/commit/a2a3900e5e9315958a9702d274540e05985198ed))
+* sync tool/provider counts and add /toggle-force-push skill ([c0bdac5](https://github.com/wsdjeg/chat.nvim/commit/c0bdac5b3bbee52a24295b4900115841bc2ece36))
+* **usage:** fix session title display location ([00f4987](https://github.com/wsdjeg/chat.nvim/commit/00f4987ae6be9ecce99c910463f0f7493f25d5d9))
+
+
+### Tests
+
+* **lark:** assert interactive card payload in send specs ([65ccb68](https://github.com/wsdjeg/chat.nvim/commit/65ccb68fccd6a1e2af5f8d6850690fd4f5c576b6))
+* **usage:** cover provider cache shapes in UI and session totals ([21b2fd0](https://github.com/wsdjeg/chat.nvim/commit/21b2fd021a454a043b06ea963f9b61a9564c4271))
+* **weixin:** add end-to-end coverage for inbound to reply flow ([dce82f7](https://github.com/wsdjeg/chat.nvim/commit/dce82f71f5b29bd38d3a0f93deeb489a158386a6))
+
 ## [1.11.1](https://github.com/wsdjeg/chat.nvim/compare/v1.11.0...v1.11.1) (2026-10-25)
 
 
