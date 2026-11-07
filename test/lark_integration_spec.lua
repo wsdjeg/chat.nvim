@@ -684,3 +684,31 @@ function TestLarkIntegration:test_admin_always_passes_acl()
   lu.assertFalse(self.lark.is_allowed('ou_member'))
 end
 
+function TestLarkIntegration:test_fetch_strips_bot_mention_prefix()
+  -- Lark prefixes the real text with mention keys, so `@bot /list` arrives as
+  -- `@_user_1 /list`. The shared handler anchors its slash commands with
+  -- `^/list`, so the keys have to be gone before the callback runs.
+  local received = {}
+  self.lark.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  feed_token_and_bot(self.lark)
+
+  deliver({
+    make_msg('om_plain', '@_user_1 hello lark', {
+      create_time = '1700000009000',
+    }),
+    make_msg('om_list', '@_user_1 /list', { create_time = '1700000010000' }),
+  })
+
+  -- The API returns newest-first and the poll loop walks the array backwards,
+  -- so assert by message id instead of by arrival index.
+  local by_id = {}
+  for _, msg in ipairs(received) do
+    by_id[msg.message_id] = msg.content
+  end
+  lu.assertEquals('/list', by_id.om_list, 'slash command is unwrapped')
+  lu.assertEquals('hello lark', by_id.om_plain, 'plain text keeps its body')
+end
+

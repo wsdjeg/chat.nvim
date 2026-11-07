@@ -989,6 +989,11 @@ local function fetch_messages()
             if ok2 and text_data and text_data.text then
               content = text_data.text
             end
+            -- Lark prefixes the real text with mention keys (`@_user_1`), so
+            -- `@bot /list` arrives as `@_user_1 /list`. Strip the keys here,
+            -- before the shared handler runs: its slash commands are anchored
+            -- with `^/list`, and would never match otherwise.
+            content = strip_leading_mentions(content)
           end
 
           if content == '' then
