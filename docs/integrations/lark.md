@@ -26,6 +26,9 @@ Lark/Feishu (飞书) integration for enterprise communication.
 - **Session Binding**: Bind Lark chats to chat.nvim sessions
 - **Markdown Rendering**: Replies arrive as interactive cards, not raw markup
 - **Access Control**: Whitelist / blacklist by `open_id`, manageable from the chat
+- **Private Chat (P2P)**: Talk to the bot in a 1:1 chat, no `@mention` needed
+- **Multi-chat**: Several groups and private chats polled side by side, each
+  with its own message cursor and optional session binding
 - **Shared App**: The same credentials power the `bitable`, `lark_sheets` and
   `lark_docx` tools
 
@@ -161,10 +164,12 @@ list are in [Configuration Reference](#configuration-reference).
 | `integrations.lark.acl.whitelist`  | `string[]` | `{}`          | Users allowed to talk (whitelist mode)           |
 | `integrations.lark.acl.blacklist`  | `string[]` | `{}`          | Users blocked (blacklist mode)                   |
 | `integrations.lark.acl.admins`     | `string[]` | `{}`          | Users allowed to run `/allow`, `/deny` and `/acl` |
+| `integrations.lark.p2p.allow`      | `string[]` | `{}`          | Users allowed to use private chat (default: deny) |
+| `integrations.lark.p2p.greeting`   | `string`   | see below     | Text sent when a private chat is opened           |
 
 Every ACL list accepts an `open_id` (`ou_...`), an email address, or a mobile
 number. `open_id` entries cost zero API calls; email / mobile entries are
-resolved once on connect and then cached.
+resolved once on connect and then cached. The same is true for `p2p.allow`.
 
 Complete example:
 
@@ -184,6 +189,13 @@ require('chat').setup({
         blacklist = {},
         -- users allowed to run /allow, /deny and /acl
         admins = { 'ou_admin' },
+      },
+      p2p = {
+        -- users allowed to open a private chat, deny by default.
+        -- Omit this to fall back to acl.admins + acl.whitelist.
+        allow = { 'ou_xxx' },
+        -- text sent when a private chat is opened
+        greeting = 'Hi, this is the chat.nvim bot. Reply here to talk to Neovim.',
       },
     },
   },
@@ -240,6 +252,65 @@ Notes:
 
 ---
 
+## Private Chat (P2P)
+
+A private chat is a normal `oc_...` conversation, so it is polled exactly like
+a group. Two things differ:
+
+- **No `@mention` is required.** The message is addressed to the bot by
+  definition, so `Skip message (not mention)` never applies.
+- **Access is deny-by-default.** `acl.mode = 'allow_all'` is a statement about
+  the bound group and does **not** let anyone in the tenant open a DM. Set
+  `integrations.lark.p2p.allow`; when that list is absent,
+  `acl.admins ∪ acl.whitelist ∪ runtime whitelist` is used instead.
+
+### Opening a private chat
+
+A polling bot cannot learn the `oc_` id of a p2p conversation from an incoming
+message — there is no cursor for a conversation it does not know yet. So the
+conversation is created from this side, through the API:
+
+```lua
+-- returns the p2p chat_id once the conversation exists
+require('chat.integrations.lark').create_p2p('ou_xxxxxxxx', function(ok, result)
+  if ok then
+    print('p2p chat_id: ' .. result)
+  end
+end)
+```
+
+The call does three things:
+
+1. sends `p2p.greeting` with `receive_id_type=open_id` (this is the message the
+   user sees, nothing is sent twice)
+2. reads that message back (`GET /im/v1/messages/{message_id}`) to obtain the
+   `chat_id`
+3. registers the container as `chat_type = 'p2p'`, so the poller starts reading
+   it
+
+`create_p2p` refuses an `open_id` that `p2p.allow` does not list, and returns
+the existing `chat_id` when the conversation is already known (no greeting is
+re-sent).
+
+{: .info }
+
+> Replies to a p2p chat are sent with `receive_id_type=open_id` to the
+> registered peer, so the container id is only needed for *polling*. A message
+> arriving in that container from anybody other than the registered peer is
+> dropped.
+
+### Multiple chats at once
+
+Every chat keeps its own message cursor, so an active group can no longer
+starve a quiet private chat (a single shared `start_time` used to skip it).
+Chats are polled **sequentially**, one request at a time.
+
+Bindings are per chat as well: `/session` inside a chat binds that chat only,
+while `:Chat bridge lark` keeps its platform-level meaning and addresses the
+configured `chat_id`.
+
+---
+
 ## Lark Tools Sharing One App
 
 The credentials under `integrations.lark` are reused by the Lark tools, so a
@@ -259,14 +330,19 @@ the tools you actually use, then release a new version:
 - **API**: Lark Open API (`https://open.feishu.cn/open-apis`), `tenant_access_token`
   authentication refreshed 5 minutes before expiry and shared with the tools
 - **Polling**: every 3 seconds, `page_size=50`, newest first, using `start_time`
-  from the last seen message
+  from the last seen message. Each chat (group or p2p) keeps its **own**
+  cursor, and chats are polled one request at a time
 - **Reply Trigger**: in groups the bot only answers when `@mentioned`
-  (`mentions[].id` equals the bot `open_id`)
+  (`mentions[].id` equals the bot `open_id`); in a p2p chat no mention is
+  required
 - **Message Limit**: 30,720 characters per chunk; longer replies are split
 - **Message Format**: interactive card (schema 2.0) with a `markdown` element
 - **State Persistence**: `stdpath('data')/chat.nvim/integration/lark.json`
-  (respects `storage_dir` when set) — holds the last message cursor, runtime
-  ACL entries, recent senders and the resolved identity cache
+  (respects `storage_dir` when set) — holds the per-chat cursors and session
+  bindings, runtime ACL entries, recent senders and the resolved identity cache.
+  A state file written by an older version (no `containers` key) still loads:
+  the configured `chat_id` becomes the single container, resuming at the old
+  `last_message_time`
 
 ---
 
@@ -293,6 +369,23 @@ Then read the log — it names the actual cause:
 ```
 
 Look for `[Lark] Skip fetch`, `[Lark] Skip send` or `skip message` lines.
+
+### A private chat gets no reply
+
+p2p is deny-by-default, so a silent chat is usually the expected behaviour:
+
+1. **Is the sender in `p2p.allow`?** A missing list falls back to
+   `acl.admins ∪ acl.whitelist`; an explicit list is the whole policy
+2. **Was the conversation ever opened?** The `oc_` id is only known after
+   `create_p2p()` (or after the container is registered), and an unknown chat
+   is never polled
+3. **Did the greeting go out?** Look for a `[Lark] Skip send` /
+   `[Lark] Skip fetch` line with the `receive_id_type=open_id` request
+4. **Is the polled container id the same one?** `get_containers()` lists every
+   chat the bot reads; a p2p entry must carry `chat_type = 'p2p'`
+
+`[Lark] Skip p2p message (peer not allowed)` and
+`[Lark] p2p sender mismatch` name a rejected message directly.
 
 ### Authentication errors
 

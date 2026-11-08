@@ -51,6 +51,13 @@ local state = {
   acl_resolving = false,
   -- open_id -> { last_seen = ms, name = string|nil }
   recent_senders = {},
+  -- chat_id (`oc_xxx`) -> { chat_type, peer, session, last_seen_time }
+  --
+  -- A group and a p2p chat are both *containers*: the messages endpoint takes
+  -- `container_id_type=chat&container_id=oc_...` for either. The `chat_id`
+  -- config entry stays the main container, so `current_session()` /
+  -- `set_session()` keep their platform-level meaning.
+  containers = {},
 }
 
 --------------------------------------------------
@@ -96,10 +103,118 @@ local function acl_config()
   return lark_config().acl or {}
 end
 
+local function p2p_config()
+  return lark_config().p2p or {}
+end
+
+--- The configured main container (`chat_id`).
+---
+--- Kept as a plain config read: `current_session()` / `set_session()` are
+--- platform-level APIs, and the shared layer depends on them. The main
+--- container is the one those APIs address.
+--- @return string|nil
+local function main_chat_id()
+  return lark_config().chat_id
+end
+
+--- Container record for a chat, created on first use.
+---
+--- A group and a p2p chat are the same kind of object to the messages
+--- endpoint (`container_id_type=chat&container_id=oc_...`), so one table
+--- covers both. Old state files have no `containers` key: the main one is
+--- derived from config on demand, which keeps single-chat behaviour identical.
+--- @param chat_id string
+--- @param opts? table { chat_type = 'group'|'p2p', peer = string }
+--- @return table
+local function ensure_container(chat_id, opts)
+  local ctr = state.containers[chat_id]
+  if not ctr then
+    ctr = { chat_type = 'group' }
+    state.containers[chat_id] = ctr
+  end
+  if opts then
+    if opts.chat_type then
+      ctr.chat_type = opts.chat_type
+    end
+    if opts.peer then
+      ctr.peer = opts.peer
+    end
+  end
+  return ctr
+end
+
+--- Per-container message cursor (milliseconds).
+---
+--- The main container mirrors the legacy `last_message_time` field so a state
+--- file written by an older version keeps working, and so `:Chat bridge lark`
+--- style single-chat setups resume exactly where they left off.
+--- @param chat_id string
+--- @return string|nil
+local function container_cursor(chat_id)
+  local ctr = state.containers[chat_id]
+  if ctr and ctr.last_seen_time then
+    return ctr.last_seen_time
+  end
+  if chat_id == main_chat_id() then
+    return state.last_message_time
+  end
+  return nil
+end
+
+--- Advance a container cursor, keeping the legacy field in sync for the main
+--- container.
+--- @param chat_id string
+--- @param ms string|number
+local function set_container_cursor(chat_id, ms)
+  local ctr = ensure_container(chat_id)
+  ctr.last_seen_time = ms
+  if chat_id == main_chat_id() then
+    state.last_message_time = ms
+  end
+end
+
+--- Chat a session replies to.
+---
+--- The main container wins when several chats share one session, so a
+--- platform-level `set_session()` (and the HTTP API that relies on it) keeps
+--- addressing the configured `chat_id`.
+--- @param session string|nil
+--- @return string|nil
+local function session_to_chat(session)
+  if not session then
+    return nil
+  end
+  local main = main_chat_id()
+  local main_ctr = main and state.containers[main]
+  if main_ctr and main_ctr.session == session then
+    return main
+  end
+  for chat_id, ctr in pairs(state.containers) do
+    if chat_id ~= main and ctr.session == session then
+      return chat_id
+    end
+  end
+  return nil
+end
+
 --------------------------------------------------
 -- Save state to file
 --------------------------------------------------
 local function save_state()
+  -- Only serialize the fields a container actually owns. `last_message_time`
+  -- in the record is the same value as the legacy top-level field for the
+  -- main container, but keeping it here makes the per-container cursor the
+  -- single source of truth after a reload.
+  local containers = {}
+  for chat_id, ctr in pairs(state.containers) do
+    containers[chat_id] = {
+      chat_type = ctr.chat_type,
+      peer = ctr.peer,
+      session = ctr.session,
+      last_seen_time = ctr.last_seen_time,
+    }
+  end
+
   local data = {
     last_message_id = state.last_message_id,
     last_message_time = state.last_message_time,
@@ -115,6 +230,7 @@ local function save_state()
     identities = state.identities,
     identities_hash = state.identities_hash,
     recent_senders = state.recent_senders,
+    containers = containers,
   }
 
   local count = 0
@@ -216,6 +332,43 @@ local function load_state()
   state.identities_hash = type(data.identities_hash) == 'string'
     and data.identities_hash
     or nil
+
+  -- Containers: `chat_id` -> { chat_type, peer, session, last_seen_time }.
+  -- Old state files have no `containers` key, so the main container is
+  -- derived from the legacy `last_message_time` on load. That keeps a
+  -- single-chat setup resuming at exactly the same cursor as before.
+  state.containers = {}
+  if type(data.containers) == 'table' then
+    for chat_id, ctr in pairs(data.containers) do
+      if type(chat_id) == 'string' and type(ctr) == 'table' then
+        state.containers[chat_id] = {
+          chat_type = ctr.chat_type or 'group',
+          peer = ctr.peer,
+          session = ctr.session,
+          last_seen_time = ctr.last_seen_time,
+        }
+      end
+    end
+  end
+
+  local main = main_chat_id()
+  if main and not state.containers[main] then
+    state.containers[main] = {
+      chat_type = 'group',
+      last_seen_time = state.last_message_time,
+      session = state.session,
+    }
+  elseif main and state.containers[main] then
+    -- The legacy field is the main container's cursor mirror: prefer the
+    -- per-container value, fall back to the legacy one for old files.
+    local ctr = state.containers[main]
+    if not ctr.last_seen_time then
+      ctr.last_seen_time = state.last_message_time
+    end
+    if not ctr.session then
+      ctr.session = state.session
+    end
+  end
 
   log.debug('[Lark] State loaded')
   return true
@@ -468,6 +621,66 @@ function M.is_admin(open_id)
     end
   end
   return false
+end
+
+--- May this open_id talk to the bot in a 1:1 chat?
+---
+--- p2p needs its own policy, separate from `acl.mode`: `allow_all` is a
+--- statement about the bound group, and reusing it here would let anyone in
+--- the tenant open a DM with the bot. So p2p is **deny by default**:
+---
+---   1. `integrations.lark.p2p.allow` when set (open_id / email / mobile)
+---   2. otherwise `acl.admins` ∪ `acl.whitelist` ∪ runtime whitelist
+---   3. nothing matches → refused
+---
+--- @param open_id string|nil
+--- @return boolean
+function M.is_p2p_allowed(open_id)
+  if not open_id then
+    return false
+  end
+
+  local allow = p2p_config().allow
+  if type(allow) == 'table' and #allow > 0 then
+    for _, entry in ipairs(allow) do
+      if to_open_id(entry) == open_id then
+        return true
+      end
+    end
+    -- An explicit list is the whole policy: no silent fallback, otherwise a
+    -- typo in one entry would quietly widen access to every admin.
+    return false
+  end
+
+  if M.is_admin(open_id) then
+    return true
+  end
+
+  for _, entry in ipairs(acl_config().whitelist or {}) do
+    if to_open_id(entry) == open_id then
+      return true
+    end
+  end
+
+  return state.acl.whitelist[open_id] == true
+end
+
+--- Session bound to a specific chat, falling back to the platform session for
+--- the main container. Used to route in-chat replies to the asking chat.
+--- @param chat_id string|nil
+--- @return string|nil
+local function chat_session(chat_id)
+  if not chat_id then
+    return state.session
+  end
+  local ctr = state.containers[chat_id]
+  if ctr and ctr.session then
+    return ctr.session
+  end
+  if chat_id == main_chat_id() then
+    return state.session
+  end
+  return nil
 end
 
 --- Grant access: add to the runtime whitelist, drop from the blacklist.
@@ -809,46 +1022,224 @@ local function is_mention_bot(msg, bot_id)
 end
 
 --------------------------------------------------
--- Fetch messages (FIXED)
+-- Message handling (one container response)
 --------------------------------------------------
-local function fetch_messages()
-  -- log.debug('[Lark] fetch_messages: called')
-
-  if state.is_fetching then
-    log.debug('[Lark] fetch_messages: skipped (already fetching)')
+--- Process the raw response of one container fetch.
+---
+--- Split out of the job callback so every early exit (empty body, API error,
+--- decode failure) is a plain `return` instead of having to remember to
+--- release the polling chain.
+--- @param chat_id string container the response belongs to
+--- @param response string raw response body
+local function handle_messages(chat_id, response)
+  if response == nil or response == '' then
+    log.debug('[Lark] Empty response body (' .. chat_id .. ')')
     return
   end
 
-  local chat_id = config.config.integrations
-    and config.config.integrations.lark
-    and config.config.integrations.lark.chat_id
-
-  if not chat_id then
-    log.error('[Lark] chat_id not configured')
+  local ok, result = pcall(json.decode, response)
+  if not ok then
+    log.error('[Lark] JSON decode failed: ' .. response)
     return
   end
 
-  state.is_fetching = true
-  -- log.debug('[Lark] fetch_messages: starting request')
+  if not result then
+    log.error('[Lark] Empty response')
+    return
+  end
+
+  -- Check for API errors
+  if result.code and result.code ~= 0 then
+    log.error(
+      '[Lark] API error [' .. result.code .. ']: ' .. (result.msg or 'unknown')
+    )
+    return
+  end
+
+  -- Get messages from response
+  local messages = {}
+  if result.data and result.data.items then
+    messages = result.data.items
+  elseif result.items then
+    messages = result.items
+  else
+    log.debug('[Lark] No messages in response')
+    return
+  end
+
+  if #messages == 0 then
+    return
+  end
+
+  local ctr = ensure_container(chat_id)
+  local has_new = false
+  local latest_time = container_cursor(chat_id) or '0'
+
+  -- Process messages in chronological order (oldest first)
+  for i = #messages, 1, -1 do
+    local msg = messages[i]
+
+    -- Skip already processed messages
+    if state.processed_ids[msg.message_id] then
+      goto continue
+    end
+
+    state.processed_ids[msg.message_id] = true
+    has_new = true
+
+    if msg.create_time then
+      local create_time_ms = msg.create_time
+      if not latest_time or create_time_ms > latest_time then
+        latest_time = create_time_ms
+      end
+    end
+
+    -- Skip bot messages (messages from this app itself)
+    if msg.sender and msg.sender.sender_type == 'app' then
+      goto continue
+    end
+
+    -- Cache the speaker before any filtering: the picker wants to list
+    -- everyone who showed up in the chat, not only those allowed to talk.
+    record_sender(msg)
+
+    -- In a p2p chat there is nobody to @mention: the message is addressed to
+    -- the bot by definition. Groups keep requiring the mention.
+    local need_mention = ctr.chat_type ~= 'p2p'
+
+    if need_mention and not is_mention_bot(msg, state.bot_id) then
+      log.debug('[Lark] Skip message (not mention/reply): ' .. msg.message_id)
+      goto continue
+    end
+
+    local content = msg.body and msg.body.content or ''
+    if msg.msg_type == 'text' then
+      local ok2, text_data = pcall(json.decode, content)
+      if ok2 and text_data and text_data.text then
+        content = text_data.text
+      end
+      -- Lark prefixes the real text with mention keys (`@_user_1`), so
+      -- `@bot /list` arrives as `@_user_1 /list`. Strip the keys here,
+      -- before the shared handler runs: its slash commands are anchored
+      -- with `^/list`, and would never match otherwise. A p2p message has no
+      -- keys and passes through unchanged.
+      content = strip_leading_mentions(content)
+    end
+
+    if content == '' then
+      goto continue
+    end
+
+    local sender_id = msg.sender and msg.sender.id or nil
+
+    -- p2p has its own default-deny policy: `acl.mode = allow_all` would
+    -- otherwise let anyone in the tenant open a DM with the bot.
+    if ctr.chat_type == 'p2p' then
+      local peer = ctr.peer or sender_id
+      if not M.is_p2p_allowed(peer) then
+        log.debug(
+          '[Lark] Skip p2p message (peer not allowed): ' .. tostring(peer)
+        )
+        goto continue
+      end
+      -- The registered peer is the authoritative 1:1 identity; a message
+      -- from somebody else inside that container is not trustworthy.
+      if ctr.peer and sender_id and ctr.peer ~= sender_id then
+        log.warn(
+          '[Lark] p2p sender mismatch ('
+            .. tostring(sender_id)
+            .. ' != '
+            .. ctr.peer
+            .. '), ignoring message'
+        )
+        goto continue
+      end
+    end
+
+    local sender_is_admin = M.is_admin(sender_id)
+
+    -- ACL: admins always pass, so they can recover a whitelist that
+    -- locked them out of management commands.
+    if not sender_is_admin and not M.is_allowed(sender_id) then
+      log.debug(
+        '[Lark] Skip message (sender not allowed): ' .. (sender_id or '?')
+      )
+      goto continue
+    end
+
+    -- In-chat ACL management: must run before the shared handler so
+    -- `/allow` never reaches the LLM as a normal prompt.
+    local acl_command = parse_acl_command(content)
+    if acl_command then
+      handle_acl_command(msg, acl_command)
+      goto continue
+    end
+
+    -- Call callback with the message
+    if state.callback then
+      vim.schedule(function()
+        state.callback({
+          author = sender_id or 'Unknown',
+          content = content,
+          message_id = msg.message_id,
+          -- Source fields: the shared layer routes the reply back to the
+          -- chat the message came from. Pure additions, old integrations
+          -- never see them.
+          chat_id = chat_id,
+          chat_type = ctr.chat_type or 'group',
+        })
+      end)
+    end
+
+    ::continue::
+  end
+
+  -- Save state if there are new messages
+  if has_new then
+    set_container_cursor(chat_id, latest_time)
+    log.debug('[Lark] Updated cursor for ' .. chat_id .. ': ' .. latest_time)
+    save_state()
+  end
+end
+
+--------------------------------------------------
+-- Fetch one container
+--------------------------------------------------
+--- Fetch the messages of a single container, then hand control back.
+---
+--- Group and p2p chats are addressed identically
+--- (`container_id_type=chat&container_id=oc_...`); they differ only in which
+--- cursor is used and whether an `@mention` is required (see handle_messages).
+---
+--- `done()` runs exactly once per call, whichever way the request settles, so
+--- the polling tick can walk the container list without overlapping requests.
+--- @param chat_id string
+--- @param done fun()
+local function fetch_container(chat_id, done)
+  local cursor = container_cursor(chat_id)
 
   ensure_token(function(token, err)
     -- No token means no request: bail out instead of building 'Bearer .. nil'.
     if not token then
-      state.is_fetching = false
-      log.error('[Lark] Skip fetch: ' .. (err or 'no tenant_access_token'))
+      log.error(
+        '[Lark] Skip fetch ('
+          .. chat_id
+          .. '): '
+          .. (err or 'no tenant_access_token')
+      )
+      done()
       return
     end
-    -- Updated endpoint with container_id_type and container_id
+
     local endpoint = API_BASE
       .. '/im/v1/messages?container_id_type=chat&container_id='
       .. chat_id
       .. '&sort_type=ByCreateTimeDesc'
       .. '&page_size=50'
 
-    if state.last_message_time then
+    if cursor then
       -- Convert milliseconds to seconds (Lark API expects seconds)
-      local start_time_seconds =
-        math.floor(tonumber(state.last_message_time) / 1000)
+      local start_time_seconds = math.floor(tonumber(cursor) / 1000)
 
       -- Ensure start_time is not in the future
       local current_time_seconds = os.time()
@@ -860,15 +1251,28 @@ local function fetch_messages()
       end
 
       endpoint = endpoint .. '&start_time=' .. start_time_seconds
-      -- log.debug('[Lark] Fetching messages after: ' .. start_time_seconds)
     end
 
+    -- The request settles on whichever comes first: the exit callback or the
+    -- watchdog. `settled` makes `done()` fire once even when a timed-out job
+    -- still reports its exit afterwards.
+    local settled = false
     local timeout = uv.new_timer()
-    timeout:start(5000, 0, function()
-      if state.is_fetching then
-        log.warn('[Lark] Request timeout')
-        state.is_fetching = false
+    local function settle()
+      if settled then
+        return
       end
+      settled = true
+      timeout:stop()
+      if not timeout:is_closing() then
+        timeout:close()
+      end
+      done()
+    end
+
+    timeout:start(5000, 0, function()
+      log.warn('[Lark] Request timeout (' .. chat_id .. ')')
+      settle()
     end)
 
     -- FIX: Accumulate response data
@@ -891,158 +1295,57 @@ local function fetch_messages()
         end
       end,
       on_exit = function()
-        timeout:stop()
-        if not timeout:is_closing() then
-          timeout:close()
-        end
-        state.is_fetching = false
-        local response = table.concat(response_chunks)
-        if response == {} then
-          log.debug('[Lark] fetch_messages: empty response chunks')
-          return
-        end
-
-        local ok, result = pcall(json.decode, response)
+        local ok, err2 =
+          pcall(handle_messages, chat_id, table.concat(response_chunks))
         if not ok then
-          log.error('[Lark] JSON decode failed: ' .. response)
-          return
+          log.error('[Lark] Message handling failed: ' .. tostring(err2))
         end
-
-        if not result then
-          log.error('[Lark] Empty response')
-          return
-        end
-
-        -- Check for API errors
-        if result.code and result.code ~= 0 then
-          log.error(
-            '[Lark] API error ['
-              .. result.code
-              .. ']: '
-              .. (result.msg or 'unknown')
-          )
-          return
-        end
-
-        -- Get messages from response
-        local messages = {}
-        if result.data and result.data.items then
-          messages = result.data.items
-        elseif result.items then
-          messages = result.items
-        else
-          log.debug('[Lark] No messages in response')
-          return
-        end
-
-        if #messages == 0 then
-          return
-        end
-
-        local has_new = false
-        local latest_time = state.last_message_time or '0'
-
-        -- Process messages in chronological order (oldest first)
-        for i = #messages, 1, -1 do
-          local msg = messages[i]
-
-          -- Skip already processed messages
-          if state.processed_ids[msg.message_id] then
-            goto continue
-          end
-
-          state.processed_ids[msg.message_id] = true
-          has_new = true
-
-          if msg.create_time then
-            local create_time_ms = msg.create_time
-            if not latest_time or create_time_ms > latest_time then
-              latest_time = create_time_ms
-              -- log.debug('[Lark] Updated latest_time to: ' .. latest_time)
-            end
-          end
-
-          -- Skip bot messages (messages from this app itself)
-          if msg.sender and msg.sender.sender_type == 'app' then
-            goto continue
-          end
-
-          -- Cache the speaker before any filtering: the picker wants to list
-          -- everyone who showed up in the chat, not only those allowed to talk.
-          record_sender(msg)
-
-          -- Check if should respond
-          local is_mention = is_mention_bot(msg, state.bot_id)
-
-          -- Only respond if mentioned or replied
-          if not is_mention then
-            log.debug(
-              -- '[Lark] Skip message (not mention):\n' .. vim.inspect(msg)
-              '[Lark] Skip message (not mention/reply): ' .. msg.message_id
-            )
-            goto continue
-          end
-
-          local content = msg.body and msg.body.content or ''
-          if msg.msg_type == 'text' then
-            local ok2, text_data = pcall(json.decode, content)
-            if ok2 and text_data and text_data.text then
-              content = text_data.text
-            end
-            -- Lark prefixes the real text with mention keys (`@_user_1`), so
-            -- `@bot /list` arrives as `@_user_1 /list`. Strip the keys here,
-            -- before the shared handler runs: its slash commands are anchored
-            -- with `^/list`, and would never match otherwise.
-            content = strip_leading_mentions(content)
-          end
-
-          if content == '' then
-            goto continue
-          end
-
-          local sender_id = msg.sender and msg.sender.id or nil
-          local sender_is_admin = M.is_admin(sender_id)
-
-          -- ACL: admins always pass, so they can recover a whitelist that
-          -- locked them out of management commands.
-          if not sender_is_admin and not M.is_allowed(sender_id) then
-            log.debug(
-              '[Lark] Skip message (sender not allowed): ' .. (sender_id or '?')
-            )
-            goto continue
-          end
-
-          -- In-chat ACL management: must run before the shared handler so
-          -- `/allow` never reaches the LLM as a normal prompt.
-          local acl_command = parse_acl_command(content)
-          if acl_command then
-            handle_acl_command(msg, acl_command)
-            goto continue
-          end
-
-          -- Call callback with the message
-          if state.callback then
-            vim.schedule(function()
-              state.callback({
-                author = msg.sender and msg.sender.id or 'Unknown',
-                content = content,
-                message_id = msg.message_id,
-              })
-            end)
-          end
-
-          ::continue::
-        end
-
-        -- Save state if there are new messages
-        if has_new then
-          state.last_message_time = latest_time
-          log.debug('[Lark] Updated last_message_time to: ' .. latest_time)
-          save_state()
-        end
+        settle()
       end,
     })
   end)
+end
+
+--------------------------------------------------
+-- Poll tick: one request per container, strictly sequential
+--------------------------------------------------
+local function poll_tick()
+  if state.is_fetching then
+    log.debug('[Lark] poll_tick: skipped (already fetching)')
+    return
+  end
+
+  -- A state file from before the container abstraction has no entry yet: the
+  -- configured main chat is then the only container, exactly as before.
+  if vim.tbl_count(state.containers) == 0 then
+    local main = main_chat_id()
+    if not main then
+      log.error('[Lark] chat_id not configured')
+      return
+    end
+    ensure_container(main)
+  end
+
+  local ids = sorted_keys(state.containers)
+  if #ids == 0 then
+    return
+  end
+
+  state.is_fetching = true
+
+  local index = 0
+  local function next_container()
+    index = index + 1
+    if index > #ids then
+      state.is_fetching = false
+      return
+    end
+    -- Sequential on purpose: parallel requests would race on the rate limit
+    -- and make the log unreadable.
+    fetch_container(ids[index], next_container)
+  end
+
+  next_container()
 end
 
 --------------------------------------------------
@@ -1079,7 +1382,7 @@ function M.connect(callback)
       state.poll_interval,
       vim.schedule_wrap(function()
         if state.is_running then
-          fetch_messages()
+          poll_tick()
         end
       end)
     )
@@ -1119,20 +1422,42 @@ end
 --------------------------------------------------
 -- Send message
 --------------------------------------------------
+-- Queued chunks carry their own destination: two chats replying at the same
+-- time must not leak chunks into each other.
 local message_queue = {}
 local send_message_jobid = -1
 
-local function send_message(content)
-  local chat_id = config.config.integrations
-    and config.config.integrations.lark
-    and config.config.integrations.lark.chat_id
+--- Delivery address for one container.
+---
+--- p2p replies go to the peer's open_id: an `oc_` id is only needed to *poll*
+--- a conversation, while `receive_id_type=open_id` addresses the person
+--- directly and survives container churn.
+--- @param chat_id string|nil
+--- @return table { id_type = string, receive_id = string|nil }
+local function send_target(chat_id)
+  local ctr = chat_id and state.containers[chat_id] or nil
+  if ctr and ctr.chat_type == 'p2p' and ctr.peer then
+    return { id_type = 'open_id', receive_id = ctr.peer }
+  end
+  return { id_type = 'chat_id', receive_id = chat_id }
+end
 
-  if not chat_id then
-    log.error('[Lark] chat_id not configured')
+local function dispatch_message()
+  if send_message_jobid > 0 then
     return
   end
 
-  if send_message_jobid > 0 then
+  local item = table.remove(message_queue, 1)
+  if not item then
+    return
+  end
+
+  local target = send_target(item.chat_id)
+  if not target.receive_id then
+    log.error('[Lark] Skip send: chat_id not configured')
+    -- Without an address every chunk of this batch fails identically, so drop
+    -- the queue instead of looping on it.
+    message_queue = {}
     return
   end
 
@@ -1143,15 +1468,13 @@ local function send_message(content)
     if not token then
       send_message_jobid = -1
       log.error('[Lark] Skip send: ' .. (err or 'no tenant_access_token'))
-      if #message_queue > 0 then
-        send_message(table.remove(message_queue, 1))
-      end
+      dispatch_message()
       return
     end
     -- Use interactive card (schema 2.0) with markdown element,
     -- so markdown in AI replies is rendered by Lark clients.
     local body = json.encode({
-      receive_id = chat_id,
+      receive_id = target.receive_id,
       msg_type = 'interactive',
       content = json.encode({
         schema = '2.0',
@@ -1159,14 +1482,14 @@ local function send_message(content)
           elements = {
             {
               tag = 'markdown',
-              content = content,
+              content = item.content,
             },
           },
         },
       }),
     })
     local cmd = curl.build_request({
-      url = API_BASE .. '/im/v1/messages?receive_id_type=chat_id',
+      url = API_BASE .. '/im/v1/messages?receive_id_type=' .. target.id_type,
       method = 'POST',
       headers = {
         'Authorization: Bearer ' .. token,
@@ -1187,9 +1510,7 @@ local function send_message(content)
       end,
       on_exit = function()
         send_message_jobid = -1
-        if #message_queue > 0 then
-          send_message(table.remove(message_queue, 1))
-        end
+        dispatch_message()
       end,
     })
 
@@ -1198,29 +1519,264 @@ local function send_message(content)
   end)
 end
 
-function M.send_message(content)
+--- Send a reply.
+---
+--- The optional `session` is the second argument the shared layer passes once
+--- an integration exposes bindings: replies then go back to the chat the
+--- request came from. A single-argument call (all existing call sites, and the
+--- in-chat `/status`, `/list` replies) addresses the main container.
+--- @param content string
+--- @param session? string
+function M.send_message(content, session)
   local max_length = 30720 -- Lark message limit
+
+  local chat_id = main_chat_id()
+  if session then
+    chat_id = session_to_chat(session) or chat_id
+  end
 
   local chunks = chunker.chunk(content, max_length)
   for _, chunk in ipairs(chunks) do
-    table.insert(message_queue, chunk)
+    table.insert(message_queue, { content = chunk, chat_id = chat_id })
   end
 
-  if #message_queue > 0 then
-    send_message(table.remove(message_queue, 1))
-  end
+  dispatch_message()
 end
 
 --------------------------------------------------
--- Session management
+-- Session management (platform level: meaning unchanged)
 --------------------------------------------------
 function M.current_session()
   return state.session
 end
 
+--- Bind the platform session.
+---
+--- `current_session()` stays the single value that `unbridge`, the HTTP routes
+--- and the window title rely on; the main container binding is kept in sync so
+--- replies and per-chat lookups agree.
+--- @param session string|nil
 function M.set_session(session)
   state.session = session
+  local main = main_chat_id()
+  if main then
+    local ctr = ensure_container(main)
+    ctr.session = session
+  end
   save_state()
+end
+
+--------------------------------------------------
+-- Bindings (Phase 2 of ideas/lark-acl-bindings.md)
+--------------------------------------------------
+-- Optional methods: the shared layer calls them only when they exist, so the
+-- other six integrations keep their exact current behaviour.
+
+--- Session bound to a chat, or nil.
+--- @param chat_id string|nil
+--- @return string|nil
+function M.get_binding(chat_id)
+  if not chat_id then
+    return nil
+  end
+  local ctr = state.containers[chat_id]
+  if ctr and ctr.session then
+    return ctr.session
+  end
+  if chat_id == main_chat_id() then
+    return state.session
+  end
+  return nil
+end
+
+--- Bind one chat without touching the platform session.
+--- Used by the in-chat `/session` command and by the Neovim picker.
+--- @param chat_id string
+--- @param session string|nil
+--- @return boolean
+function M.set_binding(chat_id, session)
+  if not chat_id then
+    return false
+  end
+  local ctr = ensure_container(chat_id)
+  ctr.session = session
+  if chat_id == main_chat_id() then
+    state.session = session
+  end
+  save_state()
+  return true
+end
+
+--- Every session reachable through a binding, main one included.
+--- `on_response` matches against this list, so a reply for a per-chat binding
+--- still finds its integration.
+--- @return string[]
+function M.get_bound_sessions()
+  local list, seen = {}, {}
+  local function add(session)
+    if type(session) == 'string' and not seen[session] then
+      seen[session] = true
+      table.insert(list, session)
+    end
+  end
+  add(state.session)
+  for _, ctr in pairs(state.containers) do
+    add(ctr.session)
+  end
+  table.sort(list)
+  return list
+end
+
+--------------------------------------------------
+-- Containers
+--------------------------------------------------
+--- All known containers, sorted by id for stable output (picker list).
+--- @return table[] { chat_id, chat_type, peer, session, last_seen_time }
+function M.get_containers()
+  local list = {}
+  for chat_id, ctr in pairs(state.containers) do
+    table.insert(list, {
+      chat_id = chat_id,
+      chat_type = ctr.chat_type or 'group',
+      peer = ctr.peer,
+      session = ctr.session,
+      last_seen_time = ctr.last_seen_time,
+    })
+  end
+  table.sort(list, function(a, b)
+    return a.chat_id < b.chat_id
+  end)
+  return list
+end
+
+--- Register a container so the poller starts reading it.
+--- @param chat_id string
+--- @param opts? table { chat_type = 'group'|'p2p', peer = string }
+--- @return boolean
+function M.add_container(chat_id, opts)
+  if not chat_id then
+    return false
+  end
+  ensure_container(chat_id, opts)
+  save_state()
+  return true
+end
+
+--- Open (or reuse) a 1:1 chat with an open_id.
+---
+--- A polling bot can not learn a p2p `oc_` id from an incoming message: it has
+--- no cursor for a conversation it does not know about yet. So the conversation
+--- is created from this side:
+---
+---   1. POST /im/v1/messages?receive_id_type=open_id  (a greeting)
+---   2. GET  /im/v1/messages/{message_id}            → `chat_id`
+---   3. register that chat_id as a p2p container
+---
+--- Step 1 doubles as the greeting the user sees, so nothing is sent twice. The
+--- bot's own `sender_type == 'app'` greeting is skipped by the poll loop, so no
+--- self-reply loop can start either.
+--- @param open_id string
+--- @param callback? fun(ok: boolean, result: string)
+function M.create_p2p(open_id, callback)
+  callback = callback or function() end
+
+  if type(open_id) ~= 'string' or open_id == '' then
+    callback(false, 'open_id is required')
+    return
+  end
+
+  if not M.is_p2p_allowed(open_id) then
+    callback(false, 'open_id is not allowed to use private chat')
+    return
+  end
+
+  for chat_id, ctr in pairs(state.containers) do
+    if ctr.chat_type == 'p2p' and ctr.peer == open_id then
+      callback(true, chat_id)
+      return
+    end
+  end
+
+  local greeting = p2p_config().greeting
+    or 'Hi, this is the chat.nvim bot. Reply here to talk to Neovim.'
+
+  ensure_token(function(token, err)
+    if not token then
+      callback(false, err or 'no tenant_access_token')
+      return
+    end
+
+    local body = json.encode({
+      receive_id = open_id,
+      msg_type = 'text',
+      content = json.encode({ text = greeting }),
+    })
+    local send_cmd = curl.build_request({
+      url = API_BASE .. '/im/v1/messages?receive_id_type=open_id',
+      method = 'POST',
+      headers = {
+        'Authorization: Bearer ' .. token,
+        'Content-Type: application/json',
+      },
+      stdin_body = true,
+    })
+
+    local chunks = {}
+    local send_jobid = job.start(send_cmd, {
+      on_stdout = function(_, data)
+        for _, chunk in ipairs(data) do
+          table.insert(chunks, chunk)
+        end
+      end,
+      on_exit = function()
+        local ok, result = pcall(json.decode, table.concat(chunks))
+        if not ok or (result.code and result.code ~= 0) then
+          callback(false, 'send failed: ' .. (ok and result.msg or 'bad json'))
+          return
+        end
+        local message_id = result.data and result.data.message_id
+        if not message_id then
+          callback(false, 'message_id missing from the response')
+          return
+        end
+
+        -- Read the created message back: its chat_id is the p2p container.
+        local reveal_cmd = curl.build_request({
+          url = API_BASE .. '/im/v1/messages/' .. message_id,
+          method = 'GET',
+          headers = { 'Authorization: Bearer ' .. token },
+        })
+        local reveal_chunks = {}
+        job.start(reveal_cmd, {
+          on_stdout = function(_, data)
+            for _, chunk in ipairs(data) do
+              table.insert(reveal_chunks, chunk)
+            end
+          end,
+          on_exit = function()
+            local ok2, res2 = pcall(json.decode, table.concat(reveal_chunks))
+            if not ok2 or (res2.code and res2.code ~= 0) then
+              callback(false, 'lookup failed: ' .. (ok2 and res2.msg or 'bad json'))
+              return
+            end
+            local item = res2.data and res2.data.items and res2.data.items[1]
+            local chat_id = item and item.chat_id
+            if not chat_id then
+              callback(false, 'chat_id missing from the message detail')
+              return
+            end
+            ensure_container(chat_id, { chat_type = 'p2p', peer = open_id })
+            save_state()
+            log.info('[Lark] p2p chat ready: ' .. chat_id)
+            callback(true, chat_id)
+          end,
+        })
+      end,
+    })
+
+    job.send(send_jobid, body)
+    job.send(send_jobid, nil)
+  end)
 end
 
 --------------------------------------------------

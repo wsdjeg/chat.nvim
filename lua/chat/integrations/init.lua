@@ -63,6 +63,42 @@ local function format_session_summary(session_id)
   )
 end
 
+--- Session a message belongs to.
+---
+--- Platforms that support per-chat bindings (currently Lark) expose
+--- `get_binding`; the shared layer then routes by the chat the message came
+--- from, so two groups bound to two sessions stop sharing one context.
+---
+--- Every other integration has no such method, the `and` short-circuits and
+--- `current_session()` is used exactly as before.
+--- @param integration table
+--- @param message table
+--- @return string|nil
+local function resolve_session(integration, message)
+  if message and message.chat_id and integration.get_binding then
+    local bound = integration.get_binding(message.chat_id)
+    if bound then
+      return bound
+    end
+  end
+  return integration.current_session()
+end
+
+--- Bind a session to the chat the command came from.
+---
+--- `set_binding` (optional) binds one chat; `set_session` keeps its
+--- platform-level meaning for every integration without bindings.
+--- @param integration table
+--- @param message table
+--- @param session string|nil
+local function bind_session(integration, message, session)
+  if message and message.chat_id and integration.set_binding then
+    integration.set_binding(message.chat_id, session)
+  else
+    integration.set_session(session)
+  end
+end
+
 -- Helper: parse and execute /session command
 local function handle_session_command(integration, message)
   local arg = message.content:match('^/session%s+(.+)$')
@@ -74,7 +110,7 @@ local function handle_session_command(integration, message)
       integration.send_message('No window session.')
     else
       local sid = windows.current_session()
-      integration.set_session(sid)
+      bind_session(integration, message, sid)
       integration.send_message('Session bound:\n  ' .. format_session_summary(sid))
     end
     return
@@ -87,7 +123,7 @@ local function handle_session_command(integration, message)
     local session_list = integration._session_list
     if session_list and session_list[num] then
       local session_id = session_list[num]
-      integration.set_session(session_id)
+      bind_session(integration, message, session_id)
       integration.send_message(
         string.format(
           'Session bound: %d)\n  %s',
@@ -104,7 +140,7 @@ local function handle_session_command(integration, message)
     -- Bind by session_id
     local sessions = require('chat.sessions')
     if sessions.exists(arg) then
-      integration.set_session(arg)
+      bind_session(integration, message, arg)
       integration.send_message(
         'Session bound:\n  ' .. format_session_summary(arg)
       )
@@ -324,7 +360,7 @@ local function handle_message(integration, name, callback)
       return
     elseif message.content == '/clear' then
       local sessions = require('chat.sessions')
-      local session = integration.current_session()
+      local session = resolve_session(integration, message)
       if session and not sessions.is_in_progress(session) then
         sessions.clear(session)
         integration.send_message('Session messages cleared!')
@@ -332,7 +368,7 @@ local function handle_message(integration, name, callback)
       return
     elseif message.content == '/status' then
       local sessions = require('chat.sessions')
-      local session = integration.current_session()
+      local session = resolve_session(integration, message)
       if session then
         local provider = sessions.get_session_provider(session) or 'default'
         local model = sessions.get_session_model(session) or 'default'
@@ -356,7 +392,7 @@ local function handle_message(integration, name, callback)
     end
 
     -- 正常消息
-    local session = integration.current_session()
+    local session = resolve_session(integration, message)
     if session then
       -- Start typing timer (sends initial typing + repeats every 8s)
       start_typing_timer(integration, name, session)
@@ -386,6 +422,14 @@ function M.on_response(session, content)
   for _, integration in pairs(integrations) do
     if session == integration.current_session() then
       integration.send_message(content)
+    elseif
+      integration.get_bound_sessions
+      and vim.tbl_contains(integration.get_bound_sessions(), session)
+    then
+      -- A session bound to a specific chat (not the platform session): the
+      -- reply is addressed back to that chat. Integrations without
+      -- `get_bound_sessions` never take this branch.
+      integration.send_message(content, session)
     end
   end
 end
