@@ -18,6 +18,21 @@ local util = require('chat.util')
 -- whole conversation. With a list, activating a tool only appends one entry.
 local activated = {} ---@type table<string, string[]>
 
+-- session_id -> ordered list of tool names whose slot in the request's
+-- tools array is frozen for the current turn (the union of tools called in
+-- the turn and tools activated via find_tool).
+--
+-- Positions are assigned on FIRST appearance - history tools first (call
+-- order), then activated tools (activation order) - and never change until
+-- the turn ends. Without this, a tool activated via find_tool (activated
+-- segment) then called by the model would jump into the earlier history
+-- segment and reorder the array whenever the call order differs from the
+-- activation order, invalidating the provider's prefix cache on every
+-- request. With a frozen order, only a genuinely new tool (which must be
+-- added anyway) shifts the array; calling tools or re-activating already
+-- placed tools never does.
+local run_order = {} ---@type table<string, string[]>
+
 -- 延迟加载 MCP 模块（避免循环依赖）
 local mcp = nil
 local function get_mcp()
@@ -360,6 +375,7 @@ end
 ---@param session_id string
 function M.clear_activated_tools(session_id)
   activated[session_id] = nil
+  run_order[session_id] = nil
 end
 
 --- Scan session history and collect tool names called in the current turn,
@@ -412,17 +428,21 @@ local function scan_history_tool_names(session_id)
 end
 
 --- Get tools to send with a request for a session.
---- In lazy mode: essential tools + tools activated via find_tool (or already
---- called in history) + find_tool. Otherwise all available tools.
+--- In lazy mode: essential tools + lazily loaded tools + find_tool.
+--- Otherwise all available tools.
 ---
---- Order is deterministic and append-only, because the tools array is part
---- of the cached request prefix:
+--- Order is deterministic and FROZEN per turn, because the tools array is
+--- part of the cached request prefix:
 ---   1. `tools.essential`, in config order
----   2. tools called in the current turn, in call order
----   3. tools activated via find_tool, in activation order
----   4. find_tool, always last
---- The same session state therefore always yields the same array, and
---- activating a new tool only inserts one entry before find_tool.
+---   2. lazily loaded tools in a per-turn frozen order (see run_order):
+---      positions are assigned on first appearance - tools called in the
+---      turn first (call order), then tools activated via find_tool
+---      (activation order) - and never change until the turn ends
+---   3. find_tool, always last
+--- A tool's slot is frozen on first appearance, so calling an already-placed
+--- tool or re-activating it never reorders the array (which would invalidate
+--- the provider's prefix cache). Only a genuinely new tool - added anyway -
+--- appends one entry before find_tool.
 ---@param session_id string
 ---@return table
 function M.request_tools(session_id)
@@ -453,27 +473,50 @@ function M.request_tools(session_id)
     end
   end
 
-  -- 2. tools already called in the current turn (self-healing after abort
-  --    or restart mid-loop; finished turns do not carry tools over).
-  --    Iterated in call order so the array stays deterministic.
-  for _, name in ipairs(scan_history_tool_names(session_id)) do
-    if by_name[name] and not seen[name] then
-      seen[name] = true
-      table.insert(selected, by_name[name])
+  -- 2. lazily loaded tools, in a per-turn FROZEN order (see run_order).
+  --
+  -- Build/refresh the frozen order: on FIRST appearance a tool is appended
+  -- in priority order - tools called in the current turn first (call order,
+  -- self-healing after abort/restart mid-loop), then tools activated via
+  -- find_tool (activation order). Once a name is in the list its position
+  -- never changes for the rest of the turn, so a tool that was activated
+  -- via find_tool (activated segment) then called by the model does NOT
+  -- jump into the earlier history segment. That jump used to reorder the
+  -- array whenever call order differed from activation order and invalidate
+  -- the provider's whole prefix cache on every request.
+  if session_id then
+    local frozen = run_order[session_id]
+    if not frozen then
+      frozen = {}
+      run_order[session_id] = frozen
+    end
+    local placed = {}
+    for _, name in ipairs(frozen) do
+      placed[name] = true
+    end
+    -- append only names not yet placed, keeping first-appearance priority
+    for _, name in ipairs(scan_history_tool_names(session_id)) do
+      if by_name[name] and not placed[name] then
+        placed[name] = true
+        table.insert(frozen, name)
+      end
+    end
+    for _, name in ipairs(activated[session_id] or {}) do
+      if by_name[name] and not placed[name] then
+        placed[name] = true
+        table.insert(frozen, name)
+      end
+    end
+    -- emit the frozen order (skip names whose scheme is no longer available)
+    for _, name in ipairs(frozen) do
+      if by_name[name] and not seen[name] then
+        seen[name] = true
+        table.insert(selected, by_name[name])
+      end
     end
   end
 
-  -- 3. tools activated via find_tool in this session, in activation order
-  --    (append-only: a newly activated tool lands right before find_tool
-  --    and never reorders the entries already in the array)
-  for _, name in ipairs(activated[session_id] or {}) do
-    if by_name[name] and not seen[name] then
-      seen[name] = true
-      table.insert(selected, by_name[name])
-    end
-  end
-
-  -- 4. find_tool itself, always last (excluded from collect_builtin_tools
+  -- 3. find_tool itself, always last (excluded from collect_builtin_tools
   --    to avoid recursion via its catalog-embedding description)
   if not seen['find_tool'] then
     local ok, ft = pcall(require, 'chat.tools.find_tool')

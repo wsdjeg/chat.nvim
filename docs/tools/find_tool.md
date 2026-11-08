@@ -78,7 +78,7 @@ The only exception: when there is no session to activate the tool in (e.g. a sta
 - Tools enabled by `find_tool` are activated for the current turn only: when the model replies with plain text (no tool calls), the turn is complete and activation is cleared
 - The next turn starts fresh from the essential toolset plus `find_tool`
 - Tools that were already called in the still-open turn are automatically re-included in requests (self-healing after an abort or restart mid tool-call loop)
-- The request's tools array keeps a deterministic, append-only order: `tools.essential` → tools called in this turn → activated tools (in activation order) → `find_tool` last. Activating a tool only appends one entry, so the provider's prompt cache for the preceding prefix stays valid
+- The request's tools array keeps a deterministic, per-turn frozen order: `tools.essential` → lazily loaded tools → `find_tool` last. Lazily loaded tools get their slot on first appearance (tools called in the turn first, in call order, then tools activated via `find_tool`, in activation order) and keep it until the turn ends. Calling an already-placed tool or re-activating it never reorders the array, so the provider's prompt cache for the preceding prefix stays valid; only a genuinely new tool appends one entry
 
 ## Example Flow
 

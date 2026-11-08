@@ -265,6 +265,52 @@ function TestRequestToolsOrder:test_history_duplicate_activation_single_entry()
 end
 
 --------------------------------------------------------------------
+-- frozen per-turn order (activated-then-called must not reorder)
+--------------------------------------------------------------------
+
+function TestRequestToolsOrder:test_frozen_order_no_reorder_activated_then_called()
+  local sessions = require('chat.sessions')
+  local storage = require('chat.sessions.storage')
+  local sid = sessions.new()
+  storage.sessions[sid].messages = storage.sessions[sid].messages or {}
+
+  table.insert(storage.sessions[sid].messages, { role = 'user', content = 'u1' })
+
+  -- turn start: activate two tools via find_tool, in this order
+  tools.activate_tool(sid, 'git_add')
+  tools.activate_tool(sid, 'write_file')
+
+  local before = names_of(tools.request_tools(sid))
+  lu.assertTrue(
+    index_of(before, 'git_add') < index_of(before, 'write_file'),
+    'find_tool activation order must be preserved'
+  )
+
+  -- the model then calls write_file (moves into the history set). Under the
+  -- old separate-segment logic write_file would jump ahead of git_add and
+  -- reorder the array whenever call order differs from activation order,
+  -- invalidating the provider's prefix cache. The frozen order must keep
+  -- write_file in the slot it was first placed in.
+  table.insert(storage.sessions[sid].messages, {
+    role = 'assistant',
+    tool_calls = {
+      { id = 'call_1', type = 'function', ['function'] = { name = 'write_file', arguments = '{}' } },
+    },
+  })
+  table.insert(storage.sessions[sid].messages, {
+    role = 'tool', content = 'ok', tool_call_id = 'call_1',
+  })
+
+  local after = names_of(tools.request_tools(sid))
+  lu.assertEquals(
+    after, before,
+    'a lazily activated tool that is then called must not reorder the tools array'
+  )
+
+  tools.clear_activated_tools(sid)
+end
+
+--------------------------------------------------------------------
 -- non-lazy mode is untouched
 --------------------------------------------------------------------
 
