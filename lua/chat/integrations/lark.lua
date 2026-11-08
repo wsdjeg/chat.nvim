@@ -36,7 +36,15 @@ local state = {
   max_processed_cache = 100,
   poll_interval = 3000,
   session = nil,
+  -- Bot identity, learned from /bot/v3/info and persisted in the state file.
+  -- Group messages are only accepted when they @mention the bot, so this id
+  -- is load-bearing: while it is unknown every group mention looks like
+  -- "addressed to somebody else".
   bot_id = nil,
+  bot_name = nil,
+  -- In-flight /bot/v3/info request, so a failed lookup is retried on the next
+  -- poll instead of leaving the identity unknown for the whole session.
+  bot_info_jobid = nil,
   -- ACL runtime entries, persisted in the state file. Config lists are
   -- merged on top of these (see M.get_acl()).
   acl = {
@@ -230,6 +238,11 @@ local function save_state()
     identities = state.identities,
     identities_hash = state.identities_hash,
     recent_senders = state.recent_senders,
+    -- Bot identity: group messages are only accepted when they @mention the
+    -- bot, so losing this across a restart means dropping every group message
+    -- until /bot/v3/info answers again.
+    bot_id = state.bot_id,
+    bot_name = state.bot_name,
     containers = containers,
   }
 
@@ -291,6 +304,17 @@ local function load_state()
   end
   if data.session then
     state.session = data.session
+  end
+
+  -- Bot identity from the previous session. Old state files have neither
+  -- key; the poll loop re-fetches the identity while it is missing.
+  state.bot_id = nil
+  if type(data.bot_id) == 'string' and data.bot_id ~= '' then
+    state.bot_id = data.bot_id
+  end
+  state.bot_name = nil
+  if type(data.bot_name) == 'string' and data.bot_name ~= '' then
+    state.bot_name = data.bot_name
   end
 
   -- Old state files have no `acl` / `recent_senders` keys: nil guards keep
@@ -943,7 +967,63 @@ end
 --------------------------------------------------
 -- Get bot info
 --------------------------------------------------
+--- Apply a decoded /bot/v3/info body to the state.
+--- @param body string raw response body
+--- @return boolean true when the identity was learned
+local function apply_bot_info(body)
+  if not body or body == '' then
+    return false
+  end
+
+  local ok, result = pcall(json.decode, body)
+  if not ok or type(result) ~= 'table' or type(result.bot) ~= 'table' then
+    return false
+  end
+
+  local bot = result.bot
+  if result.code and result.code ~= 0 then
+    log.warn(
+      '[Lark] /bot/v3/info returned code '
+        .. tostring(result.code)
+        .. ': '
+        .. tostring(result.msg or 'no message')
+    )
+    return false
+  end
+
+  if type(bot.open_id) ~= 'string' or bot.open_id == '' then
+    log.warn('[Lark] /bot/v3/info has no open_id')
+    return false
+  end
+
+  local changed = state.bot_id ~= bot.open_id or state.bot_name ~= bot.app_name
+  state.bot_id = bot.open_id
+  -- `app_name` is the display name a mention carries when the open_id lookup
+  -- is not usable yet; see is_mention_bot().
+  state.bot_name = bot.app_name or bot.name or state.bot_name
+  log.info('[Lark] Bot ID: ' .. state.bot_id .. ' (' .. tostring(state.bot_name) .. ')')
+
+  -- Persist so the next session starts with a known identity instead of
+  -- re-fetching (and, if the request fails, dropping every group message).
+  if changed then
+    save_state()
+  end
+  return true
+end
+
+--- Fetch the bot identity once.
+---
+--- Cheap (one GET) and therefore retried by the poll loop while it is still
+--- unknown: until `state.bot_id` is set, group mentions can not be detected,
+--- and silently dropping every group message is far worse than one extra
+--- request per tick.
 local function get_bot_info()
+  -- Only one lookup in flight: the poll loop may call this on every tick.
+  if state.bot_info_jobid then
+    log.debug('[Lark] Skip bot info: request already in flight')
+    return
+  end
+
   ensure_token(function(token, err)
     -- auth.ensure_token passes (nil, err) when the token request fails;
     -- concatenating nil would crash inside the scheduled callback.
@@ -951,25 +1031,79 @@ local function get_bot_info()
       log.error('[Lark] Skip bot info: ' .. (err or 'no tenant_access_token'))
       return
     end
+
     local cmd = curl.build_request({
       url = API_BASE .. '/bot/v3/info',
       method = 'GET',
       headers = {
         'Authorization: Bearer ' .. token,
       },
+      compressed = true,
+      -- Keep curl diagnostics: with plain `-s` a transport failure writes
+      -- nothing anywhere and the reason is lost.
+      show_error = true,
     })
-    job.start(cmd, {
-      on_stdout = function(_, lines)
-        local output = table.concat(lines, '\n')
-        if output and output ~= '' then
-          local ok, result = pcall(json.decode, output)
-          if ok and result and result.bot then
-            state.bot_id = result.bot.open_id
-            log.info('[Lark] Bot ID: ' .. state.bot_id)
-          end
+
+    -- The body may arrive in several chunks; decoding a single chunk never
+    -- works. Resolve as soon as a complete payload shows up, and fall back to
+    -- the accumulated body on exit (same convention as chat/lark/auth.lua).
+    local chunks = {}
+    local done = false
+
+    local function finish(code, signal)
+      if done then
+        return
+      end
+      done = true
+      state.bot_info_jobid = nil
+
+      local body = table.concat(chunks, '')
+      if not apply_bot_info(body) then
+        -- No identity yet: the next poll tick retries.
+        log.warn(
+          '[Lark] Bot info unavailable (curl exit code '
+            .. tostring(code)
+            .. ', signal '
+            .. tostring(signal)
+            .. '); group mentions stay undetectable until it succeeds'
+        )
+      end
+    end
+
+    local jobid = job.start(cmd, {
+      raw = true,
+      on_stdout = function(_, data)
+        for _, chunk in ipairs(data) do
+          chunks[#chunks + 1] = chunk
+        end
+
+        if done then
+          return
+        end
+
+        local body = table.concat(chunks, '')
+        local ok, result = pcall(json.decode, body)
+        if ok and type(result) == 'table' and type(result.bot) == 'table' then
+          done = true
+          state.bot_info_jobid = nil
+          apply_bot_info(body)
         end
       end,
+      on_exit = function(_, code, signal)
+        finish(code, signal)
+      end,
     })
+
+    -- A job that could not be spawned returns 0: neither callback would ever
+    -- fire, so the in-flight flag must be cleared instead of blocking every
+    -- later retry (0 is truthy in Lua).
+    if not jobid or jobid <= 0 then
+      log.warn('[Lark] Failed to start /bot/v3/info request; will retry')
+      state.bot_info_jobid = nil
+      return
+    end
+
+    state.bot_info_jobid = jobid
   end)
 end
 
@@ -1003,19 +1137,31 @@ end
 --   updated = true
 -- }
 local function is_mention_bot(msg, bot_id)
-  if not bot_id or not msg then
+  if not msg or type(msg.mentions) ~= 'table' then
     return false
   end
 
-  local mentions = msg.mentions
-  if not mentions then
-    return false
-  end
+  for _, m in ipairs(msg.mentions) do
+    if type(m) ~= 'table' then
+      goto continue
+    end
 
-  for _, m in ipairs(mentions) do
-    if m.id == bot_id then
+    -- open_id is the only exact signal Lark gives us: it is resolved by the
+    -- server, not typed by the sender.
+    if bot_id and m.id == bot_id then
       return true
     end
+
+    -- While /bot/v3/info has not answered (or failed), there is no open_id to
+    -- compare against and the mention's display name is the only signal left.
+    -- Used as a fallback only: a name match can not be forged by the sender,
+    -- but it is weaker than an open_id, so it never overrides one.
+    if not bot_id and state.bot_name and m.name == state.bot_name then
+      log.debug('[Lark] Bot mentioned by name (identity still unknown)')
+      return true
+    end
+
+    ::continue::
   end
 
   return false
@@ -1310,6 +1456,13 @@ end
 -- Poll tick: one request per container, strictly sequential
 --------------------------------------------------
 local function poll_tick()
+  -- Identity first: without `state.bot_id` every group mention looks like
+  -- "addressed to somebody else" and gets dropped. Retrying here keeps the
+  -- cost at one cheap GET per tick until it succeeds.
+  if not state.bot_id then
+    get_bot_info()
+  end
+
   if state.is_fetching then
     log.debug('[Lark] poll_tick: skipped (already fetching)')
     return
