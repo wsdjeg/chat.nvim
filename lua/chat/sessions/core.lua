@@ -76,6 +76,51 @@ function M.new()
   return id
 end
 
+--- Creates a session with an explicit id, or returns the existing one.
+---
+--- Used by integrations that own one durable chat (e.g. a Lark p2p
+--- conversation): the id has to stay stable across restarts, so the
+--- timestamp-based id of `M.new()` does not apply.
+---
+--- Idempotent on purpose: the caller may race with a session that is already
+--- on disk but not loaded yet, and must never overwrite it.
+--- @param id string Session identifier (must be filesystem-safe)
+--- @return string|nil id The session id on success
+--- @return string|nil err Error message on failure
+function M.new_with_id(id)
+  if type(id) ~= 'string' or id == '' then
+    return nil, 'session id is required'
+  end
+
+  if storage.sessions[id] then
+    return id
+  end
+
+  -- A session written by a previous run lives on disk but is not in memory
+  -- yet. Check the cache file directly: iter_sessions() loads every session,
+  -- and this runs while handling an incoming chat message.
+  local cache_file = storage.cache_dir .. id .. '.json'
+  if vim.uv.fs_stat(cache_file) then
+    for _ in storage.iter_sessions() do
+    end
+    if storage.sessions[id] then
+      return id
+    end
+  end
+
+  local config = require('chat.config')
+  storage.sessions[id] = {
+    id = id,
+    messages = {},
+    provider = config.config.provider,
+    model = config.config.model,
+    prompt = get_config_system_prompt(),
+    cwd = vim.fs.normalize(vim.uv.cwd() or vim.fn.getcwd()),
+    upload_dir = nil,
+  }
+  return id
+end
+
 --- Deletes a session and its associated data
 --- Cancels any active progress, removes cache file, clears memories
 --- @param session_id string|nil The session ID to delete (defaults to current session)

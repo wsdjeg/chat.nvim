@@ -689,8 +689,55 @@ function M.is_p2p_allowed(open_id)
   return state.acl.whitelist[open_id] == true
 end
 
---- Session bound to a specific chat, falling back to the platform session for
---- the main container. Used to route in-chat replies to the asking chat.
+--- Durable session id owned by a container.
+---
+--- Derived from the chat id so the same conversation keeps the same session
+--- even when the state file is lost. `sessions.new_with_id()` is idempotent:
+--- an existing session is reused, never overwritten.
+--- @param chat_id string
+--- @return string
+local function container_session_id(chat_id)
+  return 'lark-' .. chat_id
+end
+
+--- Make sure a container owns a session.
+---
+--- The main container keeps using the platform session (`state.session`), so
+--- `current_session()` / `set_session()` and everything built on them keep
+--- their meaning. Every other container must own one instead: the shared
+--- layer resolves a message's session through `get_binding()`, and an unbound
+--- container falls back to `current_session()` — a p2p message would then be
+--- answered inside the group's session, and the reply would be delivered to
+--- the configured group instead of the peer.
+--- @param chat_id string
+--- @param ctr table
+--- @return string|nil
+local function ensure_container_session(chat_id, ctr)
+  if ctr.session then
+    return ctr.session
+  end
+  if chat_id == main_chat_id() then
+    return state.session
+  end
+
+  local id = require('chat.sessions').new_with_id(container_session_id(chat_id))
+  if not id then
+    log.error('[Lark] Failed to create a session for ' .. chat_id)
+    return nil
+  end
+
+  ctr.session = id
+  save_state()
+  log.info('[Lark] Bound session ' .. id .. ' to ' .. chat_id)
+  return id
+end
+
+--- Session a chat should talk in, falling back to the platform session.
+---
+--- Binding happens here (on read) rather than while messages are being
+--- processed: a reply for a chat that never owned a session is impossible to
+--- route afterwards, so the binding must not depend on how far
+--- `handle_messages` got before a filter dropped the message.
 --- @param chat_id string|nil
 --- @return string|nil
 local function chat_session(chat_id)
@@ -698,8 +745,8 @@ local function chat_session(chat_id)
     return state.session
   end
   local ctr = state.containers[chat_id]
-  if ctr and ctr.session then
-    return ctr.session
+  if ctr then
+    return ensure_container_session(chat_id, ctr)
   end
   if chat_id == main_chat_id() then
     return state.session
@@ -909,8 +956,16 @@ end
 --- "permission denied" reply would only spam the group.
 --- @param msg table raw Lark message
 --- @param parsed table { command = ..., arg = ... }
-local function handle_acl_command(msg, parsed)
+--- @param chat_id string|nil container the command came from
+local function handle_acl_command(msg, parsed, chat_id)
   local sender_id = msg.sender and msg.sender.id or nil
+
+  --- ACL replies follow the chat the command came from: a `/allow` typed in
+  --- a p2p chat must not be announced in the group. A nil session keeps the
+  --- old single-channel behaviour (the configured chat).
+  local function reply(text)
+    M.send_message(text, chat_session(chat_id))
+  end
 
   if not M.is_admin(sender_id) then
     log.warn(
@@ -923,20 +978,20 @@ local function handle_acl_command(msg, parsed)
   end
 
   if parsed.command == 'acl' then
-    M.send_message(M.acl_status())
+    reply(M.acl_status())
     return
   end
 
   local target = resolve_open_id(parsed.arg, msg.mentions)
   if not target then
-    M.send_message(
+    reply(
       'Usage: /allow @user or /deny @user (mention the user in the command)'
     )
     return
   end
 
   if target == state.bot_id then
-    M.send_message('Refusing to change ACL for the bot itself.')
+    reply('Refusing to change ACL for the bot itself.')
     return
   end
 
@@ -947,7 +1002,7 @@ local function handle_acl_command(msg, parsed)
     changed = M.acl_deny(target)
   end
 
-  M.send_message(
+  reply(
     string.format(
       '%s %s\n\n%s',
       parsed.command == 'allow' and 'Allowed:' or 'Denied:',
@@ -1317,7 +1372,7 @@ local function handle_messages(chat_id, response)
     -- `/allow` never reaches the LLM as a normal prompt.
     local acl_command = parse_acl_command(content)
     if acl_command then
-      handle_acl_command(msg, acl_command)
+      handle_acl_command(msg, acl_command, chat_id)
       goto continue
     end
 
@@ -1725,21 +1780,18 @@ end
 -- Optional methods: the shared layer calls them only when they exist, so the
 -- other six integrations keep their exact current behaviour.
 
---- Session bound to a chat, or nil.
+--- Session bound to a chat, creating one on first use.
+---
+--- The lookup is where the binding is established (see chat_session): the
+--- shared layer asks this while resolving a message, so a chat that never
+--- owned a session gets one before the reply is routed.
 --- @param chat_id string|nil
 --- @return string|nil
 function M.get_binding(chat_id)
   if not chat_id then
     return nil
   end
-  local ctr = state.containers[chat_id]
-  if ctr and ctr.session then
-    return ctr.session
-  end
-  if chat_id == main_chat_id() then
-    return state.session
-  end
-  return nil
+  return chat_session(chat_id)
 end
 
 --- Bind one chat without touching the platform session.

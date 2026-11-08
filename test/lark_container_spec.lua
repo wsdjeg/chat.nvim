@@ -533,5 +533,75 @@ function TestLarkContainer:test_create_p2p_reuses_known_container()
   lu.assertNil(find_job('receive_id_type=open_id'), 'no greeting for a known chat')
 end
 
+-- ===========================================================================
+-- Reply routing regression: a p2p message must never be answered in the group
+-- ===========================================================================
+
+function TestLarkContainer:test_p2p_container_owns_its_session()
+  -- Regression: a p2p container without a session inherited the platform
+  -- session through `current_session()`, so `on_response` matched the
+  -- first branch, called `send_message(content)` without a session and the
+  -- answer landed in the configured group instead of the private chat.
+  --
+  -- Deliberately polling-free: the bug lived in session resolution, so the
+  -- assertion is on `get_binding()` (which the shared layer calls) rather
+  -- than on a timed fetch.
+  self.lark = fresh_lark()
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+  -- The platform session is what made the bug visible: it is the value an
+  -- unbound container falls back to.
+  self.lark.set_session('sess-main')
+
+  -- The p2p chat owns a session of its own, derived from its chat id and
+  -- therefore stable across restarts.
+  lu.assertEquals('lark-oc_p2p', self.lark.get_binding('oc_p2p'))
+  lu.assertNotEquals(
+    'sess-main',
+    self.lark.get_binding('oc_p2p'),
+    'p2p must not borrow the group session'
+  )
+  -- The main container keeps the platform session.
+  lu.assertEquals('sess-main', self.lark.get_binding('oc_main'))
+
+  -- Reply for that session goes to the peer's open_id, never to oc_main.
+  self.lark.send_message('I am just a plugin', 'lark-oc_p2p')
+  wait(100)
+  job.emit_stdout(find_job('tenant_access_token'), { TOKEN_JSON })
+  wait(100)
+
+  local send_id, send_job = find_job('receive_id_type=open_id')
+  lu.assertNotNil(send_job, 'reply addressed to the p2p peer')
+  lu.assertEquals('ou_peer', vim.json.decode(send_job.stdin[1]).receive_id)
+  lu.assertNil(
+    find_job('receive_id_type=chat_id'),
+    'the group must not receive this reply'
+  )
+  job.emit_exit(send_id, 0)
+end
+
+function TestLarkContainer:test_container_session_is_stable_across_reload()
+  -- The derived id is intentional: losing the state file must not create a
+  -- fresh session and a fresh context for an existing conversation.
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+  lu.assertEquals('lark-oc_p2p', self.lark.get_binding('oc_p2p'))
+
+  -- Reload with no state file at all: the same chat id must resolve to the
+  -- very same session, so the conversation keeps its history.
+  vim.fn.delete(storage_dir, 'rf')
+  vim.fn.mkdir(storage_dir, 'p')
+  self.lark = fresh_lark()
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+
+  lu.assertEquals('lark-oc_p2p', self.lark.get_binding('oc_p2p'))
+end
+
+function TestLarkContainer:test_get_binding_nil_chat_falls_back_to_platform_session()
+  -- A message without a chat id (every integration other than lark) keeps
+  -- resolving through the platform session.
+  self.lark.set_session('sess-platform')
+  lu.assertNil(self.lark.get_binding(nil))
+  lu.assertEquals('sess-platform', self.lark.current_session())
+end
+
 return TestLarkContainer
 

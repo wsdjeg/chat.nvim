@@ -15,6 +15,7 @@ local cache_probe = require('chat.sessions.cache_probe')
 
 -- ─── Session CRUD ──────────────────────────────────────────────
 M.new = core.new
+M.new_with_id = core.new_with_id
 M.delete = core.delete
 M.previous = core.previous
 M.next = core.next
