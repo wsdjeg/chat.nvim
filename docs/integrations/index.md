@@ -48,6 +48,26 @@ All IM integrations share these common features:
 - `/list [pattern]` - List available sessions (optional pattern filter)
 - `/clear` - Clear current session messages
 
+### Bridge Semantics
+
+One rule covers every entry point (`:Chat bridge`, `:Chat unbridge`,
+`/session`, `GET|PUT|DELETE /session/:id/bridge`):
+
+- **Binding replaces.** Bridging a session drops whatever that platform pointed
+  at before, so a per-chat binding can never outlive the session it was created
+  under.
+- **Unbinding clears both levels.** Platform-level and per-chat bindings for the
+  session are dropped together. After unbridging, the integration really stops
+  replying — it is not merely hidden from the title bar.
+- **Display matches routing.** The window title badge, `GET /session/:id/bridge`
+  and the actual reply routing all read the same binding table, so a session
+  that receives replies always shows as bridged.
+- **Failures are reported.** `:Chat bridge` says whether the platform is unknown,
+  whether there is no session, or that the bridge succeeded — the same
+  distinction the HTTP route returns (`false` vs `nil`). `:Chat unbridge` with
+  nothing bound reports "Nothing bound to current session" instead of claiming
+  success.
+
 ### Technical Details
 
 - **Message Queue**: Sequential processing to prevent race conditions
@@ -175,7 +195,7 @@ The general workflow for IM integration:
 
 {: .highlight }
 
-> **Session Binding**: The `:Chat bridge` command connects your current chat.nvim session to the messaging platform, allowing messages from the platform to be processed by that specific session.
+> **Session Binding**: The `:Chat bridge` command connects your current chat.nvim session to the messaging platform, allowing messages from the platform to be processed by that specific session. Platforms that can address a single chat (currently Lark) may bind each conversation separately; for every other platform the whole integration is bound at once.
 
 ---
 

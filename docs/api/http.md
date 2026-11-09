@@ -1277,7 +1277,12 @@ Bridge an integration platform to a session. Once bridged, the integration will 
 |---|---|
 | 200 | Success - integration bridged |
 | 400 | Unknown integration platform (response includes `available` list) |
+| 400 | No session to bridge (`{"error": "No session to bridge"}`) |
 | 404 | Session not found |
+
+A bridge covers every chat that platform addresses: binding a session drops
+whatever the platform pointed at before, so a per-chat binding can never
+outlive the session it was created under.
 
 **Example:**
 
@@ -1291,6 +1296,10 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/bridge/discord \
 ### DELETE `/session/{id}/bridge/{platform}`
 
 Unbridge a specific integration from a session.
+
+Both levels are cleared: the platform-level binding and every per-chat binding
+pointing at this session. After `204` the integration really stops replying to
+that session, instead of only disappearing from `GET /bridge`.
 
 **Path Parameters:**
 
@@ -1306,7 +1315,6 @@ Unbridge a specific integration from a session.
 | 204 | Success - integration unbridged |
 | 400 | Unknown integration platform (response includes `available` list) |
 | 404 | Session not found, or integration not bound to this session |
-| 404 | Session not found |
 
 **Example:**
 

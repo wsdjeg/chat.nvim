@@ -342,6 +342,16 @@ Bindings are per chat as well: `/session` inside a chat binds that chat only,
 while `:Chat bridge lark` keeps its platform-level meaning and addresses the
 configured `chat_id`.
 
+Unbinding a session clears both levels — the platform-level binding and every
+per-chat binding pointing at that session — so a p2p chat cannot keep answering
+after `:Chat unbridge lark` reported success.
+
+A binding whose session was deleted is dropped and recreated on next use rather
+than returned: the conversation keeps its stable derived id (`lark-<chat_id>`),
+so it resumes with a working session instead of silently writing replies into a
+session that no longer exists. Bindings set by hand to a session this module did
+not derive are left untouched.
+
 ---
 
 ## Lark Tools Sharing One App
