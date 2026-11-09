@@ -603,5 +603,172 @@ function TestLarkContainer:test_get_binding_nil_chat_falls_back_to_platform_sess
   lu.assertEquals('sess-platform', self.lark.current_session())
 end
 
+-- ===========================================================================
+-- Automatic p2p container provisioning
+-- ===========================================================================
+
+function TestLarkContainer:test_provision_list_prefers_p2p_allow()
+  self.lark = fresh_lark({
+    acl = { admins = { 'ou_admin' } },
+    p2p = { allow = { 'ou_alice', 'ou_bob', 'ou_alice' } },
+  })
+  -- An explicit p2p.allow is the whole policy, admins included.
+  lu.assertEquals({ 'ou_alice', 'ou_bob' }, self.lark.get_p2p_provision_list())
+end
+
+function TestLarkContainer:test_provision_list_falls_back_to_admins()
+  -- No p2p.allow: admins are the only curated set. `acl.whitelist` is
+  -- deliberately excluded, otherwise a long whitelist would be greeted on
+  -- every connect.
+  self.lark = fresh_lark({
+    acl = { admins = { 'ou_admin' }, whitelist = { 'ou_member' } },
+  })
+  lu.assertEquals({ 'ou_admin' }, self.lark.get_p2p_provision_list())
+end
+
+function TestLarkContainer:test_provision_list_empty_config()
+  self.lark = fresh_lark()
+  lu.assertEquals({}, self.lark.get_p2p_provision_list())
+end
+
+function TestLarkContainer:test_connect_provisions_admin_p2p_chat()
+  -- A polling bot can not learn a p2p chat id from an inbound message, so the
+  -- admin's conversation has to be opened from this side on connect.
+  self.lark = fresh_lark({ acl = { admins = { 'ou_admin' } } })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  -- step 1: greeting goes to the admin's open_id
+  local send_id, send_job = find_job('receive_id_type=open_id')
+  lu.assertNotNil(send_job, 'greeting sent to the provisioned admin')
+  lu.assertEquals(
+    'ou_admin',
+    vim.json.decode(send_job.stdin[1]).receive_id
+  )
+
+  -- step 2: the message detail reveals the chat id
+  job.emit_stdout(send_id, {
+    vim.json.encode({ code = 0, data = { message_id = 'om_prov' } }),
+  })
+  job.emit_exit(send_id, 0)
+  wait(100)
+
+  local detail_id = find_job('/im/v1/messages/om_prov')
+  lu.assertNotNil(detail_id, 'message detail requested')
+  job.emit_stdout(detail_id, {
+    vim.json.encode({
+      code = 0,
+      data = { items = { { chat_id = 'oc_admin_p2p' } } },
+    }),
+  })
+  job.emit_exit(detail_id, 0)
+  wait(100)
+
+  -- step 3: registered as a p2p container with its own session, so it is
+  -- polled and replies are routed to the peer
+  local found
+  for _, ctr in ipairs(self.lark.get_containers()) do
+    if ctr.chat_id == 'oc_admin_p2p' then
+      found = ctr
+    end
+  end
+  lu.assertNotNil(found, 'p2p container registered automatically')
+  lu.assertEquals('p2p', found.chat_type)
+  lu.assertEquals('ou_admin', found.peer)
+  lu.assertEquals('lark-oc_admin_p2p', found.session)
+end
+
+function TestLarkContainer:test_connect_provisions_p2p_allow_entries()
+  self.lark = fresh_lark({ p2p = { allow = { 'ou_alice' } } })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  lu.assertNotNil(
+    find_job('receive_id_type=open_id'),
+    'p2p.allow is the provisioning list'
+  )
+end
+
+function TestLarkContainer:test_connect_skips_known_p2p_container()
+  self.lark = fresh_lark({ p2p = { allow = { 'ou_peer' } } })
+  self.lark.add_container('oc_known', { chat_type = 'p2p', peer = 'ou_peer' })
+
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  lu.assertNil(
+    find_job('receive_id_type=open_id'),
+    'a known chat is reused, no greeting is re-sent'
+  )
+end
+
+function TestLarkContainer:test_provisioning_can_be_disabled()
+  self.lark = fresh_lark({
+    acl = { admins = { 'ou_admin' } },
+    p2p = { auto_create = false },
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  lu.assertNil(
+    find_job('receive_id_type=open_id'),
+    'p2p.auto_create = false disables provisioning'
+  )
+end
+
+function TestLarkContainer:test_provision_p2p_ignored_while_disconnected()
+  -- connect() provisions on its own; a manual call while the poller is down
+  -- must not fire requests.
+  self.lark.provision_p2p({ 'ou_admin' })
+  wait(50)
+  lu.assertNil(find_job('receive_id_type=open_id'))
+end
+
+function TestLarkContainer:test_in_chat_allow_provisions_new_p2p_chat()
+  -- `/allow @user` grants access; provisioning opens the DM right away so the
+  -- user is polled before they type anything.
+  --
+  -- The admin's own container is registered up front, so connect-time
+  -- provisioning has nothing to send and the greeting observed below can only
+  -- come from the `/allow` command.
+  self.lark = fresh_lark({
+    acl = { mode = 'allow_all', admins = { 'ou_admin' } },
+  })
+  self.lark.add_container('oc_admin_p2p', {
+    chat_type = 'p2p',
+    peer = 'ou_admin',
+  })
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  lu.assertNil(
+    find_job('receive_id_type=open_id'),
+    'no greeting for an already known admin'
+  )
+
+  -- Polling is sequential and `oc_admin_p2p` sorts before `oc_main`, so the
+  -- main container is only fetched once the p2p request has settled.
+  deliver('oc_admin_p2p', {})
+  deliver('oc_main', {
+    make_msg('om_allow_new', '@_user_1 /allow @_user_2', {
+      sender_id = 'ou_admin',
+      mentions = {
+        { id = 'ou_bot_1', key = '@_user_1', name = 'chat.nvim' },
+        { id = 'ou_target', key = '@_user_2', name = 'Zhang San' },
+      },
+    }),
+  })
+  wait(150)
+
+  local _, send_job = find_job('receive_id_type=open_id')
+  lu.assertNotNil(send_job, 'the newly allowed user gets a p2p chat')
+  lu.assertEquals('ou_target', vim.json.decode(send_job.stdin[1]).receive_id)
+end
+
 return TestLarkContainer
 

@@ -689,6 +689,63 @@ function M.is_p2p_allowed(open_id)
   return state.acl.whitelist[open_id] == true
 end
 
+--- The p2p container that already belongs to an open_id, if any.
+--- @param open_id string
+--- @return string|nil chat_id
+local function p2p_container_of(open_id)
+  local found
+  for chat_id, ctr in pairs(state.containers) do
+    if ctr.chat_type == 'p2p' and ctr.peer == open_id then
+      found = chat_id
+      break
+    end
+  end
+  return found
+end
+
+--- open_ids that should get a p2p container without being asked.
+---
+--- Deliberately narrower than `is_p2p_allowed()`: only the *curated* set is
+--- provisioned, because provisioning opens a conversation and sends a
+--- greeting.
+---
+---   1. `p2p.allow` when set — the admin named exactly these users
+---   2. otherwise `acl.admins` — small and intentional
+---
+--- The wider fallback of `is_p2p_allowed()` (`acl.whitelist`) is **not**
+--- provisioned on purpose: greeting a whole whitelist on connect would be
+--- spam, and those users can still open the chat themselves.
+---
+--- Email / mobile entries are resolved through the identity cache, so an
+--- unresolved entry is simply absent (fail closed, same as the access check).
+--- @return string[]
+function M.get_p2p_provision_list()
+  local seen, out = {}, {}
+
+  local function add(entry)
+    local open_id = to_open_id(entry)
+    if not open_id or seen[open_id] then
+      return
+    end
+    seen[open_id] = true
+    table.insert(out, open_id)
+  end
+
+  local allow = p2p_config().allow
+  if type(allow) == 'table' and #allow > 0 then
+    for _, entry in ipairs(allow) do
+      add(entry)
+    end
+  else
+    for _, entry in ipairs(acl_config().admins or {}) do
+      add(entry)
+    end
+  end
+
+  table.sort(out)
+  return out
+end
+
 --- Durable session id owned by a container.
 ---
 --- Derived from the chat id so the same conversation keeps the same session
@@ -998,6 +1055,13 @@ local function handle_acl_command(msg, parsed, chat_id)
   local changed
   if parsed.command == 'allow' then
     changed = M.acl_allow(target)
+    if changed then
+      -- A newly allowed user can DM the bot, but the poller only reads
+      -- conversations whose `oc_` id it already knows. Opening that
+      -- conversation here means there is something to poll before the
+      -- user types anything (see provision_p2p).
+      M.provision_p2p({ target })
+    end
   else
     changed = M.acl_deny(target)
   end
@@ -1596,6 +1660,12 @@ function M.connect(callback)
     )
 
     log.info('[Lark] Polling started')
+
+    -- Admins get their private chat opened without asking for it: a p2p
+    -- container is only polled once its `oc_` id is known, and polling can
+    -- never discover it. Runs after polling starts so the newly registered
+    -- containers are picked up by the very next tick.
+    M.provision_p2p()
   end
 
   -- Resolve email / mobile ACL entries before the first poll: until the map
@@ -1982,6 +2052,91 @@ function M.create_p2p(open_id, callback)
     job.send(send_jobid, body)
     job.send(send_jobid, nil)
   end)
+end
+
+--- Make sure every curated open_id owns a p2p container.
+---
+--- A p2p conversation is only polled once its `oc_` id is registered, and a
+--- polling bot can not learn that id from an incoming message. So the chats
+--- are opened proactively: an admin listed in `p2p.allow` (or, without that
+--- list, `acl.admins`) gets a container on connect without lifting a finger.
+---
+--- Cheap and idempotent: a known container is a pure table lookup, and
+--- `create_p2p` answers synchronously for it (no greeting is re-sent). Every
+--- provisioned container also gets its own session immediately, so
+--- `/session` style commands work before the first message arrives.
+---
+--- `p2p.auto_create = false` turns the whole thing off.
+--- @param open_ids? string[] Defaults to `get_p2p_provision_list()`
+--- @param callback? fun() Called once the list has been walked
+function M.provision_p2p(open_ids, callback)
+  callback = callback or function() end
+
+  if p2p_config().auto_create == false then
+    callback()
+    return
+  end
+
+  if not state.is_running then
+    -- Nothing to provision for: the poller is not reading anything, and
+    -- `connect()` provisions on its own.
+    callback()
+    return
+  end
+
+  local list = open_ids or M.get_p2p_provision_list()
+  if type(list) == 'string' then
+    list = { list }
+  end
+
+  local index = 0
+  local function next_open_id()
+    index = index + 1
+    if index > #list then
+      callback()
+      return
+    end
+
+    local open_id = list[index]
+    if type(open_id) ~= 'string' or open_id == '' then
+      next_open_id()
+      return
+    end
+
+    -- Known peer: create_p2p would answer synchronously anyway, but a table
+    -- lookup keeps the log free of a "already known" entry per connect.
+    if p2p_container_of(open_id) then
+      next_open_id()
+      return
+    end
+
+    M.create_p2p(open_id, function(ok, result)
+      if ok then
+        local ctr = state.containers[result]
+        if ctr then
+          -- Bind the session now: a container that arrives with history but
+          -- no session would otherwise borrow the platform session.
+          ensure_container_session(result, ctr)
+        end
+        log.info(
+          '[Lark] Provisioned p2p chat for ' .. open_id .. ': ' .. tostring(result)
+        )
+      else
+        -- debug, not error: a user who never talked to the bot, or a missing
+        -- `im:message:send_as_bot` scope, is a normal outcome and the next
+        -- connect retries it.
+        log.debug(
+          '[Lark] p2p provisioning skipped ('
+            .. open_id
+            .. '): '
+            .. tostring(result)
+        )
+      end
+      next_open_id()
+    end)
+  end
+
+  next_open_id()
 end
 
 --------------------------------------------------

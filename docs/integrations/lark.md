@@ -166,6 +166,7 @@ list are in [Configuration Reference](#configuration-reference).
 | `integrations.lark.acl.admins`     | `string[]` | `{}`          | Users allowed to run `/allow`, `/deny` and `/acl` |
 | `integrations.lark.p2p.allow`      | `string[]` | `{}`          | Users allowed to use private chat (default: deny) |
 | `integrations.lark.p2p.greeting`   | `string`   | see below     | Text sent when a private chat is opened           |
+| `integrations.lark.p2p.auto_create`| `boolean`  | `true`        | Open a private chat for allowed users on connect  |
 
 Every ACL list accepts an `open_id` (`ou_...`), an email address, or a mobile
 number. `open_id` entries cost zero API calls; email / mobile entries are
@@ -196,6 +197,8 @@ require('chat').setup({
         allow = { 'ou_xxx' },
         -- text sent when a private chat is opened
         greeting = 'Hi, this is the chat.nvim bot. Reply here to talk to Neovim.',
+        -- open a private chat for the allowed users on connect (default: true)
+        auto_create = true,
       },
     },
   },
@@ -292,6 +295,36 @@ The call does three things:
 the existing `chat_id` when the conversation is already known (no greeting is
 re-sent).
 
+### Automatic provisioning
+
+You normally do not have to call `create_p2p` yourself. On connect the
+integration walks the curated allow-list and opens a p2p chat for everyone in
+it that does not have one yet:
+
+| Source                                  | Provisioned |
+| --------------------------------------- | ----------- |
+| `p2p.allow` when set                    | yes         |
+| otherwise `acl.admins`                  | yes         |
+| `acl.whitelist` (the wider fallback)    | no          |
+
+`acl.whitelist` is excluded on purpose: provisioning *sends a greeting*, so a
+long whitelist would be spammed on every connect. Those users can still open
+the chat themselves.
+
+`/allow @user` also provisions immediately, so a freshly granted admin can DM
+the bot without waiting for a restart.
+
+Every provisioned container gets its own session (`lark-<chat_id>`) right
+away, so the private chat has its own context from the first message.
+
+`integrations.lark.p2p.auto_create = false` turns automatic provisioning off —
+`create_p2p` still works on demand.
+
+```vim
+" manually provision without restarting
+:lua require('chat.integrations.lark').provision_p2p()
+```
+
 {: .info }
 
 > Replies to a p2p chat are sent with `receive_id_type=open_id` to the
@@ -377,10 +410,12 @@ p2p is deny-by-default, so a silent chat is usually the expected behaviour:
 1. **Is the sender in `p2p.allow`?** A missing list falls back to
    `acl.admins ∪ acl.whitelist`; an explicit list is the whole policy
 2. **Was the conversation ever opened?** The `oc_` id is only known after
-   `create_p2p()` (or after the container is registered), and an unknown chat
-   is never polled
+   `create_p2p()` — or after automatic provisioning on connect — and an
+   unknown chat is never polled. `p2p.auto_create = false` disables the
+   automatic path, so only a manual `create_p2p()` registers the chat
 3. **Did the greeting go out?** Look for a `[Lark] Skip send` /
-   `[Lark] Skip fetch` line with the `receive_id_type=open_id` request
+   `[Lark] Skip fetch` line with the `receive_id_type=open_id` request, or a
+   `[Lark] p2p provisioning skipped (<open_id>)` debug line
 4. **Is the polled container id the same one?** `get_containers()` lists every
    chat the bot reads; a p2p entry must carry `chat_type = 'p2p'`
 
