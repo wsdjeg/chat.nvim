@@ -399,6 +399,27 @@ local function load_state()
 end
 
 --------------------------------------------------
+-- Startup cursor reset
+--------------------------------------------------
+--- Move every container cursor to "now" (milliseconds).
+---
+--- The state file records where the previous session stopped, not a queue to
+--- replay: a restart with an hours-old cursor makes the first tick fetch
+--- everything written while the plugin was down and answer it in one burst.
+--- Starting at "now" means only messages sent after the plugin started are
+--- considered; leftover ids from the previous session stay in `processed_ids`,
+--- so the boundary between the two is still guarded.
+--- @return string cursor written to every container
+local function reset_cursors_to_now()
+  local now = tostring(os.time() * 1000)
+  state.last_message_time = now
+  for _, ctr in pairs(state.containers) do
+    ctr.last_seen_time = now
+  end
+  return now
+end
+
+--------------------------------------------------
 -- ACL (Phase 1 of ideas/lark-acl-bindings.md)
 --------------------------------------------------
 -- Three modes:
@@ -1687,6 +1708,12 @@ function M.connect(callback)
   state.is_running = true
 
   load_state()
+
+  -- The cached cursors describe where the *previous* run stopped. Replaying
+  -- them on start would fetch and answer everything sent while the plugin was
+  -- down, so every container resumes from "now" instead.
+  reset_cursors_to_now()
+  save_state()
 
   local function start_polling()
     get_bot_info()

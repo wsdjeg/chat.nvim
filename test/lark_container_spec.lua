@@ -164,10 +164,57 @@ function TestLarkContainer:test_legacy_state_seeds_main_container()
   lu.assertEquals('sess-legacy', self.lark.current_session())
 end
 
+function TestLarkContainer:test_startup_resets_cursor_to_now()
+  -- The cached cursor says where the previous run stopped, not a queue to
+  -- replay: an hours-old cursor makes the first tick fetch everything sent
+  -- while the plugin was down and answer it in one burst. connect() therefore
+  -- moves the cursor to "now" and writes it back before the first poll.
+  write_state({
+    last_message_id = 'om_old',
+    last_message_time = '1700000005000',
+    processed_ids = { om_old = true },
+    containers = {
+      oc_main = {
+        chat_type = 'group',
+        last_seen_time = '1700000005000',
+      },
+    },
+  })
+
+  local before = os.time()
+  self.lark = fresh_lark()
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  -- Persisted right away, so a crash before the first tick keeps the reset.
+  local state = read_state()
+  lu.assertNotNil(state)
+  local cursor = tonumber(state.containers.oc_main.last_seen_time)
+  lu.assertTrue(cursor >= before * 1000, 'cursor moved forward to now')
+  lu.assertTrue(cursor <= (os.time() + 1) * 1000, 'cursor is not in the future')
+  -- The legacy mirror follows the main container.
+  lu.assertEquals(
+    state.containers.oc_main.last_seen_time,
+    state.last_message_time
+  )
+  -- Leftover ids still guard the boundary with the previous session.
+  lu.assertTrue(state.processed_ids.om_old)
+
+  local _, fetch_job = find_job('container_id=oc_main')
+  lu.assertNotNil(fetch_job)
+  local start_time =
+    tonumber(table.concat(fetch_job.cmd, ' '):match('start_time=(%d+)'))
+  lu.assertTrue(start_time >= before, 'poll resumes from now, not from cache')
+
+  -- Settle the request: an unanswered fetch leaves its 5s watchdog alive, and
+  -- that timer would fire in a later spec and spawn a stray token job there.
+  deliver('oc_main', {})
+end
+
 function TestLarkContainer:test_container_cursor_isolation()
-  -- Two containers with different cursors. A shared (global) cursor would
-  -- make the quiet one unfetchable: the active chat would keep pushing it
-  -- forward past the quiet chat's messages.
+  -- Cursors stay per container: a shared (global) one would let the active
+  -- chat keep pushing the quiet chat's cursor forward past its messages.
   write_state({
     session = nil,
     containers = {
@@ -187,39 +234,36 @@ function TestLarkContainer:test_container_cursor_isolation()
   wait(200)
   feed_token_and_bot()
 
-  -- oc_main is fetched first (ids are sorted): it has a cursor
+  -- Both containers start at "now": the startup reset replaces the stale
+  -- cursor and also seeds the container that had none, so neither can read
+  -- the backlog.
   local _, main_job = find_job('container_id=oc_main')
   lu.assertNotNil(main_job)
   lu.assertStrContains(table.concat(main_job.cmd, ' '), 'start_time=')
-  job.emit_stdout(find_job('container_id=oc_main'), {
-    vim.json.encode({ data = { items = {} } }),
-  })
-  job.emit_exit(find_job('container_id=oc_main'), 0)
-  wait(200)
+  deliver('oc_main', {})
 
-  -- oc_p2p has no cursor of its own: it must NOT inherit oc_main's cursor
   local _, p2p_job = find_job('container_id=oc_p2p')
   lu.assertNotNil(p2p_job, 'p2p container polled after main')
-  local url = table.concat(p2p_job.cmd, ' ')
-  lu.assertNotStrContains(url, 'start_time=', 'cursor is per container')
+  lu.assertStrContains(
+    table.concat(p2p_job.cmd, ' '),
+    'start_time=',
+    'every container gets a startup cursor'
+  )
 
-  -- Advancing the p2p cursor leaves the main cursor untouched
-  job.emit_stdout(find_job('container_id=oc_p2p'), {
-    vim.json.encode({
-      data = { items = { make_msg('om_p2p', 'hi', {
-        chat_id = 'oc_p2p',
-        create_time = '1700000009000',
-        sender_id = 'ou_peer',
-      }) } },
+  -- A message in p2p advances that cursor only.
+  local new_ms = tostring((os.time() + 60) * 1000)
+  deliver('oc_p2p', {
+    make_msg('om_p2p', 'hi', {
+      chat_id = 'oc_p2p',
+      create_time = new_ms,
+      sender_id = 'ou_peer',
     }),
   })
-  job.emit_exit(find_job('container_id=oc_p2p'), 0)
-  wait(200)
 
   local state = read_state()
   lu.assertNotNil(state)
-  lu.assertEquals('1700000009000', state.containers.oc_p2p.last_seen_time)
-  lu.assertEquals('1700000005000', state.containers.oc_main.last_seen_time)
+  lu.assertEquals(new_ms, state.containers.oc_p2p.last_seen_time)
+  lu.assertNotEquals(new_ms, state.containers.oc_main.last_seen_time)
 end
 
 function TestLarkContainer:test_containers_survive_reload()

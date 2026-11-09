@@ -338,6 +338,14 @@ Every chat keeps its own message cursor, so an active group can no longer
 starve a quiet private chat (a single shared `start_time` used to skip it).
 Chats are polled **sequentially**, one request at a time.
 
+The cached cursor is **reset to "now" on every start**, before the first poll
+and immediately written back to the state file. The cursor records where the
+previous run stopped, not a backlog to replay: resuming from an hours-old
+`start_time` would make the first tick fetch everything sent while the plugin
+was down and answer it in one burst. Only messages arriving after the plugin
+started are considered; ids left over from the previous session stay in
+`processed_ids`, so the boundary between runs is still guarded.
+
 Bindings are per chat as well: `/session` inside a chat binds that chat only,
 while `:Chat bridge lark` keeps its platform-level meaning and addresses the
 configured `chat_id`.
