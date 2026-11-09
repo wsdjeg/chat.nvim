@@ -3,49 +3,66 @@ local M = {}
 local sessions = require('chat.sessions')
 local windows = require('chat.windows')
 local formatter = require('chat.formatter')
+local chat_bridge = require('chat.bridge')
 
 local previewer = require('picker.previewer.buffer')
 
+--- Highlight ranges of a `[platform] [session] …` header.
+---
+--- Computed instead of hard-coded: a fixed offset assumed a session id of a
+--- fixed length, so a longer id (Lark's `lark-oc_…`) left the last bracket
+--- unhighlighted.
+--- @param platform string
+--- @param session string
+--- @return table[] { start, stop, group }
+local function header_highlight(platform, session)
+  local p_open = 0
+  local p_close = #platform + 1
+  local s_open = #platform + 3
+  local s_close = #platform + #session + 4
+  return {
+    -- highlight of square brackets
+    { p_open, p_open + 1, 'Comment' },
+    { p_close, p_close + 1, 'Comment' },
+    { s_open, s_open + 1, 'Comment' },
+    { s_close, s_close + 1, 'Comment' },
+    --- highlight of the platform name
+    { p_open + 1, p_close, 'String' },
+    --- highlight of the session id
+    { s_open + 1, s_close, 'Comment' },
+  }
+end
+
+--- Integration modules, sorted by name for a stable list order.
+--- @return string[]
+local function integration_names()
+  return vim.fn.sort(vim.tbl_filter(function(t)
+    return t ~= 'init'
+  end, vim.tbl_map(function(t)
+    return vim.fn.fnamemodify(t, ':t:r')
+  end, vim.api.nvim_get_runtime_file('lua/chat/integrations/*.lua', true))))
+end
+
 function M.get()
   local items = {}
-  local integrations = vim.tbl_filter(
-    function(t)
-      return t ~= 'init'
-    end,
-    vim.tbl_map(function(t)
-      return vim.fn.fnamemodify(t, ':t:r')
-    end, vim.api.nvim_get_runtime_file(
-      'lua/chat/integrations/*.lua',
-      true
-    ))
-  )
-  for _, v in ipairs(integrations) do
-    local bridge = require('chat.integrations.' .. v)
-    local session = bridge.current_session()
-    if session and sessions.exists(session) then
-      local messages = sessions.get_messages(session)
-      if #messages > 1 then
-        local str = vim.split(messages[1].content, '\n')[1]
-        table.insert(items, {
-          str = string.format(
-            '[%s] [%s] %s',
-            v,
-            bridge.current_session(),
-            str
-          ),
-          value = bridge.current_session(),
-          highlight = {
-            -- highlight of square brackets
-            { 0, 1, 'Comment' },
-            { #v + 1, #v + 2, 'Comment' },
-            { #v + 3, #v + 4, 'Comment' },
-            { #v + 23, #v + 24, 'Comment' },
-            --- highlight of bridge name
-            { 1, #v + 1, 'String' },
-            --- highlight of session ID
-            { 1 + #v + 3, 1 + #v + 24, 'Comment' },
-          },
-        })
+  for _, platform in ipairs(integration_names()) do
+    local integration = chat_bridge.caps(platform)
+    if integration then
+      -- Every session the platform can reach, per-chat bindings included.
+      -- `session()` alone only reports the platform-level (main chat) binding,
+      -- so Lark's p2p containers never showed up here.
+      for _, session in ipairs(chat_bridge.bound_sessions(platform)) do
+        if sessions.exists(session) then
+          local messages = sessions.get_messages(session)
+          if #messages > 1 then
+            local str = vim.split(messages[1].content, '\n')[1]
+            table.insert(items, {
+              str = string.format('[%s] [%s] %s', platform, session, str),
+              value = session,
+              highlight = header_highlight(platform, session),
+            })
+          end
+        end
       end
     end
   end
@@ -102,3 +119,4 @@ function M.preview(item, win, buf)
 end
 
 return M
+

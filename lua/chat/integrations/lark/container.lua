@@ -362,6 +362,13 @@ function M.new(ctx)
     chats = function(session)
       return get_chat_bindings(session)
     end,
+
+    --- Every session reachable through a binding, main one included.
+    --- Listing (`session()`) alone hides every per-chat (p2p) binding, so
+    --- anything that enumerates sessions (the picker) reads this instead.
+    sessions = function()
+      return get_bound_sessions()
+    end,
   }
 
   --------------------------------------------------

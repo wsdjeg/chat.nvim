@@ -216,5 +216,42 @@ function TestBridge:test_list_includes_per_chat_binding()
   lu.assertEquals({ 'fake' }, bridge.list('sess-p2p'))
 end
 
+function TestBridge:test_bound_sessions_unknown_platform_is_empty()
+  lu.assertEquals({}, bridge.bound_sessions('nonexistent'))
+end
+
+function TestBridge:test_bound_sessions_platform_only()
+  self.mod = platform_only(self.state)
+  self.state.session = 's1'
+  lu.assertEquals({ 's1' }, bridge.bound_sessions('fake'))
+end
+
+function TestBridge:test_bound_sessions_without_platform_session()
+  lu.assertEquals({}, bridge.bound_sessions('fake'))
+end
+
+-- Regression: the picker listed `session()` only, so a platform that binds one
+-- chat per conversation (Lark p2p containers) kept every one of those sessions
+-- out of the integrations list while they were still bridged.
+function TestBridge:test_bound_sessions_includes_per_chat_bindings()
+  self.state.session = 's-main'
+  self.state.chats['oc_p2p'] = 'lark-oc_p2p'
+  local mod = self.mod
+  mod.bridge.sessions = function()
+    return { 's-main', 'lark-oc_p2p' }
+  end
+
+  lu.assertEquals({ 's-main', 'lark-oc_p2p' }, bridge.bound_sessions('fake'))
+end
+
+function TestBridge:test_bound_sessions_deduplicates_and_skips_empty()
+  local mod = self.mod
+  mod.bridge.sessions = function()
+    return { 's1', 's1', '', 's2' }
+  end
+
+  lu.assertEquals({ 's1', 's2' }, bridge.bound_sessions('fake'))
+end
+
 return TestBridge
 

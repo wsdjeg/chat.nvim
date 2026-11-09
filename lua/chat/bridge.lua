@@ -26,6 +26,11 @@ local REQUIRED = {
   'chats', -- fun(session): string[]        chat ids bound to that session
 }
 
+-- Optional members, used when present:
+--   sessions -- fun(): string[]  every session this platform can reach,
+--                               per-chat bindings included. Platforms without
+--                               it are listed as their platform session only.
+
 --- Lazy require: `chat.integrations` loads every platform, so requiring it at
 --- module load time would create a cycle through the platforms themselves.
 local function ims()
@@ -120,6 +125,38 @@ function M.chats(name, session)
     return {}
   end
   return c.chats(session) or {}
+end
+
+--- Every session a platform can reach, per-chat bindings included.
+---
+--- The platform-level session and the chats bound to their own sessions are
+--- both answers to "which session does this platform talk in". Read this
+--- instead of `session()` when *listing* (picker list, status output): a
+--- platform that binds one chat per conversation (Lark) keeps every p2p
+--- session out of `session()`, so listing `session()` hides them.
+--- @param name string
+--- @return string[] de-duplicated session ids, platform order preserved
+function M.bound_sessions(name)
+  local c = M.caps(name)
+  if not c then
+    return {}
+  end
+  local out, seen = {}, {}
+  local function add(session)
+    if type(session) ~= 'string' or session == '' or seen[session] then
+      return
+    end
+    seen[session] = true
+    table.insert(out, session)
+  end
+  if c.sessions then
+    for _, session in ipairs(c.sessions() or {}) do
+      add(session)
+    end
+  else
+    add(c.session())
+  end
+  return out
 end
 
 --- Bind a platform to a session (platform level, `:Chat bridge <platform>`).
