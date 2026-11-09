@@ -1,6 +1,7 @@
 local M = {}
 
 local log = require('chat.log')
+local bridge = require('chat.bridge')
 
 -- 集成模块表
 local integrations = {
@@ -65,53 +66,69 @@ end
 
 --- Session a message belongs to.
 ---
---- Platforms that support per-chat bindings (currently Lark) expose
---- `get_binding`; the shared layer then routes by the chat the message came
---- from, so two groups bound to two sessions stop sharing one context.
----
---- Every other integration has no such method, the `and` short-circuits and
---- `current_session()` is used exactly as before.
---- @param integration table
+--- Delegated to the bridge facade so routing has exactly one source: a
+--- platform that can address one chat (currently Lark) answers per chat, every
+--- other platform answers with its platform-level session, unchanged.
+--- @param name string platform name
 --- @param message table
 --- @return string|nil
-local function resolve_session(integration, message)
-  if message and message.chat_id and integration.get_binding then
-    local bound = integration.get_binding(message.chat_id)
-    if bound then
-      return bound
-    end
-  end
-  return integration.current_session()
+local function resolve_session(name, message)
+  return bridge.session_for(name, message and message.chat_id)
+end
+
+--- Send a reply back to the chat the message came from.
+---
+--- The session doubles as the routing hint: Lark's `send_message(content,
+--- session)` resolves which chat to answer, the other platforms take the
+--- single argument and ignore the second.
+--- @param name string platform name
+--- @param integration table
+--- @param message table
+--- @param text string
+local function reply(name, integration, message, text)
+  integration.send_message(text, resolve_session(name, message))
 end
 
 --- Bind a session to the chat the command came from.
 ---
---- `set_binding` (optional) binds one chat; `set_session` keeps its
---- platform-level meaning for every integration without bindings.
---- @param integration table
+--- Platforms that can address one chat bind that chat only; the platform-level
+--- setter stays in use everywhere else.
+--- @param name string platform name
 --- @param message table
 --- @param session string|nil
-local function bind_session(integration, message, session)
-  if message and message.chat_id and integration.set_binding then
-    integration.set_binding(message.chat_id, session)
+local function bind_session(name, message, session)
+  if message and message.chat_id and bridge.supports_chat(name) then
+    bridge.bind_chat(name, message.chat_id, session)
+    return
+  end
+  if session then
+    bridge.bind(name, session)
   else
-    integration.set_session(session)
+    local caps = bridge.caps(name)
+    if caps then
+      caps.set_session(nil)
+    end
   end
 end
 
 -- Helper: parse and execute /session command
-local function handle_session_command(integration, message)
+local function handle_session_command(name, integration, message)
   local arg = message.content:match('^/session%s+(.+)$')
 
   if not arg then
     -- /session without args: bind to current window session
     local windows = require('chat.windows')
     if not windows.current_session() then
-      integration.send_message('No window session.')
+      reply(name, integration, message, 'No window session.')
     else
       local sid = windows.current_session()
-      bind_session(integration, message, sid)
-      integration.send_message('Session bound:\n  ' .. format_session_summary(sid))
+      bind_session(name, message, sid)
+      reply(
+        name,
+        integration,
+        message,
+        'Session bound:\n  ' .. format_session_summary(sid)
+      )
     end
     return
   end
@@ -123,8 +140,11 @@ local function handle_session_command(integration, message)
     local session_list = integration._session_list
     if session_list and session_list[num] then
       local session_id = session_list[num]
-      bind_session(integration, message, session_id)
-      integration.send_message(
+      bind_session(name, message, session_id)
+      reply(
+        name,
+        integration,
+        message,
         string.format(
           'Session bound: %d)\n  %s',
           num,
@@ -132,7 +152,10 @@ local function handle_session_command(integration, message)
         )
       )
     else
-      integration.send_message(
+      reply(
+        name,
+        integration,
+        message,
         'Invalid session number. Use /list to see available sessions.'
       )
     end
@@ -140,23 +163,26 @@ local function handle_session_command(integration, message)
     -- Bind by session_id
     local sessions = require('chat.sessions')
     if sessions.exists(arg) then
-      bind_session(integration, message, arg)
-      integration.send_message(
+      bind_session(name, message, arg)
+      reply(
+        name,
+        integration,
+        message,
         'Session bound:\n  ' .. format_session_summary(arg)
       )
     else
-      integration.send_message('Session not found: ' .. arg)
+      reply(name, integration, message, 'Session not found: ' .. arg)
     end
   end
 end
 
 -- Helper: list sessions with optional filter
-local function handle_list_command(integration, message)
+local function handle_list_command(name, integration, message)
   log.debug('[Integration] handle_list_command called')
   local pattern = message.content:match('^/list%s+(.+)$')
   local sessions = require('chat.sessions')
   local all_sessions = sessions.get()
-  local current = integration.current_session()
+  local current = resolve_session(name, message)
 
   log.debug(
     string.format(
@@ -292,7 +318,7 @@ local function handle_list_command(integration, message)
       #message_content
     )
   )
-  integration.send_message(message_content)
+  reply(name, integration, message, message_content)
 end
 
 -- Stop existing typing timer for an integration
@@ -351,24 +377,24 @@ local function handle_message(integration, name, callback)
 
     -- 处理命令
     if message.content:match('^/session%s*') then
-      handle_session_command(integration, message)
+      handle_session_command(name, integration, message)
       return
     elseif
       message.content:match('^/list%s*') or message.content == '/list'
     then
-      handle_list_command(integration, message)
+      handle_list_command(name, integration, message)
       return
     elseif message.content == '/clear' then
       local sessions = require('chat.sessions')
-      local session = resolve_session(integration, message)
+      local session = resolve_session(name, message)
       if session and not sessions.is_in_progress(session) then
         sessions.clear(session)
-        integration.send_message('Session messages cleared!')
+        reply(name, integration, message, 'Session messages cleared!')
       end
       return
     elseif message.content == '/status' then
       local sessions = require('chat.sessions')
-      local session = resolve_session(integration, message)
+      local session = resolve_session(name, message)
       if session then
         local provider = sessions.get_session_provider(session) or 'default'
         local model = sessions.get_session_model(session) or 'default'
@@ -382,9 +408,12 @@ local function handle_message(integration, name, callback)
           cwd,
           in_progress and 'Processing' or 'Idle'
         )
-        integration.send_message(status)
+        reply(name, integration, message, status)
       else
-        integration.send_message(
+        reply(
+          name,
+          integration,
+          message,
           'No active session. Use /session to bind a session.'
         )
       end
@@ -392,7 +421,7 @@ local function handle_message(integration, name, callback)
     end
 
     -- 正常消息
-    local session = resolve_session(integration, message)
+    local session = resolve_session(name, message)
     if session then
       -- Start typing timer (sends initial typing + repeats every 8s)
       start_typing_timer(integration, name, session)
@@ -419,28 +448,40 @@ function M.on_response(session, content)
     return
   end
 
-  for _, integration in pairs(integrations) do
-    if session == integration.current_session() then
-      integration.send_message(content)
-    elseif
-      integration.get_bound_sessions
-      and vim.tbl_contains(integration.get_bound_sessions(), session)
-    then
-      -- A session bound to a specific chat (not the platform session): the
-      -- reply is addressed back to that chat. Integrations without
-      -- `get_bound_sessions` never take this branch.
-      integration.send_message(content, session)
+  -- Single source of truth: a session is bridged to whatever `bridge.list`
+  -- returns, so a reply for a per-chat binding is delivered while a session
+  -- that only *used* to be bound is not.
+  for _, name in ipairs(bridge.list(session)) do
+    local integration = integrations[name]
+    if integration then
+      if session == bridge.session(name) then
+        -- Platform-level binding: address the configured chat, unchanged.
+        integration.send_message(content)
+      else
+        -- Bound to a specific chat: the reply is addressed back to that chat.
+        integration.send_message(content, session)
+      end
     end
   end
 end
 
-function M.set_session(bridge, session)
-  local integration = integrations[bridge]
-  if integration then
-    integration.set_session(session)
+--- Bridge a platform to a session (`:Chat bridge <platform>`).
+--- @param platform string platform name
+--- @param session string|nil
+--- @return boolean true when bound, false when the platform is unknown
+function M.set_session(platform, session)
+  local integration = integrations[platform]
+  if not integration then
+    return false
+  end
+  if not session then
+    local caps = bridge.caps(platform)
+    if caps then
+      caps.set_session(nil)
+    end
     return true
   end
-  return false
+  return bridge.bind(platform, session) == true
 end
 
 function M.unbridge(name)
@@ -453,27 +494,29 @@ function M.unbridge(name)
   if name then
     local integration = integrations[name]
     if not integration then
-      return false  -- integration doesn't exist
+      return false   -- integration doesn't exist
     end
-    if integration.current_session() ~= current_session then
-      return nil    -- exists but not bound to current session
+    -- Both levels are cleared, so a per-chat binding cannot survive the call
+    -- that reported the session as unbridged.
+    if bridge.unbind(name, current_session) == 0 then
+      return nil     -- exists but not bound to current session
     end
-    -- Bound to current session, unbridge it
     stop_typing_timer(name)
     integration.disconnect()
-    integration.set_session(nil)
-    return true
-  else
-    -- Unbind all integrations bound to current session
-    for integration_name, integration in pairs(integrations) do
-      if integration.current_session() == current_session then
-        stop_typing_timer(integration_name)
-        integration.disconnect()
-        integration.set_session(nil)
-      end
-    end
     return true
   end
+
+  -- Unbind every platform bridged to the current session.
+  local unbound = 0
+  for _, platform in ipairs(bridge.list(current_session)) do
+    local integration = integrations[platform]
+    if integration then
+      unbound = unbound + bridge.unbind(platform, current_session)
+      stop_typing_timer(platform)
+      integration.disconnect()
+    end
+  end
+  return unbound > 0
 end
 
 --- Unbridge integrations by session_id (for HTTP API use)
@@ -486,23 +529,24 @@ function M.unbridge_session(session_id, name)
     if not integration then
       return false
     end
-    if integration.current_session() ~= session_id then
+    if bridge.unbind(name, session_id) == 0 then
       return nil
     end
     stop_typing_timer(name)
     integration.disconnect()
-    integration.set_session(nil)
-    return true
-  else
-    for integration_name, integration in pairs(integrations) do
-      if integration.current_session() == session_id then
-        stop_typing_timer(integration_name)
-        integration.disconnect()
-        integration.set_session(nil)
-      end
-    end
     return true
   end
+
+  local unbound = 0
+  for _, platform in ipairs(bridge.list(session_id)) do
+    local integration = integrations[platform]
+    if integration then
+      unbound = unbound + bridge.unbind(platform, session_id)
+      stop_typing_timer(platform)
+      integration.disconnect()
+    end
+  end
+  return unbound > 0
 end
 
 --- List all available integration platform names
@@ -516,24 +560,29 @@ function M.list_platforms()
   return names
 end
 
+--- Integration module behind a platform name.
+--- @param name string
+--- @return table|nil
+function M.platform(name)
+  return integrations[name]
+end
+
 function M.on_session_deleted(session)
-  for name, integration in pairs(integrations) do
-    if session == integration.current_session() then
-      stop_typing_timer(name)
+  for _, platform in ipairs(bridge.list(session)) do
+    local integration = integrations[platform]
+    if integration then
+      bridge.unbind(platform, session)
+      stop_typing_timer(platform)
       integration.disconnect()
-      integration.set_session(nil)
     end
   end
 end
 
+--- Platforms a session is bridged to, including per-chat bindings.
+--- @param session string session ID
+--- @return string[]
 function M.get_integrations(session)
-  local ins = {}
-  for name, integration in pairs(integrations) do
-    if session == integration.current_session() then
-      table.insert(ins, name)
-    end
-  end
-  return ins
+  return bridge.list(session)
 end
 
 return M

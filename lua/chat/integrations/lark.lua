@@ -1902,6 +1902,67 @@ function M.get_bound_sessions()
   return list
 end
 
+--- Chat ids whose binding points at a session.
+---
+--- Needed by `chat.bridge`: unbinding a session must clear the per-chat
+--- bindings too, and that requires enumerating them.
+--- @param session string|nil
+--- @return string[]
+function M.get_chat_bindings(session)
+  local list = {}
+  if not session then
+    return list
+  end
+  if state.session == session and main_chat_id() then
+    table.insert(list, main_chat_id())
+  end
+  for chat_id, ctr in pairs(state.containers) do
+    if ctr.session == session and chat_id ~= main_chat_id() then
+      table.insert(list, chat_id)
+    end
+  end
+  table.sort(list)
+  return list
+end
+
+--- Bridge capabilities consumed by `chat.bridge`.
+---
+--- Wiring only: the storage stays `state.session` + `containers[].session`,
+--- this table just lets the shared layer ask the questions without knowing
+--- which fields hold the answers.
+M.bridge = {
+  --- Platform-level session.
+  session = function()
+    return state.session
+  end,
+
+  --- Platform-level setter: keeps the main container in sync, unchanged.
+  set_session = function(session)
+    M.set_session(session)
+  end,
+
+  --- Session a chat talks in, creating one on first use.
+  session_for_chat = function(chat_id)
+    if not chat_id then
+      return nil
+    end
+    return chat_session(chat_id)
+  end,
+
+  --- Bind one chat without touching the platform session.
+  bind_chat = function(chat_id, session)
+    if not chat_id then
+      return false
+    end
+    return M.set_binding(chat_id, session)
+  end,
+
+  --- Chat ids bound to a session.
+  chats = function(session)
+    return M.get_chat_bindings(session)
+  end,
+}
+
 --------------------------------------------------
 -- Containers
 --------------------------------------------------
