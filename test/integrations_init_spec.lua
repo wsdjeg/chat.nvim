@@ -83,6 +83,19 @@ function TestIntegrationsInit:testSetSessionValidBridge()
   lu.assertEquals('sess_1', called)
 end
 
+-- One contract for both `:Chat bridge` and `PUT /session/:id/bridge`:
+-- unknown platform is `false`, "nothing to bind" is `nil`. Collapsing the two
+-- made the HTTP route report an unknown platform when the caller simply had
+-- no session.
+function TestIntegrationsInit:testSetSessionUnknownPlatformIsFalse()
+  lu.assertFalse(integrations.set_session('nonexistent', 'sess_1'))
+  lu.assertFalse(integrations.set_session('nonexistent', nil))
+end
+
+function TestIntegrationsInit:testSetSessionWithoutSessionIsNil()
+  lu.assertNil(integrations.set_session('discord', nil))
+end
+
 function TestIntegrationsInit:testOnResponseEmpty()
   integrations.on_response('s1', nil)
   integrations.on_response('s1', '')

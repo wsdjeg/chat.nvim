@@ -466,20 +466,22 @@ function M.on_response(session, content)
 end
 
 --- Bridge a platform to a session (`:Chat bridge <platform>`).
+---
+--- One return contract for both callers (`:Chat bridge` and `PUT
+--- /session/:id/bridge`), so the two entry points report the same thing:
+---   `true`  bound
+---   `false` unknown platform (the caller may list `list_platforms()`)
+---   `nil`   nothing to bind (no session supplied)
 --- @param platform string platform name
 --- @param session string|nil
---- @return boolean true when bound, false when the platform is unknown
+--- @return boolean|nil
 function M.set_session(platform, session)
   local integration = integrations[platform]
   if not integration then
     return false
   end
   if not session then
-    local caps = bridge.caps(platform)
-    if caps then
-      caps.set_session(nil)
-    end
-    return true
+    return nil
   end
   return bridge.bind(platform, session) == true
 end

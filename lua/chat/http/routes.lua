@@ -1116,11 +1116,16 @@ local function handle_bridge_session(client, path)
 
   local ims = require('chat.integrations')
   local ok = ims.set_session(platform, session_id)
-  if not ok then
+  if ok == false then
     response.send_json(client, 400, {
       error = 'Unknown integration: ' .. platform,
       available = ims.list_platforms(),
     })
+    return
+  elseif ok == nil then
+    -- No session to bind: `set_session` returns nil, not false, so this must
+    -- not be reported as an unknown platform.
+    response.send_json(client, 400, { error = 'No session to bridge' })
     return
   end
 

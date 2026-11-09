@@ -19,10 +19,38 @@ vim.api.nvim_create_user_command('Chat', function(opt)
       session = sessions.delete(),
     })
   elseif #opt.fargs > 0 and opt.fargs[1] == 'bridge' then
-    require('chat.integrations').set_session(
-      opt.fargs[2],
-      require('chat.windows').current_session()
-    )
+    local ims = require('chat.integrations')
+    local log = require('chat.log')
+    local platform = opt.fargs[2]
+
+    if not platform then
+      log.notify(
+        'Usage: :Chat bridge <platform>\nAvailable: '
+          .. table.concat(ims.list_platforms(), ', '),
+        'WarningMsg'
+      )
+      return
+    end
+
+    -- Same contract as `PUT /session/:id/bridge`: false = unknown platform,
+    -- nil = no session to bind. Reporting it here closes the gap where the
+    -- command said nothing while the HTTP route returned 400.
+    local result = ims.set_session(platform, windows.current_session())
+    if result == false then
+      log.notify(
+        'Unknown integration: '
+          .. platform
+          .. '\nAvailable: '
+          .. table.concat(ims.list_platforms(), ', '),
+        'WarningMsg'
+      )
+      return
+    elseif result == nil then
+      log.notify('No active window session to bridge', 'WarningMsg')
+      return
+    end
+
+    log.notify('Bridged ' .. platform)
     require('chat.windows').redraw_title()
   elseif #opt.fargs > 0 and opt.fargs[1] == 'unbridge' then
     local ims = require('chat.integrations')
@@ -58,8 +86,13 @@ vim.api.nvim_create_user_command('Chat', function(opt)
         require('chat.log').notify('Not bound to current session: ' .. table.concat(not_bound, ', '), 'WarningMsg')
       end
     else
-      ims.unbridge()
-      require('chat.log').notify('Unbridged all integrations from current session')
+      -- `false` means nothing was actually bound; reporting "Unbridged all"
+      -- there would contradict the title bar that never showed a bridge.
+      if ims.unbridge() then
+        require('chat.log').notify('Unbridged all integrations from current session')
+      else
+        require('chat.log').notify('Nothing bound to current session', 'WarningMsg')
+      end
     end
     require('chat.windows').redraw_title()
   elseif #opt.fargs > 0 and opt.fargs[1] == 'clear' then
