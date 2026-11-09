@@ -770,5 +770,48 @@ function TestLarkContainer:test_in_chat_allow_provisions_new_p2p_chat()
   lu.assertEquals('ou_target', vim.json.decode(send_job.stdin[1]).receive_id)
 end
 
+-- ===========================================================================
+-- Stale bindings: a binding must not outlive its session
+-- ===========================================================================
+
+function TestLarkContainer:test_stale_lark_binding_is_recreated()
+  -- Deleting a session leaves the container pointing at an id that no longer
+  -- exists. `chat_session()` used to return it verbatim, so the chat resolved
+  -- to a dead session: replies were written and never delivered, and the
+  -- conversation looked silently broken.
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+  self.lark.set_binding('oc_p2p', 'lark-oc_gone')
+
+  -- Resolving the chat drops the dead binding and gives the conversation a
+  -- working session again (the derived id is stable, so it is recreated).
+  lu.assertEquals('lark-oc_p2p', self.lark.get_binding('oc_p2p'))
+  lu.assertTrue(require('chat.sessions').exists('lark-oc_p2p'))
+
+  -- The stale id is gone from the persisted state as well; the recreated
+  -- binding carries the derived id.
+  local state = read_state()
+  lu.assertNotNil(state)
+  lu.assertEquals('lark-oc_p2p', state.containers.oc_p2p.session)
+end
+
+function TestLarkContainer:test_hand_written_binding_is_not_dropped()
+  -- A binding pointed at a session this module did not derive belongs to the
+  -- user: dropping it would silently throw away their choice.
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+  self.lark.set_binding('oc_p2p', 'my-own-session')
+  lu.assertEquals('my-own-session', self.lark.get_binding('oc_p2p'))
+end
+
+function TestLarkContainer:test_get_bound_sessions_skips_stale_bindings()
+  self.lark.set_session('lark-main-gone')
+  lu.assertEquals({}, self.lark.get_bound_sessions())
+  lu.assertEquals({}, self.lark.get_chat_bindings('lark-main-gone'))
+end
+
+function TestLarkContainer:test_get_bound_sessions_keeps_live_bindings()
+  self.lark.set_session('sess-live')
+  lu.assertEquals({ 'sess-live' }, self.lark.get_bound_sessions())
+end
+
 return TestLarkContainer
 

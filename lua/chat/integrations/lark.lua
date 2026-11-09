@@ -757,6 +757,49 @@ local function container_session_id(chat_id)
   return 'lark-' .. chat_id
 end
 
+--- Whether a binding's session no longer exists.
+---
+--- A binding can outlive its session: deleting a session removes it from
+--- storage, and `on_session_deleted` clears the bindings the shared layer can
+--- see -- but a state file written before that, or a session deleted while
+--- this integration was disconnected, still points at an id that no longer
+--- exists. Returning it means answering into a dead session: the reply is
+--- written and never delivered, and the chat looks silently broken.
+---
+--- Only ids this integration derives (`lark-…`) qualify. A binding set by
+--- hand to an unrelated session belongs to the user, not to this module.
+--- @param session string|nil
+--- @return boolean
+local function session_is_stale(session)
+  if type(session) ~= 'string' or session == '' then
+    return false
+  end
+  if session:sub(1, 5) ~= 'lark-' then
+    return false
+  end
+  if require('chat.sessions').exists(session) then
+    return false
+  end
+  -- `exists()` only answers from the in-memory cache; a session written by a
+  -- previous run is still legitimate until it is loaded.
+  local cache_file = require('chat.sessions.storage').cache_dir
+    .. session
+    .. '.json'
+  return vim.uv.fs_stat(cache_file) == nil
+end
+
+--- Drop a container binding whose session is gone.
+--- @param ctr table
+local function drop_stale_binding(ctr)
+  local session = ctr and ctr.session
+  if not session or not session_is_stale(session) then
+    return
+  end
+  ctr.session = nil
+  save_state()
+  log.warn('[Lark] Dropped stale binding: ' .. session)
+end
+
 --- Make sure a container owns a session.
 ---
 --- The main container keeps using the platform session (`state.session`), so
@@ -770,6 +813,7 @@ end
 --- @param ctr table
 --- @return string|nil
 local function ensure_container_session(chat_id, ctr)
+  drop_stale_binding(ctr)
   if ctr.session then
     return ctr.session
   end
@@ -1889,7 +1933,12 @@ end
 function M.get_bound_sessions()
   local list, seen = {}, {}
   local function add(session)
+    -- A stale binding is not a live route: listing it would keep
+    -- `on_response` writing replies into a session that no longer exists.
     if type(session) == 'string' and not seen[session] then
+      if session_is_stale(session) then
+        return
+      end
       seen[session] = true
       table.insert(list, session)
     end
@@ -1910,7 +1959,7 @@ end
 --- @return string[]
 function M.get_chat_bindings(session)
   local list = {}
-  if not session then
+  if not session or session_is_stale(session) then
     return list
   end
   if state.session == session and main_chat_id() then
