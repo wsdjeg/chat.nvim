@@ -23,6 +23,10 @@ local method_names = {
   'send_typing',
   'disconnect',
   'connect',
+  -- Lark declares `bridge` for per-chat routing. Some tests replace it with a
+  -- stub, so it has to be saved and restored alongside the methods: leaving it
+  -- in place would leak a fake capability set into every later spec.
+  'bridge',
 }
 local saved = {}
 for name, mod in pairs(integration_modules) do
@@ -140,6 +144,89 @@ function TestIntegrationsInit:testOnSessionDeleted()
   integration_modules.discord.disconnect = function() disconnected = true end
   integrations.on_session_deleted('s1')
   lu.assertTrue(disconnected)
+end
+
+-- The second argument of `send_message` is a routing hint, and its meaning is
+-- per-platform: Lark reads it as a session, weixin reads it as the WeChat
+-- `user_id`. Passing it to every platform made command replies
+-- (`/status`, `/list`, `/session`) look up a context token under a session id
+-- and die with "missing context_token", so nothing was sent back.
+function TestIntegrationsInit:testReplyOmitsSessionForPlatformWithoutChats()
+  local captured = {}
+  for name, mod in pairs(integration_modules) do
+    mod.connect = function(handler)
+      captured[name] = handler
+    end
+  end
+  integrations.on_message(function() end)
+
+  local argc, first
+  integration_modules.weixin.send_message = function(...)
+    argc, first = select('#', ...), (...)
+  end
+  integration_modules.weixin.current_session = function() return 's1' end
+
+  captured.weixin({ content = '/status' })
+
+  lu.assertEquals(1, argc, 'platform without chat support takes content only')
+  lu.assertStrContains(first, 'Session:')
+end
+
+-- The other half of the same contract: a platform that *can* address one chat
+-- still receives the session, which is how Lark routes the reply.
+function TestIntegrationsInit:testReplyKeepsSessionForPlatformWithChats()
+  local captured = {}
+  for name, mod in pairs(integration_modules) do
+    mod.connect = function(handler)
+      captured[name] = handler
+    end
+  end
+  integrations.on_message(function() end)
+
+  -- `bridge.caps` requires all five members when `integration.bridge` is set.
+  integration_modules.lark.bridge = {
+    session = function() return 'lark-session' end,
+    set_session = function() end,
+    session_for_chat = function() return nil end,
+    bind_chat = function() return false end,
+    chats = function() return {} end,
+  }
+
+  local argc, content, session
+  integration_modules.lark.send_message = function(...)
+    argc, content, session = select('#', ...), ...
+  end
+
+  captured.lark({ content = '/status' })
+
+  lu.assertEquals(2, argc, 'chat-capable platform also receives a routing hint')
+  lu.assertNotNil(content)
+  lu.assertEquals('lark-session', session)
+end
+
+-- Another platform reads the same argument differently again: weixin's second
+-- parameter is the WeChat `user_id`, so a session id reaching it is a bug that
+-- silently drops the message.
+function TestIntegrationsInit:testReplyWeixinNeverGetsSessionAsUserId()
+  local captured = {}
+  for name, mod in pairs(integration_modules) do
+    mod.connect = function(handler)
+      captured[name] = handler
+    end
+  end
+  integrations.on_message(function() end)
+
+  local argc, content, user_id
+  integration_modules.weixin.send_message = function(...)
+    argc, content, user_id = select('#', ...), ...
+  end
+  integration_modules.weixin.current_session = function() return 'wx-sess' end
+
+  captured.weixin({ content = '/list' })
+
+  lu.assertEquals(1, argc, 'no routing hint for a platform that has none')
+  lu.assertNil(user_id, 'session id must not be passed as a user id')
+  lu.assertStrContains(content, 'Available sessions')
 end
 
 function TestIntegrationsInit:testOnMessageCapturesHandler()

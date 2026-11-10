@@ -83,15 +83,24 @@ end
 
 --- Send a reply back to the chat the message came from.
 ---
---- The session doubles as the routing hint: Lark's `send_message(content,
---- session)` resolves which chat to answer, the other platforms take the
---- single argument and ignore the second.
+--- The second argument is a *routing hint*, and only platforms that can
+--- address one chat have a use for it: Lark's `send_message(content, session)`
+--- resolves which chat to answer. Passing it unconditionally is not safe
+--- because the argument is not a session on every platform - weixin's second
+--- parameter is the WeChat `user_id`. A `/status` reply then looked up a
+--- context token under a session id, found none, and logged "Cannot send
+--- message: missing context_token", so every command reply was lost.
 --- @param name string platform name
 --- @param integration table
 --- @param message table
 --- @param text string
 local function reply(name, integration, message, text)
-  integration.send_message(text, resolve_session(name, message))
+  if bridge.supports_chat(name) then
+    integration.send_message(text, resolve_session(name, message))
+    return
+  end
+  -- Platform-level routing only: the content alone is the whole call.
+  integration.send_message(text)
 end
 
 --- Bind a session to the chat the command came from.
