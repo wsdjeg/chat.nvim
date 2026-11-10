@@ -283,6 +283,14 @@ function M.disconnect()
 end
 
 -- Send message
+--
+-- The second argument is optional and platform-specific. Only declare it
+-- (and its meaning) when this platform can address a single chat, e.g.
+-- Lark's `send_message(content, session)`. The shared layer passes a routing
+-- hint ONLY to platforms that declare `M.bridge` with `bind_chat`/`chats`;
+-- every other platform is called as `send_message(content)`. Do not repurpose
+-- the second parameter for something else (weixin used it as a `user_id`),
+-- or command replies will silently target the wrong recipient.
 function M.send_message(content)
   -- Implementation
 end

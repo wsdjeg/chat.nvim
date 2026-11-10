@@ -229,6 +229,47 @@ function TestIntegrationsInit:testReplyWeixinNeverGetsSessionAsUserId()
   lu.assertStrContains(content, 'Available sessions')
 end
 
+-- Contract guard for every platform, not just the two that broke.
+--
+-- `reply()` passes a second argument only when the platform can address one
+-- chat; the earlier bug passed it to everybody and weixin read it as a
+-- `user_id`. Hardcoding weixin/lark in a spec only pins those two: the next
+-- platform added would still be free to reintroduce it. So instead assert the
+-- invariant against `bridge.supports_chat()` for *every* registered platform -
+-- a new one is covered the moment it is registered.
+function TestIntegrationsInit:testReplyArgCountFollowsChatCapabilityForEveryPlatform()
+  local captured = {}
+  for name, mod in pairs(integration_modules) do
+    mod.connect = function(handler)
+      captured[name] = handler
+    end
+  end
+  integrations.on_message(function() end)
+
+  local bridge = require('chat.bridge')
+  for name, mod in pairs(integration_modules) do
+    -- A session must resolve, otherwise the handler short-circuits before
+    -- calling `send_message` and the assertion would pass vacuously.
+    mod.current_session = function() return 's1' end
+
+    local argc
+    mod.send_message = function(...)
+      argc = select('#', ...)
+    end
+    captured[name]({ content = '/status' })
+
+    local expected = bridge.supports_chat(name) and 2 or 1
+    lu.assertEquals(
+      expected,
+      argc,
+      string.format(
+        '%s: routing hint must be passed only when the platform supports one chat',
+        name
+      )
+    )
+  end
+end
+
 function TestIntegrationsInit:testOnMessageCapturesHandler()
   local captured = {}
   for name, mod in pairs(integration_modules) do
