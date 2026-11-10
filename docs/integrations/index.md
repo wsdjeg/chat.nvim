@@ -44,9 +44,43 @@ All IM integrations share these common features:
 
 - `:Chat bridge <platform>` - Bind current session to platform
 - `:Chat unbridge [platform]` - Unbind integration (all or specific platform)
-- `/session` - Check/update session binding
-- `/list [pattern]` - List available sessions (optional pattern filter)
+- `/session [number|id]` - Check/update session binding
+- `/list [pattern] [-p N]` - List available sessions (optional pattern filter,
+  `-p N` selects page N)
 - `/clear` - Clear current session messages
+
+### `/list` pagination
+
+Sessions are listed 10 per page. The numbering is **global**: page 2 starts at
+`11)`, it does not restart at `1)`, so a number always identifies the same
+session no matter which page it was read on. That means `/session 12` binds
+session 12 even while page 1 is still on screen — the number comes from the
+last `/list` of the current chat, not from the rendered page.
+
+`-p` is a flag rather than a bare number because session ids are date-shaped
+strings full of digits: `/list 2` would be ambiguous between "page 2" and
+"search for 2".
+
+```text
+/list                  # page 1 of everything
+/list -p 2             # page 2
+/list refactor         # page 1 of the matches
+/list refactor -p 2    # page 2 of the matches
+```
+
+The footer names the page and the neighbouring pages, and the command shown is
+copy-pasteable:
+
+```text
+Total: 137 session(s)
+Page 1/14 · next: /list -p 2
+```
+
+Patterns are matched as plain text, so a title containing `+`, `%` or `(` is
+searched literally instead of being interpreted as a Lua pattern.
+
+The published numbering is per chat: two people running `/list` in two
+different chats do not overwrite each other's `/session <n>` numbering.
 
 ### Bridge Semantics
 

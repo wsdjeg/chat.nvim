@@ -17,6 +17,11 @@ local integrations = {
 -- Typing timers per integration name
 local typing_timers = {} -- { [name] = uv_timer }
 
+-- Sessions rendered per `/list` page. The numbering is global (page 2 starts
+-- at 11), so a number always maps to the same session whatever page it was
+-- read on, and `/session N` works for sessions never rendered on page 1.
+local PAGE_SIZE = 10
+
 ---@class ChatIntegrationMessage
 ---@field content string message content
 ---@field session string session ID
@@ -111,6 +116,35 @@ local function bind_session(name, message, session)
   end
 end
 
+--- Slot key of the `/list` numbering a message is reading.
+---
+--- A single integration can serve several chats at once (one Lark bot in two
+--- groups), so the published list is kept per chat: two people running
+--- `/list` must not overwrite each other's `/session <n>` numbering.
+--- @param message table
+--- @return string
+local function list_slot_key(message)
+  return (message and message.chat_id) or 'default'
+end
+
+--- Session ids the last `/list` of this chat published.
+--- @param integration table
+--- @param message table
+--- @return string[]|nil
+local function session_slot(integration, message)
+  local slots = integration._session_lists
+  return slots and slots[list_slot_key(message)]
+end
+
+--- Publish the numbering `/session <number>` binds by.
+--- @param integration table
+--- @param message table
+--- @param ids string[]
+local function store_session_slot(integration, message, ids)
+  integration._session_lists = integration._session_lists or {}
+  integration._session_lists[list_slot_key(message)] = ids
+end
+
 -- Helper: parse and execute /session command
 local function handle_session_command(name, integration, message)
   local arg = message.content:match('^/session%s+(.+)$')
@@ -136,8 +170,9 @@ local function handle_session_command(name, integration, message)
   -- Try to parse as number
   local num = tonumber(arg)
   if num then
-    -- Bind by index
-    local session_list = integration._session_list
+    -- Bind by index. The list is the last `/list` of *this* chat, so the
+    -- number means the same session for the person who read it.
+    local session_list = session_slot(integration, message)
     if session_list and session_list[num] then
       local session_id = session_list[num]
       bind_session(name, message, session_id)
@@ -176,18 +211,52 @@ local function handle_session_command(name, integration, message)
   end
 end
 
--- Helper: list sessions with optional filter
+--- Parse `/list` arguments into a search pattern and a page number.
+---
+--- `-p N` is a flag instead of a bare number because session ids are
+--- date-shaped strings full of digits: `/list 2` would be ambiguous between
+--- "page 2" and "search for 2".
+--- @param rest string|nil everything after `/list`
+--- @return string|nil pattern
+--- @return integer page
+local function parse_list_args(rest)
+  local page = 1
+  local text = vim.trim(rest or '')
+  local stripped = text:gsub('%-p%s*(%d+)', function(n)
+    page = tonumber(n) or 1
+    return ' '
+  end)
+  text = vim.trim(stripped)
+  if text == '' then
+    text = nil
+  end
+  return text, math.max(page, 1)
+end
+
+--- Rebuild the `/list` command for a page, so the footer is copy-pasteable.
+--- @param pattern string|nil
+--- @param page integer
+--- @return string
+local function list_command(pattern, page)
+  if pattern then
+    return string.format('/list %s -p %d', pattern, page)
+  end
+  return string.format('/list -p %d', page)
+end
+
+-- Helper: list sessions with optional filter and page
 local function handle_list_command(name, integration, message)
   log.debug('[Integration] handle_list_command called')
-  local pattern = message.content:match('^/list%s+(.+)$')
+  local pattern, page = parse_list_args(message.content:match('^/list%s*(.*)$'))
   local sessions = require('chat.sessions')
   local all_sessions = sessions.get()
   local current = resolve_session(name, message)
 
   log.debug(
     string.format(
-      '[Integration] pattern: %s, current: %s, sessions count: %d',
+      '[Integration] pattern: %s, page: %d, current: %s, sessions count: %d',
       pattern or 'nil',
+      page,
       current or 'nil',
       vim.tbl_count(all_sessions)
     )
@@ -199,7 +268,6 @@ local function handle_list_command(name, integration, message)
     -- Determine last activity time:
     -- 1. Last message's created timestamp
     -- 2. last_user_message_time field
-    -- 3. Session ID (date-formatted string, as fallback)
     local last_time = 0
     if session.messages and #session.messages > 0 then
       local last_msg = session.messages[#session.messages]
@@ -207,8 +275,8 @@ local function handle_list_command(name, integration, message)
     elseif session.last_user_message_time then
       last_time = session.last_user_message_time
     end
-    -- Session ID is a date string like "2025-01-10-14-30-00", use it as
-    -- fallback for last_time (lexicographic comparison works for this format)
+    -- A session without messages keeps last_time = 0; the id comparison at
+    -- the end of the sort makes such sessions still order deterministically.
     local pin = sessions.get_session_pin(id) or false
     table.insert(sorted, {
       id = id,
@@ -229,9 +297,10 @@ local function handle_list_command(name, integration, message)
     return a.id > b.id
   end)
   -- Filter by pattern if provided
+  local needle = pattern and pattern:lower() or nil
   local filtered = {}
   for _, item in ipairs(sorted) do
-    if not pattern then
+    if not needle then
       table.insert(filtered, item)
     else
       -- Get title for search
@@ -250,17 +319,22 @@ local function handle_list_command(name, integration, message)
         item.session.model or '',
         first_msg
       )
-      if search_str:lower():match(pattern:lower()) then
+      -- Plain find, not `string.match`: a title may contain `+`, `(`, `%` or
+      -- any other pattern character, and matching it as a Lua pattern either
+      -- raises "invalid pattern" or silently matches something else.
+      if search_str:lower():find(needle, 1, true) then
         table.insert(filtered, item)
       end
     end
   end
 
-  -- Store session list for /session <number>
-  integration._session_list = {}
+  -- Publish the whole filtered list, not only the rendered page: numbering is
+  -- global, so `12` stays valid while page 1 is on screen.
+  local ids = {}
   for _, item in ipairs(filtered) do
-    table.insert(integration._session_list, item.id)
+    table.insert(ids, item.id)
   end
+  store_session_slot(integration, message, ids)
 
   -- Build output
   local lines = pattern
@@ -273,10 +347,26 @@ local function handle_list_command(name, integration, message)
       pattern and '  No matches found' or '  No sessions available'
     )
   else
-    -- Limit display to 10 sessions
-    local display_count = math.min(#filtered, 10)
-    for i = 1, display_count do
-      local item = filtered[i]
+    local total_pages = math.ceil(#filtered / PAGE_SIZE)
+    if page > total_pages then
+      reply(
+        name,
+        integration,
+        message,
+        string.format(
+          'No page %d: %d session(s) fit in %d page(s).',
+          page,
+          #filtered,
+          total_pages
+        )
+      )
+      return
+    end
+
+    local first = (page - 1) * PAGE_SIZE + 1
+    local last = math.min(first + PAGE_SIZE - 1, #filtered)
+    for index = first, last do
+      local item = filtered[index]
       local marker = (item.id == current) and ' ✓' or ''
       local pin_marker = item.pin and '📌 ' or ''
 
@@ -296,18 +386,24 @@ local function handle_list_command(name, integration, message)
 
       table.insert(
         lines,
-        string.format('  %d) %s%s%s', i, pin_marker, title, marker)
+        string.format('  %d) %s%s%s', index, pin_marker, title, marker)
       )
     end
 
-    -- Show total count and hidden count
     table.insert(lines, string.format('Total: %d session(s)', #filtered))
-    if #filtered > 10 then
-      table.insert(
-        lines,
-        string.format('  (showing first 10, %d hidden)', #filtered - 10)
-      )
+
+    local nav = {}
+    if page > 1 then
+      table.insert(nav, 'prev: ' .. list_command(pattern, page - 1))
     end
+    if page < total_pages then
+      table.insert(nav, 'next: ' .. list_command(pattern, page + 1))
+    end
+    local footer = string.format('Page %d/%d', page, total_pages)
+    if #nav > 0 then
+      footer = footer .. ' · ' .. table.concat(nav, ' · ')
+    end
+    table.insert(lines, footer)
     table.insert(lines, '')
   end
 
