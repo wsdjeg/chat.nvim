@@ -148,7 +148,7 @@ function TestIntegrationsInitExtra:testSessionCommandByIndex()
   discord.send_message = function(c) sent = c end
   handler({ content = '/session 1' })
   lu.assertEquals('sess-2', bound)
-  lu.assertStrContains(sent, 'Session bound: 1)')
+  lu.assertStrContains(sent, 'Session bound: #1')
 end
 
 function TestIntegrationsInitExtra:testSessionCommandByIndexInvalid()
@@ -278,16 +278,18 @@ function TestIntegrationsInitExtra:testListPaginationKeepsGlobalNumbering()
 
   handler({ content = '/list' })
   -- Sorted newest first: sess-12 is line 1, page 1 stops at index 10.
-  lu.assertStrContains(sent[1], '  1) m12')
-  lu.assertStrContains(sent[1], '  10) m3')
-  lu.assertNotStrContains(sent[1], ' 11)')
+  -- Items render as a markdown ordered list, keeping the global number as
+  -- the literal list marker.
+  lu.assertStrContains(sent[1], '1. m12')
+  lu.assertStrContains(sent[1], '10. m3')
+  lu.assertNotStrContains(sent[1], '11. m2')
   lu.assertStrContains(sent[1], 'Page 1/2')
   lu.assertStrContains(sent[1], 'next: /list -p 2')
 
   handler({ content = '/list -p 2' })
   -- Numbering continues from 11, it does not restart at 1.
-  lu.assertStrContains(sent[2], '  11) m2')
-  lu.assertStrContains(sent[2], '  12) m1')
+  lu.assertStrContains(sent[2], '11. m2')
+  lu.assertStrContains(sent[2], '12. m1')
   lu.assertStrContains(sent[2], 'Page 2/2')
   lu.assertStrContains(sent[2], 'prev: /list -p 1')
 end
@@ -316,7 +318,7 @@ function TestIntegrationsInitExtra:testSessionNumberBindsGlobalIndexOfFirstPage(
   discord.send_message = function(c) sent = c end
   handler({ content = '/session 11' })
   lu.assertEquals('sess-02', bound)
-  lu.assertStrContains(sent, 'Session bound: 11)')
+  lu.assertStrContains(sent, 'Session bound: #11')
 end
 
 function TestIntegrationsInitExtra:testListFilterCombinesWithPageFlag()

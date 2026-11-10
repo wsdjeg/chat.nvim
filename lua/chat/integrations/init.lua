@@ -181,7 +181,9 @@ local function handle_session_command(name, integration, message)
         integration,
         message,
         string.format(
-          'Session bound: %d)\n  %s',
+          -- `#11` echoes the number the list printed (`11. title`) without
+          -- repeating markdown list syntax inside a plain confirmation line.
+          'Session bound: #%d\n  %s',
           num,
           format_session_summary(session_id)
         )
@@ -336,16 +338,19 @@ local function handle_list_command(name, integration, message)
   end
   store_session_slot(integration, message, ids)
 
-  -- Build output
+  -- Build output as a markdown ordered list.
+  --
+  -- The numbers are written literally (`11.`), not regenerated per page: a
+  -- renderer that honours the start value keeps the global numbering, so page
+  -- 2 still reads 11, 12, ... instead of restarting at 1. The blank lines
+  -- matter — without them markdown folds the trailing `Total:` line into the
+  -- last list item.
   local lines = pattern
       and { string.format('Sessions matching "%s":', pattern) }
     or { 'Available sessions:' }
 
   if #filtered == 0 then
-    table.insert(
-      lines,
-      pattern and '  No matches found' or '  No sessions available'
-    )
+    table.insert(lines, pattern and 'No matches found' or 'No sessions available')
   else
     local total_pages = math.ceil(#filtered / PAGE_SIZE)
     if page > total_pages then
@@ -363,6 +368,7 @@ local function handle_list_command(name, integration, message)
       return
     end
 
+    table.insert(lines, '')
     local first = (page - 1) * PAGE_SIZE + 1
     local last = math.min(first + PAGE_SIZE - 1, #filtered)
     for index = first, last do
@@ -386,10 +392,11 @@ local function handle_list_command(name, integration, message)
 
       table.insert(
         lines,
-        string.format('  %d) %s%s%s', index, pin_marker, title, marker)
+        string.format('%d. %s%s%s', index, pin_marker, title, marker)
       )
     end
 
+    table.insert(lines, '')
     table.insert(lines, string.format('Total: %d session(s)', #filtered))
 
     local nav = {}

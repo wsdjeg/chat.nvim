@@ -51,11 +51,13 @@ All IM integrations share these common features:
 
 ### `/list` pagination
 
-Sessions are listed 10 per page. The numbering is **global**: page 2 starts at
-`11)`, it does not restart at `1)`, so a number always identifies the same
-session no matter which page it was read on. That means `/session 12` binds
-session 12 even while page 1 is still on screen — the number comes from the
-last `/list` of the current chat, not from the rendered page.
+Sessions are listed 10 per page and rendered as a markdown ordered list
+(`1.`, `2.`, …) so chat clients display them as a real numbered list. The
+numbering is **global**: page 2 starts at `11.`, it does not restart at `1.`,
+so a number always identifies the same session no matter which page it was
+read on. That means `/session 12` binds session 12 even while page 1 is still
+on screen — the number comes from the last `/list` of the current chat, not
+from the rendered page.
 
 `-p` is a flag rather than a bare number because session ids are date-shaped
 strings full of digits: `/list 2` would be ambiguous between "page 2" and
