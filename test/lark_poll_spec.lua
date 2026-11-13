@@ -296,3 +296,45 @@ function TestLarkPoll:test_stopped_poller_skips_request_after_token_resolution()
   lu.assertEquals(0, #received)
 end
 
+-- ===========================================================================
+-- The poll timer handle is released on disconnect
+-- ===========================================================================
+
+function TestLarkPoll:test_disconnect_closes_poll_timer()
+  -- connect() allocates a fresh timer every time, so a disconnect() that only
+  -- stops it leaks one uv handle per connect/disconnect cycle. The handle is
+  -- captured by wrapping new_timer: `state.timer` is cleared by disconnect(),
+  -- so the reference has to be kept outside the integration.
+  local created = {}
+  local real_new_timer = vim.uv.new_timer
+  vim.uv.new_timer = function()
+    local timer = real_new_timer()
+    created[#created + 1] = timer
+    return timer
+  end
+
+  local ok, err = pcall(function()
+    self.lark.connect(function() end)
+    wait(200)
+
+    -- The polling timer, plus one watchdog per fetched container.
+    lu.assertTrue(#created > 0, 'timers created while polling')
+
+    self.lark.disconnect()
+    wait(100)
+  end)
+
+  vim.uv.new_timer = real_new_timer
+
+  lu.assertTrue(ok, tostring(err))
+  -- A stopped-but-open handle keeps libuv resources for the whole process
+  -- lifetime, and a closed one reports is_closing() == true.
+  for index, timer in ipairs(created) do
+    lu.assertTrue(
+      timer:is_closing(),
+      'timer #' .. index .. ' must be closed, not only stopped'
+    )
+  end
+end
+
+

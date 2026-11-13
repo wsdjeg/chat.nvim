@@ -691,6 +691,12 @@ function M.new(ctx)
 
     if state.timer then
       state.timer:stop()
+      -- Stop alone leaves the handle allocated: connect() creates a fresh timer
+      -- on every start, so skipping close() leaks one uv handle per
+      -- connect/disconnect cycle for the whole lifetime of the process.
+      if not state.timer:is_closing() then
+        state.timer:close()
+      end
       state.timer = nil
     end
 
