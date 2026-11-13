@@ -69,6 +69,37 @@ local function resolve_all_tokens()
   wait(100)
 end
 
+--- How many jobs matching the fragment were started.
+local function count_jobs(fragment)
+  local count = 0
+  for _, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find(fragment, 1, true) then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+--- Fail every outstanding token request with an API error body.
+---
+--- Stdout alone is not enough: auth settles the request on stdout *or* exit,
+--- and without the exit the callbacks never fire, so the sender would keep
+--- waiting instead of taking the failure path this helper is meant to trigger.
+local function fail_all_tokens()
+  local failed = false
+  for id, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find('tenant_access_token', 1, true) then
+      job.emit_stdout(id, {
+        vim.json.encode({ code = 99991400, msg = 'invalid param' }),
+      })
+      job.emit_exit(id, 0)
+      failed = true
+    end
+  end
+  wait(100)
+  return failed
+end
+
 --- Every started delivery request (one per chunk), oldest first.
 local function send_jobs()
   local list = {}
@@ -213,5 +244,72 @@ function TestLarkSend:test_spawn_failure_releases_claim()
   local list = send_jobs()
   lu.assertEquals(2, #list, 'sender recovered from the failed spawn')
   lu.assertEquals('after failure', body_of(list[2].job))
+end
+
+-- ===========================================================================
+-- A token outage fails the whole batch, not once per chunk
+-- ===========================================================================
+
+--- Content long enough to be split into exactly five chunks.
+local FIVE_CHUNKS = string.rep('a', 5 * 30720)
+
+function TestLarkSend:test_token_outage_drops_batch_in_one_step()
+  -- Every chunk needs the same token, so an outage fails all of them
+  -- identically. Serving them one at a time asked for a token once per chunk
+  -- and logged one error per chunk for a single outage.
+  self.lark.send_message(FIVE_CHUNKS)
+  wait(50)
+
+  lu.assertEquals(1, count_jobs('tenant_access_token'), 'one token request')
+
+  lu.assertTrue(fail_all_tokens(), 'the token request failed')
+  wait(100)
+
+  lu.assertEquals(
+    1,
+    count_jobs('tenant_access_token'),
+    'the whole batch gives up on the first outage, no per-chunk retries'
+  )
+  lu.assertEquals(0, #send_jobs(), 'no delivery without a token')
+end
+
+function TestLarkSend:test_sender_recovers_after_a_dropped_batch()
+  -- Dropping the batch must leave the sender idle, not stuck holding a claim.
+  self.lark.send_message(FIVE_CHUNKS)
+  wait(50)
+  fail_all_tokens()
+  wait(100)
+
+  self.lark.send_message('after the outage')
+  wait(50)
+
+  resolve_all_tokens()
+
+  local list = send_jobs()
+  lu.assertEquals(1, #list, 'the new reply is delivered on its own')
+  lu.assertEquals('after the outage', body_of(list[1].job))
+end
+
+function TestLarkSend:test_missing_credentials_drops_batch_silently()
+  -- `ensure_token` fails synchronously here (no request is even started),
+  -- which is the same global condition: one step, no queue left behind.
+  config.config.integrations.lark.app_secret = nil
+  self.lark.send_message(FIVE_CHUNKS)
+  wait(50)
+
+  lu.assertEquals(0, count_jobs('tenant_access_token'), 'no token request')
+
+  config.config.integrations.lark.app_secret = 'secret_test'
+  self.lark.send_message('after the failure')
+  wait(50)
+
+  local token_id = find_job('tenant_access_token')
+  lu.assertNotNil(token_id, 'a new reply starts a token request')
+  job.emit_stdout(token_id, { TOKEN_JSON })
+  wait(100)
+
+  local list = send_jobs()
+  lu.assertEquals(1, #list, 'queue was emptied, only the new reply is pending')
+  lu.assertEquals('after the failure', body_of(list[1].job))
 end
 

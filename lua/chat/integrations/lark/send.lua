@@ -36,21 +36,42 @@ function M.new(ctx)
   -- batches in the chat.
   local dispatch_busy = false
 
-  -- Forward declaration: abandon_dispatch() re-enters the queue, and the two
-  -- helpers below are defined after it.
+  -- Forward declaration: both helpers below re-enter the queue, and
+  -- dispatch_message itself is defined after them.
   local dispatch_message
 
-  --- Release the queue and serve whatever is left.
+  --- Release the claim and serve whatever is left.
   ---
-  --- Shared by the two paths where no request is made at all (token failure,
-  --- spawn failure): both must clear `dispatch_busy`, otherwise the queue stays
-  --- claimed forever and nothing is ever sent again.
+  --- Used when one chunk could not be started but the next one might: the
+  --- claim has to be cleared, otherwise the queue stays owned forever and
+  --- nothing is ever sent again.
   --- @param reason string
   local function abandon_dispatch(reason)
     log.error('[Lark] Skip send: ' .. reason)
     send_message_jobid = -1
     dispatch_busy = false
     dispatch_message()
+  end
+
+  --- Drop the whole queue after a failure that affects every chunk.
+  ---
+  --- A missing tenant token is a global condition: it fails for each queued
+  --- chunk identically. Serving them one at a time asked for a token once per
+  --- chunk and logged one error per chunk for a single outage, so the batch
+  --- is dropped in one step with a single log line instead.
+  --- @param reason string
+  --- @param dropped integer chunks dropped, the one already taken included
+  local function abandon_queue(reason, dropped)
+    message_queue = {}
+    send_message_jobid = -1
+    dispatch_busy = false
+    log.error(
+      '[Lark] Skip send: '
+        .. reason
+        .. ' ('
+        .. tostring(dropped)
+        .. ' chunk(s) dropped)'
+    )
   end
 
   --- Delivery address for one container.
@@ -91,11 +112,12 @@ function M.new(ctx)
     dispatch_busy = true
 
     ensure_token(function(token, err)
-      -- Token failure: no request is made. The queue has to be drained here,
-      -- otherwise `dispatch_busy` stays set and every queued chunk below would
-      -- wait for an on_exit that never fires.
+      -- Token failure: no request is made, and it would fail for every queued
+      -- chunk too. Drop the batch in one step instead of re-entering the
+      -- queue, which requested a token again for each chunk and logged one
+      -- error per chunk for a single outage.
       if not token then
-        abandon_dispatch(err or 'no tenant_access_token')
+        abandon_queue(err or 'no tenant_access_token', 1 + #message_queue)
         return
       end
       -- Use interactive card (schema 2.0) with markdown element,
