@@ -186,14 +186,13 @@ function M.new(ctx)
   --- @param content string
   --- @param session? string
   local function send_message(content, session)
-    local max_length = 30720 -- Lark message limit
-
     local chat_id = util.main_chat_id()
     if session then
       chat_id = ctx.container.session_to_chat(session) or chat_id
     end
 
-    local chunks = chunker.chunk(content, max_length)
+    -- Single source of truth for the platform limit: chunker.Limits.LARK.
+    local chunks = chunker.chunk(content, chunker.Limits.LARK)
     for _, chunk in ipairs(chunks) do
       table.insert(message_queue, { content = chunk, chat_id = chat_id })
     end
