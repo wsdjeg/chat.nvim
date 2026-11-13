@@ -22,6 +22,10 @@ function M.new(ctx)
   local state = ctx.state
   local API_BASE = util.API_BASE
 
+  -- Chain owner id. Bumped by disconnect(), so a request that settles
+  -- afterwards can tell it no longer belongs to the chain that started it.
+  local poll_generation = 0
+
   local function save_state()
     return ctx.save_state()
   end
@@ -424,6 +428,18 @@ function M.new(ctx)
   -- Fetch one container
   --------------------------------------------------
 
+  --- Whether a fetch still belongs to the running poll chain.
+  ---
+  --- `disconnect()` bumps the generation, so a request started before it
+  --- settles as "detached": its body must not be turned into messages, or a
+  --- stopped poller would still answer, run `/allow`, advance cursors and write
+  --- the state file.
+  --- @param generation integer chain that started the fetch
+  --- @return boolean
+  local function is_current_chain(generation)
+    return state.is_running and generation == poll_generation
+  end
+
   --- Fetch the messages of a single container, then hand control back.
   ---
   --- Group and p2p chats are addressed identically
@@ -434,10 +450,20 @@ function M.new(ctx)
   --- the polling tick can walk the container list without overlapping requests.
   --- @param chat_id string
   --- @param done fun()
-  local function fetch_container(chat_id, done)
+  --- @param generation? integer chain the fetch belongs to (default: current)
+  local function fetch_container(chat_id, done, generation)
+    generation = generation or poll_generation
     local cursor = ctx.container.container_cursor(chat_id)
 
     ensure_token(function(token, err)
+      -- Token resolution is asynchronous: disconnect() may have run while it
+      -- was in flight, and starting a request now would keep a stopped poller
+      -- reading containers.
+      if not is_current_chain(generation) then
+        done()
+        return
+      end
+
       -- No token means no request: bail out instead of building 'Bearer .. nil'.
       if not token then
         log.error(
@@ -494,7 +520,6 @@ function M.new(ctx)
         settle()
       end)
 
-      -- FIX: Accumulate response data
       local response_chunks = {}
 
       local cmd = curl.build_request({
@@ -514,10 +539,14 @@ function M.new(ctx)
           end
         end,
         on_exit = function()
-          local ok, err2 =
-            pcall(handle_messages, chat_id, table.concat(response_chunks))
-          if not ok then
-            log.error('[Lark] Message handling failed: ' .. tostring(err2))
+          if is_current_chain(generation) then
+            local ok, err2 =
+              pcall(handle_messages, chat_id, table.concat(response_chunks))
+            if not ok then
+              log.error('[Lark] Message handling failed: ' .. tostring(err2))
+            end
+          else
+            log.debug('[Lark] Drop response (' .. chat_id .. '): poll stopped')
           end
           settle()
         end,
@@ -559,8 +588,18 @@ function M.new(ctx)
 
     state.is_fetching = true
 
+    local generation = poll_generation
     local index = 0
     local function next_container()
+      -- Every step re-checks the chain: a `done()` that arrives after
+      -- disconnect() must end the round instead of fetching the containers
+      -- that are still queued.
+      if not is_current_chain(generation) then
+        state.is_fetching = false
+        log.debug('[Lark] Poll chain stopped: poller no longer running')
+        return
+      end
+
       index = index + 1
       if index > #ids then
         state.is_fetching = false
@@ -568,7 +607,7 @@ function M.new(ctx)
       end
       -- Sequential on purpose: parallel requests would race on the rate limit
       -- and make the log unreadable.
-      fetch_container(ids[index], next_container)
+      fetch_container(ids[index], next_container, generation)
     end
 
     next_container()
@@ -645,6 +684,11 @@ function M.new(ctx)
   -- Disconnect
   --------------------------------------------------
   local function disconnect()
+    -- Invalidate the running chain before anything else: an in-flight fetch
+    -- that settles from here on is detached, so it neither processes messages
+    -- nor continues to the next container.
+    poll_generation = poll_generation + 1
+
     if state.timer then
       state.timer:stop()
       state.timer = nil
