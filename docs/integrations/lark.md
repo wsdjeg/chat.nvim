@@ -29,6 +29,8 @@ Lark/Feishu (飞书) integration for enterprise communication.
 - **Private Chat (P2P)**: Talk to the bot in a 1:1 chat, no `@mention` needed
 - **Multi-chat**: Several groups and private chats polled side by side, each
   with its own message cursor and optional session binding
+- **Isolated Workspaces**: Every private chat gets its own working directory, so
+  two peers never share a file tree
 - **Shared App**: The same credentials power the `bitable`, `lark_sheets` and
   `lark_docx` tools
 
@@ -167,10 +169,15 @@ list are in [Configuration Reference](#configuration-reference).
 | `integrations.lark.p2p.allow`      | `string[]` | `{}`          | Users allowed to use private chat (default: deny) |
 | `integrations.lark.p2p.greeting`   | `string`   | see below     | Text sent when a private chat is opened           |
 | `integrations.lark.p2p.auto_create`| `boolean`  | `true`        | Open a private chat for allowed users on connect  |
+| `integrations.lark.p2p.cwd_root`   | `string`   | first `allowed_path` | Root for per-chat p2p workspaces         |
 
 Every ACL list accepts an `open_id` (`ou_...`), an email address, or a mobile
 number. `open_id` entries cost zero API calls; email / mobile entries are
 resolved once on connect and then cached. The same is true for `p2p.allow`.
+
+`p2p.cwd_root` is where private-chat workspaces are created; leave it unset to
+derive the root from `allowed_path`. See
+[Isolated workspaces](#isolated-workspaces) for the details.
 
 Complete example:
 
@@ -199,6 +206,9 @@ require('chat').setup({
         greeting = 'Hi, this is the chat.nvim bot. Reply here to talk to Neovim.',
         -- open a private chat for the allowed users on connect (default: true)
         auto_create = true,
+        -- root for the per-chat workspaces (default: first allowed_path entry)
+        -- each private chat works in <cwd_root>/lark-<chat_id>
+        cwd_root = '/home/me/projects',
       },
     },
   },
@@ -332,6 +342,39 @@ away, so the private chat has its own context from the first message.
 > arriving in that container from anybody other than the registered peer is
 > dropped.
 
+### Isolated workspaces
+
+A private chat is one person talking to the bot alone, so two peers must never
+share a working directory: they would see each other's files, and one user's
+edits — or a `git checkout` — would land in another user's tree.
+
+Each p2p chat therefore works in `<cwd_root>/lark-<chat_id>`:
+
+| Chat type | Working directory                          |
+| --------- | ------------------------------------------ |
+| group     | the Neovim cwd (deliberately shared)       |
+| p2p       | `<cwd_root>/lark-<chat_id>`                 |
+
+`cwd_root` comes from `integrations.lark.p2p.cwd_root`; when that is unset the
+first `allowed_path` entry is used. The fallback is deliberate — a workspace
+outside `allowed_path` would be refused by every file tool, and keeping the root
+inside the allowed tree means the isolation never widens what the bot may touch.
+With neither configured the workspace is skipped and the session keeps the
+Neovim cwd, which is what older versions always did.
+
+The directory is created while the session is provisioned, because `read_file`,
+`find_files` and the git tools all reject a missing directory.
+
+{: .info }
+
+> The directory only applies **once**, when the session is created. Re-binding a
+> chat to an existing session keeps it in the directory it already has, so a live
+> workspace is never moved under the running request. To relocate a chat, delete
+> its session first.
+
+The name is sanitized to a single path segment, so an unexpected `chat_id` can
+not escape the root.
+
 ### Multiple chats at once
 
 Every chat keeps its own message cursor, so an active group can no longer
@@ -386,6 +429,8 @@ the tools you actually use, then release a new version:
 - **Reply Trigger**: in groups the bot only answers when `@mentioned`
   (`mentions[].id` equals the bot `open_id`); in a p2p chat no mention is
   required
+- **Working Directory**: a p2p session starts in `<cwd_root>/lark-<chat_id>`
+  (see [Isolated workspaces](#isolated-workspaces)); groups keep the Neovim cwd
 - **Message Limit**: 30,720 characters per chunk; longer replies are split
 - **Message Format**: interactive card (schema 2.0) with a `markdown` element
 - **State Persistence**: `stdpath('data')/chat.nvim/integration/lark.json`
@@ -439,6 +484,19 @@ p2p is deny-by-default, so a silent chat is usually the expected behaviour:
 
 `[Lark] Skip p2p message (peer not allowed)` and
 `[Lark] p2p sender mismatch` name a rejected message directly.
+
+### File tools refuse the p2p workspace
+
+The workspace must live inside `allowed_path`, otherwise the file tools reject
+every path in it:
+
+1. **Is `p2p.cwd_root` (or the first `allowed_path`) pointing at the right
+   place?** The session works in `<cwd_root>/lark-<chat_id>`
+2. **Look for `[Lark] Could not create workspace`** — an unwritable root falls
+   back to the Neovim cwd instead
+3. **Was the session created before `cwd_root` was set?** The directory is only
+   applied at creation; delete the session so the next message provisions it
+   again
 
 ### Authentication errors
 
