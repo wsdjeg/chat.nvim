@@ -33,6 +33,18 @@ local function header_highlight(platform, session)
   }
 end
 
+--- Get the first non-empty line from a message content
+--- @param content string
+--- @return string|nil
+local function first_non_empty_line(content)
+  for _, line in ipairs(vim.split(content, '\n')) do
+    if line ~= '' then
+      return line
+    end
+  end
+  return nil
+end
+
 --- Integration modules, sorted by name for a stable list order.
 --- @return string[]
 local function integration_names()
@@ -55,12 +67,25 @@ function M.get()
         if sessions.exists(session) then
           local messages = sessions.get_messages(session)
           if #messages > 1 then
-            local str = vim.split(messages[1].content, '\n')[1]
-            table.insert(items, {
-              str = string.format('[%s] [%s] %s', platform, session, str),
-              value = session,
-              highlight = header_highlight(platform, session),
-            })
+            -- Prefer the session title, like the plain session picker does.
+            -- Reading only the first message ignored any title set by
+            -- `set_session_title()` (or auto-generated), so integrated
+            -- sessions never showed one.
+            local title = sessions.get_session_title(session)
+            local str
+            if title and title ~= '' then
+              str = title
+            else
+              str = first_non_empty_line(messages[1].content)
+            end
+
+            if str then
+              table.insert(items, {
+                str = string.format('[%s] [%s] %s', platform, session, str),
+                value = session,
+                highlight = header_highlight(platform, session),
+              })
+            end
           end
         end
       end
