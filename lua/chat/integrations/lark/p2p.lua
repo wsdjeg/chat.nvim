@@ -54,6 +54,10 @@ function M.new(ctx)
   --- Step 1 doubles as the greeting the user sees, so nothing is sent twice. The
   --- bot's own `sender_type == 'app'` greeting is skipped by the poll loop, so no
   --- self-reply loop can start either.
+  ---
+  --- `callback` must fire exactly once on every path, including the ones where
+  --- neither request is ever made: `provision_p2p()` chains its walk from it, so
+  --- a silent path stops the whole provisioning run.
   --- @param open_id string
   --- @param callback? fun(ok: boolean, result: string)
   local function create_p2p(open_id, callback)
@@ -126,7 +130,7 @@ function M.new(ctx)
             headers = { 'Authorization: Bearer ' .. token },
           })
           local reveal_chunks = {}
-          job.start(reveal_cmd, {
+          local reveal_jobid = job.start(reveal_cmd, {
             on_stdout = function(_, data)
               for _, chunk in ipairs(data) do
                 table.insert(reveal_chunks, chunk)
@@ -157,8 +161,24 @@ function M.new(ctx)
               callback(true, chat_id)
             end,
           })
+
+          -- A job that could not be spawned returns 0: its on_exit never
+          -- fires, so without this check the chain (and provision_p2p() behind
+          -- it) would stop here forever.
+          if not reveal_jobid or reveal_jobid <= 0 then
+            callback(false, 'failed to start the message lookup')
+            return
+          end
         end,
       })
+
+      -- Same here: the greeting request is what creates the conversation, so
+      -- a failed spawn means there is nothing to observe and nobody to notify
+      -- unless the callback is fired explicitly.
+      if not send_jobid or send_jobid <= 0 then
+        callback(false, 'failed to start the greeting request')
+        return
+      end
 
       job.send(send_jobid, body)
       job.send(send_jobid, nil)
