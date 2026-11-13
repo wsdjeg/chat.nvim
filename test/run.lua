@@ -111,10 +111,7 @@ local function run_tests()
   -- Run test suite (LuaUnit automatically finds all Test* classes in global namespace)
   print('\nRunning tests...\n')
   local runner = lu.LuaUnit:new()
-  -- Write full test results (incl. failure messages + stack traces) to a
-  -- JUnit XML file so failures are readable even when terminal capture
-  -- garbles output (e.g. CI logs, Termux).
-  runner:setOutputType('junit', 'test/junit_output.xml')
+  runner:setOutputType('tap')
   local result = runner:runSuite()
 
   return result
