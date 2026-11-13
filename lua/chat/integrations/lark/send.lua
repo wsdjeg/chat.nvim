@@ -28,6 +28,31 @@ function M.new(ctx)
   local message_queue = {}
   local send_message_jobid = -1
 
+  -- Whether a dispatch already owns the queue. Set from the moment the head is
+  -- taken until its job exits, which is *earlier* than `send_message_jobid`:
+  -- that field stays -1 while `ensure_token()` resolves the token
+  -- asynchronously, so a second reply arriving inside that window would pass
+  -- the jobid guard, start a second job, and interleave the chunks of both
+  -- batches in the chat.
+  local dispatch_busy = false
+
+  -- Forward declaration: abandon_dispatch() re-enters the queue, and the two
+  -- helpers below are defined after it.
+  local dispatch_message
+
+  --- Release the queue and serve whatever is left.
+  ---
+  --- Shared by the two paths where no request is made at all (token failure,
+  --- spawn failure): both must clear `dispatch_busy`, otherwise the queue stays
+  --- claimed forever and nothing is ever sent again.
+  --- @param reason string
+  local function abandon_dispatch(reason)
+    log.error('[Lark] Skip send: ' .. reason)
+    send_message_jobid = -1
+    dispatch_busy = false
+    dispatch_message()
+  end
+
   --- Delivery address for one container.
   ---
   --- p2p replies go to the peer's open_id: an `oc_` id is only needed to *poll*
@@ -43,8 +68,8 @@ function M.new(ctx)
     return { id_type = 'chat_id', receive_id = chat_id }
   end
 
-  local function dispatch_message()
-    if send_message_jobid > 0 then
+  dispatch_message = function()
+    if dispatch_busy or send_message_jobid > 0 then
       return
     end
 
@@ -62,14 +87,15 @@ function M.new(ctx)
       return
     end
 
+    -- Claim the queue before the asynchronous token lookup starts.
+    dispatch_busy = true
+
     ensure_token(function(token, err)
       -- Token failure: no request is made. The queue has to be drained here,
-      -- otherwise `send_message_jobid` stays -1 and every queued chunk below
-      -- would wait for an on_exit that never fires.
+      -- otherwise `dispatch_busy` stays set and every queued chunk below would
+      -- wait for an on_exit that never fires.
       if not token then
-        send_message_jobid = -1
-        log.error('[Lark] Skip send: ' .. (err or 'no tenant_access_token'))
-        dispatch_message()
+        abandon_dispatch(err or 'no tenant_access_token')
         return
       end
       -- Use interactive card (schema 2.0) with markdown element,
@@ -98,7 +124,7 @@ function M.new(ctx)
         },
         stdin_body = true,
       })
-      send_message_jobid = job.start(cmd, {
+      local jobid = job.start(cmd, {
         on_stdout = function(_, data)
           for _, v in ipairs(data) do
             log.debug(v)
@@ -111,12 +137,21 @@ function M.new(ctx)
         end,
         on_exit = function()
           send_message_jobid = -1
+          dispatch_busy = false
           dispatch_message()
         end,
       })
 
-      job.send(send_message_jobid, body)
-      job.send(send_message_jobid, nil)
+      -- A job that could not be spawned returns 0: no callback ever fires, so
+      -- the claim has to be released here instead of staying taken forever.
+      if not jobid or jobid <= 0 then
+        abandon_dispatch('failed to start the request')
+        return
+      end
+
+      send_message_jobid = jobid
+      job.send(jobid, body)
+      job.send(jobid, nil)
     end)
   end
 
