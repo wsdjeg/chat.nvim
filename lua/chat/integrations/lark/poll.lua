@@ -9,6 +9,7 @@ local log = require('chat.log')
 local job = require('job')
 local curl = require('chat.curl')
 local auth = require('chat.integrations.lark.auth')
+local state_module = require('chat.integrations.lark.state')
 local util = require('chat.integrations.lark.util')
 
 local json = vim.json
@@ -301,12 +302,12 @@ function M.new(ctx)
     for i = #messages, 1, -1 do
       local msg = messages[i]
 
-      -- Skip already processed messages
-      if state.processed_ids[msg.message_id] then
+      -- Skip already processed messages. `remember_processed` records the id in
+      -- insertion order and trims the cache, so the eviction keeps the *newest*
+      -- ids instead of an arbitrary `pairs()` selection.
+      if not state_module.remember_processed(state, msg.message_id) then
         goto continue
       end
-
-      state.processed_ids[msg.message_id] = true
       has_new = true
 
       if msg.create_time then
