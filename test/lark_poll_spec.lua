@@ -337,4 +337,203 @@ function TestLarkPoll:test_disconnect_closes_poll_timer()
   end
 end
 
+-- ===========================================================================
+-- Only readable content reaches the shared handler
+-- ===========================================================================
+
+--- A poll instance with no network and no state file.
+---
+--- `message_text()` is pure, so the dependencies only need to exist: nothing
+--- here starts a request or touches disk.
+local function poll_module()
+  local poll = require('chat.integrations.lark.poll').new({
+    state = require('chat.integrations.lark.state').new(),
+    save_state = function()
+      return true
+    end,
+    state_io = {
+      load = function()
+        return false
+      end,
+      save = function()
+        return true
+      end,
+      reset_cursors_to_now = function()
+        return tostring(os.time() * 1000)
+      end,
+    },
+    container = {
+      ensure_container = function(_, opts)
+        return opts or { chat_type = 'group' }
+      end,
+      container_cursor = function()
+        return nil
+      end,
+      set_container_cursor = function() end,
+    },
+    acl = {
+      record_sender = function() end,
+      is_p2p_allowed = function()
+        return true
+      end,
+      is_admin = function()
+        return true
+      end,
+      is_allowed = function()
+        return true
+      end,
+      parse_acl_command = function()
+        return nil
+      end,
+    },
+  })
+  return poll
+end
+
+function TestLarkPoll:test_text_message_is_decoded()
+  local poll = poll_module()
+  local msg = make_msg('om_text', 'hello world')
+  lu.assertEquals('hello world', poll.message_text(msg))
+end
+
+function TestLarkPoll:test_image_message_is_not_raw_json()
+  -- An image body is `{"image_key":"img_v2_..."}`: a reference, not content.
+  -- Feeding it to the model verbatim teaches nothing and looks like a bug in
+  -- the transcript.
+  local poll = poll_module()
+  local msg = make_msg('om_img', nil, {
+    msg_type = 'image',
+    content = vim.json.encode({ image_key = 'img_v2_abc' }),
+  })
+  local text = poll.message_text(msg)
+  lu.assertStrContains(text, '[image]')
+  lu.assertNotStrContains(text, 'image_key', 'raw payload must not leak')
+  lu.assertNotStrContains(text, 'img_v2_abc')
+end
+
+function TestLarkPoll:test_file_message_keeps_the_name()
+  -- A file bubble carries a name, which is the only useful part.
+  local poll = poll_module()
+  local msg = make_msg('om_file', nil, {
+    msg_type = 'file',
+    content = vim.json.encode({ file_key = 'file_v3_1', file_name = 'notes.md' }),
+  })
+  local text = poll.message_text(msg)
+  lu.assertEquals('[file: notes.md]', text)
+end
+
+function TestLarkPoll:test_attachment_without_name_uses_type_marker()
+  local poll = poll_module()
+  local cases = {
+    { msg_type = 'audio', content = vim.json.encode({ file_key = 'a' }) },
+    { msg_type = 'media', content = vim.json.encode({ file_key = 'm' }) },
+    { msg_type = 'sticker', content = vim.json.encode({ file_key = 's' }) },
+  }
+  for _, case in ipairs(cases) do
+    local msg = make_msg('om_x', nil, case)
+    lu.assertEquals('[' .. case.msg_type .. ']', poll.message_text(msg))
+  end
+end
+
+function TestLarkPoll:test_post_message_is_flattened()
+  -- Rich text arrives as paragraphs of inline nodes; attachments inside them
+  -- are nodes too.
+  local poll = poll_module()
+  local body = {
+    title = 'Deploy plan',
+    content = {
+      {
+        { tag = 'text', text = 'step one ' },
+        { tag = 'a', text = 'docs', href = 'https://example.com' },
+      },
+      {
+        { tag = 'img', image_key = 'img_v2_1' },
+        { tag = 'text', text = ' step two' },
+      },
+    },
+  }
+  local msg = make_msg('om_post', nil, {
+    msg_type = 'post',
+    content = vim.json.encode(body),
+  })
+
+  local text = poll.message_text(msg)
+  lu.assertStrContains(text, 'Deploy plan')
+  lu.assertStrContains(text, 'step one docs')
+  lu.assertStrContains(text, '[image]')
+  lu.assertStrContains(text, 'step two')
+  lu.assertNotStrContains(text, 'img_v2_1', 'no raw key in the text')
+  lu.assertNotStrContains(text, '"tag"', 'no JSON structure in the text')
+end
+
+function TestLarkPoll:test_post_message_unwraps_locale_wrapper()
+  local poll = poll_module()
+  local body = {
+    zh_cn = {
+      title = '标题',
+      content = { { { tag = 'text', text = '内容' } } },
+    },
+  }
+  local msg = make_msg('om_post_locale', nil, {
+    msg_type = 'post',
+    content = vim.json.encode(body),
+  })
+
+  local text = poll.message_text(msg)
+  lu.assertStrContains(text, '标题')
+  lu.assertStrContains(text, '内容')
+end
+
+function TestLarkPoll:test_mislabelled_text_body_is_still_read()
+  local poll = poll_module()
+  local msg = make_msg('om_odd', nil, {
+    msg_type = 'post',
+    content = vim.json.encode({ text = 'plain after all' }),
+  })
+  lu.assertEquals('plain after all', poll.message_text(msg))
+end
+
+function TestLarkPoll:test_malformed_body_does_not_crash()
+  local poll = poll_module()
+  local msg = make_msg('om_bad', nil, {
+    msg_type = 'image',
+    content = '{not json',
+  })
+  lu.assertEquals('[image]', poll.message_text(msg))
+end
+
+function TestLarkPoll:test_empty_text_is_skipped()
+  -- Nothing to say: the caller has to skip the message instead of passing an
+  -- empty prompt on.
+  local poll = poll_module()
+  lu.assertEquals('', poll.message_text(make_msg('om_empty', '')))
+end
+
+function TestLarkPoll:test_image_message_delivered_with_marker()
+  -- End to end: a group image with a bot mention reaches the callback with a
+  -- readable marker instead of the raw payload.
+  write_state({
+    containers = { oc_main = { chat_type = 'group' } },
+  })
+
+  local received = {}
+  self.lark = fresh_lark()
+  self.lark.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(200)
+  feed_token_and_bot()
+
+  deliver('oc_main', {
+    make_msg('om_img', nil, {
+      msg_type = 'image',
+      content = vim.json.encode({ image_key = 'img_v2_abc' }),
+      mentions = { { id = 'ou_bot_1', name = 'chat.nvim' } },
+    }),
+  })
+
+  lu.assertEquals(1, #received)
+  lu.assertEquals('[image]', received[1].content)
+end
+
 

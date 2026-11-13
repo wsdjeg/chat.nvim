@@ -243,6 +243,131 @@ function M.new(ctx)
   end
 
   --------------------------------------------------
+  -- Message content
+  --------------------------------------------------
+
+  -- Markers for rich-text (`post`) nodes that hold an attachment instead of
+  -- text: they carry no readable part, only a reference.
+  local POST_TAG_MARKERS = {
+    img = '[image]',
+    media = '[media]',
+    file = '[file]',
+    audio = '[audio]',
+    emotion = '[sticker]',
+    hr = '',
+  }
+
+  --- Readable part of one rich-text node.
+  --- @param node table|nil
+  --- @return string
+  local function post_node_text(node)
+    if type(node) ~= 'table' then
+      return ''
+    end
+    if node.tag == 'text' or node.tag == 'a' then
+      return type(node.text) == 'string' and node.text or ''
+    end
+    local marker = POST_TAG_MARKERS[node.tag]
+    if marker ~= nil then
+      return marker
+    end
+    -- Unknown tag: name it, so the model learns something was there without
+    -- being handed a JSON blob it can neither read nor fetch.
+    return node.tag and ('[' .. node.tag .. ']') or ''
+  end
+
+  --- Flatten a rich-text (`post`) body into plain text.
+  ---
+  --- Lark sends `{ title, content = { { nodes... }, { nodes... } } }`:
+  --- paragraphs of inline nodes, where attachments are nodes too.
+  --- @param data table decoded body
+  --- @return string
+  local function post_to_text(data)
+    local parts = {}
+
+    if type(data.title) == 'string' and data.title ~= '' then
+      table.insert(parts, data.title)
+    end
+
+    for _, paragraph in ipairs(data.content or {}) do
+      local line = {}
+      for _, node in ipairs(paragraph or {}) do
+        local text = post_node_text(node)
+        if text ~= '' then
+          table.insert(line, text)
+        end
+      end
+      if #line > 0 then
+        table.insert(parts, table.concat(line, ''))
+      end
+    end
+
+    return table.concat(parts, '\n')
+  end
+
+  --- Text handed to the shared handler for one message.
+  ---
+  --- Only `text` and `post` carry readable content. Everything else (image,
+  --- file, audio, media, sticker, ...) is a reference to an attachment, so
+  --- passing `body.content` through would feed the model raw JSON such as
+  --- `{"image_key":"img_v2_..."}`, which it can neither read nor fetch. Each of
+  --- those becomes a short marker instead: the message still shows up, and the
+  --- model can say what it did not receive.
+  ---
+  --- Empty string means "nothing to say", and the caller skips the message.
+  --- @param msg table message item from the API
+  --- @return string
+  local function message_text(msg)
+    local raw = msg.body and msg.body.content or ''
+
+    if msg.msg_type == 'text' then
+      local ok, data = pcall(json.decode, raw)
+      if ok and type(data) == 'table' and type(data.text) == 'string' then
+        return data.text
+      end
+      return ''
+    end
+
+    local ok, data = pcall(json.decode, raw)
+    if not ok then
+      data = nil
+    end
+
+    -- A bare `{"text": ...}` body shows up when the type is mislabelled; it is
+    -- still readable, so keep it. Checked before the `post` branch because a
+    -- post body has no top-level `text`, while this payload has no `content`.
+    if type(data) == 'table'
+      and type(data.text) == 'string'
+      and data.text ~= ''
+    then
+      return data.text
+    end
+
+    if msg.msg_type == 'post' and type(data) == 'table' then
+      -- Some payloads wrap the body per locale; unwrap the one present before
+      -- flattening.
+      local body = data
+      if type(data.content) ~= 'table' then
+        for _, value in pairs(data) do
+          if type(value) == 'table' and type(value.content) == 'table' then
+            body = value
+            break
+          end
+        end
+      end
+      local text = post_to_text(body)
+      return text ~= '' and text or '[post]'
+    end
+
+    local msg_type = msg.msg_type or 'unknown'
+    local file_name = type(data) == 'table' and data.file_name or nil
+    if type(file_name) == 'string' and file_name ~= '' then
+      return '[' .. msg_type .. ': ' .. file_name .. ']'
+    end
+    return '[' .. msg_type .. ']'
+  end
+
+  --------------------------------------------------
   -- Message handling (one container response)
   --------------------------------------------------
 
@@ -335,12 +460,8 @@ function M.new(ctx)
         goto continue
       end
 
-      local content = msg.body and msg.body.content or ''
+      local content = message_text(msg)
       if msg.msg_type == 'text' then
-        local ok2, text_data = pcall(json.decode, content)
-        if ok2 and text_data and text_data.text then
-          content = text_data.text
-        end
         -- Lark prefixes the real text with mention keys (`@_user_1`), so
         -- `@bot /list` arrives as `@_user_1 /list`. Strip the keys here,
         -- before the shared handler runs: its slash commands are anchored
@@ -713,6 +834,7 @@ function M.new(ctx)
     get_bot_info = get_bot_info,
     is_mention_bot = is_mention_bot,
     handle_messages = handle_messages,
+    message_text = message_text,
     fetch_container = fetch_container,
     poll_tick = poll_tick,
     connect = connect,
