@@ -83,11 +83,18 @@ end
 --- timestamp-based id of `M.new()` does not apply.
 ---
 --- Idempotent on purpose: the caller may race with a session that is already
---- on disk but not loaded yet, and must never overwrite it.
+--- on disk but not loaded yet, and must never overwrite it. `cwd` is therefore
+--- only applied while creating: an existing session keeps the directory it
+--- already has.
+---
+--- `cwd` lets an integration give each of its chats an isolated workspace
+--- (e.g. one directory per Lark p2p peer) instead of inheriting the Neovim
+--- working directory.
 --- @param id string Session identifier (must be filesystem-safe)
+--- @param cwd? string Initial working directory (defaults to the Neovim cwd)
 --- @return string|nil id The session id on success
 --- @return string|nil err Error message on failure
-function M.new_with_id(id)
+function M.new_with_id(id, cwd)
   if type(id) ~= 'string' or id == '' then
     return nil, 'session id is required'
   end
@@ -115,7 +122,10 @@ function M.new_with_id(id)
     provider = config.config.provider,
     model = config.config.model,
     prompt = get_config_system_prompt(),
-    cwd = vim.fs.normalize(vim.uv.cwd() or vim.fn.getcwd()),
+    -- Only a returning caller's `cwd` isolates the workspace; without one the
+    -- session behaves exactly like `M.new()`.
+    cwd = type(cwd) == 'string' and cwd ~= '' and vim.fs.normalize(cwd)
+      or vim.fs.normalize(vim.uv.cwd() or vim.fn.getcwd()),
     upload_dir = nil,
   }
   return id

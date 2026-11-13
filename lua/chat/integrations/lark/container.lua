@@ -118,6 +118,33 @@ function M.new(ctx)
     return 'lark-' .. chat_id
   end
 
+  --- Isolated workspace directory for a container, or nil for "inherit".
+  ---
+  --- A p2p chat is one person talking to the bot privately, so two peers must
+  --- never share a working directory: they would see each other's files and
+  --- git checkout, and one user's edits would land in another's tree. Every
+  --- p2p chat therefore gets `<cwd_root>/lark-<chat_id>`.
+  ---
+  --- Groups keep the default (the Neovim cwd): a group is deliberately a shared
+  --- workspace, and moving it elsewhere would change existing behaviour.
+  ---
+  --- Returns nil when no root is configured (no `p2p.cwd_root` and no
+  --- `allowed_path`), because a workspace outside `allowed_path` would make
+  --- every file tool refuse the directory -- worse than no isolation at all.
+  --- @param chat_id string
+  --- @param ctr table
+  --- @return string|nil
+  local function container_cwd(chat_id, ctr)
+    if (ctr and ctr.chat_type) ~= 'p2p' then
+      return nil
+    end
+    local root = util.p2p_cwd_root()
+    if not root then
+      return nil
+    end
+    return root .. '/lark-' .. util.workspace_dir_name(chat_id)
+  end
+
   --- Whether a binding's session no longer exists.
   ---
   --- A binding can outlive its session: deleting a session removes it from
@@ -170,6 +197,9 @@ function M.new(ctx)
   --- container falls back to `current_session()` — a p2p message would then be
   --- answered inside the group's session, and the reply would be delivered to
   --- the configured group instead of the peer.
+  ---
+  --- A p2p container's session also gets its own working directory (see
+  --- `container_cwd`), so two peers never edit the same tree.
   --- @param chat_id string
   --- @param ctr table
   --- @return string|nil
@@ -182,8 +212,22 @@ function M.new(ctx)
       return state.session
     end
 
-    local id =
-      require('chat.sessions').new_with_id(container_session_id(chat_id))
+    local cwd = container_cwd(chat_id, ctr)
+    if cwd and vim.fn.isdirectory(cwd) == 0 then
+      -- The workspace has to exist before tools run in it: `read_file` /
+      -- `find_files` reject a missing directory, and git commands fail there
+      -- too. One mkdir per chat, done while the session is created.
+      pcall(vim.fn.mkdir, cwd, 'p')
+      if vim.fn.isdirectory(cwd) == 0 then
+        log.warn('[Lark] Could not create workspace ' .. cwd)
+        cwd = nil
+      end
+    end
+
+    local id = require('chat.sessions').new_with_id(
+      container_session_id(chat_id),
+      cwd
+    )
     if not id then
       log.error('[Lark] Failed to create a session for ' .. chat_id)
       return nil

@@ -82,5 +82,48 @@ function M.main_chat_id()
   return M.lark_config().chat_id
 end
 
+--- Root directory under which per-chat (p2p) workspaces are created.
+---
+--- `integrations.lark.p2p.cwd_root` wins; otherwise the first entry of
+--- `allowed_path` is used. That is deliberate: a workspace outside
+--- `allowed_path` is useless because every file tool would refuse it, and
+--- keeping the root inside the allowed tree means the isolation never widens
+--- what the bot may touch.
+---
+--- Returns nil when nothing usable is configured, which makes the container
+--- keep the session's default directory (the Neovim cwd).
+--- @return string|nil
+function M.p2p_cwd_root()
+  local root = M.p2p_config().cwd_root
+  if type(root) == 'string' and root ~= '' then
+    return vim.fs.normalize(root)
+  end
+
+  local allowed = config.config.allowed_path
+  if type(allowed) == 'table' then
+    for _, entry in ipairs(allowed) do
+      if type(entry) == 'string' and entry ~= '' then
+        return vim.fs.normalize(entry)
+      end
+    end
+    return nil
+  end
+  if type(allowed) == 'string' and allowed ~= '' then
+    return vim.fs.normalize(allowed)
+  end
+  return nil
+end
+
+--- Sanitize a chat id into a single filesystem-safe path segment.
+---
+--- `oc_...` ids are already safe, but the value comes from the Open API and
+--- ends up as a directory name: anything unexpected is replaced instead of
+--- rejected, so a malformed id can not escape the workspace root.
+--- @param chat_id string
+--- @return string
+function M.workspace_dir_name(chat_id)
+  return (tostring(chat_id):gsub('[^%w%-_]', '_'))
+end
+
 return M
 
