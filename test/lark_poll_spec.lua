@@ -215,6 +215,51 @@ function TestLarkPoll:test_disconnect_aborts_container_traversal()
   )
 end
 
+-- ===========================================================================
+-- A container registered while running starts at "now", not in the past
+-- ===========================================================================
+
+function TestLarkPoll:test_container_added_while_running_owns_a_cursor()
+  -- connect() resets the cursors of every container it loads, but a container
+  -- registered afterwards (add_container, or a p2p chat provisioned later)
+  -- would otherwise start with no cursor at all. The first fetch then omits
+  -- `start_time`, the API answers with the newest 50 messages and each one is
+  -- treated as unread: a peer's whole history gets answered in one burst.
+  self.lark.connect(function() end)
+  wait(200)
+  feed_token_and_bot()
+
+  -- Settle the main fetch so the chain is idle before registering.
+  deliver('oc_main', {})
+
+  local before = os.time()
+  lu.assertTrue(
+    self.lark.add_container('oc_new', { chat_type = 'p2p', peer = 'ou_peer' }),
+    'container registered'
+  )
+
+  local cursor
+  for _, ctr in ipairs(self.lark.get_containers()) do
+    if ctr.chat_id == 'oc_new' then
+      cursor = ctr.last_seen_time
+    end
+  end
+  lu.assertNotNil(cursor, 'a newly registered container must own a cursor')
+  cursor = tonumber(cursor)
+  lu.assertTrue(cursor >= before * 1000, 'cursor starts at registration time')
+  lu.assertTrue(cursor <= (os.time() + 1) * 1000, 'cursor is not in the future')
+
+  -- Persisted with the container, so the very first fetch uses it even after
+  -- an immediate restart.
+  local state = read_state()
+  lu.assertNotNil(state)
+  lu.assertNotNil(state.containers.oc_new)
+  lu.assertNotNil(
+    state.containers.oc_new.last_seen_time,
+    'cursor must survive a reload'
+  )
+end
+
 function TestLarkPoll:test_stopped_poller_skips_request_after_token_resolution()
   -- `ensure_token` is asynchronous, so a tick can be inside it when
   -- disconnect() runs. Starting the request afterwards would keep a stopped

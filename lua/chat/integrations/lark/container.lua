@@ -39,8 +39,20 @@ function M.new(ctx)
   local function ensure_container(chat_id, opts)
     local ctr = state.containers[chat_id]
     if not ctr then
-      ctr = { chat_type = 'group' }
+      ctr = {
+        chat_type = 'group',
+        -- A container is registered to be polled *from now on*, so it starts
+        -- with a cursor instead of none. Without one the first fetch omits
+        -- `start_time`, the API answers with the most recent 50 messages, and
+        -- every one of them is treated as new: a p2p peer's messages written
+        -- before provisioning would all be answered in a single burst.
+        last_seen_time = tostring(os.time() * 1000),
+      }
       state.containers[chat_id] = ctr
+      if chat_id == main_chat_id() then
+        -- The legacy field mirrors the main container's cursor.
+        state.last_message_time = ctr.last_seen_time
+      end
     end
     if opts then
       if opts.chat_type then
