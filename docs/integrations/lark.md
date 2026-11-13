@@ -230,9 +230,62 @@ The in-chat commands are recognised only when sent by a configured admin, and
 only when the message `@mentions` the bot. Requests from non-admins are dropped
 silently — no reply — so the group is not spammed.
 
-`/allow` and `/deny` are written to the state file, so they survive restarts
-without editing the config, and they take precedence over the configured
-`acl.mode`: an admin can blacklist someone even while running in `allow_all`.
+### Persistence and revocation
+
+`/allow` and `/deny` write the ACL to the state file the moment they change
+anything — `save_state()` runs inside the command, before the reply goes out —
+so the edit is on disk even when Neovim is killed right after. They survive
+restarts without editing the config, and they take precedence over the
+configured `acl.mode`: an admin can blacklist someone even while running in
+`allow_all`.
+
+| Step            | What happens                                                         |
+| --------------- | -------------------------------------------------------------------- |
+| `/allow @user`  | the resolved `open_id` is added to the **runtime** whitelist and removed from the runtime blacklist |
+| `/deny @user`   | the resolved `open_id` is added to the **runtime** blacklist and removed from the runtime whitelist |
+| save            | `lark.json` gains `acl.whitelist` / `acl.blacklist` arrays, sorted by `open_id` |
+| restart         | `connect` loads the file and both lists are restored before the first poll |
+
+Neither command edits the config: `acl.whitelist` / `acl.blacklist` in your
+setup stay exactly as written, and the runtime lists are stored beside them.
+
+Both lists are stored as **`open_id`s**, even when the command was given an
+email or a mobile number: `@alice` is resolved to `ou_alice` first, so the
+state file only ever contains `ou_...`. The resolved-identity cache is
+persisted as well, so a restart does not re-issue the lookup behind it.
+
+{: .info }
+
+> The state file is read by `connect`, not when the module is loaded — so
+> before `:Chat bridge lark` has run in the current Neovim, the runtime lists
+> are empty and `get_acl()` returns the configured entries only. Connecting is
+> enough to restore them; no command is required.
+
+Only the message cursors are reset on start (see
+[Multiple chats at once](#multiple-chats-at-once)); the ACL lists are untouched
+by that reset.
+
+#### Config and runtime entries are two layers
+
+The configured `acl.whitelist` / `acl.blacklist` and the runtime entries are
+merged, not overwritten, and a runtime entry wins:
+
+- a runtime grant beats `mode = 'blacklist'`
+- a runtime deny beats `mode = 'allow_all'`
+- removing an entry from the config does **not** revoke a runtime grant, and a
+  runtime grant cannot be cancelled through the config at all
+
+Revoke in the layer that holds the entry:
+
+| Goal                    | Do this                                                              | Side effect                                                              |
+| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Undo one `/allow @user` | `/deny @user`                                                        | the user also lands in the runtime blacklist, so `allow_all` will not re-admit them |
+| Erase a user completely | `:Chat unbridge lark`, delete their `ou_...` from **both** arrays in `lark.json`, restart | none — indistinguishable from a user that was never granted |
+| Undo a config edit      | edit the config                                                      | runtime entries stay as they are                                         |
+
+The connected process keeps the state in memory, so a hand edit of `lark.json`
+is overwritten by the next `save_state()`; unbind first, or edit while Neovim
+is closed.
 
 ---
 
