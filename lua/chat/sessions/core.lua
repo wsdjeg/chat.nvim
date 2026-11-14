@@ -144,6 +144,14 @@ function M.delete(session_id)
     return
   end
 
+  -- Sorted session ids before deletion: needed to resolve which session the
+  -- window falls back to when the deleted one is the current one.
+  local sorted = {}
+  for id, _ in pairs(storage.sessions) do
+    table.insert(sorted, id)
+  end
+  table.sort(sorted)
+
   -- Check if session is in progress
   local progress = require('chat.sessions.progress')
   if progress.is_in_progress(session_id) then
@@ -167,20 +175,37 @@ function M.delete(session_id)
   -- 清理该 session 的所有定时任务
   require('chat.scheduler').cancel_session(session_id)
 
-  -- If the deleted session was the current one, switch to the next available
+  -- If the deleted session was the current one, fall back to the previous
+  -- session in sorted order (wrapping to the last one), or a brand new session
+  -- when nothing is left.
   if current_session == session_id then
-    -- Build sorted list of remaining sessions (after deletion)
-    local s = {}
-    for id, _ in pairs(storage.sessions) do
-      table.insert(s, id)
+    local idx
+    for i = 1, #sorted do
+      if sorted[i] == session_id then
+        idx = i
+        break
+      end
     end
-    table.sort(s)
 
-    if #s == 0 then
+    local remaining = #sorted - (idx and 1 or 0)
+    if remaining == 0 then
       return (M.new())
-    else
-      return s[1]
     end
+
+    -- Wrap around: deleting the first session falls back to the last one
+    local prev_id = idx and (sorted[idx - 1] or sorted[#sorted])
+    if prev_id and storage.sessions[prev_id] then
+      return prev_id
+    end
+
+    -- Fallback for a session that was not part of the sorted snapshot: use
+    -- any remaining session so the window never ends up on a deleted one.
+    for _, id in ipairs(sorted) do
+      if storage.sessions[id] then
+        return id
+      end
+    end
+    return (M.new())
   end
 end
 --- @return string The previous session ID, or creates new session if none exist

@@ -216,13 +216,43 @@ function TestSessionsCoreExtra:testDeleteCancelsProgressAndCleansUp()
   lu.assertEquals({ 'a' }, self.scheduler_cancels)
 end
 
-function TestSessionsCoreExtra:testDeleteCurrentSwitchesToNextSession()
+function TestSessionsCoreExtra:testDeleteCurrentSwitchesToPreviousSession()
   add_session('a')
   add_session('b')
+  add_session('c')
+  self.current_session = 'c'
+  local next_id = core.delete('c')
+  lu.assertEquals('b', next_id)
+  lu.assertNil(storage.sessions['c'])
+end
+
+function TestSessionsCoreExtra:testDeleteMiddleCurrentSwitchesToPrevious()
+  add_session('a')
+  add_session('b')
+  add_session('c')
+  self.current_session = 'b'
+  local next_id = core.delete('b')
+  lu.assertEquals('a', next_id)
+  lu.assertNil(storage.sessions['b'])
+end
+
+function TestSessionsCoreExtra:testDeleteFirstCurrentWrapsToLastSession()
+  add_session('a')
+  add_session('b')
+  add_session('c')
   self.current_session = 'a'
   local next_id = core.delete('a')
-  lu.assertEquals('b', next_id)
+  lu.assertEquals('c', next_id)
   lu.assertNil(storage.sessions['a'])
+end
+
+function TestSessionsCoreExtra:testDeleteSecondCurrentSwitchesToFirst()
+  add_session('a')
+  add_session('b')
+  self.current_session = 'b'
+  local next_id = core.delete('b')
+  lu.assertEquals('a', next_id)
+  lu.assertNil(storage.sessions['b'])
 end
 
 function TestSessionsCoreExtra:testDeleteCurrentWithNoRemainingCreatesNew()
