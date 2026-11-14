@@ -804,6 +804,18 @@ require('chat').setup({
     discord = {
       token = 'YOUR_DISCORD_BOT_TOKEN',
       channel_id = 'YOUR_CHANNEL_ID',
+      -- Optional: more guild channels (each gets its own cursor + session)
+      channel_ids = { 'ANOTHER_CHANNEL_ID' },
+      -- Optional: register every text channel of this guild on connect
+      guild_id = 'YOUR_GUILD_ID',
+      -- Optional: private (DM) chats, one session + workspace per peer
+      p2p = {
+        enable = true,
+        -- Omit `allow` to serve every DM channel the bot can see.
+        allow = { 'USER_ID_ALLOWED_TO_DM' },
+        -- Defaults to the first entry of `allowed_path`.
+        cwd_root = '/path/to/projects',
+      },
     },
   },
 })

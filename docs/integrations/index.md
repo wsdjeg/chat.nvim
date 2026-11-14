@@ -124,6 +124,18 @@ require('chat').setup({
     discord = {
       token = 'YOUR_DISCORD_BOT_TOKEN',
       channel_id = 'YOUR_CHANNEL_ID',
+
+      -- Optional: more guild channels (own cursor + session each)
+      channel_ids = { 'ANOTHER_CHANNEL_ID' },
+      -- Optional: register every text channel of this guild on connect
+      guild_id = 'YOUR_GUILD_ID',
+      -- Optional: private (DM) chats, one session + workspace per peer
+      p2p = {
+        enable = true,
+        -- Omit `allow` to serve every DM channel the bot can see.
+        allow = { 'USER_ID_ALLOWED_TO_DM' },
+        cwd_root = '/path/to/projects',
+      },
     },
 
     -- Telegram
@@ -335,7 +347,18 @@ Add documentation to:
 
 ### Reference Implementation
 
-See `lua/chat/integrations/discord.lua` for a complete reference implementation.
+Two shapes are in use, both fully supported:
+
+- **Single file** — `lua/chat/integrations/telegram.lua` and friends: one module
+  for a bot that serves a fixed chat.
+- **Module directory** — `lua/chat/integrations/discord/` and
+  `lua/chat/integrations/lark/`: a facade (`discord.lua`) over per-concern
+  submodules (`util`, `state`, `http`, `container`, `discover`, `send`, `poll`).
+  This is what a platform needs when it serves several chats at once — one
+  cursor, one session and one admission policy per container.
+
+Start from `lua/chat/integrations/discord.lua` for the facade and contract, and
+`lua/chat/integrations/discord/container.lua` for the per-chat binding model.
 
 ---
 

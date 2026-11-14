@@ -1,683 +1,113 @@
-local M = {}
-
+-- lua/chat/integrations/discord.lua
+-- Discord integration: facade over the modules in this directory.
+--
+--   discord/util.lua      config readers, constants, list helpers
+--   discord/state.lua     the state table + its file round-trip
+--   discord/http.lua      one authenticated REST request runner
+--   discord/container.lua containers (guild channels / DMs) and bound sessions
+--   discord/discover.lua  DM channel and guild channel discovery
+--   discord/send.lua      chunked queued delivery, typing, one-shot replies
+--   discord/poll.lua      bot identity, filtering, per-container polling
+--
+-- Everything below only wires those pieces together and exposes the platform
+-- API the shared layer (`chat.integrations`) calls. Each `require` of this file
+-- builds a fresh instance (state, queue, timers), which is what makes reloading
+-- the module in the test suite a full reset.
 local config = require('chat.config')
 local log = require('chat.log')
-local job = require('job')
-local curl = require('chat.curl')
-local chunker = require('chat.utils.chunker')
 
-local json = vim.json
-local uv = vim.uv
+local util = require('chat.integrations.discord.util')
+local state_module = require('chat.integrations.discord.state')
+local container_module = require('chat.integrations.discord.container')
+local discover_module = require('chat.integrations.discord.discover')
+local send_module = require('chat.integrations.discord.send')
+local poll_module = require('chat.integrations.discord.poll')
+
+local M = {}
 
 --------------------------------------------------
--- constants
+-- Instance context
 --------------------------------------------------
 local STATE_FILE = config.config.storage_dir .. 'integration/discord.json'
 
--- curl-level timeouts: a failing request is fast and definitive instead
--- of hanging until the watchdog fires
-local CONNECT_TIMEOUT = 5
-local MAX_TIME = 10
+local state = state_module.new()
 
--- Safety net for lost job callbacks. Must be larger than MAX_TIME so it
--- never fires in normal operation — if it does, something is a bug.
-local WATCHDOG_TIMEOUT = 15000
-
--- While an outage persists, re-log a heartbeat every N failed polls
-local FAILURE_HEARTBEAT = 10
-
---------------------------------------------------
--- state
---------------------------------------------------
-local state = {
-  timer = nil,
-  last_message_id = nil,
-  bot_id = nil,
-  callback = nil,
-  is_running = false,
-  is_fetching = false,
-  processed_ids = {},
-  max_processed_cache = 100,
-  poll_interval = 3000,
-  -- request epoch: responses from earlier requests are discarded
-  request_seq = 0,
-  -- consecutive failed polls (for state-change logging)
-  fail_count = 0,
+--- Instance context shared by every submodule. `M` is filled in at the bottom
+--- of this file; the modules only reach for it at call time (never while
+--- building), so the cycle is harmless.
+local ctx = {
+  state = state,
 }
 
---------------------------------------------------
--- Save state to file
---------------------------------------------------
-local function save_state()
-  local data = {
-    last_message_id = state.last_message_id,
-    bot_id = state.bot_id,
-    processed_ids = {},
-    session = state.session,
-  }
-
-  -- Only save recent processed_ids
-  local count = 0
-  for id, _ in pairs(state.processed_ids) do
-    count = count + 1
-    if count <= state.max_processed_cache then
-      data.processed_ids[id] = true
-    end
-  end
-
-  local ok, encoded = pcall(json.encode, data)
-  if not ok then
-    log.error('[Discord] Failed to encode state')
-    return false
-  end
-
-  local dir = vim.fn.fnamemodify(STATE_FILE, ':h')
-  if vim.fn.isdirectory(dir) == 0 then
-    vim.fn.mkdir(dir, 'p')
-  end
-
-  local file, err = io.open(STATE_FILE, 'w')
-  if not file then
-    log.error('[Discord] Failed to save state: ' .. (err or 'unknown'))
-    return false
-  end
-
-  file:write(encoded)
-  file:close()
-  return true
+ctx.save_state = function()
+  return state_module.save(state, STATE_FILE)
 end
 
---------------------------------------------------
--- Load state from file
---------------------------------------------------
-local function load_state()
-  local file = io.open(STATE_FILE, 'r')
-  if not file then
-    return false
-  end
+ctx.state_io = {
+  load = function()
+    return state_module.load(state, STATE_FILE)
+  end,
+  save = ctx.save_state,
+}
 
-  local content = file:read('*a')
-  file:close()
-
-  if not content or content == '' then
-    return false
-  end
-
-  local ok, data = pcall(json.decode, content)
-  if not ok or not data then
-    return false
-  end
-
-  state.last_message_id = data.last_message_id
-  state.bot_id = data.bot_id
-
-  if data.processed_ids then
-    state.processed_ids = data.processed_ids
-  end
-
-  if data.session then
-    state.session = data.session
-  end
-
-  log.debug('[Discord] State loaded')
-  return true
-end
+ctx.container = container_module.new(ctx)
+ctx.discover = discover_module.new(ctx)
+ctx.send = send_module.new(ctx)
+ctx.poll = poll_module.new(ctx)
 
 --------------------------------------------------
--- Helper: make API request
+-- Polling
 --------------------------------------------------
--- callback(result, err): result is the decoded JSON table (nil on
--- failure), err is a human-readable failure reason
-local function api_request(method, endpoint, data, callback)
-  local token = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.token
-
-  if not token then
-    log.error('[Discord] Token not configured')
-    return nil
-  end
-
-  local cmd = curl.build_request({
-    url = 'https://discord.com/api/v10' .. endpoint,
-    method = method,
-    headers = {
-      'Authorization: Bot ' .. token,
-      'Content-Type: application/json',
-    },
-    -- Only read the body from stdin when there IS one. A GET with `-d @-`
-    -- blocks curl reading stdin until EOF, but stdin is only closed by
-    -- `job.send(jobid, nil)` below — which never runs for `data == nil`.
-    -- curl would then hang forever: `--max-time` cannot help because the
-    -- `-d` data is slurped before the transfer even starts.
-    stdin_body = data ~= nil,
-    connect_timeout = CONNECT_TIMEOUT,
-    max_time = MAX_TIME,
-  })
-
-  local stdout, stderr = {}, {}
-
-  local jobid = job.start(cmd, {
-    on_stdout = function(_, lines)
-      for _, v in ipairs(lines) do
-        table.insert(stdout, v)
-      end
-    end,
-    on_stderr = function(_, lines)
-      -- Collect instead of logging: curl writes network errors to
-      -- stderr even with -s, and per-line logging would spam every
-      -- poll while the network is down
-      for _, line in ipairs(lines) do
-        if line and line ~= '' then
-          table.insert(stderr, line)
-        end
-      end
-    end,
-    on_exit = function(_, code, signal)
-      if not callback then
-        return
-      end
-
-      if code ~= 0 or signal ~= 0 then
-        local reason = 'curl exited with code ' .. code
-        if #stderr > 0 then
-          reason = reason .. ': ' .. table.concat(stderr, ' ')
-        end
-        return callback(nil, reason)
-      end
-
-      local output = table.concat(stdout, '\n')
-      if output == '' then
-        return callback(nil, 'empty response')
-      end
-
-      local ok, result = pcall(json.decode, output)
-      if not ok or result == nil then
-        return callback(nil, 'invalid JSON: ' .. output:sub(1, 120))
-      end
-      callback(result)
-    end,
-  })
-
-  if data then
-    job.send(jobid, json.encode(data))
-    job.send(jobid, nil)
-  end
-
-  return jobid
-end
+M.connect = ctx.poll.connect
+M.disconnect = ctx.poll.disconnect
 
 --------------------------------------------------
--- Get bot user info
+-- Sending
 --------------------------------------------------
-local function get_bot_id()
-  if state.bot_id then
-    return state.bot_id
-  end
-
-  api_request('GET', '/users/@me', nil, function(data, err)
-    if data and data.id then
-      state.bot_id = data.id
-      save_state()
-      log.info('[Discord] Bot ID: ' .. state.bot_id)
-    else
-      log.error('[Discord] Failed to get bot ID: ' .. (err or vim.inspect(data)))
-    end
-  end)
-end
+M.send_message = ctx.send.send_message
+M.reply = ctx.send.reply
+M.send_typing = ctx.send.send_typing
 
 --------------------------------------------------
--- Check if message is for bot
+-- Session management (platform level: meaning unchanged)
 --------------------------------------------------
-local function is_for_bot(msg)
-  -- Check mentions
-  if msg.mentions then
-    for _, m in ipairs(msg.mentions) do
-      if m.id == state.bot_id then
-        return true
-      end
-    end
-  end
-
-  -- Check reply
-  if msg.referenced_message and msg.referenced_message.author then
-    if msg.referenced_message.author.id == state.bot_id then
-      return true
-    end
-  end
-
-  return false
-end
+M.current_session = ctx.container.current_session
+M.set_session = ctx.container.set_session
 
 --------------------------------------------------
--- Poll health tracking (state-change logging)
---
--- Healthy polling is silent. A failure logs once on entry, every
--- FAILURE_HEARTBEAT polls while it persists, and once on recovery.
+-- Bindings
 --------------------------------------------------
-local function poll_failed(reason)
-  state.fail_count = state.fail_count + 1
-  if state.fail_count == 1 then
-    log.warn('[Discord] Polling failed: ' .. (reason or 'unknown error'))
-  elseif state.fail_count % FAILURE_HEARTBEAT == 0 then
-    log.warn(
-      string.format(
-        '[Discord] Polling still failing (%d attempts, last: %s)',
-        state.fail_count,
-        reason or 'unknown error'
-      )
-    )
-  end
-end
+-- Optional methods: the shared layer calls them only when they exist, so the
+-- other integrations keep their exact current behaviour.
+M.get_binding = ctx.container.get_binding
+M.set_binding = ctx.container.set_binding
+M.get_bound_sessions = ctx.container.get_bound_sessions
+M.get_chat_bindings = ctx.container.get_chat_bindings
 
-local function poll_ok()
-  if state.fail_count > 0 then
-    log.info(
-      string.format(
-        '[Discord] Polling recovered after %d failed attempt(s)',
-        state.fail_count
-      )
-    )
-    state.fail_count = 0
-  end
-end
+--- Bridge capabilities consumed by `chat.bridge`.
+---
+--- Wiring only: the storage stays `state.session` + `containers[].session`,
+--- this table just lets the shared layer ask the questions without knowing
+--- which fields hold the answers.
+M.bridge = ctx.container.bridge
 
 --------------------------------------------------
--- Fetch messages
+-- Containers
 --------------------------------------------------
-local function fetch_messages()
-  -- Check request lock
-  if state.is_fetching then
-    return
-  end
-
-  local channel = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.channel_id
-
-  if not channel then
-    log.error('[Discord] Channel ID not configured')
-    return
-  end
-
-  local seq = state.request_seq + 1
-  state.request_seq = seq
-  state.is_fetching = true
-
-  -- Build endpoint
-  local endpoint = '/channels/' .. channel .. '/messages?limit=10'
-  if state.last_message_id then
-    endpoint = endpoint .. '&after=' .. state.last_message_id
-  end
-
-  -- Safety net only: curl itself fails fast (connect 5s / total 10s).
-  -- If this fires, the job callback was lost — kill the job so a hung
-  -- curl cannot linger forever, then release the lock.
-  local jobid
-  local watchdog_fired = false
-  local timeout = uv.new_timer()
-  timeout:start(WATCHDOG_TIMEOUT, 0, function()
-    timeout:close()
-    watchdog_fired = true
-    if state.is_fetching and state.request_seq == seq then
-      log.warn('[Discord] Watchdog fired (callback lost?), killing job and releasing lock')
-      if jobid and jobid > 0 then
-        job.stop(jobid, 15) -- SIGTERM: the killed job still emits on_exit
-      end
-      state.is_fetching = false
-    end
-  end)
-
-  jobid = api_request('GET', endpoint, nil, function(messages, err)
-    -- Stale response from an earlier request — discard
-    if state.request_seq ~= seq then
-      return
-    end
-
-    if not watchdog_fired then
-      timeout:stop()
-      if not timeout:is_closing() then
-        timeout:close()
-      end
-    end
-
-    -- Release lock
-    state.is_fetching = false
-
-    -- Request failed (network error, curl timeout, bad JSON)
-    if messages == nil then
-      poll_failed(err or 'request failed')
-      return
-    end
-
-    -- API error object (e.g. 401/429) instead of a message array
-    if type(messages) ~= 'table' or (messages.message and not messages[1]) then
-      local reason = 'unexpected response'
-      if type(messages) == 'table' and messages.message then
-        reason = 'API error: ' .. tostring(messages.message)
-      end
-      poll_failed(reason)
-      return
-    end
-
-    -- Healthy again
-    poll_ok()
-
-    if #messages == 0 then
-      return
-    end
-
-    -- Track highest ID for updating last_message_id
-    local highest_id = state.last_message_id
-    local has_new = false
-
-    -- Reverse to process in chronological order
-    for i = #messages, 1, -1 do
-      local msg = messages[i]
-
-      -- Skip already processed
-      if state.processed_ids[msg.id] then
-        goto continue
-      end
-
-      -- Mark as processed
-      state.processed_ids[msg.id] = true
-      has_new = true
-
-      -- Update highest ID (for last_message_id)
-      if not highest_id or msg.id > highest_id then
-        highest_id = msg.id
-      end
-      -- Skip bot messages
-      if not msg.author or msg.author.bot then
-        goto continue
-      end
-
-      -- Clean content
-      local content = msg.content or ''
-      content = content:gsub('<@!?%d+>', ''):gsub('^%s+', ''):gsub('%s+$', '')
-
-      -- Check if mentioned or is a command
-      local is_command = content:match('^/')
-      if not is_for_bot(msg) and not is_command then
-        goto continue
-      end
-
-      if content == '' then
-        goto continue
-      end
-
-      -- Callback
-      if state.callback then
-        vim.schedule(function()
-          state.callback({
-            author = msg.author.username or 'Unknown',
-            content = content,
-            channel_id = msg.channel_id,
-            message_id = msg.id,
-            reply = msg.referenced_message ~= nil,
-          })
-        end)
-      end
-
-      ::continue::
-    end
-
-    -- Update last_message_id after all processing
-    if highest_id and highest_id ~= state.last_message_id then
-      state.last_message_id = highest_id
-    end
-
-    -- Cleanup old processed_ids (prevent memory leak)
-    local id_count = 0
-    local oldest_ids = {}
-    for id in pairs(state.processed_ids) do
-      id_count = id_count + 1
-      if id_count > state.max_processed_cache then
-        table.insert(oldest_ids, id)
-      end
-    end
-    for _, id in ipairs(oldest_ids) do
-      state.processed_ids[id] = nil
-    end
-
-    -- Save state if there were new messages
-    if has_new then
-      save_state()
-    end
-  end)
-end
+M.get_containers = ctx.container.get_containers
+M.add_container = ctx.container.add_container
 
 --------------------------------------------------
--- Start polling
+-- Private chats
 --------------------------------------------------
-function M.connect(callback)
-  -- Check config
-  if
-    not config.config.integrations
-    or not config.config.integrations.discord
-    or not config.config.integrations.discord.token
-  then
-    log.error('[Discord] Token not configured')
-    return
-  end
+--- Admission policy for DM peers (`integrations.discord.p2p`).
+M.is_p2p_allowed = util.is_p2p_allowed
 
-  if not config.config.integrations.discord.channel_id then
-    log.error('[Discord] Channel ID not configured')
-    return
-  end
+--- List the bot's DM channels and register the admissible ones.
+M.discover_dm_channels = ctx.discover.discover_dm_channels
 
-  if state.is_running then
-    return
-  end
-
-  state.callback = callback
-  state.is_running = true
-  state.time = os.time()
-
-  -- Load saved state
-  load_state()
-
-  log.info('[Discord] Starting polling...')
-
-  -- Get bot ID
-  get_bot_id()
-
-  -- Start timer
-  state.timer = uv.new_timer()
-  state.timer:start(
-    0,
-    state.poll_interval,
-    vim.schedule_wrap(function()
-      if state.is_running then
-        fetch_messages()
-      end
-    end)
-  )
-
-  log.info('[Discord] Polling started')
-end
-
---------------------------------------------------
--- Stop polling
---------------------------------------------------
-function M.disconnect()
-  if state.timer then
-    state.timer:stop()
-    state.timer = nil
-  end
-
-  -- Invalidate any in-flight request
-  state.request_seq = state.request_seq + 1
-  state.is_running = false
-  state.is_fetching = false
-  state.callback = nil
-
-  -- Save state before stopping
-  save_state()
-
-  log.info('[Discord] Polling stopped')
-end
-
---------------------------------------------------
--- Message queue for rate-limited sending
---------------------------------------------------
-local message_queue = {}
-local send_message_jobid = -1
-
-local function process_queue()
-  if #message_queue == 0 then
-    log.debug('[Discord] process_queue: queue is empty')
-    return
-  end
-
-  if send_message_jobid > 0 then
-    log.debug('[Discord] process_queue: another job in progress')
-    return
-  end
-
-  local content = message_queue[1]
-  log.debug(
-    string.format(
-      '[Discord] process_queue: sending message (%d bytes)',
-      #content
-    )
-  )
-
-  local channel = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.channel_id
-  local token = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.token
-
-  if not channel or not token then
-    log.error('[Discord] Missing channel_id or token')
-    table.remove(message_queue, 1)
-    return
-  end
-
-  local body = json.encode({ content = content })
-  local cmd = curl.build_request({
-    url = 'https://discord.com/api/v10/channels/' .. channel .. '/messages',
-    method = 'POST',
-    headers = {
-      'Authorization: Bot ' .. token,
-      'Content-Type: application/json',
-    },
-    stdin_body = true,
-    connect_timeout = CONNECT_TIMEOUT,
-    max_time = MAX_TIME,
-  })
-  local stderr_lines = {}
-  send_message_jobid = job.start(cmd, {
-    on_stdout = function(_, data)
-      for _, v in ipairs(data) do
-        log.debug(v)
-      end
-    end,
-    on_stderr = function(_, data)
-      for _, v in ipairs(data) do
-        log.debug(v)
-        if v and v ~= '' then
-          table.insert(stderr_lines, v)
-        end
-      end
-    end,
-    on_exit = function(_, code, single)
-      log.debug(
-        'discord send_message job exit ' .. code .. ' single ' .. single
-      )
-      if code ~= 0 or single ~= 0 then
-        local reason = 'curl exit ' .. code
-        if #stderr_lines > 0 then
-          reason = reason .. ': ' .. table.concat(stderr_lines, ' ')
-        end
-        log.error('[Discord] Failed to send message (' .. reason .. ')')
-      end
-      send_message_jobid = -1
-      table.remove(message_queue, 1)
-      -- Process next message in queue
-      process_queue()
-    end,
-  })
-
-  job.send(send_message_jobid, body)
-  job.send(send_message_jobid, nil)
-end
-
---------------------------------------------------
--- Send message
---------------------------------------------------
-function M.send_message(content)
-  if not content or content == '' then
-    log.warn('[Discord] send_message called with empty content')
-    return
-  end
-
-  log.debug(
-    string.format('[Discord] send_message called (%d bytes)', #content)
-  )
-
-  local max_length = 2000
-
-  -- Split long messages (Markdown-aware)
-  local chunks = chunker.chunk(content, max_length)
-  for _, chunk in ipairs(chunks) do
-    table.insert(message_queue, chunk)
-  end
-
-  -- Start processing queue
-  process_queue()
-end
-
---------------------------------------------------
--- Reply to message
---------------------------------------------------
-function M.reply(channel, message_id, text)
-  local token = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.token
-
-  if not token then
-    log.error('[Discord] Token not configured')
-    return nil
-  end
-
-  local body = json.encode({
-    content = text,
-    message_reference = {
-      message_id = message_id,
-    },
-  })
-  local cmd = curl.build_request({
-    url = 'https://discord.com/api/v10/channels/' .. channel .. '/messages',
-    method = 'POST',
-    headers = {
-      'Authorization: Bot ' .. token,
-      'Content-Type: application/json',
-    },
-    body = body,
-    connect_timeout = CONNECT_TIMEOUT,
-    max_time = MAX_TIME,
-  })
-  local jobid = job.start(cmd, {
-    on_exit = function(id, code, signal)
-      if code ~= 0 or signal ~= 0 then
-        log.error(
-          string.format(
-            '[Discord] Failed to send reply (job %d exit %d signal %d)',
-            id,
-            code,
-            signal
-          )
-        )
-      end
-    end,
-  })
-
-  return jobid
-end
+--- Register the text channels of `integrations.discord.guild_id`.
+M.discover_guild_channels = ctx.discover.discover_guild_channels
 
 --------------------------------------------------
 -- Status
@@ -689,6 +119,7 @@ function M.get_state()
     last_message_id = state.last_message_id,
     poll_interval = state.poll_interval,
     processed_count = vim.tbl_count(state.processed_ids),
+    containers = vim.tbl_count(state.containers),
   }
 end
 
@@ -698,7 +129,10 @@ end
 function M.clear_state()
   state.last_message_id = nil
   state.bot_id = nil
+  state.bot_username = nil
   state.processed_ids = {}
+  state.processed_order = {}
+  state.containers = {}
   os.remove(STATE_FILE)
   log.info('[Discord] State cleared')
 end
@@ -715,61 +149,11 @@ function M.cleanup()
   M.disconnect()
 end
 
---------------------------------------------------
--- Session management
---------------------------------------------------
-function M.current_session()
-  return state.session
-end
+-- Filled in last: submodules call back into the facade (poll reaches
+-- ctx.discover, discovery reaches ctx.container).
+ctx.M = M
 
-function M.set_session(session)
-  state.session = session
-  save_state()
-end
-
---------------------------------------------------
--- Send typing indicator
---------------------------------------------------
-function M.send_typing(is_typing)
-  if not is_typing then
-    return
-  end
-
-  local channel = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.channel_id
-  local token = config.config.integrations
-    and config.config.integrations.discord
-    and config.config.integrations.discord.token
-
-  if not channel or not token then
-    return
-  end
-
-  local cmd = curl.build_request({
-    url = 'https://discord.com/api/v10/channels/' .. channel .. '/typing',
-    method = 'POST',
-    headers = {
-      'Authorization: Bot ' .. token,
-    },
-    connect_timeout = CONNECT_TIMEOUT,
-    max_time = MAX_TIME,
-  })
-  job.start(cmd, {
-    on_exit = function(id, code, signal)
-      if code ~= 0 or signal ~= 0 then
-        log.debug(
-          string.format(
-            'failed to send typing to discord channel, jobid: %d, exit code: %d, signal: %d',
-            id,
-            code,
-            signal
-          )
-        )
-      end
-    end,
-  })
-end
+log.debug('[Discord] Integration loaded')
 
 return M
 

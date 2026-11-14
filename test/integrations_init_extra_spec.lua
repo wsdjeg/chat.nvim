@@ -374,19 +374,41 @@ function TestIntegrationsInitExtra:testSessionListIsPerChat()
   handler({ content = '/list', chat_id = 'chat-a' })
   handler({ content = '/list Beta', chat_id = 'chat-b' })
 
-  -- chat-a: newest first -> 1) Beta, 2) Alpha.
+  -- Discord addresses one channel per conversation, so `/session` binds the
+  -- *chat* the command came from (`bridge.bind_chat`) instead of the
+  -- platform-level session. Observe that call: it is the contract the
+  -- per-chat numbering relies on.
+  local saved_bridge = discord.bridge
   local bound
-  discord.set_session = function(sid) bound = sid end
-  handler({ content = '/session 2', chat_id = 'chat-a' })
-  lu.assertEquals('sess-alpha', bound)
+  discord.bridge = {
+    session = function() return nil end,
+    set_session = function() end,
+    session_for_chat = function() return nil end,
+    bind_chat = function(_chat_id, session)
+      bound = session
+      return true
+    end,
+    chats = function() return {} end,
+  }
 
-  -- chat-b filtered to Beta, so its own numbering starts at 1.
-  handler({ content = '/session 1', chat_id = 'chat-b' })
-  lu.assertEquals('sess-beta', bound)
+  local ok, err = pcall(function()
+    -- chat-a: newest first -> 1) Beta, 2) Alpha.
+    handler({ content = '/session 2', chat_id = 'chat-a' })
+    lu.assertEquals('sess-alpha', bound)
 
-  -- An unknown chat never borrowed another chat's numbering.
-  handler({ content = '/session 1', chat_id = 'chat-c' })
-  lu.assertEquals('sess-beta', bound, 'no slot -> bind is not attempted')
+    -- chat-b filtered to Beta, so its own numbering starts at 1.
+    handler({ content = '/session 1', chat_id = 'chat-b' })
+    lu.assertEquals('sess-beta', bound)
+
+    -- An unknown chat never borrowed another chat's numbering.
+    handler({ content = '/session 1', chat_id = 'chat-c' })
+    lu.assertEquals('sess-beta', bound, 'no slot -> bind is not attempted')
+  end)
+
+  discord.bridge = saved_bridge
+  if not ok then
+    error(err)
+  end
 end
 
 return TestIntegrationsInitExtra
