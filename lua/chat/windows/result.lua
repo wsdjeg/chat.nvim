@@ -34,62 +34,84 @@ function M.is_buf_valid()
   return vim.api.nvim_buf_is_valid(result_buf)
 end
 
---- Build the window title string: session title | tokens | cache hit ratio.
---- The cache part is only appended when the provider reported cache hits,
---- so providers without cache reporting show a clean title.
---- @param session string Session ID
---- @param text string Base title text
---- @return string title
-function M.build_title(session, text)
-  local title = text
+-- Decorative pill caps. Same glyphs the prompt window title uses, so both
+-- windows share one visual language.
+local TITLE_BADGE_LEFT = '\238\130\182'
+local TITLE_BADGE_RIGHT = '\238\130\180'
 
-  -- Show session title if set
-  local session_title = sessions.get_session_title(session) or ''
-  if session_title ~= '' then
-    title = session_title .. ' | ' .. title
+--- Wrap one label into a pill: left badge + highlighted text + right badge.
+--- @param label string text, already padded with the spaces that fill the pill
+--- @return table[] title chunks
+local function pill(label)
+  local badge_hl = config.config.highlights.title_badge
+  return {
+    { TITLE_BADGE_LEFT, badge_hl },
+    { label, config.config.highlights.title },
+    { TITLE_BADGE_RIGHT, badge_hl },
+  }
+end
+
+--- Build the result window title as separate pills.
+--- 1. session title (falls back to `text`, e.g. "chat.nvim")
+--- 2. cumulative tokens with the prompt↑ / completion↓ split
+--- 3. prompt cache hit ratio
+--- Pills 2 and 3 only appear once the session has usage, so a fresh session
+--- shows a single clean pill. The cache pill is skipped when the provider
+--- reported no cache numbers, matching the per-message footer.
+--- @param session string Session ID
+--- @param text string Fallback label for the first pill
+--- @return table[] title chunks for vim.api.nvim_win_set_config
+function M.build_title(session, text)
+  local chunks = {}
+  -- Gap between pills: drawn with the badge highlight so it stays neutral
+  local gap = { ' ', config.config.highlights.title_badge }
+
+  local session_title = vim.trim(sessions.get_session_title(session) or '')
+  local label = session_title ~= '' and session_title or vim.trim(text or '')
+  if label == '' then
+    label = 'chat.nvim'
   end
+  vim.list_extend(chunks, pill(' ' .. label .. ' '))
 
   local total, prompt, complete, cached = sessions.get_total_tokens(session)
   if total and total > 0 then
-    title = title
-      .. ' | '
-      .. string.format(
-        'Tokens: %s (%s↑/%s↓)',
+    table.insert(chunks, gap)
+    vim.list_extend(
+      chunks,
+      pill(string.format(
+        ' %s (%s↑/%s↓) ',
         util.format_number(total),
         util.format_number(prompt or 0),
         util.format_number(complete or 0)
-      )
+      ))
+    )
 
     -- Cache hit ratio: same normalization the per-message line uses, so
     -- DeepSeek/Anthropic payloads report a real percentage.
     if cached and cached > 0 then
-      title = title
-        .. string.format(
-          ' 💾 %d%%',
+      table.insert(chunks, gap)
+      vim.list_extend(
+        chunks,
+        pill(string.format(
+          ' 💾 %d%% ',
           math.floor(
             usage_util.hit_ratio({
               prompt_tokens = prompt or 0,
               cached_tokens = cached,
-            })
-              * 100
+            }) * 100
           )
-        )
+        ))
+      )
     end
   end
 
-  return title
+  return chunks
 end
 
 function M.set_title(text, session)
   if vim.api.nvim_win_is_valid(result_win) then
-    local title = M.build_title(session, text)
-
     vim.api.nvim_win_set_config(result_win, {
-      title = {
-        { '\238\130\182', config.config.highlights.title_badge },
-        { title, config.config.highlights.title },
-        { '\238\130\180', config.config.highlights.title_badge },
-      },
+      title = M.build_title(session, text),
       title_pos = 'center',
     })
   end
@@ -312,11 +334,9 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
     height = screen_height - 5,
     width = screen_width,
     border = config.config.border,
-    title = {
-      { '\238\130\182', config.config.highlights.title_badge },
-      { 'chat.nvim', config.config.highlights.title },
-      { '\238\130\180', config.config.highlights.title_badge },
-    },
+    -- Initial title: only the first pill, tokens and cache pills are added
+    -- later by set_title() once the session reports usage.
+    title = pill(' chat.nvim '),
     title_pos = 'center',
   })
 

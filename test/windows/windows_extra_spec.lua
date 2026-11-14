@@ -808,17 +808,72 @@ function TestWindowsResultExtra:testDeleteAtCursorWithoutWindow()
   lu.assertFalse(self.result.delete_message_at_cursor(SID))
 end
 
+--- Collect the plain text of every title chunk.
+--- @param win number
+--- @return string
+local function title_text(win)
+  local conf = vim.api.nvim_win_get_config(win)
+  local text = ''
+  for _, part in ipairs(conf.title or {}) do
+    text = text .. tostring(part[1])
+  end
+  return text
+end
+
 function TestWindowsResultExtra:testSetTitleIncludesSessionTitleAndTokens()
   sessions.get_session_title = function(_)
     return 'My Session'
   end
+  sessions.get_total_tokens = function(_)
+    return 1200, 1000, 200, 0
+  end
+  self.result.set_title('chat.nvim', SID)
+  local text = title_text(self.result.get_win())
+  -- Session title replaces the fallback label in the first pill
+  lu.assertStrContains(text, 'My Session')
+  lu.assertNotStrContains(text, 'chat.nvim')
+  -- Second pill carries the token split
+  lu.assertStrContains(text, '1.2K')
+  lu.assertStrContains(text, '1.0K↑')
+  lu.assertStrContains(text, '200↓')
+end
+
+function TestWindowsResultExtra:testSetTitlePillsAreSeparate()
+  sessions.get_session_title = function(_)
+    return ''
+  end
+  sessions.get_total_tokens = function(_)
+    return 300, 200, 100, 150
+  end
   self.result.set_title('chat.nvim', SID)
   local conf = vim.api.nvim_win_get_config(self.result.get_win())
-  local title_text = ''
-  for _, part in ipairs(conf.title or {}) do
-    title_text = title_text .. tostring(part[1])
+  -- 3 pills of 3 chunks each + 2 single-space gaps between them
+  lu.assertEquals(11, #conf.title)
+  -- Badge glyphs delimit each pill
+  local left = '\238\130\182'
+  local right = '\238\130\180'
+  lu.assertEquals(left, conf.title[1][1])
+  lu.assertEquals(right, conf.title[3][1])
+  lu.assertEquals(left, conf.title[5][1])
+  lu.assertEquals(right, conf.title[7][1])
+  lu.assertEquals(left, conf.title[9][1])
+  lu.assertEquals(right, conf.title[11][1])
+  -- Cache pill reports the hit ratio (150/200)
+  lu.assertStrContains(tostring(conf.title[10][1]), '75%')
+end
+
+function TestWindowsResultExtra:testSetTitleSkipsUsagePillsWithoutUsage()
+  sessions.get_session_title = function(_)
+    return ''
   end
-  lu.assertStrContains(title_text, 'My Session | chat.nvim')
+  sessions.get_total_tokens = function(_)
+    return 0, 0, 0, 0
+  end
+  self.result.set_title('chat.nvim', SID)
+  local conf = vim.api.nvim_win_get_config(self.result.get_win())
+  -- Only the title pill, no token or cache pill
+  lu.assertEquals(3, #conf.title)
+  lu.assertStrContains(title_text(self.result.get_win()), 'chat.nvim')
 end
 
 return TestWindowsExtra, TestWindowsResultExtra
