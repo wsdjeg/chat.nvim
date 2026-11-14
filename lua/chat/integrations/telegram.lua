@@ -1,513 +1,152 @@
-local M = {}
-
+-- lua/chat/integrations/telegram.lua
+-- Telegram Bot integration: facade over the modules in this directory.
+--
+--   telegram/util.lua       config readers, constants, list helpers
+--   telegram/state.lua      the state table + its file round-trip
+--   telegram/container.lua  containers (group / private chats) and bound sessions
+--   telegram/acl.lua        access control + in-chat /allow, /deny, /acl
+--   telegram/poll.lua       bot identity, message filtering, polling, connect
+--   telegram/send.lua       chunked queued delivery
+--
+-- Everything below only wires those pieces together and exposes the platform
+-- API the shared layer (`chat.integrations`) calls. Each `require` of this file
+-- builds a fresh instance (state, queue, timers), which is what makes reloading
+-- the module in the test suite a full reset.
+--
+-- Where this differs from Lark: `getUpdates` is ONE global stream for the whole
+-- bot rather than one poll per conversation, so there is a single cursor and a
+-- single in-flight request. Per-chat containers still exist, because routing
+-- needs to know whether an @mention is required (groups: yes, private: no) and
+-- which session owns the conversation.
 local config = require('chat.config')
 local log = require('chat.log')
-local job = require('job')
-local curl = require('chat.curl')
-local chunker = require('chat.utils.chunker')
 
-local json = vim.json
-local uv = vim.uv
+local state_module = require('chat.integrations.telegram.state')
+local container_module = require('chat.integrations.telegram.container')
+local acl_module = require('chat.integrations.telegram.acl')
+local send_module = require('chat.integrations.telegram.send')
+local poll_module = require('chat.integrations.telegram.poll')
+
+local M = {}
 
 --------------------------------------------------
--- constants
+-- Instance context
 --------------------------------------------------
 local STATE_FILE = config.config.storage_dir .. 'integration/telegram.json'
-local API_BASE = 'https://api.telegram.org/bot'
 
---------------------------------------------------
--- state
---------------------------------------------------
-local state = {
-  timer = nil,
-  last_update_id = nil,
-  bot_username = nil,
-  callback = nil,
-  is_running = false,
-  is_fetching = false,
-  processed_ids = {},
-  max_processed_cache = 100,
-  poll_interval = 3000,
-  session = nil,
+local state = state_module.new()
+
+--- Instance context shared by every submodule. `M` is filled in at the bottom
+--- of this file; the modules only reach for it at call time (never while
+--- building), so the cycle is harmless.
+local ctx = {
+  state = state,
 }
 
---------------------------------------------------
--- Save/Load state
---------------------------------------------------
-local function save_state()
-  local data = {
-    last_update_id = state.last_update_id,
-    bot_username = state.bot_username,
-    processed_ids = {},
-    session = state.session,
-  }
-
-  local count = 0
-  for id, _ in pairs(state.processed_ids) do
-    count = count + 1
-    if count <= state.max_processed_cache then
-      data.processed_ids[id] = true
-    end
-  end
-
-  local ok, encoded = pcall(json.encode, data)
-  if not ok then
-    log.error('[Telegram] Failed to encode state')
-    return false
-  end
-
-  local dir = vim.fn.fnamemodify(STATE_FILE, ':h')
-  if vim.fn.isdirectory(dir) == 0 then
-    vim.fn.mkdir(dir, 'p')
-  end
-
-  local file, err = io.open(STATE_FILE, 'w')
-  if not file then
-    log.error('[Telegram] Failed to save state: ' .. (err or 'unknown'))
-    return false
-  end
-
-  file:write(encoded)
-  file:close()
-  return true
+ctx.save_state = function()
+  return state_module.save(state, STATE_FILE)
 end
 
-local function load_state()
-  local file = io.open(STATE_FILE, 'r')
-  if not file then
-    return false
-  end
+ctx.state_io = {
+  load = function()
+    return state_module.load(state, STATE_FILE)
+  end,
+  save = ctx.save_state,
+}
 
-  local content = file:read('*a')
-  file:close()
-
-  if not content or content == '' then
-    return false
-  end
-
-  local ok, data = pcall(json.decode, content)
-  if not ok or not data then
-    return false
-  end
-
-  state.last_update_id = data.last_update_id
-  state.bot_username = data.bot_username
-  state.processed_ids = data.processed_ids or {}
-  state.session = data.session
-
-  log.debug('[Telegram] State loaded')
-  return true
-end
+ctx.container = container_module.new(ctx)
+ctx.acl = acl_module.new(ctx)
+ctx.send = send_module.new(ctx)
+ctx.poll = poll_module.new(ctx)
 
 --------------------------------------------------
--- API request helper
+-- ACL
 --------------------------------------------------
-local function api_request(method, data, callback)
-  local bot_token = config.config.integrations
-    and config.config.integrations.telegram
-    and config.config.integrations.telegram.bot_token
-
-  if not bot_token then
-    log.error('[Telegram] bot_token not configured')
-    return nil
-  end
-
-  local cmd = curl.build_request({
-    url = API_BASE .. bot_token .. '/' .. method,
-    method = 'POST',
-    headers = {
-      'Content-Type: application/json',
-    },
-    body = data and json.encode(data) or nil,
-  })
-
-  local jobid = job.start(cmd, {
-    on_stdout = function(_, lines)
-      if callback then
-        local output = table.concat(lines, '\n')
-        if output and output ~= '' then
-          local ok, result = pcall(json.decode, output)
-          if ok and result then
-            callback(result)
-          else
-            log.error('[Telegram] Failed to decode: ' .. output)
-          end
-        end
-      end
-    end,
-    on_stderr = function(_, lines)
-      for _, line in ipairs(lines) do
-        if line and line ~= '' then
-          log.debug('[Telegram] ' .. line)
-        end
-      end
-    end,
-  })
-
-  return jobid
-end
+M.get_acl = ctx.acl.get_acl
+M.acl_mode = ctx.acl.acl_mode
+M.is_allowed = ctx.acl.is_allowed
+M.is_admin = ctx.acl.is_admin
+M.is_p2p_allowed = ctx.acl.is_p2p_allowed
+M.acl_allow = ctx.acl.acl_allow
+M.acl_deny = ctx.acl.acl_deny
+M.acl_status = ctx.acl.acl_status
+M.get_recent_senders = ctx.acl.get_recent_senders
+M.parse_acl_command = ctx.acl.parse_acl_command
+M.resolve_target = ctx.acl.resolve_target
 
 --------------------------------------------------
--- Get bot info
+-- Polling
 --------------------------------------------------
-local function get_bot_info()
-  if state.bot_username then
-    return
-  end
-
-  api_request('getMe', nil, function(result)
-    if result.ok and result.result then
-      state.bot_username = result.result.username
-      save_state()
-      log.info('[Telegram] Bot: @' .. state.bot_username)
-    else
-      log.error('[Telegram] Failed to get bot info: ' .. vim.inspect(result))
-    end
-  end)
-end
+M.connect = ctx.poll.connect
+M.disconnect = ctx.poll.disconnect
+M.get_bot_info = ctx.poll.get_bot_info
 
 --------------------------------------------------
--- Fetch updates
+-- Sending
 --------------------------------------------------
-local function fetch_updates()
-  if state.is_fetching then
-    return
-  end
-
-  state.is_fetching = true
-
-  local timeout = uv.new_timer()
-  timeout:start(5000, 0, function()
-    if state.is_fetching then
-      log.warn('[Telegram] Request timeout')
-      state.is_fetching = false
-    end
-  end)
-
-  local params = {
-    timeout = 10,
-    allowed_updates = { 'message' },
-  }
-
-  if state.last_update_id then
-    params.offset = state.last_update_id + 1
-  end
-
-  api_request('getUpdates', params, function(result)
-    timeout:stop()
-    if not timeout:is_closing() then
-      timeout:close()
-    end
-    state.is_fetching = false
-
-    if not result.ok or not result.result or #result.result == 0 then
-      return
-    end
-
-    local highest_id = state.last_update_id
-
-    for _, update in ipairs(result.result) do
-      -- Track highest update_id
-      if not highest_id or update.update_id > highest_id then
-        highest_id = update.update_id
-      end
-
-      -- Skip already processed
-      if state.processed_ids[update.update_id] then
-        goto continue
-      end
-
-      state.processed_ids[update.update_id] = true
-
-      local msg = update.message
-      if not msg or not msg.text then
-        goto continue
-      end
-
-      -- Skip bot messages
-      if msg.from and msg.from.is_bot then
-        goto continue
-      end
-
-      -- Check if message mentions bot or is a reply to bot
-      local is_mentioned = false
-      local content = msg.text
-
-      if state.bot_username then
-        -- Check for @username mention
-        if content:match('@' .. state.bot_username) then
-          is_mentioned = true
-          content = content
-            :gsub('@' .. state.bot_username, '')
-            :gsub('^%s+', '')
-            :gsub('%s+$', '')
-        end
-
-        -- Check for reply to bot
-        if msg.reply_to_message and msg.reply_to_message.from then
-          if msg.reply_to_message.from.username == state.bot_username then
-            is_mentioned = true
-          end
-        end
-      end
-
-      -- Check if private chat (always respond)
-      local chat_type = msg.chat and msg.chat.type or ''
-      if chat_type == 'private' then
-        is_mentioned = true
-      end
-
-      if not is_mentioned then
-        goto continue
-      end
-
-      if content == '' then
-        goto continue
-      end
-
-      -- Callback
-      if state.callback then
-        vim.schedule(function()
-          state.callback({
-            author = msg.from
-              and (msg.from.first_name or msg.from.username or 'Unknown'),
-            content = content,
-            chat_id = msg.chat.id,
-            message_id = msg.message_id,
-          })
-        end)
-      end
-
-      ::continue::
-    end
-
-    -- Update last_update_id
-    if highest_id and highest_id ~= state.last_update_id then
-      state.last_update_id = highest_id
-    end
-
-    -- Cleanup old processed_ids
-    local id_count = 0
-    local oldest_ids = {}
-    for id in pairs(state.processed_ids) do
-      id_count = id_count + 1
-      if id_count > state.max_processed_cache then
-        table.insert(oldest_ids, id)
-      end
-    end
-    for _, id in ipairs(oldest_ids) do
-      state.processed_ids[id] = nil
-    end
-
-    save_state()
-  end)
-end
+M.send_message = ctx.send.send_message
+M.reply = ctx.send.reply
 
 --------------------------------------------------
--- Connect
+-- Session management (platform level: meaning unchanged)
 --------------------------------------------------
-function M.connect(callback)
-  local telegram_config = config.config.integrations
-    and config.config.integrations.telegram
-
-  if not telegram_config or not telegram_config.bot_token then
-    log.error('[Telegram] bot_token not configured')
-    return
-  end
-
-  if state.is_running then
-    return
-  end
-
-  state.callback = callback
-  state.is_running = true
-
-  load_state()
-  log.info('[Telegram] Starting polling...')
-
-  -- Get bot info
-  get_bot_info()
-
-  -- Start timer
-  state.timer = uv.new_timer()
-  state.timer:start(
-    0,
-    state.poll_interval,
-    vim.schedule_wrap(function()
-      if state.is_running then
-        fetch_updates()
-      end
-    end)
-  )
-
-  log.info('[Telegram] Polling started')
-end
+M.current_session = ctx.container.current_session
+M.set_session = ctx.container.set_session
 
 --------------------------------------------------
--- Disconnect
+-- Bindings
 --------------------------------------------------
-function M.disconnect()
-  if state.timer then
-    state.timer:stop()
-    state.timer = nil
-  end
+-- Optional methods: the shared layer calls them only when they exist, so the
+-- other integrations keep their exact current behaviour.
+M.get_binding = ctx.container.get_binding
+M.set_binding = ctx.container.set_binding
+M.get_bound_sessions = ctx.container.get_bound_sessions
+M.get_chat_bindings = ctx.container.get_chat_bindings
 
-  state.is_running = false
-  state.is_fetching = false
-  state.callback = nil
-  save_state()
-  log.info('[Telegram] Polling stopped')
-end
-
---------------------------------------------------
--- Send message
---------------------------------------------------
-local message_queue = {}
-local send_message_jobid = -1
-
-local function send_message(content)
-  local chat_id = config.config.integrations
-    and config.config.integrations.telegram
-    and config.config.integrations.telegram.chat_id
-  local bot_token = config.config.integrations
-    and config.config.integrations.telegram
-    and config.config.integrations.telegram.bot_token
-
-  if not chat_id or not bot_token then
-    log.error('[Telegram] chat_id or bot_token not configured')
-    return nil
-  end
-
-  if send_message_jobid > 0 then
-    return
-  end
-
-  local body = json.encode({
-    chat_id = chat_id,
-    text = content,
-    parse_mode = 'Markdown',
-  })
-  local cmd = curl.build_request({
-    url = API_BASE .. bot_token .. '/sendMessage',
-    method = 'POST',
-    headers = {
-      'Content-Type: application/json',
-    },
-    body = body,
-  })
-  send_message_jobid = job.start(cmd, {
-    on_stdout = function(_, data)
-      for _, v in ipairs(data) do
-        log.debug(v)
-      end
-    end,
-    on_stderr = function(_, data)
-      for _, v in ipairs(data) do
-        log.debug(v)
-      end
-    end,
-    on_exit = function()
-      send_message_jobid = -1
-      if #message_queue > 0 then
-        send_message(table.remove(message_queue, 1))
-      end
-    end,
-  })
-
-  job.send(send_message_jobid, body)
-  job.send(send_message_jobid, nil)
-end
-
-function M.send_message(content)
-  local max_length = 4096 -- Telegram message limit
-
-  local chunks = chunker.chunk(content, max_length)
-  for _, chunk in ipairs(chunks) do
-    table.insert(message_queue, chunk)
-  end
-
-  if #message_queue > 0 then
-    send_message(table.remove(message_queue, 1))
-  end
-end
+--- Bridge capabilities consumed by `chat.bridge`.
+---
+--- Wiring only: the storage stays `state.session` + `containers[].session`,
+--- this table just lets the shared layer ask the questions without knowing
+--- which fields hold the answers.
+M.bridge = ctx.container.bridge
 
 --------------------------------------------------
--- Reply to message
+-- Containers
 --------------------------------------------------
-function M.reply(chat_id, message_id, text)
-  local bot_token = config.config.integrations
-    and config.config.integrations.telegram
-    and config.config.integrations.telegram.bot_token
-
-  if not bot_token then
-    log.error('[Telegram] bot_token not configured')
-    return nil
-  end
-
-  local body = json.encode({
-    chat_id = chat_id,
-    text = text,
-    reply_to_message_id = message_id,
-    parse_mode = 'Markdown',
-  })
-  local cmd = curl.build_request({
-    url = API_BASE .. bot_token .. '/sendMessage',
-    method = 'POST',
-    headers = {
-      'Content-Type: application/json',
-    },
-    body = body,
-  })
-  return job.start(cmd, {
-    on_exit = function(id, code, signal)
-      if code ~= 0 or signal ~= 0 then
-        log.debug(
-          string.format(
-            '[telegram] reply job %d exit with code %d signal %d',
-            id,
-            code,
-            signal
-          )
-        )
-      end
-    end,
-  })
-end
+M.get_containers = ctx.container.get_containers
+M.add_container = ctx.container.add_container
+M.chat_session = ctx.container.chat_session
 
 --------------------------------------------------
--- Status
+-- Status / state maintenance
 --------------------------------------------------
 function M.get_state()
   return {
     is_running = state.is_running,
+    bot_id = state.bot_id,
     bot_username = state.bot_username,
     last_update_id = state.last_update_id,
     poll_interval = state.poll_interval,
     processed_count = vim.tbl_count(state.processed_ids),
+    containers = ctx.container.get_containers(),
   }
 end
 
---------------------------------------------------
--- Clear saved state
---------------------------------------------------
+--- Forget the saved cursor and bot identity, so the next connect starts clean.
+---
+--- The file is removed rather than rewritten: `save_state()` would immediately
+--- recreate it with the cleared fields, and a half-written state file is worse
+--- than none.
 function M.clear_state()
   state.last_update_id = nil
+  state.bot_id = nil
   state.bot_username = nil
   state.processed_ids = {}
+  state.processed_order = {}
+  state.containers = {}
+  state.session = nil
   os.remove(STATE_FILE)
   log.info('[Telegram] State cleared')
-end
-
---------------------------------------------------
--- Session management
---------------------------------------------------
-function M.current_session()
-  return state.session
-end
-
-function M.set_session(session)
-  state.session = session
-  save_state()
 end
 
 --------------------------------------------------
@@ -516,6 +155,12 @@ end
 function M.cleanup()
   M.disconnect()
 end
+
+-- Filled in last: submodules call back into the facade (ACL replies go through
+-- M.send_message).
+ctx.M = M
+
+log.debug('[Telegram] Integration loaded')
 
 return M
 
