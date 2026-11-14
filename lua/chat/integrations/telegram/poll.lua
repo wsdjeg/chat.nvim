@@ -343,12 +343,39 @@ function M.new(ctx)
     local chat_type = chat.type or 'group'
     local is_private = chat_type == 'private'
 
+    local sender = {
+      id = util.id_to_string(msg.from.id),
+      username = msg.from.username,
+    }
+
+    -- The peer recorded for an existing private container is authoritative: a
+    -- message from somebody else inside it is not trustworthy.
+    --
+    -- Checked BEFORE ensure_container(), which would otherwise overwrite the
+    -- recorded peer with the current sender: the comparison used to read
+    -- `ctr.peer` after registration, so it always compared the sender with
+    -- itself and never fired.
+    if is_private and chat_id ~= util.main_chat_id() then
+      local recorded = ctx.container.get_container(chat_id)
+      local peer = recorded and recorded.peer
+      if peer and sender.id and peer ~= sender.id then
+        log.warn(
+          '[Telegram] private sender mismatch ('
+            .. tostring(sender.id)
+            .. ' != '
+            .. peer
+            .. '), ignoring message'
+        )
+        return true
+      end
+    end
+
     -- Register the container: routing needs to know whether this chat is a
     -- group (mention required) or a private chat (answer everything), and a
     -- private chat records the peer so two peers are never mixed up.
-    local ctr = ctx.container.ensure_container(chat_id, {
+    ctx.container.ensure_container(chat_id, {
       chat_type = is_private and 'private' or 'group',
-      peer = is_private and util.id_to_string(msg.from.id) or nil,
+      peer = is_private and sender.id or nil,
       title = chat.title,
     })
 
@@ -369,11 +396,6 @@ function M.new(ctx)
       return true
     end
 
-    local sender = {
-      id = util.id_to_string(msg.from.id),
-      username = msg.from.username,
-    }
-
     -- Private chats have their own default-deny policy: `acl.mode =
     -- allow_all` would otherwise let anyone who finds the bot open a DM.
     -- The explicitly configured main chat is exempt: it is trusted by
@@ -384,18 +406,6 @@ function M.new(ctx)
         log.debug(
           '[Telegram] Skip private message (peer not allowed): '
             .. tostring(sender.id)
-        )
-        return true
-      end
-      -- The registered peer is the authoritative 1:1 identity; a message
-      -- from somebody else inside that container is not trustworthy.
-      if ctr.peer and sender.id and ctr.peer ~= sender.id then
-        log.warn(
-          '[Telegram] private sender mismatch ('
-            .. tostring(sender.id)
-            .. ' != '
-            .. ctr.peer
-            .. '), ignoring message'
         )
         return true
       end

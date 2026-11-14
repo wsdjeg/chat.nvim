@@ -213,6 +213,21 @@ function M.new(ctx)
     return id
   end
 
+  --- Look up an existing container without creating one.
+  ---
+  --- Routing needs to know the peer a private chat was registered with *before*
+  --- it re-registers the chat: `ensure_container()` overwrites `peer` with the
+  --- current sender, so comparing after that would compare a value with itself.
+  --- @param chat_id string
+  --- @return table|nil
+  local function get_container(chat_id)
+    local key = util.id_to_string(chat_id)
+    if not key then
+      return nil
+    end
+    return state.containers[key]
+  end
+
   --- Session a chat should talk in, falling back to the platform session.
   ---
   --- Binding happens here (on read) rather than while messages are being
@@ -413,6 +428,7 @@ function M.new(ctx)
 
   return {
     ensure_container = ensure_container,
+    get_container = get_container,
     session_to_chat = session_to_chat,
     container_session_id = container_session_id,
     session_is_stale = session_is_stale,
