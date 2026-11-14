@@ -142,4 +142,72 @@ function TestWindowsResult:testGetSetWinBuf()
   lu.assertEquals(222, result.get_buf())
 end
 
+function TestWindowsResult:testBuildTitleSinglePillHasNoConnector()
+  sessions.get_session_title = function() return '' end
+  sessions.get_total_tokens = function() return 0, 0, 0 end
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  -- badge + label + badge, nothing else
+  lu.assertEquals(3, #chunks)
+end
+
+function TestWindowsResult:testBuildTitleConnectorFollowsSingleBorder()
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 100, 40, 60 end
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  -- two pills joined by one connector, so 3 + 1 + 3 chunks
+  lu.assertEquals(7, #chunks)
+  -- the gap continues the top border and borrows its highlight
+  lu.assertEquals(string.rep('─', 3), chunks[4][1])
+  lu.assertEquals('FloatBorder', chunks[4][2])
+end
+
+function TestWindowsResult:testBuildTitleConnectorFollowsDoubleBorder()
+  config.config.border = 'double'
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 100, 40, 60 end
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  lu.assertEquals(string.rep('═', 3), chunks[4][1])
+end
+
+function TestWindowsResult:testBuildTitleConnectorFollowsBorderList()
+  -- Neovim's 8-char border list: index 2 is the top edge
+  config.config.border = { '╭', '═', '╮', '║', '╯', '═', '╰', '║' }
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 100, 40, 60 end
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  lu.assertEquals(string.rep('═', 3), chunks[4][1])
+end
+
+function TestWindowsResult:testBuildTitleConnectorBlankForSolidBorder()
+  config.config.border = 'solid'
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 100, 40, 60 end
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  -- 'solid' / 'shadow' / 'none' draw no top edge, so keep the gap blank
+  lu.assertEquals(string.rep(' ', 3), chunks[4][1])
+end
+
+function TestWindowsResult:testBuildTitleAppendsSpinnerFrame()
+  -- Regression: the spinner used to be passed as the `text` fallback, so it
+  -- disappeared as soon as the session had a title. It now comes from
+  -- spinners.frame and must survive any title rebuild.
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 0, 0, 0 end
+  package.loaded['chat.spinners'] = { frame = '⠋' }
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  lu.assertEquals(3, #chunks)
+  lu.assertStrContains(chunks[2][1], 'My Chat')
+  lu.assertStrContains(chunks[2][1], '⠋')
+  package.loaded['chat.spinners'] = nil
+end
+
+function TestWindowsResult:testBuildTitleWithoutSpinnerFrame()
+  sessions.get_session_title = function() return 'My Chat' end
+  sessions.get_total_tokens = function() return 0, 0, 0 end
+  package.loaded['chat.spinners'] = { frame = nil }
+  local chunks = result.build_title(SESSION, 'chat.nvim')
+  lu.assertEquals(' My Chat ', chunks[2][1])
+  package.loaded['chat.spinners'] = nil
+end
+
 return TestWindowsResult

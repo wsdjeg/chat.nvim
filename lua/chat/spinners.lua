@@ -15,8 +15,16 @@ local spinners_theme = {
   timeout = 80,
 }
 local spinners = {}
+
+--- Current spinner frame, or nil when the spinner is stopped.
+--- Exposed so the window title can rebuild itself (session rename, token
+--- refresh, ...) without dropping the animation: build_title reads it and
+--- appends the frame to the session pill.
+spinners.frame = nil
+
 spinners.update = function(char)
-  require('chat.windows').set_result_win_title(' chat.nvim ' .. char .. ' ')
+  spinners.frame = char
+  require('chat.windows').set_result_win_title(' chat.nvim ')
 end
 
 function spinners.start()
@@ -39,7 +47,9 @@ end
 function spinners.stop()
   pcall(vim.fn.timer_stop, spinners.id)
   spinners.id = nil
+  spinners.frame = nil
   require('chat.windows').set_result_win_title(' chat.nvim ')
 end
 
 return spinners
+

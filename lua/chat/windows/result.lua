@@ -39,6 +39,32 @@ end
 local TITLE_BADGE_LEFT = '\238\130\182'
 local TITLE_BADGE_RIGHT = '\238\130\180'
 
+-- Number of border glyphs drawn between two pills.
+local CONNECTOR_WIDTH = 3
+
+-- Top edge glyph of each built-in border style. `solid`, `shadow` and `none`
+-- draw no top edge at all, so the connector stays blank for those.
+local TOP_EDGE = {
+  none = ' ',
+  single = '─',
+  double = '═',
+  rounded = '─',
+  solid = ' ',
+  shadow = ' ',
+}
+
+--- Resolve the glyph the floating window's top border is drawn with, so the
+--- pills can be joined by the very same line as the border. Supports both the
+--- named styles and Neovim's 8-char border list, where index 2 is the top edge.
+--- @return string glyph
+local function top_border_char()
+  local border = config.config.border
+  if type(border) == 'table' then
+    return border[2] or '─'
+  end
+  return TOP_EDGE[border] or '─'
+end
+
 --- Wrap one label into a pill: left badge + highlighted text + right badge.
 --- @param label string text, already padded with the spaces that fill the pill
 --- @return table[] title chunks
@@ -51,8 +77,21 @@ local function pill(label)
   }
 end
 
+--- Current spinner frame, read lazily from package.loaded so that
+--- chat.windows.result does not grow a hard dependency on chat.spinners
+--- (spinners -> windows -> windows.result would be a require cycle).
+--- @return string|nil frame
+local function spinner_frame()
+  local spinners = package.loaded['chat.spinners']
+  if type(spinners) ~= 'table' then
+    return nil
+  end
+  return spinners.frame
+end
+
 --- Build the result window title as separate pills.
---- 1. session title (falls back to `text`, e.g. "chat.nvim")
+--- 1. session title (falls back to `text`, e.g. "chat.nvim") plus the live
+---    spinner frame while a request is running
 --- 2. cumulative tokens with the prompt↑ / completion↓ split
 --- 3. prompt cache hit ratio
 --- Pills 2 and 3 only appear once the session has usage, so a fresh session
@@ -63,13 +102,25 @@ end
 --- @return table[] title chunks for vim.api.nvim_win_set_config
 function M.build_title(session, text)
   local chunks = {}
-  -- Gap between pills: drawn with the badge highlight so it stays neutral
-  local gap = { ' ', config.config.highlights.title_badge }
+  -- Gap between pills: continue the floating window's top border through it,
+  -- so the pills read as embedded in the frame instead of floating on it.
+  -- FloatBorder keeps the connector identical to the real border, including
+  -- any `winhighlight` remap (e.g. FloatBorder:WinSeparator).
+  local connector = top_border_char():rep(CONNECTOR_WIDTH)
+  local gap = { connector, 'FloatBorder' }
 
   local session_title = vim.trim(sessions.get_session_title(session) or '')
   local label = session_title ~= '' and session_title or vim.trim(text or '')
   if label == '' then
     label = 'chat.nvim'
+  end
+  -- Append the live spinner frame to the session pill. Every title rebuild
+  -- (rename, token refresh, ...) goes through here, so reading the frame from
+  -- state keeps the animation running instead of relying on the `text`
+  -- argument, which was dropped whenever the session had a title.
+  local frame = spinner_frame()
+  if frame then
+    label = label .. ' ' .. frame
   end
   vim.list_extend(chunks, pill(' ' .. label .. ' '))
 
