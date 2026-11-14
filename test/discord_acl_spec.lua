@@ -25,6 +25,10 @@ local function fresh_discord(storage_dir, cfg)
       discord = vim.tbl_deep_extend('force', {
         token = 'dc-token',
         channel_id = 'ch-1',
+        -- DM workspaces must never land in the repository root:
+        -- `p2p_cwd_root()` falls back to `allowed_path` when unset, so point
+        -- it at this spec's temp storage instead.
+        p2p = { cwd_root = storage_dir },
       }, cfg or {}),
     },
   })

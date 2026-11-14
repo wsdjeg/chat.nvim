@@ -30,6 +30,10 @@ local function fresh_lark(lark_extra)
         app_id = 'cli_test_app',
         app_secret = 'secret_test',
         chat_id = 'oc_main',
+        -- p2p workspaces must never land in the repository root:
+        -- `p2p_cwd_root()` falls back to `allowed_path` when unset, so point
+        -- it at this spec's temp storage instead.
+        p2p = { cwd_root = storage_dir },
       }, lark_extra or {}),
     },
   })
