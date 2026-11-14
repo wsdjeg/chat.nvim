@@ -282,6 +282,13 @@ function M.open(opt)
 
         local text = table.concat(content, '\n')
 
+        -- Refuse whitespace-only input: pressing <Enter> on an empty prompt
+        -- must not append an empty user message or hit the provider.
+        if vim.trim(text) == '' then
+          log.notify('Empty message, nothing to send.', 'WarningMsg')
+          return
+        end
+
         -- Skill invocation: /name [args]
         if text:sub(1, 1) == '/' then
           dispatch_skill(current_session, text)
@@ -387,6 +394,14 @@ end
 function M.send_message(session, content)
   if not content or not sessions.exists(session) then
     return
+  end
+
+  -- Whitespace-only content would append an empty user message and start a
+  -- pointless request. Report it as handled so the queue drops it instead of
+  -- retrying.
+  if vim.trim(content) == '' then
+    log.debug('Skip empty message for session: ' .. session)
+    return true
   end
 
   -- Skill invocation: /name [args]
