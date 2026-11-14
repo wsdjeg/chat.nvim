@@ -60,6 +60,21 @@ function M.new()
     last_active_channel = nil,
     -- Consecutive failed polls (state-change logging).
     fail_count = 0,
+    -- ACL runtime entries, persisted in the state file. Config lists are
+    -- merged on top of these (see chat.integrations.discord.acl get_acl()).
+    --
+    -- Discord user ids are snowflakes: unguessable and un-forgeable, unlike a
+    -- display name, so they are the only identity used here. Unlike Lark
+    -- there is no email / mobile normalization -- one id space, no lookup.
+    acl = {
+      whitelist = {}, -- user_id -> true
+      blacklist = {}, -- user_id -> true
+    },
+    -- user_id -> { last_seen = ms, name = string|nil }
+    --
+    -- Backs `get_recent_senders()`: a picker can offer user ids from the chats
+    -- the bot already served instead of asking for a snowflake copy/paste.
+    recent_senders = {},
     -- channel_id -> { chat_type, peer, name, session, last_message_id }
     --
     -- A guild channel and a DM channel are both *containers*: the messages
@@ -179,6 +194,13 @@ function M.save(state, path)
     processed_ids = processed_ids,
     session = state.session,
     containers = containers,
+    -- Runtime ACL entries are a map in memory and a sorted list on disk, so a
+    -- handwritten diff of the state file stays readable.
+    acl = {
+      whitelist = util.sorted_keys(state.acl.whitelist),
+      blacklist = util.sorted_keys(state.acl.blacklist),
+    },
+    recent_senders = state.recent_senders,
   }
 
   local ok, encoded = pcall(json.encode, data)
@@ -255,6 +277,34 @@ function M.load(state, path)
   state.bot_username = nil
   if type(data.bot_username) == 'string' and data.bot_username ~= '' then
     state.bot_username = data.bot_username
+  end
+
+  -- Runtime ACL entries and the recent-speaker cache. Old state files carry
+  -- neither key, so both start empty and load unchanged.
+  state.acl = { whitelist = {}, blacklist = {} }
+  if type(data.acl) == 'table' then
+    for _, id in ipairs(data.acl.whitelist or {}) do
+      if type(id) == 'string' and id ~= '' then
+        state.acl.whitelist[id] = true
+      end
+    end
+    for _, id in ipairs(data.acl.blacklist or {}) do
+      if type(id) == 'string' and id ~= '' then
+        state.acl.blacklist[id] = true
+      end
+    end
+  end
+
+  state.recent_senders = {}
+  if type(data.recent_senders) == 'table' then
+    for id, info in pairs(data.recent_senders) do
+      if type(id) == 'string' and type(info) == 'table' then
+        state.recent_senders[id] = {
+          last_seen = tonumber(info.last_seen) or 0,
+          name = info.name,
+        }
+      end
+    end
   end
 
   -- Containers: `channel_id` -> { chat_type, peer, session, cursor }.

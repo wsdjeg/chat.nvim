@@ -28,6 +28,11 @@ M.FAILURE_HEARTBEAT = 10
 -- re-listing. 12 ticks at the 3s interval = 36s.
 M.DM_REFRESH_TICKS = 12
 
+-- Upper bound for the "recent speakers" cache kept in the state file. The
+-- cache backs `get_recent_senders()`, so a picker can offer user ids instead
+-- of having them copied out of the Discord client by hand.
+M.MAX_RECENT_SENDERS = 30
+
 --- `integrations.discord` config table.
 --- @return table
 function M.discord_config()
@@ -90,6 +95,42 @@ function M.p2p_config()
   return M.discord_config().p2p or {}
 end
 
+--- `integrations.discord.acl` config table.
+--- @return table
+function M.acl_config()
+  return M.discord_config().acl or {}
+end
+
+--- Merge a config list with a runtime map into one sorted, de-duplicated list.
+---
+--- Runtime entries come from the in-chat `/allow` / `/deny` commands and are
+--- persisted in the state file, so the effective list is the union of both
+--- sources. Sorting keeps the output stable for `/acl` replies and tests.
+--- @param config_list string[]|nil
+--- @param state_map table|nil
+--- @return string[]
+function M.merge_ids(config_list, state_map)
+  local result = {}
+  local seen = {}
+
+  for _, id in ipairs(config_list or {}) do
+    if type(id) == 'string' and id ~= '' and not seen[id] then
+      seen[id] = true
+      table.insert(result, id)
+    end
+  end
+
+  for id in pairs(state_map or {}) do
+    if type(id) == 'string' and id ~= '' and not seen[id] then
+      seen[id] = true
+      table.insert(result, id)
+    end
+  end
+
+  table.sort(result)
+  return result
+end
+
 --- Whether private (DM) chats are served at all.
 --- @return boolean
 function M.p2p_enabled()
@@ -98,11 +139,10 @@ end
 
 --- Curated DM allow list.
 ---
---- Returns nil when `p2p.allow` is not configured: Discord already gates who
---- may open a DM with the bot (the DM channel only appears once the user
---- started the conversation), so without a list every DM channel the API
---- reports for the bot is served. A non-empty list is authoritative -- only
---- the ids in it are served.
+--- Returns nil when `p2p.allow` is not configured. The *admission* decision
+--- (including `acl.mode` and admins) lives in `chat.integrations.discord.acl`,
+--- because it needs the state-backed runtime entries; this function only
+--- parses config.
 --- @return string[]|nil
 function M.p2p_allow()
   local allow = M.p2p_config().allow
@@ -122,33 +162,6 @@ function M.p2p_allow()
     return nil
   end
   return list
-end
-
---- Whether a Discord user id may talk to the bot privately.
----
---- A group channel is shared by nature (the bot only answers mentions there,
---- plus slash commands), while a DM is one person talking to the bot in a
---- workspace of their own -- two peers must never share it, so the admission
---- check lives here.
---- @param user_id string|nil
---- @return boolean
-function M.is_p2p_allowed(user_id)
-  if not M.p2p_enabled() then
-    return false
-  end
-  if type(user_id) ~= 'string' or user_id == '' then
-    return false
-  end
-  local allow = M.p2p_allow()
-  if not allow then
-    return true
-  end
-  for _, id in ipairs(allow) do
-    if id == user_id then
-      return true
-    end
-  end
-  return false
 end
 
 --- Sorted keys of a map, for stable output.

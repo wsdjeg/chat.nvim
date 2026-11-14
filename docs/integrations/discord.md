@@ -96,10 +96,44 @@ require('chat').setup({
         -- Root for per-peer workspaces (defaults to the first `allowed_path`)
         cwd_root = '/path/to/projects',
       },
+
+      -- Optional: access control (see "Access Control" below)
+      acl = {
+        -- allow_all (default) | whitelist | blacklist
+        mode = 'whitelist',
+        -- users allowed to talk to the bot (whitelist mode)
+        whitelist = { 'USER_ID_ALLOWED' },
+        -- users blocked from the bot (blacklist mode)
+        blacklist = {},
+        -- users allowed to run /allow, /deny and /acl
+        admins = { 'YOUR_USER_ID' },
+      },
     },
   },
 })
 ```
+
+---
+
+## Configuration Reference
+
+| Option                              | Type       | Default       | Description                                       |
+| ----------------------------------- | ---------- | ------------- | ------------------------------------------------- |
+| `integrations.discord.token`         | `string`   | —             | Bot token, required                              |
+| `integrations.discord.channel_id`    | `string`   | —             | Main channel id, required                        |
+| `integrations.discord.channel_ids`   | `string[]` | `{}`          | Extra guild channels to serve                    |
+| `integrations.discord.guild_id`      | `string`   | —             | Register every text channel of this guild        |
+| `integrations.discord.p2p.enable`    | `boolean`  | `true`        | Serve DM chats at all                           |
+| `integrations.discord.p2p.allow`     | `string[]` | —             | Curated DM allow list (authoritative when set)   |
+| `integrations.discord.p2p.cwd_root`  | `string`   | first `allowed_path` | Root for per-peer DM workspaces          |
+| `integrations.discord.acl.mode`      | `string`   | `'allow_all'` | `allow_all` \| `whitelist` \| `blacklist`          |
+| `integrations.discord.acl.whitelist` | `string[]` | `{}`          | Users allowed to talk (whitelist mode)          |
+| `integrations.discord.acl.blacklist` | `string[]` | `{}`          | Users blocked (blacklist mode)                  |
+| `integrations.discord.acl.admins`    | `string[]` | `{}`          | Users allowed to run `/allow`, `/deny`, `/acl`  |
+
+Every ACL list accepts a Discord **user id** (the numeric snowflake). There is
+no email / display-name form: Discord has a single id space, so every entry is a
+plain string comparison and costs zero API requests.
 
 ---
 
@@ -111,7 +145,7 @@ polling level (`/channels/{id}/messages`), but their policies differ.
 | | Guild channel | Direct message |
 | --- | --- | --- |
 | Must @mention the bot | Yes (or reply to a bot message, or use a `/command`) | No |
-| Who may talk | Everyone allowed to see the channel | Only peers admitted by `p2p.allow` (or anyone, when unset) |
+| Who may talk | Filtered by `acl.mode` (everyone when unset) | Only peers admitted by `p2p.allow`, then `acl.mode`, then admins |
 | Session | `discord-<channel_id>`, shared by the channel | `discord-<channel_id>`, one per peer |
 | Working directory | Neovim cwd (shared on purpose) | `<cwd_root>/discord-<channel_id>` (isolated per peer) |
 
@@ -153,6 +187,16 @@ workspace, and moving it elsewhere would change existing behaviour.
 | `/list`      | List sessions (per chat numbering, `/list <filter> -p N` to page)   |
 | `/clear`     | Clear messages in the bound session                                 |
 | `/status`    | Show session, provider, model, cwd and idle/processing state        |
+| `/allow @user` | Grant the mentioned user access (admins only)                     |
+| `/deny @user`  | Revoke access from the user (admins only)                         |
+| `/acl`         | Reply with the current mode and id lists (admins only)            |
+
+The ACL commands are recognised only when sent by a configured admin. Requests
+from non-admins are dropped silently — no reply — so the channel is not spammed.
+
+`/allow` and `/deny` are written to the state file, so they survive restarts
+without editing the config, and they take precedence over the configured
+`acl.mode`: an admin can blacklist someone even while running in `allow_all`.
 
 ---
 
@@ -198,6 +242,47 @@ Hello, how can you help me?
 
 ---
 
+## Access Control (ACL)
+
+By default everyone in the served channels may talk to the bot. Set
+`integrations.discord.acl` (see [the example above](#configuration-reference)) to
+restrict who can trigger replies.
+
+| Mode        | Behaviour                                              |
+| ----------- | ------------------------------------------------------ |
+| `allow_all` | Default. Everyone in the channel may talk to the bot.   |
+| `whitelist` | Only the listed user ids (plus admins) may talk to it.  |
+| `blacklist` | Everyone except the listed user ids may talk to it.     |
+
+Notes:
+
+- **Admins always pass.** An admin bypasses the ACL, so a whitelist that locked
+  them out can still be repaired from inside the channel with `/allow`.
+- **Runtime entries win over the mode.** `/allow` and `/deny` are persisted in
+  the state file and checked before the configured mode, which is what keeps
+  them useful without editing the config first.
+- **Recent speakers are cached.** Every non-bot speaker is recorded in the state
+  file (up to 30, newest first) and exposed through
+  `require('chat.integrations.discord').get_recent_senders()`, so user ids can be
+  picked instead of copied out of the Discord client.
+- **DM admission is separate.** A DM is one person talking to the bot privately,
+  so it has its own policy rather than reusing `acl.mode`:
+
+  | Order | Rule |
+  | ----- | ---- |
+  | 1 | `p2p.allow` when set — authoritative, no admin fallback |
+  | 2 | `acl.mode` = `whitelist` / `blacklist` — applied like a channel |
+  | 3 | `acl.admins` |
+  | 4 | Otherwise allowed (a DM channel only exists after the peer opened it) |
+
+  `p2p.enable = false` refuses every DM regardless of the ACL.
+
+- **Only the registered peer is trusted.** Inside a DM container the reply is
+  attributed to `containers[channel_id].peer`; a message from any other user id
+  is dropped, because the container is a 1:1 conversation.
+
+---
+
 ## Technical Details
 
 - **API**: Discord REST API v10
@@ -217,6 +302,15 @@ The state file stores, per channel:
 `bot_id` is persisted too: guild messages are only accepted when they mention the
 bot, so losing it across a restart would drop every mention until the lookup
 answers again.
+
+The state file also carries the ACL bookkeeping:
+
+- `acl.whitelist` / `acl.blacklist` — runtime grants and denies issued with
+  `/allow` and `/deny` (sorted lists on disk, merged with the config on read)
+- `recent_senders` — `user id -> { last_seen, name }`, at most 30 entries, used
+  by `get_recent_senders()`
+
+Old state files have none of these keys; they load unchanged and start empty.
 
 ---
 

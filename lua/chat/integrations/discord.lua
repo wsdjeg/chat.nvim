@@ -4,6 +4,7 @@
 --   discord/util.lua      config readers, constants, list helpers
 --   discord/state.lua     the state table + its file round-trip
 --   discord/http.lua      one authenticated REST request runner
+--   discord/acl.lua       access control and the /allow, /deny, /acl commands
 --   discord/container.lua containers (guild channels / DMs) and bound sessions
 --   discord/discover.lua  DM channel and guild channel discovery
 --   discord/send.lua      chunked queued delivery, typing, one-shot replies
@@ -18,6 +19,7 @@ local log = require('chat.log')
 
 local util = require('chat.integrations.discord.util')
 local state_module = require('chat.integrations.discord.state')
+local acl_module = require('chat.integrations.discord.acl')
 local container_module = require('chat.integrations.discord.container')
 local discover_module = require('chat.integrations.discord.discover')
 local send_module = require('chat.integrations.discord.send')
@@ -50,6 +52,7 @@ ctx.state_io = {
   save = ctx.save_state,
 }
 
+ctx.acl = acl_module.new(ctx)
 ctx.container = container_module.new(ctx)
 ctx.discover = discover_module.new(ctx)
 ctx.send = send_module.new(ctx)
@@ -100,14 +103,27 @@ M.add_container = ctx.container.add_container
 --------------------------------------------------
 -- Private chats
 --------------------------------------------------
---- Admission policy for DM peers (`integrations.discord.p2p`).
-M.is_p2p_allowed = util.is_p2p_allowed
+--- Admission policy for DM peers (`integrations.discord.p2p`, governed by
+--- `integrations.discord.acl` when one is configured).
+M.is_p2p_allowed = ctx.acl.is_p2p_allowed
 
 --- List the bot's DM channels and register the admissible ones.
 M.discover_dm_channels = ctx.discover.discover_dm_channels
 
 --- Register the text channels of `integrations.discord.guild_id`.
 M.discover_guild_channels = ctx.discover.discover_guild_channels
+
+--------------------------------------------------
+-- Access control
+--------------------------------------------------
+M.acl_mode = ctx.acl.acl_mode
+M.get_acl = ctx.acl.get_acl
+M.is_allowed = ctx.acl.is_allowed
+M.is_admin = ctx.acl.is_admin
+M.acl_allow = ctx.acl.acl_allow
+M.acl_deny = ctx.acl.acl_deny
+M.acl_status = ctx.acl.acl_status
+M.get_recent_senders = ctx.acl.get_recent_senders
 
 --------------------------------------------------
 -- Status
@@ -133,6 +149,8 @@ function M.clear_state()
   state.processed_ids = {}
   state.processed_order = {}
   state.containers = {}
+  state.acl = { whitelist = {}, blacklist = {} }
+  state.recent_senders = {}
   os.remove(STATE_FILE)
   log.info('[Discord] State cleared')
 end

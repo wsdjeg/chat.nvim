@@ -252,6 +252,10 @@ function M.new(ctx)
         goto continue
       end
 
+      -- Cache the speaker before any filtering: a picker wants to list
+      -- everyone who showed up in the channel, not only those allowed to talk.
+      ctx.acl.record_sender(msg)
+
       local is_p2p = ctr.chat_type == 'p2p'
 
       -- In a DM there is nobody to @mention: the message is addressed to the
@@ -266,6 +270,14 @@ function M.new(ctx)
         goto continue
       end
 
+      -- ACL commands carry their target as a mention (`/allow <@456>`), and
+      -- `message_text()` removes every marker (it exists to clean the text
+      -- handed to the model). So the command is parsed from a second string
+      -- that only drops the *leading* bot mention.
+      local acl_text = ctx.acl.strip_leading_mentions(
+        type(msg.content) == 'string' and msg.content or ''
+      )
+
       local sender_id = type(msg.author) == 'table' and msg.author.id or nil
 
       -- DM admission. A DM arrives only after the conversation was opened, but
@@ -273,7 +285,7 @@ function M.new(ctx)
       -- registered peer is the only trustworthy identity in that container.
       if is_p2p then
         local peer = ctr.peer or sender_id
-        if not util.is_p2p_allowed(peer) then
+        if not ctx.acl.is_p2p_allowed(peer) then
           log.debug(
             '[Discord] Skip p2p message (peer not allowed): ' .. tostring(peer)
           )
@@ -289,6 +301,23 @@ function M.new(ctx)
           )
           goto continue
         end
+      end
+
+      -- ACL: admins always pass, so they can recover a whitelist that
+      -- locked them out of management commands.
+      if not ctx.acl.is_admin(sender_id) and not ctx.acl.is_allowed(sender_id) then
+        log.debug(
+          '[Discord] Skip message (sender not allowed): ' .. tostring(sender_id)
+        )
+        goto continue
+      end
+
+      -- In-chat ACL management: must run before the shared handler so
+      -- `/allow` never reaches the LLM as a normal prompt.
+      local acl_command = ctx.acl.parse_acl_command(acl_text)
+      if acl_command then
+        ctx.acl.handle_acl_command(msg, acl_command, channel_id)
+        goto continue
       end
 
       -- Call callback with the message

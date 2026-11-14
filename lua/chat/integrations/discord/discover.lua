@@ -71,7 +71,9 @@ function M.new(ctx)
       return nil
     end
 
-    if not util.is_p2p_allowed(peer) then
+    -- Admission is decided by the ACL module, not by `util`: it needs the
+    -- state-backed runtime entries, and `acl.mode` / admins take part too.
+    if not ctx.acl.is_p2p_allowed(peer) then
       log.debug('[Discord] Skip DM channel (peer not allowed): ' .. peer)
       return nil
     end

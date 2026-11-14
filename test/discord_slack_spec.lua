@@ -5,6 +5,16 @@ local config = require('chat.config')
 
 local function fresh_mod(name, integrations_cfg, storage_dir)
   package.loaded['chat.integrations.' .. name] = nil
+  -- `config.setup()` deep-merges, so an `acl` / `p2p` table left behind by a
+  -- previous spec (discord_acl_spec sets both) would leak into this one and
+  -- silently filter every message out. Drop them from the live config first:
+  -- nil values are ignored by tbl_deep_extend, but direct assignment removes
+  -- the key.
+  local cfg = config.config.integrations and config.config.integrations.discord
+  if cfg and (name == 'discord') then
+    cfg.acl = nil
+    cfg.p2p = nil
+  end
   config.setup({
     storage_dir = storage_dir,
     integrations = integrations_cfg,
