@@ -354,6 +354,14 @@ end
 
 TestLarkAclEmail = {}
 
+--- Instances built by this class, so tearDown can stop their pollers.
+---
+--- Each spec receives its instance as a local, so nothing outlives the spec to
+--- call disconnect() on it. `connect()` allocates a polling timer, and a leaked
+--- one keeps ticking for the rest of the process: it spawned tenant-token
+--- requests inside unrelated specs and made their request counts flaky.
+local acl_email_instances = {}
+
 local function fresh_lark(storage_dir, acl)
   package.loaded['chat.integrations.lark'] = nil
   -- The token cache survives module reloads; reset it so the new instance
@@ -377,7 +385,9 @@ local function fresh_lark(storage_dir, acl)
       },
     },
   })
-  return require('chat.integrations.lark')
+  local lark = require('chat.integrations.lark')
+  acl_email_instances[#acl_email_instances + 1] = lark
+  return lark
 end
 
 --- Drive the connect-time resolution: one lookup job, one response.
@@ -405,6 +415,19 @@ function TestLarkAclEmail:setUp()
 end
 
 function TestLarkAclEmail:tearDown()
+  -- Stop every poller this class started, then forget the instances.
+  --
+  -- `connect()` allocates a polling timer. One that is never disconnected keeps
+  -- ticking for the rest of the process: it requested tenant tokens (and spawned
+  -- per-request watchdog timers) inside the following specs, so their request
+  -- counts and uv-handle assertions became order dependent.
+  for _, instance in ipairs(acl_email_instances) do
+    pcall(function()
+      instance.disconnect()
+    end)
+  end
+  acl_email_instances = {}
+
   curl.is_available = self._orig_available
   job.reset()
   auth.reset()
