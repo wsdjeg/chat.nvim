@@ -5,6 +5,7 @@ local sessions = require('chat.sessions')
 local formatter = require('chat.formatter')
 local util = require('chat.util')
 local usage_util = require('chat.usage')
+local title = require('chat.windows.title')
 
 -- Result window state
 local result_win = -1
@@ -34,49 +35,6 @@ function M.is_buf_valid()
   return vim.api.nvim_buf_is_valid(result_buf)
 end
 
--- Decorative pill caps. Same glyphs the prompt window title uses, so both
--- windows share one visual language.
-local TITLE_BADGE_LEFT = '\238\130\182'
-local TITLE_BADGE_RIGHT = '\238\130\180'
-
--- Number of border glyphs drawn between two pills.
-local CONNECTOR_WIDTH = 3
-
--- Top edge glyph of each built-in border style. `solid`, `shadow` and `none`
--- draw no top edge at all, so the connector stays blank for those.
-local TOP_EDGE = {
-  none = ' ',
-  single = '─',
-  double = '═',
-  rounded = '─',
-  solid = ' ',
-  shadow = ' ',
-}
-
---- Resolve the glyph the floating window's top border is drawn with, so the
---- pills can be joined by the very same line as the border. Supports both the
---- named styles and Neovim's 8-char border list, where index 2 is the top edge.
---- @return string glyph
-local function top_border_char()
-  local border = config.config.border
-  if type(border) == 'table' then
-    return border[2] or '─'
-  end
-  return TOP_EDGE[border] or '─'
-end
-
---- Wrap one label into a pill: left badge + highlighted text + right badge.
---- @param label string text, already padded with the spaces that fill the pill
---- @return table[] title chunks
-local function pill(label)
-  local badge_hl = config.config.highlights.title_badge
-  return {
-    { TITLE_BADGE_LEFT, badge_hl },
-    { label, config.config.highlights.title },
-    { TITLE_BADGE_RIGHT, badge_hl },
-  }
-end
-
 --- Current spinner frame, read lazily from package.loaded so that
 --- chat.windows.result does not grow a hard dependency on chat.spinners
 --- (spinners -> windows -> windows.result would be a require cycle).
@@ -101,14 +59,6 @@ end
 --- @param text string Fallback label for the first pill
 --- @return table[] title chunks for vim.api.nvim_win_set_config
 function M.build_title(session, text)
-  local chunks = {}
-  -- Gap between pills: continue the floating window's top border through it,
-  -- so the pills read as embedded in the frame instead of floating on it.
-  -- FloatBorder keeps the connector identical to the real border, including
-  -- any `winhighlight` remap (e.g. FloatBorder:WinSeparator).
-  local connector = top_border_char():rep(CONNECTOR_WIDTH)
-  local gap = { connector, 'FloatBorder' }
-
   local session_title = vim.trim(sessions.get_session_title(session) or '')
   local label = session_title ~= '' and session_title or vim.trim(text or '')
   if label == '' then
@@ -122,28 +72,27 @@ function M.build_title(session, text)
   if frame then
     label = label .. ' ' .. frame
   end
-  vim.list_extend(chunks, pill(' ' .. label .. ' '))
+
+  local labels = { ' ' .. label .. ' ' }
 
   local total, prompt, complete, cached = sessions.get_total_tokens(session)
   if total and total > 0 then
-    table.insert(chunks, gap)
-    vim.list_extend(
-      chunks,
-      pill(string.format(
+    table.insert(
+      labels,
+      string.format(
         ' %s (%s↑/%s↓) ',
         util.format_number(total),
         util.format_number(prompt or 0),
         util.format_number(complete or 0)
-      ))
+      )
     )
 
     -- Cache hit ratio: same normalization the per-message line uses, so
     -- DeepSeek/Anthropic payloads report a real percentage.
     if cached and cached > 0 then
-      table.insert(chunks, gap)
-      vim.list_extend(
-        chunks,
-        pill(string.format(
+      table.insert(
+        labels,
+        string.format(
           ' 💾 %d%% ',
           math.floor(
             usage_util.hit_ratio({
@@ -151,12 +100,14 @@ function M.build_title(session, text)
               cached_tokens = cached,
             }) * 100
           )
-        ))
+        )
       )
     end
   end
 
-  return chunks
+  -- Pass the labels explicitly: `unpack` is not used anywhere else in the
+  -- codebase, and the pill row is capped at three entries anyway.
+  return title.build(labels[1], labels[2], labels[3])
 end
 
 function M.set_title(text, session)
@@ -387,7 +338,7 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
     border = config.config.border,
     -- Initial title: only the first pill, tokens and cache pills are added
     -- later by set_title() once the session reports usage.
-    title = pill(' chat.nvim '),
+    title = title.pill(' chat.nvim '),
     title_pos = 'center',
   })
 

@@ -259,7 +259,7 @@ The result window uses `markdown` filetype, enabling syntax highlighting and [Re
 
 Each session has a title displayed in the title bar of the **result** window. Press `<M-t>` in the input window to rename the current session title.
 
-The input window title instead shows the session context: `<provider> | <model> | <cwd> | <integration>...`. The session title is intentionally omitted there because both windows are stacked vertically, so repeating it would only waste horizontal space.
+The input window title instead shows the session context as three pills, joined by the floating window's own top border: `<provider> | <model>`, `<cwd>` and `<integration> | <integration>...`. Blank pills are skipped, so a session without a cwd or without integrations shows fewer pills. The session title is intentionally omitted there because both windows are stacked vertically, so repeating it would only waste horizontal space.
 
 ---
 

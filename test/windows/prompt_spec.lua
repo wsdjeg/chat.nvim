@@ -93,6 +93,20 @@ end
 -- The prompt window title no longer repeats the session title nor contains
 -- the "Input" label: it only carries provider / model / cwd / integrations,
 -- wrapped in the same powerline badges the result window uses.
+--
+-- Since the pills are separate chunks joined by a border connector, tests
+-- flatten them back into one string to assert on the words.
+
+--- Concatenate all title chunk texts into a single readable string.
+--- @param chunks table[] window title chunks
+--- @return string
+local function title_text(chunks)
+  local text = ''
+  for _, part in ipairs(chunks or {}) do
+    text = text .. tostring(part[1])
+  end
+  return text
+end
 
 function TestWindowsPrompt:testBuildTitleSeparatesProviderAndModel()
   local title = prompt.build_title('sess')
@@ -139,8 +153,39 @@ end
 function TestWindowsPrompt:testWindowTitleHasBadges()
   prompt.open_window(self.buf, 0, 0, 40, 'sess')
   local conf = vim.api.nvim_win_get_config(prompt.get_win())
-  lu.assertEquals(3, #conf.title)
+  -- provider/model pill + cwd pill, joined by one border connector: 3+1+3
+  lu.assertEquals(7, #conf.title)
   -- powerline glyphs on both sides, same as the result window
+  lu.assertEquals('\238\130\182', conf.title[1][1])
+  lu.assertEquals('\238\130\180', conf.title[3][1])
+  lu.assertEquals('\238\130\182', conf.title[5][1])
+  lu.assertEquals('\238\130\180', conf.title[7][1])
+end
+
+function TestWindowsPrompt:testWindowTitleAddsIntegrationsPill()
+  integrations.get_integrations = function() return { 'discord', 'lark' } end
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  -- three pills joined by two connectors: 3+1+3+1+3
+  lu.assertEquals(11, #conf.title)
+  lu.assertStrContains(title_text(conf.title), 'discord | lark')
+end
+
+function TestWindowsPrompt:testWindowTitleConnectorUsesTopBorder()
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  -- setUp configures border = 'single', so the gap repeats the top edge
+  lu.assertEquals(string.rep('─', 3), conf.title[4][1])
+  lu.assertEquals('FloatBorder', conf.title[4][2])
+end
+
+function TestWindowsPrompt:testWindowTitleSkipsBlankPills()
+  sessions.getcwd = function() return '' end
+  integrations.get_integrations = function() return {} end
+  prompt.open_window(self.buf, 0, 0, 40, 'sess')
+  local conf = vim.api.nvim_win_get_config(prompt.get_win())
+  -- no cwd and no integrations: only the provider/model pill is left
+  lu.assertEquals(3, #conf.title)
   lu.assertEquals('\238\130\182', conf.title[1][1])
   lu.assertEquals('\238\130\180', conf.title[3][1])
 end
@@ -149,7 +194,7 @@ function TestWindowsPrompt:testRedrawTitleKeepsBadges()
   prompt.open_window(self.buf, 0, 0, 40, 'sess')
   prompt.redraw_title('sess')
   local conf = vim.api.nvim_win_get_config(prompt.get_win())
-  lu.assertEquals(3, #conf.title)
+  lu.assertEquals(7, #conf.title)
   lu.assertEquals('\238\130\182', conf.title[1][1])
   lu.assertEquals('\238\130\180', conf.title[3][1])
 end
