@@ -416,20 +416,26 @@ With neither configured the workspace is skipped and the session keeps the
 Neovim cwd, which is what older versions always did.
 
 When `cwd_root` points outside `allowed_path` (an absolute root of its own), the
-directory is registered into `allowed_path` at runtime as the session is
-provisioned, so the file tools accept it without the user repeating the path in
-config. Registration is per-session only: it never touches the config file and
-does not widen the allowed tree on the next start.
+directory is registered into `allowed_path` at runtime, so the file tools accept
+it without the user repeating the path in config. Registration is runtime-only:
+it never touches the config file and does not widen the allowed tree on the next
+start.
 
-The directory is created while the session is provisioned, because `read_file`,
-`find_files` and the git tools all reject a missing directory.
+Creating and registering both run on every binding lookup, not only once at
+provisioning. The runtime entry does not survive a restart, and the directory may
+have been deleted while the plugin was down — so both are repaired the next time
+the chat resolves its session. `read_file`, `find_files` and the git tools all
+reject a missing or unregistered directory, which is why this has to happen
+before a chat can work at all.
 
 {: .info }
 
-> The directory only applies **once**, when the session is created. Re-binding a
-> chat to an existing session keeps it in the directory it already has, so a live
-> workspace is never moved under the running request. To relocate a chat, delete
-> its session first.
+> The session's working directory is assigned **once**, when the session is
+> created. Re-binding a chat to an existing session keeps it in the directory it
+> already has (and `cwd_root` changes do not migrate it), so a live workspace is
+> never moved under the running request. To relocate a chat, delete its session
+> first. Creating and registering the directory itself is not a one-off: see
+> above.
 
 The name is sanitized to a single path segment, so an unexpected `chat_id` can
 not escape the root.
@@ -546,16 +552,17 @@ p2p is deny-by-default, so a silent chat is usually the expected behaviour:
 
 ### File tools refuse the p2p workspace
 
-The workspace is registered into `allowed_path` automatically when the session is
-provisioned, so this is rare — it usually means the registration never happened:
+The workspace is created and registered into `allowed_path` automatically
+whenever the chat resolves its session, so this is rare — it usually means the
+directory could not be created:
 
 1. **Is `p2p.cwd_root` (or the first `allowed_path`) pointing at the right
    place?** The session works in `<cwd_root>/lark-<chat_id>`
 2. **Look for `[Lark] Could not create workspace`** — an unwritable root falls
-   back to the Neovim cwd instead, and no registration takes place
-3. **Was the session created before `cwd_root` was set?** The directory is only
-   applied at creation; delete the session so the next message provisions it
-   again
+   back to the session default instead, and no registration takes place
+3. **Was the session created before `cwd_root` was set?** The session's working
+   directory is fixed at creation; delete the session so the next message
+   provisions it again in the new root
 4. **Does `allowed_path` reject `.git`?** A workspace under a `.git` directory is
    refused by design and is never registered
 

@@ -165,11 +165,16 @@ workspace outside `allowed_path` is useless because every file tool refuses it,
 so keeping the root inside the allowed tree means the isolation never widens what
 the bot may touch. When neither is configured, DMs keep the session default.
 
-A `cwd_root` that points outside `allowed_path` is registered into it at runtime
-as the DM's session is provisioned, so the file tools accept
-`<cwd_root>/discord-<channel_id>` without the user repeating the path in config.
-Registration is per-session only: the config file is untouched and the allowed
-tree is not widened on the next start.
+A `cwd_root` that points outside `allowed_path` is registered into it at runtime,
+so the file tools accept `<cwd_root>/discord-<channel_id>` without the user
+repeating the path in config. Registration is runtime-only: the config file is
+untouched and the allowed tree is not widened on the next start.
+
+Creating and registering the directory both run on every binding lookup rather
+than once at provisioning: the runtime entry does not survive a restart, and the
+directory may have been deleted meanwhile. Both are repaired the next time the DM
+resolves its session, which keeps the conversation usable instead of failing
+every file tool.
 
 Guild channels keep the Neovim cwd: a guild channel is deliberately a shared
 workspace, and moving it elsewhere would change existing behaviour.

@@ -243,13 +243,17 @@ and the HTTP API address. Chat bindings are visible through the bridge API
 (`GET /session/:id/bridge`), and unbinding clears both levels.
 
 A `p2p.cwd_root` that points outside `allowed_path` is registered into it at
-runtime while the private chat's session is provisioned, so the file tools accept
-`<p2p.cwd_root>/telegram-<chat_id>` without the user repeating the path in config.
-Registration is per-session only: the config file is untouched and the allowed
-tree is not widened on the next start.
+runtime, so the file tools accept `<p2p.cwd_root>/telegram-<chat_id>` without the
+user repeating the path in config. Registration is runtime-only: the config file
+is untouched and the allowed tree is not widened on the next start.
 
-Workspaces are created when a session is created, so changing `p2p.cwd_root` does
-not migrate an existing session.
+Because that entry is lost on restart, creating and registering the directory runs
+on every binding lookup rather than once at provisioning. A restart — or a
+workspace deleted while the plugin was down — therefore heals on the next message
+instead of leaving the chat unable to call any file tool.
+
+The session's working directory is still assigned when the session is created,
+so changing `p2p.cwd_root` does not migrate an existing session.
 
 ---
 
