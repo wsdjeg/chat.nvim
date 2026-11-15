@@ -209,6 +209,41 @@ function M.new(ctx)
     log.warn('[Discord] Dropped stale binding: ' .. session)
   end
 
+  --- Workspace directory for a container, created and made usable on demand.
+  ---
+  --- Idempotent on purpose: it runs on every binding lookup, not only while a
+  --- session is being created. `add_allowed_path` is runtime-only (it never
+  --- touches the config file), so a channel directory registered in one run is
+  --- unknown to the next one -- the file tools would then refuse it
+  --- (`read_file`, `find_files`, every `git_*`) even though the session and its
+  --- cwd came back from storage. Re-registering here keeps a restarted
+  --- integration working, and re-creating the directory repairs one that was
+  --- deleted in the meantime.
+  --- @param channel_id string
+  --- @param ctr table
+  --- @return string|nil
+  local function ensure_workspace(channel_id, ctr)
+    local cwd = container_cwd(channel_id, ctr)
+    if not cwd then
+      return nil
+    end
+    if vim.fn.isdirectory(cwd) == 0 then
+      -- The workspace has to exist before tools run in it: `read_file` /
+      -- `find_files` reject a missing directory, and git commands fail there
+      -- too.
+      pcall(vim.fn.mkdir, cwd, 'p')
+      if vim.fn.isdirectory(cwd) == 0 then
+        log.warn('[Discord] Could not create workspace ' .. cwd)
+        return nil
+      end
+    end
+    -- A workspace created on demand must stay reachable by the file tools:
+    -- `allowed_path` only knows the roots from config, so a freshly made
+    -- channel directory would reject every `read_file` / `write_file`.
+    require('chat.util').add_allowed_path(cwd)
+    return cwd
+  end
+
   --- Make sure a container owns a session.
   ---
   --- The main container keeps using the platform session (`state.session`), so
@@ -226,30 +261,20 @@ function M.new(ctx)
   --- @return string|nil
   local function ensure_container_session(channel_id, ctr)
     drop_stale_binding(ctr)
+
+    -- Before the early return below, on purpose: a binding restored from the
+    -- state file already has a session, and skipping this would leave its
+    -- workspace unregistered -- every file tool refuses such a directory.
+    local cwd
+    if channel_id ~= main_channel_id() then
+      cwd = ensure_workspace(channel_id, ctr)
+    end
+
     if ctr.session then
       return ctr.session
     end
     if channel_id == main_channel_id() then
       return state.session
-    end
-
-    local cwd = container_cwd(channel_id, ctr)
-    if cwd and vim.fn.isdirectory(cwd) == 0 then
-      -- The workspace has to exist before tools run in it: `read_file` /
-      -- `find_files` reject a missing directory, and git commands fail there
-      -- too. One mkdir per channel, done while the session is created.
-      pcall(vim.fn.mkdir, cwd, 'p')
-      if vim.fn.isdirectory(cwd) == 0 then
-        log.warn('[Discord] Could not create workspace ' .. cwd)
-        cwd = nil
-      end
-    end
-
-    if cwd then
-      -- A workspace created on demand must be reachable by the file tools:
-      -- `allowed_path` only knows the roots from config, so a freshly made
-      -- channel directory would reject every `read_file` / `write_file`.
-      require('chat.util').add_allowed_path(cwd)
     end
 
     local id = require('chat.sessions').new_with_id(

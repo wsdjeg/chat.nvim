@@ -861,5 +861,51 @@ function TestLarkContainer:test_get_bound_sessions_keeps_live_bindings()
   lu.assertEquals({ 'sess-live' }, self.lark.get_bound_sessions())
 end
 
+-- ===========================================================================
+-- Workspaces: registering is runtime-only, so it must run on every lookup
+-- ===========================================================================
+
+function TestLarkContainer:test_workspace_is_repaired_on_binding_lookup()
+  -- `add_allowed_path` never writes to the config file (a session must not
+  -- widen the allowed tree for the next start), so a binding restored from the
+  -- state file has its session but not its allowed_path entry. The directory
+  -- can also be gone because someone deleted it. Both are repaired on the next
+  -- lookup: before, `ensure_container_session()` returned the existing binding
+  -- *before* touching the workspace, so every file tool refused that directory
+  -- for the whole run.
+  self.lark.add_container('oc_p2p', { chat_type = 'p2p', peer = 'ou_peer' })
+  lu.assertEquals(self.lark.get_binding('oc_p2p'), 'lark-oc_p2p')
+
+  local cwd = vim.fs.normalize(storage_dir .. '/lark-oc_p2p')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1)
+  lu.assertTrue(require('chat.util').is_allowed_path(cwd))
+
+  -- Stand in for the next start: runtime entries are gone, the directory is
+  -- gone, only the binding (with its session) survives.
+  config.config.allowed_path = vim.fn.getcwd()
+  vim.fn.delete(cwd, 'rf')
+  lu.assertFalse(require('chat.util').is_allowed_path(cwd))
+  lu.assertEquals(vim.fn.isdirectory(cwd), 0)
+
+  lu.assertEquals(self.lark.get_binding('oc_p2p'), 'lark-oc_p2p')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1, 'workspace re-created')
+  lu.assertTrue(
+    require('chat.util').is_allowed_path(cwd),
+    'and re-registered so the file tools accept it'
+  )
+end
+
+function TestLarkContainer:test_main_chat_keeps_no_workspace()
+  -- The main container talks in the Neovim cwd on purpose: creating
+  -- `<root>/lark-oc_main` for it would silently move the configured group.
+  self.lark.set_session('sess-main')
+  lu.assertEquals(self.lark.get_binding('oc_main'), 'sess-main')
+  lu.assertEquals(
+    vim.fn.isdirectory(vim.fs.normalize(storage_dir .. '/lark-oc_main')),
+    0,
+    'main chat keeps the shared workspace'
+  )
+end
+
 return TestLarkContainer
 

@@ -367,6 +367,36 @@ function TestTelegramContainer:test_group_keeps_default_workspace()
   )
 end
 
+function TestTelegramContainer:test_private_workspace_is_repaired_on_lookup()
+  -- `add_allowed_path` never writes to the config file (a session must not
+  -- widen the allowed tree for the next start), so a binding restored from the
+  -- state file has its session but not its allowed_path entry. The directory
+  -- can also be gone because someone deleted it. Both are repaired on the next
+  -- lookup: before, `ensure_container_session()` returned the existing binding
+  -- *before* touching the workspace, so every file tool refused that directory
+  -- for the whole run.
+  self.tg.add_container('777', { chat_type = 'private', peer = '777' })
+  lu.assertEquals(self.tg.get_binding('777'), 'telegram-777')
+
+  local cwd = vim.fs.normalize(storage_dir .. 'p2p/telegram-777')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1)
+  lu.assertTrue(require('chat.util').is_allowed_path(cwd))
+
+  -- Stand in for the next start: runtime entries are gone, the directory is
+  -- gone, only the binding (with its session) survives.
+  config.config.allowed_path = vim.fn.getcwd()
+  vim.fn.delete(cwd, 'rf')
+  lu.assertFalse(require('chat.util').is_allowed_path(cwd))
+  lu.assertEquals(vim.fn.isdirectory(cwd), 0)
+
+  lu.assertEquals(self.tg.get_binding('777'), 'telegram-777')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1, 'workspace re-created')
+  lu.assertTrue(
+    require('chat.util').is_allowed_path(cwd),
+    'and re-registered so the file tools accept it'
+  )
+end
+
 function TestTelegramContainer:test_two_private_chats_are_isolated()
   self.tg.add_container('777', { chat_type = 'private', peer = '777' })
   self.tg.add_container('888', { chat_type = 'private', peer = '888' })

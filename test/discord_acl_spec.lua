@@ -495,3 +495,51 @@ function TestDiscordAcl:test_p2p_message_delivered_without_mention()
   lu.assertEquals('p2p', received[1].chat_type)
 end
 
+-- ===========================================================================
+-- DM workspaces: registering is runtime-only, so it must run on every lookup
+-- ===========================================================================
+
+function TestDiscordAcl:test_dm_workspace_is_repaired_on_binding_lookup()
+  -- `add_allowed_path` never writes to the config file (a session must not
+  -- widen the allowed tree for the next start), so a binding restored from the
+  -- state file has its session but not its allowed_path entry. The directory
+  -- can also be gone because someone deleted it. Both are repaired on the next
+  -- lookup: before, `ensure_container_session()` returned the existing binding
+  -- *before* touching the workspace, so every file tool refused that directory
+  -- for the whole run.
+  self.dc = fresh_discord(storage_dir, { p2p = { allow = { 'user-9' } } })
+  self.dc.add_container('dm-1', { chat_type = 'p2p', peer = 'user-9' })
+  lu.assertEquals(self.dc.get_binding('dm-1'), 'discord-dm-1')
+
+  local cwd = vim.fs.normalize(storage_dir .. '/discord-dm-1')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1)
+  lu.assertTrue(require('chat.util').is_allowed_path(cwd))
+
+  -- Stand in for the next start: runtime entries are gone, the directory is
+  -- gone, only the binding (with its session) survives.
+  config.config.allowed_path = vim.fn.getcwd()
+  vim.fn.delete(cwd, 'rf')
+  lu.assertFalse(require('chat.util').is_allowed_path(cwd))
+  lu.assertEquals(vim.fn.isdirectory(cwd), 0)
+
+  lu.assertEquals(self.dc.get_binding('dm-1'), 'discord-dm-1')
+  lu.assertEquals(vim.fn.isdirectory(cwd), 1, 'workspace re-created')
+  lu.assertTrue(
+    require('chat.util').is_allowed_path(cwd),
+    'and re-registered so the file tools accept it'
+  )
+end
+
+function TestDiscordAcl:test_main_channel_keeps_no_workspace()
+  -- The main channel talks in the Neovim cwd on purpose: creating
+  -- `<root>/discord-ch-1` for it would silently move the configured channel.
+  self.dc = fresh_discord(storage_dir)
+  self.dc.set_session('dc-session')
+  lu.assertEquals(self.dc.get_binding('ch-1'), 'dc-session')
+  lu.assertEquals(
+    vim.fn.isdirectory(vim.fs.normalize(storage_dir .. '/discord-ch-1')),
+    0,
+    'main channel keeps the shared workspace'
+  )
+end
+
