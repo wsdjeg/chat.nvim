@@ -818,6 +818,59 @@ function TestProtocolAnthropic:test_exit_unknown_stop_reason_without_content_is_
 end
 
 -----------------------------------------------------------------------
+-- Late stdout chunks after the job already exited.
+--
+-- Both on_stdout and on_exit deliver their work through vim.schedule.
+-- When on_exit is queued first (fast job failure / cancelled request), its
+-- callback releases the per-job buffers (sse_buffers/body_buffers = nil)
+-- before a stdout chunk that was queued afterwards runs its deferred half.
+-- That chunk used to do table.insert(nil, line) and raise
+-- "bad argument #1 to 'insert' (table expected, got nil)".
+-----------------------------------------------------------------------
+
+--- Queue on_exit first, then a stdout chunk (its synchronous half still
+--- runs before the exit callback), and assert the deferred stdout half
+--- does not crash on the released buffers.
+local function assert_no_late_chunk_crash(proto, jobid)
+  vim.cmd('messages clear')
+  proto.on_exit(jobid, 0, 0)
+  proto.on_stdout(jobid, { 'late stdout chunk' })
+  flush()
+  local messages = vim.fn.execute('messages')
+  lu.assertNotStrContains(messages, 'bad argument #1')
+  lu.assertNotStrContains(messages, 'Error executing vim.schedule')
+  return messages
+end
+
+function TestProtocolOpenAI:test_late_stdout_after_exit_does_not_raise()
+  assert_no_late_chunk_crash(self.proto, 50)
+  lu.assertTrue(S.exited)
+  -- The late chunk belongs to a finished turn: nothing may be appended
+  lu.assertEquals(#S.appended, 0)
+end
+
+function TestProtocolOpenAI:test_late_sse_chunk_after_exit_does_not_raise()
+  vim.cmd('messages clear')
+  self.proto.on_exit(51, 0, 0)
+  self.proto.on_stdout(51, { 'data: {"choices":[{"delta":{"content":"late"}}]}', '' })
+  flush()
+  local messages = vim.fn.execute('messages')
+  lu.assertNotStrContains(messages, 'bad argument #1')
+  lu.assertNotStrContains(messages, 'Error executing vim.schedule')
+  lu.assertEquals(#S.progress, 0, 'dead job output is dropped')
+end
+
+function TestProtocolAnthropic:test_late_stdout_after_exit_does_not_raise()
+  assert_no_late_chunk_crash(self.proto, 60)
+  lu.assertTrue(S.exited)
+end
+
+function TestProtocolGemini:test_late_stdout_after_exit_does_not_raise()
+  assert_no_late_chunk_crash(self.proto, 70)
+  lu.assertTrue(S.exited)
+end
+
+-----------------------------------------------------------------------
 -- Multi-key failover: an exit-body / SSE error must rotate the api key
 -- instead of surfacing the error, when the job is bound to a key and
 -- another usable key exists.

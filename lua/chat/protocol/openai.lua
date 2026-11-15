@@ -9,6 +9,15 @@ local failover = require('chat.sessions.failover')
 local sse_buffers = {}
 local body_buffers = {}
 
+-- jobid -> release generation. Both on_stdout and on_exit push their work
+-- through vim.schedule, so an exit handler can run while stdout chunks are
+-- still queued. Releasing the buffers (sse_buffers/body_buffers = nil) then
+-- makes those deferred chunks insert into nil and throw
+-- "bad argument #1 to 'insert' (table expected, got nil)". Each release
+-- bumps the generation; a chunk drops itself when the generation it
+-- captured on arrival is gone.
+local released = {}
+
 -- jobid -> true once any content / reasoning / tool delta was received.
 -- Api-key errors before the first delta can be transparently retried with
 -- another key (failover); after the first delta the output is visible and
@@ -16,6 +25,8 @@ local body_buffers = {}
 local streamed = {}
 
 function M.on_stdout(id, data)
+  -- Remember which buffer generation this chunk belongs to
+  local generation = released[id] or 0
   if not sse_buffers[id] then
     sse_buffers[id] = {}
   end
@@ -23,6 +34,12 @@ function M.on_stdout(id, data)
     body_buffers[id] = {}
   end
   vim.schedule(function()
+    -- on_exit released the buffers while this chunk was still queued
+    -- (fast job failure, user cancel): the chunk belongs to a finished
+    -- turn, inserting into the detached tables would throw
+    if (released[id] or 0) ~= generation then
+      return
+    end
     for _, line in ipairs(data) do
       log.debug(line)
       if vim.startswith(line, 'data:') then
@@ -152,6 +169,7 @@ function M.on_exit(id, code, signal)
       sessions.on_progress_exit(id, code, signal)
       sse_buffers[id] = nil
       body_buffers[id] = nil
+      released[id] = (released[id] or 0) + 1
       streamed[id] = nil
       failover.clear(id)
       tokens.unbind(id)
@@ -329,6 +347,7 @@ function M.on_exit(id, code, signal)
     -- Clean up buffers to prevent memory leak
     sse_buffers[id] = nil
     body_buffers[id] = nil
+    released[id] = (released[id] or 0) + 1
     tokens.unbind(id)
 
     -- Everything is cleaned up: schedule the rotated request with the
