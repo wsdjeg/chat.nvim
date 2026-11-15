@@ -415,6 +415,12 @@ inside the allowed tree means the isolation never widens what the bot may touch.
 With neither configured the workspace is skipped and the session keeps the
 Neovim cwd, which is what older versions always did.
 
+When `cwd_root` points outside `allowed_path` (an absolute root of its own), the
+directory is registered into `allowed_path` at runtime as the session is
+provisioned, so the file tools accept it without the user repeating the path in
+config. Registration is per-session only: it never touches the config file and
+does not widen the allowed tree on the next start.
+
 The directory is created while the session is provisioned, because `read_file`,
 `find_files` and the git tools all reject a missing directory.
 
@@ -540,16 +546,18 @@ p2p is deny-by-default, so a silent chat is usually the expected behaviour:
 
 ### File tools refuse the p2p workspace
 
-The workspace must live inside `allowed_path`, otherwise the file tools reject
-every path in it:
+The workspace is registered into `allowed_path` automatically when the session is
+provisioned, so this is rare — it usually means the registration never happened:
 
 1. **Is `p2p.cwd_root` (or the first `allowed_path`) pointing at the right
    place?** The session works in `<cwd_root>/lark-<chat_id>`
 2. **Look for `[Lark] Could not create workspace`** — an unwritable root falls
-   back to the Neovim cwd instead
+   back to the Neovim cwd instead, and no registration takes place
 3. **Was the session created before `cwd_root` was set?** The directory is only
    applied at creation; delete the session so the next message provisions it
    again
+4. **Does `allowed_path` reject `.git`?** A workspace under a `.git` directory is
+   refused by design and is never registered
 
 ### Authentication errors
 

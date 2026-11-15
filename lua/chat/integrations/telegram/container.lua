@@ -198,6 +198,13 @@ function M.new(ctx)
       end
     end
 
+    if cwd then
+      -- A workspace created on demand must be reachable by the file tools:
+      -- `allowed_path` only knows the roots from config, so a freshly made
+      -- chat directory would reject every `read_file` / `write_file`.
+      require('chat.util').add_allowed_path(cwd)
+    end
+
     local id = require('chat.sessions').new_with_id(
       container_session_id(chat_id),
       cwd

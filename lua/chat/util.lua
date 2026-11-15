@@ -176,6 +176,59 @@ function M.is_allowed_path(path)
   return false
 end
 
+--- Extend `allowed_path` at runtime with one more directory.
+---
+--- Runtime-only by design: a workspace created on the fly (a per-chat p2p
+--- directory) must be usable without the user repeating the path in config,
+--- but a session must never widen the allowed tree for the next start. The
+--- entry is normalised, de-duplicated, and skipped when an existing root
+--- already covers it.
+---
+--- .git paths are refused: materialising that protection into config would
+--- otherwise let a workspace register a path the check always rejects.
+---@param path string Directory to allow (absolute, or relative to the cwd)
+---@return boolean true when the directory is (now) part of `allowed_path`
+function M.add_allowed_path(path)
+  if type(path) ~= 'string' or path == '' then
+    return false
+  end
+
+  local normalized = vim.fs.normalize(path)
+  if normalized == '' or normalized == '.' or M.is_git_path(normalized) then
+    return false
+  end
+
+  -- Already covered by a configured root: nothing to add.
+  if M.is_allowed_path(normalized) then
+    return true
+  end
+
+  local config = require('chat.config')
+  local allowed = config.config.allowed_path
+  local list = {}
+  if type(allowed) == 'table' then
+    for _, entry in ipairs(allowed) do
+      if type(entry) == 'string' and entry ~= '' then
+        list[#list + 1] = entry
+      end
+    end
+  elseif type(allowed) == 'string' and allowed ~= '' then
+    list[#list + 1] = allowed
+  end
+
+  for _, entry in ipairs(list) do
+    if vim.fs.normalize(entry) == normalized then
+      return true
+    end
+  end
+
+  -- A list is the only shape a growing tree can take: the string form holds
+  -- exactly one root and would drop the configured one.
+  list[#list + 1] = normalized
+  config.config.allowed_path = list
+  return true
+end
+
 
 --- Sanitize a string to ensure it contains only valid UTF-8.
 --- Invalid byte sequences are replaced with the Unicode replacement character (U+FFFD).

@@ -456,5 +456,54 @@ function TestUtil:testIsAllowedPathArrayDirectoryBoundary()
   TestUtil:tearDownIsAllowedPath()
 end
 
+-- ========== add_allowed_path runtime registration ==========
+
+function TestUtil:testAddAllowedPathKeepsExistingRoot()
+  TestUtil:setUpIsAllowedPath()
+  -- String form holds a single root: growing must not drop it.
+  lu.assertFalse(util.is_allowed_path('/workspace/chat'))
+  lu.assertTrue(util.add_allowed_path('/workspace/chat'))
+  lu.assertTrue(util.is_allowed_path('/workspace/chat'))
+  lu.assertTrue(util.is_allowed_path('/project/src'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testAddAllowedPathIsIdempotent()
+  TestUtil:setUpIsAllowedPath()
+  lu.assertTrue(util.add_allowed_path('/workspace/chat'))
+  local count = #config.config.allowed_path
+  lu.assertTrue(util.add_allowed_path('/workspace/chat'))
+  lu.assertEquals(#config.config.allowed_path, count)
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testAddAllowedPathCoveredByRootReturnsTrue()
+  TestUtil:setUpIsAllowedPath()
+  -- Already inside the configured root: nothing to append.
+  lu.assertTrue(util.add_allowed_path('/project/src'))
+  lu.assertEquals(config.config.allowed_path, '/project')
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testAddAllowedPathRejectsGitAndEmpty()
+  TestUtil:setUpIsAllowedPath()
+  lu.assertFalse(util.add_allowed_path('/workspace/.git'))
+  lu.assertFalse(util.add_allowed_path(''))
+  lu.assertFalse(util.add_allowed_path(nil))
+  lu.assertEquals(config.config.allowed_path, '/project')
+  TestUtil:tearDownIsAllowedPath()
+end
+
+function TestUtil:testAddAllowedPathAppendsToList()
+  TestUtil:setUpIsAllowedPath()
+  config.setup({ allowed_path = { '/project', '/other' } })
+  lu.assertTrue(util.add_allowed_path('/workspace/chat'))
+  lu.assertEquals(#config.config.allowed_path, 3)
+  lu.assertTrue(util.is_allowed_path('/workspace/chat'))
+  lu.assertTrue(util.is_allowed_path('/project'))
+  lu.assertTrue(util.is_allowed_path('/other'))
+  TestUtil:tearDownIsAllowedPath()
+end
+
 return TestUtil
 

@@ -242,6 +242,12 @@ One bot can serve several chats. Each chat is a **container** with its own sessi
 and the HTTP API address. Chat bindings are visible through the bridge API
 (`GET /session/:id/bridge`), and unbinding clears both levels.
 
+A `p2p.cwd_root` that points outside `allowed_path` is registered into it at
+runtime while the private chat's session is provisioned, so the file tools accept
+`<p2p.cwd_root>/telegram-<chat_id>` without the user repeating the path in config.
+Registration is per-session only: the config file is untouched and the allowed
+tree is not widened on the next start.
+
 Workspaces are created when a session is created, so changing `p2p.cwd_root` does
 not migrate an existing session.
 
