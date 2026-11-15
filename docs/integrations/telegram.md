@@ -166,16 +166,16 @@ answered normally.
 
 ### Telegram Commands
 
-| Command    | Description                                            |
-| ---------- | ------------------------------------------------------ |
-| `/session` | Bind current Telegram chat to active chat.nvim session |
+| Command      | Description                                            |
+| ------------ | ------------------------------------------------------ |
+| `/session`   | Bind current Telegram chat to active chat.nvim session |
 | `/session N` | Bind the chat to session number `N` from `/list`     |
-| `/list`    | List sessions (supports `-p N` for pages)              |
-| `/status`  | Show the bound session, provider, model and cwd        |
-| `/clear`   | Clear messages in the bound session                    |
-| `/acl`     | Show the effective ACL (admins only)                   |
-| `/allow`   | Allow a user — reply to their message (admins only)     |
-| `/deny`    | Deny a user — reply to their message (admins only)     |
+| `/list`      | List sessions (supports `-p N` for pages)              |
+| `/status`    | Show the bound session, provider, model and cwd        |
+| `/clear`     | Clear messages in the bound session                    |
+| `/acl`       | Show the effective ACL (admins only)                   |
+| `/allow`     | Allow a user — reply to their message (admins only)     |
+| `/deny`      | Deny a user — reply to their message (admins only)      |
 
 {: .info }
 
@@ -247,6 +247,73 @@ not migrate an existing session.
 
 ---
 
+## Access Control (ACL)
+
+By default anyone who can reach a served chat may talk to the bot. Set
+`integrations.telegram.acl` (see [the example above](#optional-access-control)) to
+restrict who can trigger replies.
+
+| Mode        | Behaviour                                              |
+| ----------- | ------------------------------------------------------ |
+| `allow_all` | Default. Everyone in the served chats may talk to it.   |
+| `whitelist` | Only the listed ids (plus admins) may talk to it.       |
+| `blacklist` | Everyone except the listed ids may talk to it.          |
+
+Notes:
+
+- **Admins always pass.** `acl.admins` bypasses the ACL entirely and is the only
+  set allowed to run `/allow`, `/deny` and `/acl`, so a whitelist that locked them
+  out can still be repaired from inside the chat.
+- **Runtime entries win over the mode.** `/allow` and `/deny` are persisted in the
+  state file and checked *before* `acl.mode`, which is what keeps them useful
+  without editing the config first. The full order is:
+
+  | Order | Check |
+  | ----- | ----- |
+  | 1 | `acl.admins` — always allowed |
+  | 2 | runtime blacklist — refused |
+  | 3 | runtime whitelist — allowed |
+  | 4 | `acl.mode` = `whitelist` / `blacklist` — applied to the config lists |
+  | 5 | Otherwise allowed |
+
+- **Ids first, usernames as fallback.** A numeric id in `admins` / `whitelist` /
+  `blacklist` is authoritative; an `@username` entry is only matched against the
+  sender's current username, and `/allow` / `/deny` refuse a username outright —
+  see the [Telegram commands](#telegram-commands) note above.
+- **Recent speakers are cached.** Every non-bot speaker is recorded in the state
+  file (up to 30, newest first) and exposed through
+  `require('chat.integrations.telegram').get_recent_senders()`, so user ids can be
+  picked instead of copied out of the Telegram client.
+- **ACL commands answer where they came from.** A `/allow` typed in a private chat
+  is answered in that private chat, never announced in the group. Commands from
+  non-admins are dropped silently (logged as a warning) so a group is not spammed,
+  and the bot refuses to change the ACL entry for itself.
+
+### Private chat admission
+
+A private chat is one person talking to the bot privately, so it has its own policy
+rather than reusing `acl.mode`:
+
+| Order | Rule |
+| ----- | ---- |
+| 1 | The main `chat_id` is exempt — it is trusted by definition |
+| 2 | `p2p.enable = false` — refuses every private chat |
+| 3 | `p2p.allow` when set — authoritative, numeric ids only, no fallback |
+| 4 | `acl.mode` = `whitelist` / `blacklist` — applied like any other chat |
+| 5 | Otherwise allowed (a private chat only exists after somebody opened one) |
+
+The default is "allowed" on purpose: this integration always answered private
+chats, and a chat only exists once a person started the conversation with the bot.
+An explicit `p2p.allow` list, on the other hand, is the whole policy — a typo in
+one entry must not silently widen access.
+
+- **Only the registered peer is trusted.** Inside a private container the message
+  is attributed to `containers[chat_id].peer`; a message from any other user id is
+  dropped *before* the container is registered, so a second person can never
+  inherit that session or workspace.
+
+---
+
 ## Technical Details
 
 - **API**: Telegram Bot API
@@ -255,7 +322,8 @@ not migrate an existing session.
   (`discard_backlog = false` replays them instead)
 - **Message Format**: Markdown, retried as plain text when the API rejects the markup
 - **Message Limit**: Auto-chunking for messages > 4,096 characters
-- **State Persistence**: `<storage_dir>/integration/telegram.json`
+- **State Persistence**: `<storage_dir>/integration/telegram.json` — holds the cursor,
+  the runtime ACL grants/denies, the recent-speaker cache and per-chat containers
 - **Bot Detection**: Auto-fetches and caches the bot id and username; group mentions
   stay undetectable until the lookup succeeds
 - **Deduplication**: The last 100 update ids are kept, so a replayed update is never
@@ -294,6 +362,8 @@ Telegram supports Markdown formatting in messages:
 2. Check if chat_id is correct (private chat or group)
 3. For groups, make sure bot has read permissions
 4. Try sending `/start` to the bot first
+5. Check the ACL: `/acl` works for admins only, so also look at the runtime log
+   for `Skip message (sender not allowed)`
 
 ### Group Messages Ignored
 
@@ -311,22 +381,22 @@ Telegram supports Markdown formatting in messages:
 
 **Solution**:
 
-1. An explicit `p2p.allow` list is authoritative — make sure the sender's numeric id is in it
-2. `p2p.enable = false` disables private chats entirely
-3. With `acl.mode = 'whitelist'`, the sender must be whitelisted or an admin
+1. The main `chat_id` is exempt from `p2p` checks — a second private chat is not
+2. An explicit `p2p.allow` list is authoritative — make sure the sender's numeric id is in it
+3. With `p2p.enable = false`, private chats are disabled entirely
+4. With `acl.mode = 'whitelist'`, the sender must be whitelisted or an admin
 
-### Permission Errors
+### ACL Commands Do Nothing
 
-**Symptom**: Bot cannot read messages in group.
+**Symptom**: `/allow` or `/deny` gets no reply.
 
 **Solution**:
 
-1. Ensure bot is added to the group
-2. Check if bot has necessary permissions
-3. Disable group privacy mode in BotFather:
-   - Send `/setprivacy` to @BotFather
-   - Select your bot
-   - Choose "Disable"
+1. Only `acl.admins` may run them — everyone else is ignored silently (check the
+   log for `Ignore ACL command from non-admin`)
+2. The command must be a **reply** to the target's message, or carry the raw
+   numeric id: `/allow 987654321`
+3. `/allowed` is not `/allow` — the command needs a space or the end of the message
 
 ### State Issues
 
@@ -335,6 +405,11 @@ Telegram supports Markdown formatting in messages:
 **Solution**:
 
 - Clear state: `:lua require('chat.integrations.telegram').clear_state()`
+
+{: .info }
+
+> Clearing state also drops the runtime ACL grants/denies and the private-chat
+> peers recorded in the state file. The configured `acl` lists stay untouched.
 
 ---
 
@@ -367,7 +442,18 @@ Create group: "AI Assistant"
 Add your bot
 ```
 
-### 4. Monitor Token Usage
+### 4. Lock Down Private Chats
+
+In a group you control who is in the room, but a private chat is open to anyone who
+finds the bot. Put the numeric ids in `p2p.allow` once the chat works:
+
+```lua
+p2p = { allow = { '123456789', '987654321' } }
+```
+
+An empty or missing list serves every private chat the bot receives.
+
+### 5. Monitor Token Usage
 
 Keep track of your AI provider's token usage.
 
