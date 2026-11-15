@@ -642,6 +642,138 @@ function M.new(ctx)
   end
 
   --------------------------------------------------
+  -- Backlog skip
+  --------------------------------------------------
+
+  --- Leave the queue from the previous session behind, unanswered.
+  ---
+  --- The Bot API has no "start from now" cursor: an absent `offset` returns
+  --- everything still queued, and replaying the previous session's offset does
+  --- the same. `offset = -1` is the documented way to ask for the *last* update
+  --- of the queue instead of the queue itself, so one short request is enough
+  --- to learn where the backlog ends. The cursor is then parked on that id and
+  --- the next real poll asks for `id + 1`, which can only match messages sent
+  --- after the start.
+  ---
+  --- `done()` runs exactly once, whichever way the request settles.
+  --- @param done fun()
+  --- @param generation integer chain the probe belongs to
+  local function skip_backlog(done, generation)
+    local bot_token = util.bot_token()
+    if not bot_token then
+      done()
+      return
+    end
+
+    local cmd = curl.build_request({
+      url = util.api_url('getUpdates', bot_token),
+      method = 'POST',
+      compressed = true,
+      show_error = true,
+      headers = {
+        'Content-Type: application/json',
+      },
+      body = json.encode({
+        -- -1: the last queued update, not the whole queue.
+        offset = -1,
+        -- 0: no long polling. The probe has to answer immediately, otherwise
+        -- the start would block until somebody writes to the bot.
+        timeout = 0,
+        allowed_updates = { 'message' },
+      }),
+    })
+
+    local chunks = {}
+    local settled = false
+    local timeout = uv.new_timer()
+
+    local function settle()
+      if settled then
+        return
+      end
+      settled = true
+
+      timeout:stop()
+      if not timeout:is_closing() then
+        timeout:close()
+      end
+
+      if is_current_chain(generation) then
+        local ok, result = pcall(json.decode, table.concat(chunks, ''))
+        if ok and type(result) == 'table' and result.ok ~= false then
+          local updates = result.result
+          local highest
+          if type(updates) == 'table' then
+            for _, update in ipairs(updates) do
+              local id = tonumber(update and update.update_id)
+              if id and (not highest or id > highest) then
+                highest = id
+              end
+            end
+          end
+          -- Only ever advances: a cursor loaded from the state file is the
+          -- highest id the previous session answered, so retreating could
+          -- re-deliver messages that were already handled.
+          if highest and (not state.last_update_id or highest > state.last_update_id) then
+            state.last_update_id = highest
+            save_state()
+            log.info(
+              '[Telegram] Skipped pending updates up to ' .. tostring(highest)
+            )
+          else
+            log.info('[Telegram] No pending updates to skip')
+          end
+        else
+          log.warn(
+            '[Telegram] Backlog probe failed; pending updates may be replayed'
+          )
+        end
+      else
+        log.debug('[Telegram] Drop backlog probe: poll stopped')
+      end
+
+      done()
+    end
+
+    timeout:start(10000, 0, function()
+      log.warn('[Telegram] Request timeout (backlog probe)')
+      settle()
+    end)
+
+    local jobid = job.start(cmd, {
+      raw = true,
+      on_stdout = function(_, data)
+        for _, chunk in ipairs(data) do
+          chunks[#chunks + 1] = chunk
+        end
+
+        if settled then
+          return
+        end
+
+        -- A body that decodes already is complete: a body split across
+        -- chunks fails the decode and is retried by the exit callback.
+        local ok, result = pcall(json.decode, table.concat(chunks, ''))
+        if ok and type(result) == 'table' then
+          settle()
+        end
+      end,
+      on_exit = function()
+        settle()
+      end,
+    })
+
+    -- A job that could not be spawned never fires a callback: start polling
+    -- anyway instead of hanging on a probe that will never answer.
+    if not jobid or jobid <= 0 then
+      log.warn(
+        '[Telegram] Failed to start backlog probe; pending updates may be replayed'
+      )
+      settle()
+    end
+  end
+
+  --------------------------------------------------
   -- Poll tick
   --------------------------------------------------
   local function poll_tick()
@@ -696,11 +828,6 @@ function M.new(ctx)
 
     ctx.state_io.load()
 
-    -- Unlike Lark the pending updates are NOT discarded: getUpdates only
-    -- returns updates the bot has not consumed yet, so anything still queued
-    -- really was never answered. Replying to it is the correct behaviour and
-    -- matches how the integration behaved before this refactor.
-
     local main = util.main_chat_id()
     if main then
       ctx.container.ensure_container(main)
@@ -708,20 +835,42 @@ function M.new(ctx)
     save_state()
 
     get_bot_info()
-    log.info('[Telegram] Starting polling...')
 
-    state.timer = uv.new_timer()
-    state.timer:start(
-      0,
-      state.poll_interval,
-      vim.schedule_wrap(function()
-        if state.is_running then
-          poll_tick()
-        end
-      end)
-    )
+    local generation = poll_generation
 
-    log.info('[Telegram] Polling started')
+    local function start_polling()
+      if not is_current_chain(generation) then
+        log.debug('[Telegram] Skip start: poll stopped during backlog skip')
+        return
+      end
+
+      log.info('[Telegram] Starting polling...')
+
+      state.timer = uv.new_timer()
+      state.timer:start(
+        0,
+        state.poll_interval,
+        vim.schedule_wrap(function()
+          if state.is_running then
+            poll_tick()
+          end
+        end)
+      )
+
+      log.info('[Telegram] Polling started')
+    end
+
+    -- Answering everything written while Neovim was closed is not what a
+    -- restart should do, so the queue is left behind unless the user opted
+    -- into replaying it (`discard_backlog = false`). Polling only starts once
+    -- the probe settled: its cursor write must land before the first fetch,
+    -- otherwise that fetch would still ask for the previous session's backlog.
+    if util.discard_backlog() then
+      skip_backlog(start_polling, generation)
+    else
+      log.info('[Telegram] Replaying pending updates (discard_backlog = false)')
+      start_polling()
+    end
   end
 
   --------------------------------------------------
@@ -761,6 +910,7 @@ function M.new(ctx)
     handle_update = handle_update,
     handle_updates = handle_updates,
     fetch_updates = fetch_updates,
+    skip_backlog = skip_backlog,
     poll_tick = poll_tick,
     connect = connect,
     disconnect = disconnect,

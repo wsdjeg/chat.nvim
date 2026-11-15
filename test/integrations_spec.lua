@@ -99,6 +99,40 @@ local function tg_make_update(id, text, opts)
   return { update_id = id, message = msg }
 end
 
+--- A `getUpdates` request of the given kind.
+---
+--- `probe` is the one-shot `offset = -1` call that skips the update queue left
+--- behind by the previous session; `poll` is the real long poll, which only
+--- starts once the probe settled. `timeout` tells them apart: the probe answers
+--- immediately (0), the long poll waits (10).
+local function find_updates(kind)
+  for id, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find('getUpdates', 1, true) then
+      local body = request_body(j)
+      if body and body.timeout == (kind == 'probe' and 0 or 10) then
+        return id, j
+      end
+    end
+  end
+end
+
+--- Answer the backlog probe so that polling may start.
+---
+--- `last_update_id` stands for the newest message still queued at start-up: the
+--- probe parks the cursor there instead of answering it, which is the whole
+--- point of skipping the backlog.
+local function answer_probe(last_update_id)
+  local probe_id = find_updates('probe')
+  lu.assertNotNil(probe_id, 'backlog probe on connect')
+  local result = {}
+  if last_update_id then
+    result = { { update_id = last_update_id } }
+  end
+  job.emit_stdout(probe_id, { vim.json.encode({ ok = true, result = result }) })
+  job.emit_exit(probe_id, 0)
+  wait(300)
+end
+
 function TestTelegramIntegration:test_get_me_on_connect()
   self.tg.connect(function() end)
   wait(200)
@@ -130,8 +164,9 @@ function TestTelegramIntegration:test_updates_mention_delivered()
     vim.json.encode({ ok = true, result = { username = 'chatnvim_bot' } }),
   })
   wait(200)
+  answer_probe(9)
 
-  local fetch_id = find_job('getUpdates')
+  local fetch_id = find_updates('poll')
   lu.assertNotNil(fetch_id, 'polling started')
   job.emit_stdout(fetch_id, {
     vim.json.encode({
@@ -167,11 +202,13 @@ function TestTelegramIntegration:test_updates_skips_processed_ids()
     received[#received + 1] = msg
   end)
   wait(200)
+  answer_probe(19)
   local payload = vim.json.encode({
     ok = true,
     result = { tg_make_update(20, 'once', { chat_type = 'private' }) },
   })
-  local fetch_id = find_job('getUpdates')
+  local fetch_id = find_updates('poll')
+  lu.assertNotNil(fetch_id, 'polling started')
   job.emit_stdout(fetch_id, { payload })
   wait(200)
   lu.assertEquals(#received, 1)
@@ -184,7 +221,9 @@ end
 function TestTelegramIntegration:test_updates_error_result()
   self.tg.connect(function() end)
   wait(200)
-  local fetch_id = find_job('getUpdates')
+  answer_probe(29)
+  local fetch_id = find_updates('poll')
+  lu.assertNotNil(fetch_id, 'polling started')
   job.emit_stdout(fetch_id, { '{"ok":false,"result":[]}' })
   wait(100)
   lu.assertTrue(true, 'no crash')
@@ -193,7 +232,9 @@ end
 function TestTelegramIntegration:test_updates_no_message_field()
   self.tg.connect(function() end)
   wait(200)
-  local fetch_id = find_job('getUpdates')
+  answer_probe(29)
+  local fetch_id = find_updates('poll')
+  lu.assertNotNil(fetch_id, 'polling started')
   job.emit_stdout(fetch_id, { vim.json.encode({ ok = true, result = { { update_id = 30 } } }) })
   wait(100)
   lu.assertTrue(true)

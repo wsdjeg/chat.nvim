@@ -125,6 +125,35 @@ require('chat').setup({
 })
 ```
 
+#### Optional: pending messages on start
+
+While Neovim is closed the bot keeps receiving messages: Telegram holds them until
+the bot fetches them. Answering that queue on start would reply to hours of stale
+requests in one burst, so by default the backlog is **skipped**:
+
+```lua
+require('chat').setup({
+  integrations = {
+    telegram = {
+      -- true (default): ignore messages sent while the plugin was down.
+      -- false: replay them, like the integration behaved before this option.
+      discard_backlog = true,
+    },
+  },
+})
+```
+
+The skip costs one extra request at start-up (`getUpdates` with `offset = -1`,
+which returns only the newest queued update). The cursor is parked on that update
+and polling begins just after it, so messages sent once the plugin is up are
+answered normally.
+
+{: .info }
+
+> Set `discard_backlog = false` when the bot must never lose a request — for
+> example when it is the only way to reach the assistant and you restart
+> Neovim often.
+
 ---
 
 ## Commands
@@ -222,6 +251,8 @@ not migrate an existing session.
 
 - **API**: Telegram Bot API
 - **Polling**: long polling (`getUpdates`, 10-second timeout) started every 3 seconds
+- **Pending updates**: skipped on start via one `getUpdates` with `offset = -1`
+  (`discard_backlog = false` replays them instead)
 - **Message Format**: Markdown, retried as plain text when the API rejects the markup
 - **Message Limit**: Auto-chunking for messages > 4,096 characters
 - **State Persistence**: `<storage_dir>/integration/telegram.json`

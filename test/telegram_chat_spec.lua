@@ -45,16 +45,52 @@ local function request_body(j)
   return nil
 end
 
+--- A `getUpdates` request of the given kind.
+---
+--- `probe` is the one-shot `offset = -1` call that skips the update queue
+--- accumulated while Neovim was closed; `poll` is the real long poll that only
+--- starts once the probe settled. They are told apart by `timeout`: the probe
+--- answers immediately (0), the long poll waits (10).
+local function find_updates(kind)
+  for id, j in pairs(job.jobs) do
+    if table.concat(j.cmd, ' '):find('getUpdates', 1, true) then
+      local body = request_body(j)
+      if body and body.timeout == (kind == 'probe' and 0 or 10) then
+        return id, j
+      end
+    end
+  end
+end
+
+--- Answer the backlog probe, then return the long-poll job that follows.
+---
+--- `last_update_id` stands for the newest update still queued: the probe parks
+--- the cursor there, so the first real poll asks for what comes after it.
+local function answer_probe(last_update_id)
+  local probe_id = find_updates('probe')
+  lu.assertNotNil(probe_id, 'backlog probe on connect')
+  local result = {}
+  if last_update_id then
+    result = { { update_id = last_update_id } }
+  end
+  job.emit_stdout(probe_id, { vim.json.encode({ ok = true, result = result }) })
+  job.emit_exit(probe_id, 0)
+  wait(300)
+end
+
 --- Reload the integration with fresh state and the given telegram config.
 ---
 --- `config.setup()` deep-merges, so lists left by a previous spec have to be
---- dropped explicitly (tbl_deep_extend ignores nil values).
+--- dropped explicitly (tbl_deep_extend ignores nil values). `discard_backlog`
+--- is a boolean and a leaked `false` would silently disable the probe for
+--- every later spec, so it is reset here as well.
 local function fresh_telegram(telegram_extra)
   package.loaded['chat.integrations.telegram'] = nil
   if config.config.integrations and config.config.integrations.telegram then
     local tg = config.config.integrations.telegram
     tg.acl = nil
     tg.p2p = nil
+    tg.discard_backlog = nil
   end
   config.setup({
     storage_dir = storage_dir,
@@ -114,7 +150,7 @@ local function make_update(id, text, opts)
   return { update_id = id, message = msg }
 end
 
---- Connect, answer getMe with a known bot identity, return the poll jobid.
+--- Connect, answer getMe and the backlog probe, return the long-poll jobid.
 local function connect_with_bot(tg, received)
   tg.connect(function(msg)
     received[#received + 1] = msg
@@ -129,7 +165,10 @@ local function connect_with_bot(tg, received)
     }),
   })
   wait(200)
-  local fetch_id = find_job('getUpdates')
+  -- The probe answers before polling starts; a fake backlog id keeps the
+  -- first real poll from asking for the whole queue, exactly like production.
+  answer_probe(10)
+  local fetch_id = find_updates('poll')
   lu.assertNotNil(fetch_id, 'polling started')
   return fetch_id
 end
@@ -580,6 +619,175 @@ function TestTelegramRouting:test_private_peer_mismatch_is_dropped()
     make_update(1, 'impostor', { chat_type = 'private', from_id = 1000 }),
   })
   lu.assertEquals(#received, 0, 'peer mismatch must not be answered')
+end
+
+-- ═════════════════════ Backlog skip on start ═════════════════════
+
+--- Ping the bot identity so connect() can move on to the backlog probe.
+local function answer_getme(tg)
+  wait(200)
+  local getme_id = find_job('getMe')
+  lu.assertNotNil(getme_id, 'getMe request on connect')
+  job.emit_stdout(getme_id, {
+    vim.json.encode({
+      ok = true,
+      result = { id = 999, username = 'chatnvim_bot' },
+    }),
+  })
+  wait(200)
+end
+
+TestTelegramBacklog = {}
+
+function TestTelegramBacklog:setUp()
+  setUp_storage()
+  self.tg = fresh_telegram()
+end
+
+function TestTelegramBacklog:tearDown()
+  tearDown_storage(self.tg)
+end
+
+function TestTelegramBacklog:test_probe_asks_for_the_last_update_only()
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+
+  local _, probe = find_updates('probe')
+  lu.assertNotNil(probe, 'a backlog probe runs before polling')
+  local body = request_body(probe)
+  lu.assertEquals(body.offset, -1, 'offset -1 keeps the queue out of the probe')
+  lu.assertEquals(body.timeout, 0, 'the probe must not long-poll')
+end
+
+function TestTelegramBacklog:test_probe_moves_the_cursor_past_the_backlog()
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+  answer_probe(77)
+
+  lu.assertEquals(
+    self.tg.get_state().last_update_id,
+    77,
+    'the cursor parks on the newest queued update'
+  )
+  lu.assertEquals(#received, 0, 'the backlog itself is never answered')
+
+  local _, poll = find_updates('poll')
+  lu.assertNotNil(poll, 'polling started after the probe')
+  lu.assertEquals(
+    request_body(poll).offset,
+    78,
+    'the first real poll asks for what comes after the backlog'
+  )
+end
+
+function TestTelegramBacklog:test_probe_body_is_not_delivered_as_a_message()
+  -- The probe returns the last queued update, and that update looks exactly
+  -- like a message. Parking the cursor on it must not also answer it.
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+
+  local probe_id = find_updates('probe')
+  job.emit_stdout(probe_id, {
+    vim.json.encode({
+      ok = true,
+      result = {
+        make_update(42, '@chatnvim_bot stale request', { chat_id = -100 }),
+      },
+    }),
+  })
+  job.emit_exit(probe_id, 0)
+  wait(300)
+
+  lu.assertEquals(#received, 0, 'a stale message must not reach the LLM')
+  lu.assertEquals(self.tg.get_state().last_update_id, 42)
+end
+
+function TestTelegramBacklog:test_empty_queue_starts_polling_without_a_cursor()
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+  answer_probe(nil)
+
+  lu.assertNil(
+    self.tg.get_state().last_update_id,
+    'an empty queue leaves the cursor unset'
+  )
+  local _, poll = find_updates('poll')
+  lu.assertNotNil(poll, 'polling still starts')
+  lu.assertNil(request_body(poll).offset, 'no offset means "everything new"')
+end
+
+function TestTelegramBacklog:test_probe_failure_still_starts_polling()
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+
+  local probe_id = find_updates('probe')
+  job.emit_stdout(probe_id, { '{"ok":false,"description":"probe failed"}' })
+  job.emit_exit(probe_id, 0)
+  wait(300)
+
+  local _, poll = find_updates('poll')
+  lu.assertNotNil(poll, 'a failed probe must not stop polling')
+end
+
+function TestTelegramBacklog:test_cursor_never_retreats()
+  -- A saved cursor is the highest id the previous session answered. Parking
+  -- the probe's (older) id would re-deliver updates that were already handled,
+  -- so the probe result is only accepted when it is newer.
+  local state_dir = storage_dir .. 'integration'
+  vim.fn.mkdir(state_dir, 'p')
+  vim.fn.writefile(
+    { vim.json.encode({ last_update_id = 100 }) },
+    state_dir .. '/telegram.json'
+  )
+
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+  answer_probe(42)
+
+  lu.assertEquals(
+    self.tg.get_state().last_update_id,
+    100,
+    'an older probe result must not rewind the cursor'
+  )
+  local _, poll = find_updates('poll')
+  lu.assertNotNil(poll, 'polling started')
+  lu.assertEquals(request_body(poll).offset, 101)
+end
+
+function TestTelegramBacklog:test_discard_backlog_false_replays_the_queue()
+  self.tg = fresh_telegram({ discard_backlog = false })
+  local received = {}
+  self.tg.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  answer_getme(self.tg)
+
+  lu.assertNil(find_updates('probe'), 'no probe when replaying is requested')
+  local fetch_id = find_updates('poll')
+  lu.assertNotNil(fetch_id, 'polling starts immediately')
+
+  deliver(fetch_id, {
+    make_update(5, 'written while nvim was closed', { chat_type = 'private' }),
+  })
+  lu.assertEquals(#received, 1, 'the queued message is answered')
 end
 
 return TestTelegramAcl

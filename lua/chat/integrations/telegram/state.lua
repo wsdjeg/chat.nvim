@@ -25,9 +25,11 @@ function M.new()
     -- getUpdates cursor: the highest update_id already seen. One value for
     -- every chat, because the Bot API offsets are global, not per chat.
     --
-    -- Unlike Lark there is no per-container cursor to keep, and the backlog
-    -- is *not* discarded on start: Telegram only returns updates the bot has
-    -- not consumed yet, so anything pending really was never answered.
+    -- Unlike Lark there is no per-container cursor to keep, but the backlog
+    -- *is* skipped on start: `connect()` probes with `offset = -1` and moves
+    -- this cursor past the queue that accumulated while the plugin was down,
+    -- so a restart never answers hours of stale messages in one burst
+    -- (`integrations.telegram.discard_backlog = false` restores the replay).
     last_update_id = nil,
     callback = nil,
     is_running = false,

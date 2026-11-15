@@ -124,6 +124,21 @@ function M.main_chat_id()
   return M.id_to_string(M.telegram_config().chat_id)
 end
 
+--- Whether the update queue from the previous session is skipped on start.
+---
+--- Defaults to true: answering everything written while Neovim was closed in
+--- one burst is not what a restart should do. The Bot API has no "start now"
+--- cursor, so the skip is a one-shot `getUpdates` with `offset = -1` (see
+--- `poll.skip_backlog`).
+--- @return boolean
+function M.discard_backlog()
+  local value = M.telegram_config().discard_backlog
+  if value == nil then
+    return true
+  end
+  return value == true
+end
+
 --- Root directory under which per-chat (private chat) workspaces are created.
 ---
 --- `integrations.telegram.p2p.cwd_root` wins; otherwise the first entry of
