@@ -6,6 +6,10 @@
 --
 -- Usage:
 --   /toggle-force-push   # Toggle on/off
+--
+-- State-type skill: notify the receipt, return nil. Returning the string
+-- would append it to the session as an assistant message, duplicating the
+-- same text in the result window.
 
 local log = require('chat.log')
 
@@ -16,10 +20,10 @@ return {
     local sessions = require('chat.sessions')
     local current = sessions.get_session_disable_force_push(ctx.session)
     sessions.set_session_disable_force_push(ctx.session, not current)
-    local msg = (not current) and 'Force push disabled for this session'
-      or 'Force push enabled for this session'
-    log.notify(msg)
-    return msg
+    log.notify(
+      (not current) and 'Force push disabled for this session'
+        or 'Force push enabled for this session'
+    )
   end,
 }
 

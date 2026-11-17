@@ -4,8 +4,10 @@
 --
 -- Usage:
 --   /nvim-messages
-
-local log = require('chat.log')
+--
+-- Content-type skill: both branches return (string for the empty case,
+-- ChatSkillResult for the diagnostic prompt). Notifying as well would show
+-- the same text twice.
 
 return {
   name = 'nvim-messages',
@@ -14,7 +16,6 @@ return {
     local output = vim.fn.execute('messages')
 
     if not output or vim.trim(output) == '' then
-      log.notify('No messages in Neovim :messages')
       return 'Neovim :messages is empty - no errors or warnings to fix.'
     end
 

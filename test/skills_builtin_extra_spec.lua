@@ -2,12 +2,16 @@
 -- (/delete, /model & /provider without args, /title without args, /retry
 -- success) plus the autoloaded user skills toggle-force-push and
 -- setup-nvim-plugin-test.
+--
+-- Output contract under test: state-type skills notify and return nil,
+-- content-type skills return a string / ChatSkillResult and never notify.
 
 local lu = require('luaunit')
 local skills = require('chat.skills')
 local sessions = require('chat.sessions')
 local windows = require('chat.windows')
 local spinners = require('chat.spinners')
+local log = require('chat.log')
 
 TestSkillsBuiltinExtra = {}
 
@@ -29,8 +33,15 @@ function TestSkillsBuiltinExtra:setUp()
     redraw_title = windows.redraw_title,
   }
   self.spinners_start_orig = spinners.start
+  self.log_notify_orig = log.notify
   self.ui_select_orig = vim.ui.select
   self.ui_input_orig = vim.ui.input
+
+  -- Assert against the state-type channel instead of a real popup.
+  self.notified = {}
+  log.notify = function(msg, _)
+    table.insert(self.notified, msg)
+  end
 
   sessions.is_in_progress = function()
     return false
@@ -45,12 +56,19 @@ function TestSkillsBuiltinExtra:tearDown()
     windows[m] = orig
   end
   spinners.start = self.spinners_start_orig
+  log.notify = self.log_notify_orig
   vim.ui.select = self.ui_select_orig
   vim.ui.input = self.ui_input_orig
   package.preload['chat.providers.fakep'] = nil
   package.loaded['chat.providers.fakep'] = nil
   package.preload['chat.providers.emptymodels'] = nil
   package.loaded['chat.providers.emptymodels'] = nil
+end
+
+--- Join everything the handler put on the notify channel.
+--- @return string
+function TestSkillsBuiltinExtra:notify_text()
+  return table.concat(self.notified, '\n')
 end
 
 local function stub_fake_provider(name, models)
@@ -102,6 +120,7 @@ function TestSkillsBuiltinExtra:testDeleteInProgressRefused()
   end
   lu.assertNil(skills._builtin_delete.handler('', { session = 's1' }))
   lu.assertFalse(deleted)
+  lu.assertStrContains(self:notify_text(), 'Request in progress')
 end
 
 -- /model (no args) -----------------------------------------------------
@@ -110,8 +129,11 @@ function TestSkillsBuiltinExtra:testModelNoArgsNoModelsReturnsHint()
   sessions.get_session_provider = function()
     return 'no-such-provider'
   end
-  local out = skills._builtin_model.handler('', { session = 's1' })
-  lu.assertEquals('No models available for provider: no-such-provider', out)
+  lu.assertNil(skills._builtin_model.handler('', { session = 's1' }))
+  lu.assertStrContains(
+    self:notify_text(),
+    'No models available for provider: no-such-provider'
+  )
 end
 
 function TestSkillsBuiltinExtra:testModelNoArgsSelectionSetsModel()
@@ -131,6 +153,7 @@ function TestSkillsBuiltinExtra:testModelNoArgsSelectionSetsModel()
   lu.assertNil(skills._builtin_model.handler('', { session = 's1' }))
   lu.assertEquals({ 'fake-model-1', 'fake-model-2' }, seen_items)
   lu.assertEquals('fake-model-1', set_model)
+  lu.assertStrContains(self:notify_text(), 'fake-model-1')
 end
 
 function TestSkillsBuiltinExtra:testModelNoArgsAbortedSelection()
@@ -147,6 +170,7 @@ function TestSkillsBuiltinExtra:testModelNoArgsAbortedSelection()
   end
   lu.assertNil(skills._builtin_model.handler('', { session = 's1' }))
   lu.assertFalse(set)
+  lu.assertEquals(0, #self.notified)
 end
 
 function TestSkillsBuiltinExtra:testModelInProgressRefused()
@@ -154,6 +178,7 @@ function TestSkillsBuiltinExtra:testModelInProgressRefused()
     return true
   end
   lu.assertNil(skills._builtin_model.handler('', { session = 's1' }))
+  lu.assertStrContains(self:notify_text(), 'Request in progress')
 end
 
 -- /provider (no args) --------------------------------------------------
@@ -177,6 +202,7 @@ function TestSkillsBuiltinExtra:testProviderNoArgsSelectionFullFlow()
   lu.assertEquals('fakep', provider_set)
   lu.assertEquals('fake-model-1', model_set)
   lu.assertTrue(redrawn)
+  lu.assertStrContains(self:notify_text(), 'Provider: fakep')
 end
 
 function TestSkillsBuiltinExtra:testProviderNoArgsNoModelsSkipsModel()
@@ -230,6 +256,7 @@ function TestSkillsBuiltinExtra:testProviderInProgressRefused()
     return true
   end
   lu.assertNil(skills._builtin_provider.handler('', { session = 's1' }))
+  lu.assertStrContains(self:notify_text(), 'Request in progress')
 end
 
 -- /title (no args) ------------------------------------------------------
@@ -254,6 +281,7 @@ function TestSkillsBuiltinExtra:testTitleNoArgsInputSetsTitle()
   lu.assertEquals('Brand New', title_set)
   lu.assertTrue(redrawn)
   lu.assertEquals('Old Title', prompt_opts.default)
+  lu.assertStrContains(self:notify_text(), 'Title: Brand New')
 end
 
 function TestSkillsBuiltinExtra:testTitleNoArgsEmptyInputKeepsTitle()
@@ -270,6 +298,7 @@ function TestSkillsBuiltinExtra:testTitleNoArgsEmptyInputKeepsTitle()
   end
   lu.assertNil(skills._builtin_title.handler('', { session = 's1' }))
   lu.assertFalse(title_set)
+  lu.assertEquals(0, #self.notified)
 end
 
 function TestSkillsBuiltinExtra:testTitleNoArgsNilInputKeepsTitle()
@@ -286,6 +315,7 @@ function TestSkillsBuiltinExtra:testTitleNoArgsNilInputKeepsTitle()
   end
   lu.assertNil(skills._builtin_title.handler('', { session = 's1' }))
   lu.assertFalse(title_set)
+  lu.assertEquals(0, #self.notified)
 end
 
 -- /retry ----------------------------------------------------------------
@@ -300,6 +330,7 @@ function TestSkillsBuiltinExtra:testRetryStartsSpinner()
   end
   lu.assertNil(skills._builtin_retry.handler('', { session = 's1' }))
   lu.assertEquals(1, started)
+  lu.assertStrContains(self:notify_text(), 'Retrying')
 end
 
 -- /toggle-force-push ----------------------------------------------------
@@ -313,9 +344,9 @@ function TestSkillsBuiltinExtra:testToggleForcePushDisablesWhenEnabled()
   sessions.set_session_disable_force_push = function(sid, v)
     recorded = v
   end
-  local out = toggle.handler('', { session = 's1' })
-  lu.assertEquals('Force push disabled for this session', out)
+  lu.assertNil(toggle.handler('', { session = 's1' }))
   lu.assertTrue(recorded)
+  lu.assertStrContains(self:notify_text(), 'Force push disabled for this session')
 end
 
 function TestSkillsBuiltinExtra:testToggleForcePushEnablesWhenDisabled()
@@ -327,9 +358,9 @@ function TestSkillsBuiltinExtra:testToggleForcePushEnablesWhenDisabled()
   sessions.set_session_disable_force_push = function(_, v)
     recorded = v
   end
-  local out = toggle.handler('', { session = 's1' })
-  lu.assertEquals('Force push enabled for this session', out)
+  lu.assertNil(toggle.handler('', { session = 's1' }))
   lu.assertFalse(recorded)
+  lu.assertStrContains(self:notify_text(), 'Force push enabled for this session')
 end
 
 -- /setup-nvim-plugin-test ------------------------------------------------
@@ -342,6 +373,8 @@ function TestSkillsBuiltinExtra:testSetupNvimPluginTestReturnsUserRequest()
   lu.assertStrContains(out.content, 'AGENTS.md')
   lu.assertStrContains(out.content, 'release-please-manifest.json')
   lu.assertStrContains(out.content, 'https://raw.githubusercontent.com/wsdjeg/chat.nvim/master/Makefile')
+  -- Content-type skill: it must not also notify.
+  lu.assertEquals(0, #self.notified)
 end
 
 return TestSkillsBuiltinExtra

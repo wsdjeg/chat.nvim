@@ -469,6 +469,17 @@ The handler can return:
 | **nil**            | No output (silent execution)                             |
 | **ChatSkillResult**| A table to inject a message and optionally trigger LLM   |
 
+{: .warning }
+> **One channel per skill.** A handler must use either the content channel
+> (`return`) or the state channel (`log.notify`), never both. Returning a
+> string appends it to the session (and forwards it to bridged IM
+> integrations); `log.notify` shows a transient popup and leaves no message
+> behind. Doing both displays the same text twice and pollutes the LLM
+> history with receipts.
+>
+> - **Content-type** (`/help`, error texts, injected prompts) → `return`, no notify.
+> - **State-type** (`/model`, `/cwd`, `/pin`, `/title`, `/retry`) → `log.notify(...)`, `return nil`.
+
 **ChatSkillResult fields:**
 
 | Field      | Type      | Description                                              |

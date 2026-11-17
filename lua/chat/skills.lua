@@ -4,6 +4,23 @@
 -- Users type /name [args] in the prompt window to invoke skills.
 -- Built-in skills: /clear /new /delete /model /provider /cwd /pin /title /retry /help
 -- User skills can be registered via config or require('chat').register_skill()
+--
+-- Output contract (single channel per skill, never both):
+--
+--   content-type  -> `return` a string / ChatSkillResult
+--                    windows.dispatch_skill appends it to the session and
+--                    renders it, and integrations are notified. Used for
+--                    content the model should see later (/help, error texts,
+--                    injected prompts).
+--
+--   state-type    -> `log.notify(...)` and `return nil`
+--                    A state change (/model, /cwd, /pin, /title, /retry)
+--                    needs a short receipt, but appending an assistant
+--                    message would pollute the LLM history and push the
+--                    receipt to IM platforms. Notify stays transient.
+--
+-- Doing both makes the same text show up twice (transient popup + session
+-- message), which is the bug this contract exists to prevent.
 
 local M = {}
 
@@ -107,9 +124,9 @@ function M.dispatch(input, session)
 
   local skill = registry[name]
   if not skill then
-    local msg = 'Unknown skill: /' .. name
-    log.notify(msg, 'WarningMsg')
-    return msg
+    -- Content channel only: the caller appends this to the session, which is
+    -- already visible in the result window. Notifying as well would duplicate.
+    return 'Unknown skill: /' .. name
   end
 
   local ctx = {
@@ -120,7 +137,7 @@ function M.dispatch(input, session)
   if not ok then
     local msg = 'Skill /' .. name .. ' failed: ' .. tostring(result)
     pcall(log.error, '[Skills] handler error for /' .. name .. ': ' .. tostring(result))
-    pcall(log.notify, msg, 'ErrorMsg')
+    -- Content channel only, same reason as the unknown-skill branch above.
     return msg
   end
 
@@ -160,10 +177,12 @@ M._builtin_new = {
     local new_id, err = sessions.new()
     if not new_id then
       log.notify(err or '创建会话失败', 'ErrorMsg')
-      return err
+      return
     end
     windows.open({ session = new_id })
-    return 'New session: ' .. new_id
+    -- State channel: the window already switched to the new session, so a
+    -- returned message would be appended to the *previous* one.
+    log.notify('New session: ' .. new_id)
   end,
 }
 
@@ -203,7 +222,7 @@ M._builtin_model = {
     if args and #args > 0 then
       sessions.set_session_model(ctx.session, args)
       log.notify('Model: ' .. args)
-      return 'Model: ' .. args
+      return
     end
 
     -- No args: show selection UI
@@ -216,7 +235,7 @@ M._builtin_model = {
 
     if #models == 0 then
       log.notify('No models available for provider: ' .. provider_name, 'WarningMsg')
-      return 'No models available for provider: ' .. provider_name
+      return
     end
 
     vim.ui.select(models, {
@@ -248,7 +267,7 @@ M._builtin_provider = {
       sessions.set_session_provider(ctx.session, args)
       windows.redraw_title()
       log.notify('Provider: ' .. args)
-      return 'Provider: ' .. args
+      return
     end
 
     -- No args: show selection UI
@@ -294,21 +313,20 @@ M._builtin_cwd = {
       return
     end
 
-    if args and #args > 0 then
-      local dir = vim.fs.normalize(vim.fn.fnamemodify(args, ':p'))
-      if vim.fn.isdirectory(dir) == 1 then
-        sessions.change_cwd(ctx.session, dir)
-        windows.redraw_title()
-        log.notify('CWD: ' .. dir)
-        return 'CWD: ' .. dir
-      else
-        log.notify('Not a valid directory: ' .. dir, 'WarningMsg')
-        return 'Not a valid directory: ' .. dir
-      end
-    else
+    if not args or #args == 0 then
       log.notify('Usage: /cwd <directory>', 'WarningMsg')
-      return 'Usage: /cwd <directory>'
+      return
     end
+
+    local dir = vim.fs.normalize(vim.fn.fnamemodify(args, ':p'))
+    if vim.fn.isdirectory(dir) ~= 1 then
+      log.notify('Not a valid directory: ' .. dir, 'WarningMsg')
+      return
+    end
+
+    sessions.change_cwd(ctx.session, dir)
+    windows.redraw_title()
+    log.notify('CWD: ' .. dir)
   end,
 }
 
@@ -322,9 +340,7 @@ M._builtin_pin = {
     local current = sessions.get_session_pin(ctx.session)
     sessions.set_session_pin(ctx.session, not current)
     require('chat.sessions.storage').write_cache(ctx.session)
-    local msg = current and 'Unpinned' or 'Pinned'
-    log.notify(msg)
-    return msg
+    log.notify(current and 'Unpinned' or 'Pinned')
   end,
 }
 
@@ -341,20 +357,21 @@ M._builtin_title = {
       sessions.set_session_title(ctx.session, args)
       windows.redraw_title()
       log.notify('Title: ' .. args)
-      return 'Title: ' .. args
-    else
-      -- No args: use vim.ui.input
-      local old_title = sessions.get_session_title(ctx.session) or ''
-      vim.ui.input({
-        prompt = 'Session title: ',
-        default = old_title,
-      }, function(input)
-        if input and #input > 0 then
-          sessions.set_session_title(ctx.session, input)
-          windows.redraw_title()
-        end
-      end)
+      return
     end
+
+    -- No args: use vim.ui.input
+    local old_title = sessions.get_session_title(ctx.session) or ''
+    vim.ui.input({
+      prompt = 'Session title: ',
+      default = old_title,
+    }, function(input)
+      if input and #input > 0 then
+        sessions.set_session_title(ctx.session, input)
+        windows.redraw_title()
+        log.notify('Title: ' .. input)
+      end
+    end)
   end,
 }
 
@@ -376,7 +393,6 @@ M._builtin_retry = {
       -- No return: LLM request starts, client sees in_progress
     else
       log.notify('Nothing to retry', 'WarningMsg')
-      return 'Nothing to retry'
     end
   end,
 }
@@ -398,7 +414,7 @@ M._builtin_help = {
     end
     table.insert(lines, '')
     table.insert(lines, 'Type `/name` in the prompt window to use a skill.')
-    log.notify(lines)
+    -- Content channel only: the appended session message is the display.
     return table.concat(lines, '\n')
   end,
 }
