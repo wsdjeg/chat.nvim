@@ -31,6 +31,7 @@ local registry = {}
 
 ---@class ChatSkillContext
 ---@field session string Current session ID
+---@field origin 'local'|'http'|'integration'|'scheduler' Who invoked the skill
 
 ---@class ChatSkillResult
 ---@field content string Message content to append to the session
@@ -115,8 +116,9 @@ end
 --- Dispatch a skill invocation
 --- @param input string Raw input starting with /
 --- @param session string Current session ID
+--- @param origin? 'local'|'http'|'integration'|'scheduler' Who invoked it
 --- @return string|table|nil|false Returns output string, ChatSkillResult table, nil (no output), or false (not a skill)
-function M.dispatch(input, session)
+function M.dispatch(input, session, origin)
   local name, args = M.parse(input)
   if not name or #name == 0 then
     return false
@@ -131,6 +133,10 @@ function M.dispatch(input, session)
 
   local ctx = {
     session = session,
+    -- Who invoked the skill. Skills that need a Neovim UI (vim.ui.select,
+    -- vim.ui.input) or that switch the local window must know whether the
+    -- request came from the local prompt or from a remote client.
+    origin = origin or 'local',
   }
 
   local ok, result = pcall(skill.handler, args, ctx)

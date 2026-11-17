@@ -705,10 +705,17 @@ TestQueue = {}
 
 local Q = {}
 
+--- Record what windows.send_message() received.
+--- `queue.push` stores the whole entry and pops it back out, so the three
+--- arguments are (session, entry.content, entry).
+local function record_send(session, content, entry)
+  Q.sent[#Q.sent + 1] = { session = session, content = content, entry = entry }
+end
+
 local function queue_stubs()
   package.loaded['chat.windows'] = {
-    send_message = function(session, msg)
-      Q.sent[#Q.sent + 1] = { session = session, msg = msg }
+    send_message = function(session, content, entry)
+      record_send(session, content, entry)
       return Q.send_result
     end,
   }
@@ -733,21 +740,44 @@ end
 
 function TestQueue:test_push_and_process()
   -- A successful send makes the session busy (in_progress flips to true)
-  package.loaded['chat.windows'].send_message = function(session, msg)
-    Q.sent[#Q.sent + 1] = { session = session, msg = msg }
+  package.loaded['chat.windows'].send_message = function(session, content, entry)
+    record_send(session, content, entry)
     Q.in_progress = true
     return nil
   end
-  queue.push('q-sess', 'hello')
+  queue.push('q-sess', { content = 'hello', origin = 'http' })
   wait_schedule()
   lu.assertEquals(#Q.sent, 1)
-  lu.assertEquals(Q.sent[1].msg, 'hello')
+  lu.assertEquals(Q.sent[1].content, 'hello')
+  lu.assertEquals(Q.sent[1].entry.origin, 'http')
   lu.assertFalse(queue.has_pending('q-sess'))
+end
+
+function TestQueue:test_pop_returns_the_pushed_entry()
+  -- Whatever push() stored is handed back verbatim: origin survives the trip.
+  queue.push('echo-sess', { content = 'payload', origin = 'scheduler' })
+  local entry = queue.pop('echo-sess')
+  lu.assertNotNil(entry)
+  lu.assertEquals(entry.content, 'payload')
+  lu.assertEquals(entry.origin, 'scheduler')
+  queue.stop()
+end
+
+function TestQueue:test_push_rejects_non_entry()
+  -- The queue only speaks entries; a bare string would produce a nil content
+  -- downstream, so it is refused instead of silently queued.
+  queue.push('bad-sess', 'just a string')
+  wait_schedule(50)
+  lu.assertEquals(#Q.sent, 0)
+  -- has_pending returns nil for an unknown session: normalize to a boolean,
+  -- luaunit's assertFalse requires a strict false.
+  lu.assertFalse(not not queue.has_pending('bad-sess'))
+  queue.stop()
 end
 
 function TestQueue:test_push_when_busy_defers()
   Q.in_progress = true
-  queue.push('busy-sess', 'later')
+  queue.push('busy-sess', { content = 'later' })
   wait_schedule(100)
   lu.assertEquals(#Q.sent, 0, 'message not sent while busy')
   lu.assertTrue(queue.has_pending('busy-sess'))
@@ -755,13 +785,14 @@ function TestQueue:test_push_when_busy_defers()
   Q.in_progress = false
   -- make the freed-up send SUCCEED (session becomes busy) so nothing
   -- is requeued and left behind in the module-level queue
-  package.loaded['chat.windows'].send_message = function(session, msg)
-    Q.sent[#Q.sent + 1] = { session = session, msg = msg }
+  package.loaded['chat.windows'].send_message = function(session, content, entry)
+    record_send(session, content, entry)
     Q.in_progress = true
     return nil
   end
   queue._process_queue()
   lu.assertEquals(#Q.sent, 1)
+  lu.assertEquals(Q.sent[1].content, 'later')
 end
 
 function TestQueue:test_pop_empty()
@@ -771,22 +802,25 @@ end
 
 function TestQueue:test_skill_result_marks_handled()
   Q.send_result = true
-  queue.push('skill-sess', '/model gpt-4')
+  queue.push('skill-sess', { content = '/model gpt-4', origin = 'http' })
   wait_schedule()
   lu.assertEquals(#Q.sent, 1)
   lu.assertFalse(queue.has_pending('skill-sess'))
 end
 
 function TestQueue:test_failed_send_requeues_then_drops()
-  queue.push('fail-sess', 'msg')
+  queue.push('fail-sess', { content = 'msg', origin = 'integration' })
   wait_schedule(50)
   -- First attempt (from push) failed -> requeued
   lu.assertEquals(#Q.sent, 1)
   lu.assertTrue(queue.has_pending('fail-sess'))
+  -- The retried entry keeps its origin: the whole entry is pushed back.
+  lu.assertEquals(Q.sent[1].entry.origin, 'integration')
   -- Second attempt
   queue._process_queue()
   lu.assertEquals(#Q.sent, 2)
   lu.assertTrue(queue.has_pending('fail-sess'))
+  lu.assertEquals(Q.sent[2].entry.origin, 'integration')
   -- Third attempt hits MAX_RETRIES -> dropped
   queue._process_queue()
   lu.assertEquals(#Q.sent, 3)
@@ -796,12 +830,12 @@ end
 function TestQueue:test_successful_send_resets_retry()
   Q.in_progress = false
   local orig_send = package.loaded['chat.windows'].send_message
-  package.loaded['chat.windows'].send_message = function(session, msg)
-    Q.sent[#Q.sent + 1] = { session = session, msg = msg }
+  package.loaded['chat.windows'].send_message = function(session, content, entry)
+    record_send(session, content, entry)
     Q.in_progress = true -- send succeeded, session now busy
     return nil
   end
-  queue.push('ok-sess', 'msg')
+  queue.push('ok-sess', { content = 'msg', origin = 'local' })
   wait_schedule()
   lu.assertEquals(#Q.sent, 1)
   lu.assertFalse(queue.has_pending('ok-sess'))

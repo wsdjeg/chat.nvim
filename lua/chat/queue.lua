@@ -9,6 +9,17 @@ local message_queue = {}
 local retry_counts = {} -- Track consecutive send failures per session
 local MAX_RETRIES = 3
 
+--- One queued message.
+---
+--- The queue stores the entry itself, not a bare string: `origin` says who
+--- asked for the message (local prompt keymap, HTTP client, IM integration,
+--- scheduler), so the receiver can behave differently without guessing. The
+--- entry travels untouched from `push()` through `pop()` back into the retry
+--- slot, so a retried message keeps its origin.
+---@class ChatQueueEntry
+---@field content string message content
+---@field origin? 'local'|'http'|'integration'|'scheduler' message source
+
 -- Stop timer when no messages
 local function stop_timer()
   if timer then
@@ -39,8 +50,12 @@ function M._process_queue()
     if queue and #queue > 0 then
       has_messages = true
       if not require('chat.sessions').is_in_progress(session) then
-        local msg = M.pop(session)
-        local result = require('chat.windows').send_message(session, msg)
+        local entry = M.pop(session)
+        local result = require('chat.windows').send_message(
+          session,
+          entry.content,
+          entry
+        )
         -- Skill commands return true (handled, no LLM request)
         if result then
           -- Skill dispatched, message fully handled
@@ -57,8 +72,9 @@ function M._process_queue()
             )
             retry_counts[session] = nil
           else
-            -- Put message back at front of queue for retry
-            table.insert(message_queue[session], 1, msg)
+            -- Put the whole entry back at the front of the queue: origin and
+            -- content are kept exactly as they were pushed.
+            table.insert(message_queue[session], 1, entry)
           end
         else
           -- Send succeeded, reset retry counter
@@ -81,14 +97,22 @@ function M._process_queue()
   end
 end
 
+--- Queue a message for a session.
+--- @param session string session ID
+--- @param entry ChatQueueEntry message entry, stored as-is
+function M.push(session, entry)
+  if type(entry) ~= 'table' or type(entry.content) ~= 'string' then
+    log.error(
+      'queue.push expects an entry table { content = string }: ' .. session
+    )
+    return
+  end
 
-
-function M.push(session, content)
   if not message_queue[session] then
     message_queue[session] = {}
   end
 
-  table.insert(message_queue[session], content)
+  table.insert(message_queue[session], entry)
 
   -- If session is not in progress, process immediately
   -- instead of waiting for the 5-second timer
@@ -102,6 +126,9 @@ function M.push(session, content)
   end
 end
 
+--- Take the oldest entry of a session's queue.
+--- @param session string session ID
+--- @return ChatQueueEntry|nil entry exactly as it was pushed
 function M.pop(session)
   if not message_queue[session] or #message_queue[session] == 0 then
     return nil

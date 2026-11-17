@@ -146,8 +146,8 @@ function TestWindowsExtra:setUp()
     self.queue_starts = self.queue_starts + 1
   end
   self.queue_pushes = {}
-  queue.push = function(sid, content)
-    table.insert(self.queue_pushes, { sid = sid, content = content })
+  queue.push = function(sid, entry)
+    table.insert(self.queue_pushes, { sid = sid, entry = entry })
   end
 
   -- integrations
@@ -383,7 +383,8 @@ function TestWindowsExtra:testIntegrationHandlerPushesOntoQueue()
   self.integrations_handler({ session = 'ws-x', content = 'hello' })
   lu.assertEquals(1, #self.queue_pushes)
   lu.assertEquals('ws-x', self.queue_pushes[1].sid)
-  lu.assertEquals('hello', self.queue_pushes[1].content)
+  lu.assertEquals('hello', self.queue_pushes[1].entry.content)
+  lu.assertEquals('integration', self.queue_pushes[1].entry.origin)
 end
 
 function TestWindowsExtra:testOpenSpinnerFollowsProgressState()

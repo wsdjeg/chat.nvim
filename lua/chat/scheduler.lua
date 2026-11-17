@@ -82,7 +82,10 @@ local function fire_task(task)
     os.date('%Y-%m-%d %H:%M:%S', now),
     task.message
   )
-  require('chat.queue').push(task.session, msg)
+  require('chat.queue').push(task.session, {
+    content = msg,
+    origin = 'scheduler',
+  })
 
   log.info(string.format(
     'Scheduled task %s fired for session %s (executed: %d/%s)',

@@ -77,7 +77,10 @@ local function start_services()
   end
 
   require('chat.integrations').on_message(function(message)
-    queue.push(message.session, message.content)
+    queue.push(message.session, {
+      content = message.content,
+      origin = 'integration',
+    })
   end)
   require('chat.mcp').connect()
 end
@@ -90,9 +93,10 @@ end
 ---   table    -> { content=string, role="user"|"assistant", request=boolean }
 --- @param session string Session ID
 --- @param text string Raw input starting with /
-local function dispatch_skill(session, text)
+--- @param origin? 'local'|'http'|'integration'|'scheduler' Who sent it
+local function dispatch_skill(session, text, origin)
   local skills = require('chat.skills')
-  local output = skills.dispatch(text, session)
+  local output = skills.dispatch(text, session, origin)
 
   if not sessions.exists(session) then
     return
@@ -291,7 +295,7 @@ function M.open(opt)
 
         -- Skill invocation: /name [args]
         if text:sub(1, 1) == '/' then
-          dispatch_skill(current_session, text)
+          dispatch_skill(current_session, text, 'local')
           prompt.clear()
           return
         end
@@ -390,11 +394,24 @@ function M.is_open()
   return vim.api.nvim_win_is_valid(result.get_win())
 end
 
--- Send a message programmatically
-function M.send_message(session, content)
+--- Deliver a message to a session.
+---
+--- `content` stays a plain string: every caller (queue, HTTP, integrations,
+--- tests) already speaks in strings, and the routing information travels in
+--- the third argument instead of being smuggled into the payload.
+--- @param session string Session ID
+--- @param content string Message content
+--- @param entry? ChatQueueEntry The queue entry this message came from
+--- @return boolean|nil true when the message was fully handled (skill or
+---   empty input), nil when an LLM request was started or nothing happened
+function M.send_message(session, content, entry)
   if not content or not sessions.exists(session) then
     return
   end
+
+  -- Who asked for this message: the queue entry carries the origin, direct
+  -- callers (no entry) are local by definition.
+  local origin = entry and entry.origin or 'local'
 
   -- Whitespace-only content would append an empty user message and start a
   -- pointless request. Report it as handled so the queue drops it instead of
@@ -407,7 +424,7 @@ function M.send_message(session, content)
   -- Skill invocation: /name [args]
   -- Returns true so the queue knows the message was handled (no LLM request)
   if content:sub(1, 1) == '/' then
-    dispatch_skill(session, content)
+    dispatch_skill(session, content, origin)
     return true
   end
 
@@ -433,7 +450,9 @@ function M.send_message(session, content)
   elseif not jobid then
     log.error('Failed to start request: jobid is nil or invalid')
   end
-  log.debug('curl request jobid is ' .. tostring(jobid))
+  log.debug(
+    string.format('curl request jobid is %s (origin=%s)', tostring(jobid), origin)
+  )
 end
 
 -- Message handling - forward to result module

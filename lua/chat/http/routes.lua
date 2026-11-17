@@ -886,7 +886,10 @@ local function handle_push_message(client, body, content_length)
     return
   end
 
-  require('chat.queue').push(session, content)
+  require('chat.queue').push(session, {
+    content = content,
+    origin = 'http',
+  })
   response.send_response(client, 204)
 end
 
