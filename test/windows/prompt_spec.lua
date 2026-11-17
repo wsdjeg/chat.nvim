@@ -3,6 +3,7 @@ local config = require('chat.config')
 local prompt = require('chat.windows.prompt')
 local sessions = require('chat.sessions')
 local integrations = require('chat.integrations')
+local title_mod = require('chat.windows.title')
 
 TestWindowsPrompt = {}
 
@@ -175,7 +176,7 @@ function TestWindowsPrompt:testWindowTitleConnectorUsesTopBorder()
   prompt.open_window(self.buf, 0, 0, 40, 'sess')
   local conf = vim.api.nvim_win_get_config(prompt.get_win())
   -- setUp configures border = 'single', so the gap repeats the top edge
-  lu.assertEquals(string.rep('─', 3), conf.title[4][1])
+  lu.assertEquals(string.rep('─', title_mod.CONNECTOR_WIDTH), conf.title[4][1])
   lu.assertEquals('FloatBorder', conf.title[4][2])
 end
 

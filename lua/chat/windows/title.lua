@@ -4,7 +4,7 @@
 -- The prompt and the result window both render their title as a row of pills
 -- welded into the top border:
 --
---     ╭ openai | gpt ╮───╭ ~/project ╮───╭ discord ╮
+--     ╭ openai | gpt ╮──╭ ~/project ╮──╭ discord ╮
 --
 -- Each pill is left badge + highlighted label + right badge, and the gap
 -- between two pills repeats the floating window's own top border glyph, so the
@@ -19,7 +19,7 @@ M.BADGE_LEFT = '\238\130\182'
 M.BADGE_RIGHT = '\238\130\180'
 
 -- Number of border glyphs drawn between two pills.
-M.CONNECTOR_WIDTH = 3
+M.CONNECTOR_WIDTH = 2
 
 -- Highlight of the connector. FloatBorder keeps it identical to the real
 -- border, including any `winhighlight` remap (e.g. FloatBorder:WinSeparator).

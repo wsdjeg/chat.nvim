@@ -2,6 +2,7 @@ local lu = require('luaunit')
 local config = require('chat.config')
 local result = require('chat.windows.result')
 local sessions = require('chat.sessions')
+local title = require('chat.windows.title')
 
 local SESSION = 'sess-1'
 local OTHER = 'sess-other'
@@ -157,7 +158,7 @@ function TestWindowsResult:testBuildTitleConnectorFollowsSingleBorder()
   -- two pills joined by one connector, so 3 + 1 + 3 chunks
   lu.assertEquals(7, #chunks)
   -- the gap continues the top border and borrows its highlight
-  lu.assertEquals(string.rep('─', 3), chunks[4][1])
+  lu.assertEquals(string.rep('─', title.CONNECTOR_WIDTH), chunks[4][1])
   lu.assertEquals('FloatBorder', chunks[4][2])
 end
 
@@ -166,7 +167,7 @@ function TestWindowsResult:testBuildTitleConnectorFollowsDoubleBorder()
   sessions.get_session_title = function() return 'My Chat' end
   sessions.get_total_tokens = function() return 100, 40, 60 end
   local chunks = result.build_title(SESSION, 'chat.nvim')
-  lu.assertEquals(string.rep('═', 3), chunks[4][1])
+  lu.assertEquals(string.rep('═', title.CONNECTOR_WIDTH), chunks[4][1])
 end
 
 function TestWindowsResult:testBuildTitleConnectorFollowsBorderList()
@@ -175,7 +176,7 @@ function TestWindowsResult:testBuildTitleConnectorFollowsBorderList()
   sessions.get_session_title = function() return 'My Chat' end
   sessions.get_total_tokens = function() return 100, 40, 60 end
   local chunks = result.build_title(SESSION, 'chat.nvim')
-  lu.assertEquals(string.rep('═', 3), chunks[4][1])
+  lu.assertEquals(string.rep('═', title.CONNECTOR_WIDTH), chunks[4][1])
 end
 
 function TestWindowsResult:testBuildTitleConnectorBlankForSolidBorder()
@@ -184,7 +185,7 @@ function TestWindowsResult:testBuildTitleConnectorBlankForSolidBorder()
   sessions.get_total_tokens = function() return 100, 40, 60 end
   local chunks = result.build_title(SESSION, 'chat.nvim')
   -- 'solid' / 'shadow' / 'none' draw no top edge, so keep the gap blank
-  lu.assertEquals(string.rep(' ', 3), chunks[4][1])
+  lu.assertEquals(string.rep(' ', title.CONNECTOR_WIDTH), chunks[4][1])
 end
 
 function TestWindowsResult:testBuildTitleAppendsSpinnerFrame()
@@ -211,3 +212,4 @@ function TestWindowsResult:testBuildTitleWithoutSpinnerFrame()
 end
 
 return TestWindowsResult
+
