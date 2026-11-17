@@ -215,6 +215,69 @@ function TestProtocolOpenAI:test_reasoning_content_stream()
   lu.assertEquals(#S.progress, 0)
 end
 
+function TestProtocolOpenAI:test_openrouter_reasoning_field_stream()
+  -- OpenRouter streams the thinking trace in `delta.reasoning` (next to an
+  -- equivalent reasoning_details array), not DeepSeek's `reasoning_content`.
+  -- Only reasoning_content was read, so OpenRouter reasoning was dropped.
+  self.proto.on_stdout(33, {
+    'data: {"choices":[{"delta":{"content":"","role":"assistant","reasoning":"The user said","reasoning_details":[{"type":"reasoning.text","text":"The user said","format":"unknown","index":0}]}}]}',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.reasoning, { 'The user said' })
+  lu.assertEquals(#S.progress, 0)
+end
+
+function TestProtocolOpenAI:test_reasoning_details_only_stream()
+  -- Some gateways fill only the structured array.
+  self.proto.on_stdout(34, {
+    'data: {"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","text":"only details"}]}}]}',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.reasoning, { 'only details' })
+end
+
+function TestProtocolOpenAI:test_reasoning_content_takes_precedence()
+  self.proto.on_stdout(35, {
+    'data: {"choices":[{"delta":{"reasoning_content":"deepseek","reasoning":"openrouter"}}]}',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.reasoning, { 'deepseek' })
+end
+
+function TestProtocolOpenAI:test_reasoning_then_content_stream()
+  self.proto.on_stdout(36, {
+    'data: {"choices":[{"delta":{"reasoning":"think"}}]}',
+    '',
+    'data: {"choices":[{"delta":{"content":"answer"}}]}',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.reasoning, { 'think' })
+  lu.assertEquals(S.progress, { 'answer' })
+end
+
+function TestProtocolOpenAI:test_sse_comment_does_not_corrupt_body_buffer()
+  -- OpenRouter emits ": OPENROUTER PROCESSING" keep-alives. They used to be
+  -- buffered as body lines and break the trailing JSON decode on exit,
+  -- logging a bogus "Failed to decode JSON".
+  self.proto.on_stdout(37, {
+    ': OPENROUTER PROCESSING',
+    '',
+    'data: {"choices":[{"delta":{"content":"hi"}}]}',
+    '',
+    ': OPENROUTER PROCESSING',
+    '',
+  })
+  flush()
+  lu.assertEquals(S.progress, { 'hi' })
+  self.proto.on_exit(37, 0, 0)
+  flush()
+  lu.assertEquals(#S.appended, 0, 'no decode error is appended')
+end
+
 function TestProtocolOpenAI:test_tool_calls_stream()
   self.proto.on_stdout(4, {
     'data: {"choices":[{"delta":{"tool_calls":[{"id":"t1","function":{"name":"f","arguments":"{}"}}]}}]}',

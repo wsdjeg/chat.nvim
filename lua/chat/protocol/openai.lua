@@ -24,6 +24,42 @@ local released = {}
 -- must not be duplicated.
 local streamed = {}
 
+--- Extract the thinking text of a streaming delta.
+---
+--- Providers disagree on the field name: DeepSeek style payloads use
+--- `reasoning_content`, while OpenRouter streams the trace in `reasoning`
+--- (often next to an equivalent `reasoning_details` array). Some gateways
+--- only fill `reasoning_details`. Normalising here keeps the window display
+--- working for every of them.
+---
+--- @param delta table decoded `choices[1].delta` object
+--- @return string|nil text non-empty reasoning text, nil when absent
+local function get_reasoning(delta)
+  for _, field in ipairs({ 'reasoning_content', 'reasoning' }) do
+    local value = delta[field]
+    if type(value) == 'string' and #value > 0 then
+      return value
+    end
+  end
+  local details = delta.reasoning_details
+  if type(details) == 'table' and details ~= vim.NIL then
+    local parts = {}
+    for _, item in ipairs(details) do
+      if
+        type(item) == 'table'
+        and type(item.text) == 'string'
+        and #item.text > 0
+      then
+        table.insert(parts, item.text)
+      end
+    end
+    if #parts > 0 then
+      return table.concat(parts, '')
+    end
+  end
+  return nil
+end
+
 function M.on_stdout(id, data)
   -- Remember which buffer generation this chunk belongs to
   local generation = released[id] or 0
@@ -61,37 +97,26 @@ function M.on_stdout(id, data)
             elseif chunk and chunk.choices and #chunk.choices > 0 then
               local choice = chunk.choices[1]
               if choice.delta then
-                if
-                  choice.delta.tool_calls
-                  and choice.delta.tool_calls ~= vim.NIL
-                then
+                local delta = choice.delta
+                local reasoning_text = get_reasoning(delta)
+                if delta.tool_calls and delta.tool_calls ~= vim.NIL then
                   log.debug('handle tool_calls chunk')
                   streamed[id] = true
-                  for _, tool_call in ipairs(choice.delta.tool_calls) do
+                  for _, tool_call in ipairs(delta.tool_calls) do
                     sessions.on_progress_tool_call(id, tool_call)
                   end
-                elseif
-                  choice.delta.reasoning_content
-                  and choice.delta.reasoning_content ~= vim.NIL
-                  and #choice.delta.reasoning_content > 0
-                then
-                  log.debug(
-                    'handle reasoning content: '
-                      .. choice.delta.reasoning_content
-                  )
+                elseif reasoning_text then
+                  log.debug('handle reasoning content: ' .. reasoning_text)
                   streamed[id] = true
-                  sessions.on_progress_reasoning_content(
-                    id,
-                    choice.delta.reasoning_content
-                  )
+                  sessions.on_progress_reasoning_content(id, reasoning_text)
                 elseif
-                  choice.delta.content
-                  and choice.delta.content ~= vim.NIL
-                  and #choice.delta.content > 0
+                  delta.content
+                  and delta.content ~= vim.NIL
+                  and #delta.content > 0
                 then
-                  log.debug('handle content: ' .. choice.delta.content)
+                  log.debug('handle content: ' .. delta.content)
                   streamed[id] = true
-                  sessions.on_progress(id, choice.delta.content)
+                  sessions.on_progress(id, delta.content)
                 end
               end
               if choice.finish_reason and choice.finish_reason ~= vim.NIL then
@@ -146,6 +171,12 @@ function M.on_stdout(id, data)
             end
           end
         end
+      elseif vim.startswith(line, ':') then
+        -- SSE comment / keep-alive, e.g. OpenRouter's " OPENROUTER
+        -- PROCESSING". It carries no payload and must never reach the body
+        -- buffer: it would corrupt the trailing JSON document decoded on
+        -- exit and log a bogus "Failed to decode JSON".
+        log.debug('ignore sse comment: ' .. line)
       else
         table.insert(body_buffers[id], line)
       end
@@ -359,3 +390,4 @@ function M.on_exit(id, code, signal)
 end
 
 return M
+
