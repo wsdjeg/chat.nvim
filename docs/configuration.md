@@ -32,6 +32,7 @@ chat.nvim provides flexible configuration options through the `require('chat').s
 | `model`           | string             | `'deepseek-v4-flash'`                                          | Default AI model                                                           |
 | `strftime`        | string             | `'%m-%d %H:%M:%S'`                                              | Time display format                                                        |
 | `names`            | table              | `{bot = 'Bot', user = 'You'}`                                   | Display names for the AI and user, shown before the colon in the chat window and on role badges in the HTML preview |
+| `icons`            | table              | see [Icons](#icons)                                             | Glyphs of the terminal UI (role badges, tool / status lines, cache pill). Must be single characters |
 | `render_markdown` | boolean            | `true`                                                          | Enable RenderMarkdown plugin for result buffer (requires render-markdown.nvim) |
 | `system_prompt`   | string or function | `''`                                                            | Default system prompt, can be a string or a function that returns a string |
 | `storage_dir`     | string             | `stdpath('data') .. '/chat.nvim/'`                             | Base storage directory for all persistent data (sessions, plans, scheduler, etc.) |
@@ -55,6 +56,60 @@ require('chat').setup({
   names = { bot = 'Nova', user = 'You' },
 })
 ```
+
+---
+
+## Icons
+
+Every glyph the terminal UI draws can be replaced through `icons`. Only the
+floating windows are affected: the HTML preview and the text a tool returns keep
+their own symbols.
+
+| Key       | Default | Where it shows up                                        |
+| --------- | ------- | -------------------------------------------------------- |
+| `bot`     | `🤖`    | Prefix of assistant lines, e.g. `🤖 Bot:`                 |
+| `user`    | `👤`    | Prefix of user lines, e.g. `👤 You:`                      |
+| `tool`    | `🔧`    | Running tool call: `🔧 Executing tool: read_file`          |
+| `success` | `✅`    | `✅ Tool execution complete: ...` and `✅ Completed`      |
+| `error`   | `❌`    | Failed tool call and error lines                          |
+| `notice`  | `🔁`    | UI-only notice lines (e.g. api key rotation)              |
+| `cache`   | `💾`    | Prompt cache ratio (`💾 45%`) in the footer and title pill |
+
+Each value must be a **single displayed character** (1–2 cells wide). A trailing
+variation selector is not counted, so `❤️` is accepted as one character.
+Non-strings, control characters and multi-character strings such as `'[B]'` are
+rejected: the entry falls back to its default and the problem is written to the
+runtime log, so a typo degrades one glyph instead of breaking the whole table.
+Unknown keys are logged and ignored.
+
+Setting a key to `''` disables that glyph. The icon and its padding disappear
+together, so a disabled `cache` leaves
+`✅ Completed • Tokens: 225 (150↑/75↓) 45%` and a disabled `user` leaves
+`[08-01 12:00:00] You: hi` with no leading space.
+
+```lua
+require('chat').setup({
+  icons = {
+    bot = '>',   -- plain ASCII instead of emoji
+    user = '$',
+    tool = '~',
+    success = '+',
+    error = '!',
+    notice = '*',
+    cache = '', -- draw no cache glyph at all
+  },
+})
+```
+
+The indentation of continuation lines (multi-line tool errors, notices) is
+computed with `nvim_strwidth()` from the prefix actually built, so it follows
+whatever glyph you install instead of assuming a fixed width.
+
+Icons also feed the highlight pattern of the message prefix (`matchadd` on
+`^[time] <icon>`). An icon containing a regex metacharacter (`]`, `^`, `\`, `*`,
+`.`, `~`, `$`, `[`) is escaped before being joined into the pattern — a
+character class cannot be used for that, because it needs byte-wise members and
+breaks on exactly those glyphs.
 
 ---
 
@@ -719,6 +774,17 @@ require('chat').setup({
   names = {
     bot = 'Bot',
     user = 'You',
+  },
+
+  -- Glyphs of the terminal UI. One displayed character each, or '' to hide it.
+  icons = {
+    bot = '🤖',     -- prefix of assistant lines
+    user = '👤',    -- prefix of user lines
+    tool = '🔧',    -- running tool call
+    success = '✅', -- tool done / turn completed
+    error = '❌',   -- failed tool call or message
+    notice = '🔁',  -- UI-only notice line
+    cache = '💾',   -- prompt cache ratio
   },
 
   -- System prompt

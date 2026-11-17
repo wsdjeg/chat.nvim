@@ -6,6 +6,15 @@ local M = {}
 
 ---@alias ChatConfigApiKey table<string, ChatApiKey>
 
+---@class ChatIcons
+---@field bot? string Icon before the assistant display name
+---@field user? string Icon before the user display name
+---@field tool? string Icon of a running tool call
+---@field success? string Icon of a successful tool call / completed turn
+---@field error? string Icon of a failed tool call or message
+---@field notice? string Icon of a UI-only notice line
+---@field cache? string Icon of the prompt cache hit ratio
+
 ---@class ChatConfig
 ---@field width? number
 ---@field height? number
@@ -15,6 +24,7 @@ local M = {}
 ---@field model? string
 ---@field border? string
 ---@field highlights? table
+---@field icons? ChatIcons
 ---@field api_key? string | ChatConfigApiKey
 ---@field http? table
 ---@field allowed_path? string | string[]
@@ -38,6 +48,30 @@ local M = {}
 ---@field skills? table[] User-defined skills
 ---@field tools? table Tool discovery configuration
 
+--- Pristine UI glyph defaults.
+---
+--- Kept separate from `default` so an invalid `setup({ icons = ... })` value
+--- can be repaired against the original icon instead of against whatever a
+--- previous `setup()` call installed.
+--- Every value must stay a single displayed character; `chat.icons.is_valid()`
+--- enforces that (and `''` to disable the glyph entirely).
+M.icon_defaults = {
+  -- Icon before the assistant display name, e.g. '🤖 Bot:'
+  bot = '🤖',
+  -- Icon before the user display name, e.g. '👤 You:'
+  user = '👤',
+  -- Icon of a tool call that is currently running
+  tool = '🔧',
+  -- Icon of a successful tool call and of a completed turn
+  success = '✅',
+  -- Icon of a failed tool call or a failed message
+  error = '❌',
+  -- Icon of a UI-only notice line (e.g. api key rotation)
+  notice = '🔁',
+  -- Icon of the prompt cache hit ratio
+  cache = '💾',
+}
+
 local default = {
   width = 0.8, -- 80% of screen
   height = 0.8,
@@ -59,6 +93,8 @@ local default = {
     -- Foreground comes from Comment, background from CursorLine.
     placeholder = 'ChatNvimPlaceholder',
   },
+  -- Glyphs shown in the terminal UI. Validated in setup(), see chat.icons.
+  icons = vim.deepcopy(M.icon_defaults),
   api_key = '',
   http = {
     host = '127.0.0.1',
@@ -215,6 +251,16 @@ function M.setup(opt)
     )
     return
   end
+
+  -- Validate the icons *before* the deep merge: an invalid glyph would
+  -- otherwise end up in the live config and only surface later, inside a
+  -- Vim regex or a window title. sanitize() always returns a complete table,
+  -- so the merge never leaves a hole behind.
+  if opt.icons ~= nil then
+    local icons = require('chat.icons').sanitize(opt.icons)
+    opt = vim.tbl_extend('force', opt, { icons = icons })
+  end
+
   M.config = vim.tbl_deep_extend('force', M.config, opt)
 
   require('chat.mcp').setup()

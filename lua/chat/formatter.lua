@@ -5,13 +5,19 @@ local tools = require('chat.tools')
 local sessions = require('chat.sessions')
 local util = require('chat.util')
 local usage_util = require('chat.usage')
+local icons = require('chat.icons')
 
---- Build role labels from the `names` config (emoji + name + colon)
+--- Build role labels from the `names` / `icons` config.
+---
+--- The icon goes through `icons.padded()` rather than a literal `'🤖 '`, so a
+--- disabled icon (`icons.bot = ''`) drops the glyph *and* its trailing space
+--- instead of leaving a hole at the start of the line.
 ---@return string bot_label label for assistant messages, e.g. '🤖 Bot:'
 ---@return string user_label label for user messages, e.g. '👤 You:'
 local function role_labels()
   local names = config.config.names or {}
-  return '🤖 ' .. (names.bot or 'Bot') .. ':', '👤 ' .. (names.user or 'You') .. ':'
+  return icons.padded('bot') .. (names.bot or 'Bot') .. ':',
+    icons.padded('user') .. (names.user or 'You') .. ':'
 end
 
 function M.generate_message(message, session)
@@ -47,9 +53,10 @@ function M.generate_message(message, session)
         goto continue
       end
       local base = string.format(
-        '[%s] %s 🔧 Executing tool: ',
+        '[%s] %s %sExecuting tool: ',
         os.date(config.config.strftime, message.created),
-        bot_label
+        bot_label,
+        icons.padded('tool')
       )
       local tool_info = vim.split(
         tools.info(tool_call, { cwd = sessions.getcwd(session) }),
@@ -107,8 +114,9 @@ function M.generate_message(message, session)
   elseif message.role == 'tool' then
     if message.tool_call_state and message.tool_call_state.error then
       local base = string.format(
-        '[%s] ❌ : Tool Error: ',
-        os.date(config.config.strftime, message.created)
+        '[%s] %s: Tool Error: ',
+        os.date(config.config.strftime, message.created),
+        icons.padded('error')
       )
       local error_lines = vim.split(message.tool_call_state.error, '\n')
       local msg = { base .. error_lines[1] }
@@ -122,9 +130,10 @@ function M.generate_message(message, session)
     else
       local lines = {
         string.format(
-          '[%s] %s ✅ Tool execution complete: %s',
+          '[%s] %s %sTool execution complete: %s',
           os.date(config.config.strftime, message.created),
           bot_label,
+          icons.padded('success'),
           (message.tool_call_state and message.tool_call_state.name) or ''
         ),
         '',
@@ -134,7 +143,9 @@ function M.generate_message(message, session)
   elseif message.content and message.role ~= 'tool' then
     return vim.split(message.content, '\n')
   elseif message.on_complete then
-    local complete_str = ' ✅ Completed'
+    -- Icon and its trailing space come from the helper, so `icons.success = ''`
+    -- leaves a single separator instead of a doubled space.
+    local complete_str = ' ' .. icons.padded('success') .. 'Completed'
     -- Normalized usage: cache hits are read through chat.usage so DeepSeek
     -- and Anthropic payloads report a real percentage, not a hardcoded 0.
     if type(message.usage) == 'table' then
@@ -149,8 +160,10 @@ function M.generate_message(message, session)
 
       if u.cached_tokens > 0 then
         complete_str = complete_str
+          .. ' '
+          .. icons.padded('cache')
           .. string.format(
-            ' 💾 %d%%',
+            '%d%%',
             math.floor(usage_util.hit_ratio(message.usage) * 100)
           )
       end
@@ -165,8 +178,9 @@ function M.generate_message(message, session)
     }
   elseif message.error then
     local base = string.format(
-      '[%s] ❌ : ',
-      os.date(config.config.strftime, message.created)
+      '[%s] %s: ',
+      os.date(config.config.strftime, message.created),
+      icons.padded('error')
     )
     local error_lines = vim.split(message.error, '\n')
     local msg = { base .. error_lines[1] }
@@ -181,8 +195,9 @@ function M.generate_message(message, session)
     -- UI-only status line (e.g. api-key rotation): kept in the session
     -- history but never sent to the model
     local base = string.format(
-      '[%s] 🔁 : ',
-      os.date(config.config.strftime, message.created)
+      '[%s] %s: ',
+      os.date(config.config.strftime, message.created),
+      icons.padded('notice')
     )
     local notice_lines = vim.split(message.notice, '\n')
     local msg = { base .. notice_lines[1] }

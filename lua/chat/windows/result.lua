@@ -5,6 +5,7 @@ local sessions = require('chat.sessions')
 local formatter = require('chat.formatter')
 local util = require('chat.util')
 local usage_util = require('chat.usage')
+local icons = require('chat.icons')
 local title = require('chat.windows.title')
 
 -- Result window state
@@ -88,19 +89,24 @@ function M.build_title(session, text)
     )
 
     -- Cache hit ratio: same normalization the per-message line uses, so
-    -- DeepSeek/Anthropic payloads report a real percentage.
+    -- DeepSeek/Anthropic payloads report a real percentage. The glyph comes
+    -- from icons.padded(), so a disabled cache icon (`icons.cache = ''`)
+    -- shortens the pill instead of leaving a double space.
     if cached and cached > 0 then
       table.insert(
         labels,
-        string.format(
-          ' 💾 %d%% ',
-          math.floor(
-            usage_util.hit_ratio({
-              prompt_tokens = prompt or 0,
-              cached_tokens = cached,
-            }) * 100
+        ' '
+          .. icons.padded('cache')
+          .. string.format(
+            '%d%%',
+            math.floor(
+              usage_util.hit_ratio({
+                prompt_tokens = prompt or 0,
+                cached_tokens = cached,
+              }) * 100
+            )
           )
-        )
+          .. ' '
       )
     end
   end
@@ -347,13 +353,16 @@ function M.open_window(buf, start_row, start_col, screen_height, screen_width)
     config.config.winhighlight,
     { win = result_win }
   )
-  vim.fn.matchadd(
-    'Comment',
-    '^\\[[^]]*\\] [🤖👤❌🔁]',
-    10,
-    -1,
-    { window = result_win }
-  )
+  -- Highlight the `[time] <role icon>` prefix. The pattern has to be built
+  -- from the configured icons: it used to be the literal class
+  -- `[🤖👤❌🔁]`, which only worked because those four glyphs happen to be
+  -- safe inside a class. A user icon such as `]`, `^` or `\` would have
+  -- broken it silently, so icons.role_pattern() joins escaped alternatives
+  -- instead. It returns nil when every role icon is disabled.
+  local role_pattern = icons.role_pattern()
+  if role_pattern then
+    vim.fn.matchadd('Comment', role_pattern, 10, -1, { window = result_win })
+  end
   vim.api.nvim_set_option_value('wrap', true, { win = result_win })
   vim.api.nvim_set_option_value('linebreak', false, { win = result_win })
   vim.api.nvim_set_option_value('number', false, { win = result_win })
