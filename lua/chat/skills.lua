@@ -213,6 +213,7 @@ M._builtin_model = {
   builtin = true,
   handler = function(args, ctx)
     local sessions = require('chat.sessions')
+    local windows = require('chat.windows')
 
     if sessions.is_in_progress(ctx.session) then
       log.notify('Request in progress.', 'WarningMsg')
@@ -221,6 +222,8 @@ M._builtin_model = {
 
     if args and #args > 0 then
       sessions.set_session_model(ctx.session, args)
+      -- The provider/model pill lives in the prompt window title only.
+      windows.redraw_title()
       log.notify('Model: ' .. args)
       return
     end
@@ -243,6 +246,7 @@ M._builtin_model = {
     }, function(choice)
       if choice then
         sessions.set_session_model(ctx.session, choice)
+        windows.redraw_title()
         log.notify('Model: ' .. choice)
       end
     end)
@@ -318,13 +322,18 @@ M._builtin_cwd = {
       return
     end
 
-    local dir = vim.fs.normalize(vim.fn.fnamemodify(args, ':p'))
-    if vim.fn.isdirectory(dir) ~= 1 then
-      log.notify('Not a valid directory: ' .. dir, 'WarningMsg')
+    -- Resolve relative paths against the session cwd instead of the editor
+    -- cwd, so `/cwd ../foo` walks up from where this session actually works.
+    local util = require('chat.util')
+    local base = sessions.getcwd(ctx.session) or vim.fn.getcwd()
+    local dir = util.resolve(vim.fn.expand(args), base)
+    if not dir or vim.fn.isdirectory(dir) ~= 1 then
+      log.notify('Not a valid directory: ' .. (dir or args), 'WarningMsg')
       return
     end
 
     sessions.change_cwd(ctx.session, dir)
+    -- cwd is rendered as a pill in the prompt window title.
     windows.redraw_title()
     log.notify('CWD: ' .. dir)
   end,
@@ -353,10 +362,20 @@ M._builtin_title = {
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
 
-    if args and #args > 0 then
-      sessions.set_session_title(ctx.session, args)
+    --- The session title is the first pill of the *result* window title,
+    --- while the prompt window only carries provider/model, cwd and
+    --- integrations. Both titles therefore have to be rebuilt: redraw_title()
+    --- alone leaves the result window showing the stale title.
+    --- @param value string new session title
+    local function apply_title(value)
+      sessions.set_session_title(ctx.session, value)
       windows.redraw_title()
-      log.notify('Title: ' .. args)
+      windows.set_result_win_title(' chat.nvim ')
+      log.notify('Title: ' .. value)
+    end
+
+    if args and #args > 0 then
+      apply_title(args)
       return
     end
 
@@ -367,9 +386,7 @@ M._builtin_title = {
       default = old_title,
     }, function(input)
       if input and #input > 0 then
-        sessions.set_session_title(ctx.session, input)
-        windows.redraw_title()
-        log.notify('Title: ' .. input)
+        apply_title(input)
       end
     end)
   end,
