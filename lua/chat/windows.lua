@@ -469,12 +469,37 @@ function M.on_tool_call_start(session, message)
 end
 
 -- Update window titles
-function M.redraw_title()
-  prompt.redraw_title(current_session)
+---
+--- Both title builders read session state (provider/model, cwd, title, token
+--- usage), so the session has to travel with the call: a skill invoked
+--- remotely (HTTP / POST) may touch session A while the desktop window shows
+--- session B. Passing the session explicitly keeps the pills in sync with
+--- what changed instead of repainting the wrong session.
+---
+--- The desktop windows only ever display `current_session`, so any other
+--- session is a no-op here — the new state is already persisted and shows up
+--- as soon as the user switches to that session.
+---
+--- @param session? string Session whose title should be rebuilt (default: current)
+function M.redraw_title(session)
+  session = session or M.current_session()
+  if not session or session ~= M.current_session() then
+    return
+  end
+  prompt.redraw_title(session)
 end
 
-function M.set_result_win_title(text)
-  result.set_title(text, current_session)
+--- Rebuild the result window title.
+--- The title text stays the literal `text` argument; the session is used for
+--- the session pill (session title, token usage, spinner frame).
+--- @param text string Fallback label for the session pill
+--- @param session? string Session whose title should be rebuilt (default: current)
+function M.set_result_win_title(text, session)
+  session = session or M.current_session()
+  if not session or session ~= M.current_session() then
+    return
+  end
+  result.set_title(text, session)
 end
 
 -- Render result buffer content

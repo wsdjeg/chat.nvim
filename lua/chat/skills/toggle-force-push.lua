@@ -7,11 +7,12 @@
 -- Usage:
 --   /toggle-force-push   # Toggle on/off
 --
--- State-type skill: notify the receipt, return nil. Returning the string
--- would append it to the session as an assistant message, duplicating the
--- same text in the result window.
+-- State-type skill: the receipt goes through skills.notify(ctx, ...), which
+-- shows a transient popup for local invocations (returning nil) and hands the
+-- text back to dispatch_skill for remote ones, so an HTTP caller gets an
+-- answer it can actually read.
 
-local log = require('chat.log')
+local skills = require('chat.skills')
 
 return {
   name = 'toggle-force-push',
@@ -20,7 +21,8 @@ return {
     local sessions = require('chat.sessions')
     local current = sessions.get_session_disable_force_push(ctx.session)
     sessions.set_session_disable_force_push(ctx.session, not current)
-    log.notify(
+    return skills.notify(
+      ctx,
       (not current) and 'Force push disabled for this session'
         or 'Force push enabled for this session'
     )

@@ -13,14 +13,28 @@
 --                    content the model should see later (/help, error texts,
 --                    injected prompts).
 --
---   state-type    -> `log.notify(...)` and `return nil`
+--   state-type    -> `return M.notify(ctx, ...)`
 --                    A state change (/model, /cwd, /pin, /title, /retry)
 --                    needs a short receipt, but appending an assistant
 --                    message would pollute the LLM history and push the
---                    receipt to IM platforms. Notify stays transient.
+--                    receipt to IM platforms.
 --
--- Doing both makes the same text show up twice (transient popup + session
--- message), which is the bug this contract exists to prevent.
+-- `M.notify` routes that receipt by ctx.origin:
+--
+--   local          -> log.notify (transient popup), returns nil, so nothing
+--                     is appended to the session (unchanged behaviour).
+--   http/...       -> returns the text instead, which dispatch_skill appends
+--                     as an assistant message the remote caller can read via
+--                     GET /session/:id/messages. A desktop popup is invisible
+--                     to that caller, so none is emitted.
+--
+-- Skills that need the Neovim UI (vim.ui.select / vim.ui.input) or that would
+-- switch the local window must check ctx.origin: a remote caller cannot
+-- answer a desktop prompt and must not hijack the desktop's window. They
+-- return a usage string instead.
+--
+-- Doing both channels makes the same text show up twice (transient popup +
+-- session message), which is the bug this contract exists to prevent.
 
 local M = {}
 
@@ -44,6 +58,41 @@ local registry = {}
 ---@field handler fun(args: string, ctx: ChatSkillContext): string|ChatSkillResult|nil Handler function
 ---@field complete? fun(args: string): string[] Optional completion function
 ---@field builtin? boolean True for built-in skills
+
+--- True when the invocation came from the local prompt window.
+--- A missing origin means "direct call without dispatch()" (tests, scripts),
+--- which behaves like the local prompt.
+--- @param ctx ChatSkillContext|nil
+--- @return boolean
+local function is_local(ctx)
+  return (ctx and ctx.origin or 'local') == 'local'
+end
+
+--- Emit a receipt for a state-type skill, routed by ctx.origin.
+---
+--- Local invocations get a transient popup and nil is returned, so nothing
+--- lands in the session history (unchanged behaviour). Remote invocations get
+--- the text back instead, which dispatch_skill appends as an assistant
+--- message: a desktop popup is invisible to an HTTP caller, so none is shown.
+--
+--- Routing happens here rather than through a callback injected by dispatch()
+--- so that calling a handler directly (tests, scripts) behaves the same as
+--- going through the dispatch path.
+--- @param ctx ChatSkillContext|nil
+--- @param msg string|string[] Receipt text
+--- @param color? string Highlight group for the local popup
+--- @return string|nil Receipt text for remote callers, nil for local ones
+function M.notify(ctx, msg, color)
+  if is_local(ctx) then
+    log.notify(msg, color)
+    return nil
+  end
+  -- Returning a table would be misread as a ChatSkillResult, so flatten.
+  if type(msg) == 'table' then
+    return table.concat(msg, '\n')
+  end
+  return msg
+end
 
 --- Register a skill
 --- @param skill ChatSkill
@@ -161,14 +210,21 @@ M._builtin_clear = {
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
+    end
+
+    if not sessions.clear(ctx.session) then
       return
     end
-    if sessions.clear(ctx.session) then
+
+    -- The result buffer only ever shows the local current session: clearing
+    -- another session remotely must not repaint the desktop window.
+    if ctx.session == windows.current_session() then
       windows.render_result_buf()
-      windows.set_result_win_title(' chat.nvim ')
-      log.notify('Session cleared')
+      windows.set_result_win_title(' chat.nvim ', ctx.session)
     end
+
+    return M.notify(ctx, 'Session cleared')
   end,
 }
 
@@ -177,18 +233,21 @@ M._builtin_new = {
   name = 'new',
   description = 'Create a new session',
   builtin = true,
-  handler = function(_, _)
+  handler = function(_, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
     local new_id, err = sessions.new()
     if not new_id then
-      log.notify(err or '创建会话失败', 'ErrorMsg')
-      return
+      return M.notify(ctx, err or '创建会话失败', 'ErrorMsg')
     end
-    windows.open({ session = new_id })
-    -- State channel: the window already switched to the new session, so a
-    -- returned message would be appended to the *previous* one.
-    log.notify('New session: ' .. new_id)
+
+    if is_local(ctx) then
+      windows.open({ session = new_id })
+    end
+
+    -- Remote: the receipt carries the id, appended to the session that asked
+    -- for it. Switching the desktop window is a local UI action.
+    return M.notify(ctx, 'New session: ' .. new_id)
   end,
 }
 
@@ -201,14 +260,21 @@ M._builtin_delete = {
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
     end
+
     local next_id = sessions.delete(ctx.session)
-    if next_id then
+    if next_id and is_local(ctx) then
       windows.open({ session = next_id })
     end
-    -- No return: session is deleted, can't append message
+
+    -- dispatch_skill drops the output for a session that no longer exists, so
+    -- this receipt only reaches the local popup in practice.
+    return M.notify(
+      ctx,
+      next_id and ('Session deleted, switched to: ' .. next_id)
+        or 'Session deleted'
+    )
   end,
 }
 
@@ -222,16 +288,25 @@ M._builtin_model = {
     local windows = require('chat.windows')
 
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
+    end
+
+    --- @param value string new model name
+    local function apply_model(value)
+      sessions.set_session_model(ctx.session, value)
+      -- The provider/model pill lives in the prompt window title only.
+      -- Passing the session keeps a remote change from repainting the title
+      -- of whichever session the desktop happens to show.
+      windows.redraw_title(ctx.session)
+      return M.notify(ctx, 'Model: ' .. value)
     end
 
     if args and #args > 0 then
-      sessions.set_session_model(ctx.session, args)
-      -- The provider/model pill lives in the prompt window title only.
-      windows.redraw_title()
-      log.notify('Model: ' .. args)
-      return
+      return apply_model(args)
+    end
+
+    if not is_local(ctx) then
+      return 'Usage: /model <name> (interactive selection needs the Neovim UI)'
     end
 
     -- No args: show selection UI
@@ -243,17 +318,18 @@ M._builtin_model = {
     end
 
     if #models == 0 then
-      log.notify('No models available for provider: ' .. provider_name, 'WarningMsg')
-      return
+      return M.notify(
+        ctx,
+        'No models available for provider: ' .. provider_name,
+        'WarningMsg'
+      )
     end
 
     vim.ui.select(models, {
       prompt = 'Select model: ',
     }, function(choice)
       if choice then
-        sessions.set_session_model(ctx.session, choice)
-        windows.redraw_title()
-        log.notify('Model: ' .. choice)
+        apply_model(choice)
       end
     end)
   end,
@@ -269,15 +345,30 @@ M._builtin_provider = {
     local windows = require('chat.windows')
 
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
+    end
+
+    --- @param name string provider module name
+    local function apply_provider(name)
+      sessions.set_session_provider(ctx.session, name)
+      -- Try to set first available model
+      local ok, provider = pcall(require, 'chat.providers.' .. name)
+      if ok and provider.available_models then
+        local models = provider.available_models()
+        if #models > 0 then
+          sessions.set_session_model(ctx.session, models[1])
+        end
+      end
+      windows.redraw_title(ctx.session)
+      return M.notify(ctx, 'Provider: ' .. name)
     end
 
     if args and #args > 0 then
-      sessions.set_session_provider(ctx.session, args)
-      windows.redraw_title()
-      log.notify('Provider: ' .. args)
-      return
+      return apply_provider(args)
+    end
+
+    if not is_local(ctx) then
+      return 'Usage: /provider <name> (interactive selection needs the Neovim UI)'
     end
 
     -- No args: show selection UI
@@ -293,17 +384,7 @@ M._builtin_provider = {
       prompt = 'Select provider: ',
     }, function(choice)
       if choice then
-        sessions.set_session_provider(ctx.session, choice)
-        -- Try to set first available model
-        local ok, provider = pcall(require, 'chat.providers.' .. choice)
-        if ok and provider.available_models then
-          local models = provider.available_models()
-          if #models > 0 then
-            sessions.set_session_model(ctx.session, models[1])
-          end
-        end
-        windows.redraw_title()
-        log.notify('Provider: ' .. choice)
+        apply_provider(choice)
       end
     end)
   end,
@@ -319,13 +400,11 @@ M._builtin_cwd = {
     local windows = require('chat.windows')
 
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
     end
 
     if not args or #args == 0 then
-      log.notify('Usage: /cwd <directory>', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Usage: /cwd <directory>', 'WarningMsg')
     end
 
     -- Resolve relative paths against the session cwd instead of the editor
@@ -334,14 +413,17 @@ M._builtin_cwd = {
     local base = sessions.getcwd(ctx.session) or vim.fn.getcwd()
     local dir = util.resolve(vim.fn.expand(args), base)
     if not dir or vim.fn.isdirectory(dir) ~= 1 then
-      log.notify('Not a valid directory: ' .. (dir or args), 'WarningMsg')
-      return
+      return M.notify(
+        ctx,
+        'Not a valid directory: ' .. (dir or args),
+        'WarningMsg'
+      )
     end
 
     sessions.change_cwd(ctx.session, dir)
     -- cwd is rendered as a pill in the prompt window title.
-    windows.redraw_title()
-    log.notify('CWD: ' .. dir)
+    windows.redraw_title(ctx.session)
+    return M.notify(ctx, 'CWD: ' .. dir)
   end,
 }
 
@@ -355,7 +437,7 @@ M._builtin_pin = {
     local current = sessions.get_session_pin(ctx.session)
     sessions.set_session_pin(ctx.session, not current)
     require('chat.sessions.storage').write_cache(ctx.session)
-    log.notify(current and 'Unpinned' or 'Pinned')
+    return M.notify(ctx, current and 'Unpinned' or 'Pinned')
   end,
 }
 
@@ -375,14 +457,17 @@ M._builtin_title = {
     --- @param value string new session title
     local function apply_title(value)
       sessions.set_session_title(ctx.session, value)
-      windows.redraw_title()
-      windows.set_result_win_title(' chat.nvim ')
-      log.notify('Title: ' .. value)
+      windows.redraw_title(ctx.session)
+      windows.set_result_win_title(' chat.nvim ', ctx.session)
+      return M.notify(ctx, 'Title: ' .. value)
     end
 
     if args and #args > 0 then
-      apply_title(args)
-      return
+      return apply_title(args)
+    end
+
+    if not is_local(ctx) then
+      return 'Usage: /title <text> (interactive input needs the Neovim UI)'
     end
 
     -- No args: use vim.ui.input
@@ -395,6 +480,7 @@ M._builtin_title = {
         apply_title(input)
       end
     end)
+    -- nil: the input callback runs later and reports through its own receipt
   end,
 }
 
@@ -406,17 +492,22 @@ M._builtin_retry = {
   handler = function(_, ctx)
     local sessions = require('chat.sessions')
     if sessions.is_in_progress(ctx.session) then
-      log.notify('Request in progress.', 'WarningMsg')
-      return
+      return M.notify(ctx, 'Request in progress.', 'WarningMsg')
     end
+
     local jobid = sessions.retry(ctx.session)
-    if jobid and jobid > 0 then
-      require('chat.spinners').start()
-      log.notify('Retrying...')
-      -- No return: LLM request starts, client sees in_progress
-    else
-      log.notify('Nothing to retry', 'WarningMsg')
+    if not (jobid and jobid > 0) then
+      return M.notify(ctx, 'Nothing to retry', 'WarningMsg')
     end
+
+    -- The spinner animates the local result window title only: a remote
+    -- retry of another session has no local animation to drive.
+    if is_local(ctx) then
+      require('chat.spinners').start()
+    end
+    -- No request-triggering table return: the LLM call is already running,
+    -- the client sees in_progress.
+    return M.notify(ctx, 'Retrying...')
   end,
 }
 
