@@ -429,16 +429,15 @@ function TestHTTPRoutes:test_new_session_provider_only_auto_model()
 end
 
 function TestHTTPRoutes:test_new_session_provider_only_unknown_module()
-  -- provider module that cannot be required: default model retained
+  -- An unknown provider module is rejected instead of being written into the
+  -- new session: that session would only fail later, at request time.
   local _, status, body = req(
     'POST',
     '/session/new',
     '{"provider":"routes-ghost-test"}'
   )
-  lu.assertEquals(status, 200)
-  local data = vim.json.decode(body)
-  lu.assertEquals(data.provider, 'routes-ghost-test')
-  lu.assertEquals(data.model, 'test-model')
+  lu.assertEquals(status, 400)
+  lu.assertStrContains(body, 'Unknown provider')
 end
 
 function TestHTTPRoutes:test_new_session_invalid_body_ignored()
@@ -626,16 +625,37 @@ function TestHTTPRoutes:test_set_provider_no_models_keeps_model()
   package.loaded['chat.providers.routes-empty-test'] = nil
 end
 
-function TestHTTPRoutes:test_set_provider_unknown_module_keeps_model()
-  -- provider module that cannot be required: model untouched
-  local before = sessions.get_session_model(self.sid)
-  local _, status = req(
+function TestHTTPRoutes:test_set_provider_unknown_module_rejected()
+  -- An unknown provider module is refused up front: writing it into the
+  -- session would only fail later, at request time, with a nil jobid.
+  local provider_before = sessions.get_session_provider(self.sid)
+  local model_before = sessions.get_session_model(self.sid)
+  local _, status, body = req(
     'PUT',
     '/session/' .. self.sid .. '/provider',
     '{"provider":"routes-ghost-test"}'
   )
-  lu.assertEquals(status, 204)
-  lu.assertEquals(sessions.get_session_model(self.sid), before)
+  lu.assertEquals(status, 400)
+  lu.assertStrContains(body, 'Unknown provider')
+  lu.assertEquals(sessions.get_session_provider(self.sid), provider_before)
+  lu.assertEquals(sessions.get_session_model(self.sid), model_before)
+end
+
+function TestHTTPRoutes:test_set_provider_in_progress_409()
+  -- set_session_provider refuses while streaming; 204 would tell the caller
+  -- the switch happened when the session still has the old provider.
+  local progress = require('chat.sessions.progress')
+  progress.set_session_jobid(self.sid, 99997)
+  local provider_before = sessions.get_session_provider(self.sid)
+  local _, status, body = req(
+    'PUT',
+    '/session/' .. self.sid .. '/provider',
+    '{"provider":"anthropic"}'
+  )
+  lu.assertEquals(status, 409)
+  lu.assertStrContains(body, 'in progress')
+  lu.assertEquals(sessions.get_session_provider(self.sid), provider_before)
+  progress.on_progress_exit(99997, 0, 0)
 end
 
 -- ─── PUT /session/:id/model ─────────────────────────────

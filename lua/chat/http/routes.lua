@@ -95,14 +95,7 @@ end
 --- @param session_id string The session identifier
 --- @param provider_name string The provider name
 local function set_first_available_model(session_id, provider_name)
-  local ok, provider = pcall(require, 'chat.providers.' .. provider_name)
-  if not ok or type(provider) ~= 'table' or not provider.available_models then
-    return
-  end
-  local ok_models, models = pcall(provider.available_models)
-  if not ok_models or type(models) ~= 'table' then
-    return
-  end
+  local models = require('chat.providers').available_models(provider_name)
   if #models > 0 then
     sessions.set_session_model(session_id, models[1])
   end
@@ -201,25 +194,13 @@ end
 
 --- GET /providers: list available providers and their models
 local function handle_list_providers(client)
-  local provider_files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
   local providers = {}
-  for _, file in ipairs(provider_files) do
-    local name = vim.fn.fnamemodify(file, ':t:r')
-    local ok, provider = pcall(require, 'chat.providers.' .. name)
-    if ok and provider then
-      local models = {}
-      if provider.available_models then
-        models = provider.available_models() or {}
-      end
-      table.insert(providers, {
-        name = name,
-        models = models,
-      })
-    end
+  for _, name in ipairs(require('chat.providers').list()) do
+    table.insert(providers, {
+      name = name,
+      models = require('chat.providers').available_models(name),
+    })
   end
-  table.sort(providers, function(a, b)
-    return a.name < b.name
-  end)
   response.send_json(client, 200, providers)
 end
 
@@ -354,31 +335,44 @@ end
 
 --- POST /session/new: create new session
 local function handle_new_session(client, body, content_length)
+  -- Parse the optional body first: an unknown provider has to be rejected
+  -- before a session is created, otherwise a typo leaves a stranded session
+  -- that would only fail later, at request time.
+  local provider_name, model_name
+  if content_length and content_length > 0 then
+    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
+    if ok and type(obj) == 'table' then
+      if obj.provider and type(obj.provider) == 'string' and obj.provider ~= '' then
+        if not require('chat.providers').exists(obj.provider) then
+          response.send_json(client, 400, {
+            error = 'Unknown provider: ' .. obj.provider,
+          })
+          return
+        end
+        provider_name = obj.provider
+      end
+      if obj.model and type(obj.model) == 'string' and obj.model ~= '' then
+        model_name = obj.model
+      end
+    end
+  end
+
   local new_id, err = sessions.new()
   if not new_id then
     response.send_json(client, 409, { error = err or 'Failed to create session' })
     return
   end
 
-  -- Parse optional body for provider and model
-  if content_length and content_length > 0 then
-    local ok, obj = pcall(vim.json.decode, body:sub(1, content_length))
-    if ok and type(obj) == 'table' then
-      local has_provider = obj.provider
-        and type(obj.provider) == 'string' and obj.provider ~= ''
-      local has_model = obj.model
-        and type(obj.model) == 'string' and obj.model ~= ''
-
-      if has_provider then
-        sessions.set_session_provider(new_id, obj.provider)
-      end
-      if has_model then
-        sessions.set_session_model(new_id, obj.model)
-      elseif has_provider then
-        -- Model omitted: auto-select the provider's first available model
-        set_first_available_model(new_id, obj.provider)
-      end
+  if provider_name then
+    sessions.set_session_provider(new_id, provider_name)
+    if model_name then
+      sessions.set_session_model(new_id, model_name)
+    else
+      -- Model omitted: auto-select the provider's first available model
+      set_first_available_model(new_id, provider_name)
     end
+  elseif model_name then
+    sessions.set_session_model(new_id, model_name)
   end
 
   -- Get updated session data
@@ -506,7 +500,23 @@ local function handle_set_provider(client, path, body, content_length)
     return
   end
 
-  sessions.set_session_provider(session_id, provider)
+  -- Turn a typo into a 400 instead of a silently broken session: an unknown
+  -- provider module only fails later, inside chat.protocol.request, where the
+  -- client sees nothing but a nil jobid.
+  if not require('chat.providers').exists(provider) then
+    response.send_json(client, 400, { error = 'Unknown provider: ' .. provider })
+    return
+  end
+
+  -- set_session_provider refuses (returns nil) while the session is streaming.
+  -- Reporting 204 anyway would tell the caller the switch succeeded when the
+  -- session still points at the old provider.
+  if not sessions.set_session_provider(session_id, provider) then
+    response.send_json(client, 409, {
+      error = 'Session is in progress, provider not changed',
+    })
+    return
+  end
 
   -- Model is optional: use it when given, otherwise auto-select the
   -- provider's first available model

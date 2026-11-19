@@ -262,16 +262,50 @@ end
 -- /provider ------------------------------------------------------------
 
 function TestSkillsOrigin:testProviderWithArgsRemoteReturnsReceipt()
-  local provider_set
+  -- A stub provider keeps the test off the network: real dynamic providers
+  -- start a background fetch whose result would race the assertions.
+  package.loaded['chat.providers.origin-fake'] = nil
+  package.preload['chat.providers.origin-fake'] = function()
+    return {
+      available_models = function()
+        return { 'origin-fake-model' }
+      end,
+    }
+  end
+  local provider_set, model_set
   sessions.set_session_provider = function(_, v)
     provider_set = v
   end
-  local out = skills._builtin_provider.handler('openai', {
+  sessions.set_session_model = function(_, v)
+    model_set = v
+  end
+  local out = skills._builtin_provider.handler('origin-fake', {
     session = 's1',
     origin = 'http',
   })
-  lu.assertEquals('Provider: openai', out)
-  lu.assertEquals('openai', provider_set)
+  -- The receipt names the model too: after switching, an unmoved model is
+  -- what makes the next request fail, so it has to be visible.
+  lu.assertEquals('Provider: origin-fake, Model: origin-fake-model', out)
+  lu.assertEquals('origin-fake', provider_set)
+  lu.assertEquals('origin-fake-model', model_set)
+  lu.assertEquals(0, #self.notified)
+  package.preload['chat.providers.origin-fake'] = nil
+  package.loaded['chat.providers.origin-fake'] = nil
+end
+
+function TestSkillsOrigin:testProviderUnknownNameRemoteRejected()
+  -- A typo must not be written into the session: it would only surface later
+  -- as a nil jobid inside chat.protocol.request.
+  local provider_set = false
+  sessions.set_session_provider = function()
+    provider_set = true
+  end
+  local out = skills._builtin_provider.handler('no-such-provider', {
+    session = 's1',
+    origin = 'http',
+  })
+  lu.assertStrContains(out, 'Unknown provider: no-such-provider')
+  lu.assertFalse(provider_set)
   lu.assertEquals(0, #self.notified)
 end
 

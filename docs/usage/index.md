@@ -316,7 +316,7 @@ chat.nvim includes a built-in skill system that lets you type `/name [args]` in 
 | `/new`            | Create a new session                                 |
 | `/delete`         | Delete current session                               |
 | `/model [name]`   | Switch model (shows selection UI if no name given)   |
-| `/provider [name]`| Switch provider (shows selection UI if no name given)|
+| `/provider [name]`| Switch provider (shows selection UI if no name given); an unknown name is rejected |
 | `/cwd <path>`     | Change working directory                             |
 | `/pin`            | Toggle pin status of current session                 |
 | `/title [text]`   | Set session title (shows input UI if no text given)  |
@@ -342,6 +342,8 @@ Type the skill name directly in the prompt window:
 ```
 
 When no arguments are provided for `/model` and `/provider`, a selection UI (`vim.ui.select`) is shown. Similarly, `/title` without arguments uses `vim.ui.input` for interactive input.
+
+`/provider <name>` switches the session and then tries to adopt the new provider's first available model. Some providers resolve their model list asynchronously (the first call only starts a background fetch), so the model may not be known yet: the receipt then names the model that is still in use, and `/model` lets you pick one explicitly. An unknown provider name is rejected instead of being written into the session.
 
 ### Custom Skills
 

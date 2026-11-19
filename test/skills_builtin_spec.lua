@@ -140,10 +140,28 @@ function TestSkillsBuiltin:testHelp()
 end
 
 function TestSkillsBuiltin:testProviderWithArgs()
+  -- A stub provider keeps this test off the network. Real dynamic providers
+  -- start a background model fetch, so the receipt's model would race.
+  package.preload['chat.providers.builtin-fake'] = function()
+    return {
+      available_models = function()
+        return { 'builtin-fake-model' }
+      end,
+    }
+  end
+  local model_set
   sessions.set_session_provider = function() end
+  sessions.set_session_model = function(_, m)
+    model_set = m
+  end
   windows.redraw_title = function() end
-  lu.assertNil(skills._builtin_provider.handler('openai', { session = 's1' }))
-  lu.assertStrContains(self:notify_text(), 'openai')
+  lu.assertNil(
+    skills._builtin_provider.handler('builtin-fake', { session = 's1' })
+  )
+  lu.assertStrContains(self:notify_text(), 'Provider: builtin-fake')
+  lu.assertEquals('builtin-fake-model', model_set)
+  package.preload['chat.providers.builtin-fake'] = nil
+  package.loaded['chat.providers.builtin-fake'] = nil
 end
 
 return TestSkillsBuiltin

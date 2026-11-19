@@ -680,8 +680,18 @@ Create a new session, optionally specifying the provider and model.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | No | Provider to use |
+| `provider` | string | No | Provider to use; must resolve to an existing provider module, otherwise the request fails with `400` |
 | `model` | string | No | Model to use; when `provider` is given but `model` is omitted, the provider's first available model is auto-selected |
+
+**Response (400 Bad Request):**
+
+Returned when `provider` is given but no matching provider module exists. No session is created:
+
+```json
+{
+  "error": "Unknown provider: openai-typo"
+}
+```
 
 **Response (200 OK):**
 
@@ -858,6 +868,8 @@ curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00/messages/3 \
 
 Set the provider for a session. When `model` is omitted, the provider's first available model is auto-selected (same behavior as the `/provider` skill in the TUI).
 
+The provider name must resolve to a loadable `chat.providers.<name>` module; an unknown name is rejected with `400` instead of being written into the session. A session that is currently streaming cannot change provider and answers `409`.
+
 **Request Body:**
 
 ```json
@@ -879,7 +891,7 @@ Set the provider for a session. When `model` is omitted, the provider's first av
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | Yes | Provider name |
+| `provider` | string | Yes | Provider name (must exist) |
 | `model` | string | No | Model name; defaults to the provider's first available model |
 
 **Response Status Codes:**
@@ -888,7 +900,8 @@ Set the provider for a session. When `model` is omitted, the provider's first av
 |---|---|
 | 204 | Success - provider updated |
 | 404 | Session not found |
-| 400 | Missing or invalid provider value |
+| 400 | Missing or invalid provider value, or unknown provider module |
+| 409 | Session is in progress; provider not changed |
 
 **Example:**
 

@@ -311,11 +311,7 @@ M._builtin_model = {
 
     -- No args: show selection UI
     local provider_name = sessions.get_session_provider(ctx.session)
-    local ok, provider = pcall(require, 'chat.providers.' .. provider_name)
-    local models = {}
-    if ok and provider.available_models then
-      models = provider.available_models()
-    end
+    local models = require('chat.providers').available_models(provider_name)
 
     if #models == 0 then
       return M.notify(
@@ -343,27 +339,58 @@ M._builtin_provider = {
   handler = function(args, ctx)
     local sessions = require('chat.sessions')
     local windows = require('chat.windows')
+    local provider_list = require('chat.providers')
 
     if sessions.is_in_progress(ctx.session) then
       return M.notify(ctx, 'Request in progress.', 'WarningMsg')
     end
 
+    --- Switch the session to `name` and report the resulting provider/model.
+    ---
+    --- The model is part of the receipt on purpose. Dynamic providers resolve
+    --- their model list asynchronously - the first `available_models()` call
+    --- only starts a background fetch and returns `{}` - so the session keeps
+    --- its previous model, which the new provider will reject on the next
+    --- request. Naming the model, and warning when it could not be switched,
+    --- turns a silent 400 into something the user can act on.
     --- @param name string provider module name
     local function apply_provider(name)
       sessions.set_session_provider(ctx.session, name)
-      -- Try to set first available model
-      local ok, provider = pcall(require, 'chat.providers.' .. name)
-      if ok and provider.available_models then
-        local models = provider.available_models()
-        if #models > 0 then
-          sessions.set_session_model(ctx.session, models[1])
-        end
+
+      local models = provider_list.available_models(name)
+      local model
+      if #models > 0 then
+        sessions.set_session_model(ctx.session, models[1])
+        model = models[1]
+      else
+        model = sessions.get_session_model(ctx.session)
       end
+
       windows.redraw_title(ctx.session)
-      return M.notify(ctx, 'Provider: ' .. name)
+
+      if model then
+        return M.notify(ctx, 'Provider: ' .. name .. ', Model: ' .. model)
+      end
+      return M.notify(
+        ctx,
+        'Provider: ' .. name
+          .. '. No models available yet, use /model to pick one.',
+        'WarningMsg'
+      )
     end
 
     if args and #args > 0 then
+      -- A typo in the name used to be written straight into the session: the
+      -- provider module would then be missing at request time, leaving a nil
+      -- jobid and a debug log line as the only explanation. Validate first.
+      if not provider_list.exists(args) then
+        return M.notify(
+          ctx,
+          'Unknown provider: ' .. args .. ' (available: '
+            .. table.concat(provider_list.list(), ', ') .. ')',
+          'WarningMsg'
+        )
+      end
       return apply_provider(args)
     end
 
@@ -372,13 +399,10 @@ M._builtin_provider = {
     end
 
     -- No args: show selection UI
-    local files = vim.api.nvim_get_runtime_file('lua/chat/providers/*.lua', true)
-    local providers = {}
-    for _, f in ipairs(files) do
-      local name = vim.fn.fnamemodify(f, ':t:r')
-      table.insert(providers, name)
+    local providers = provider_list.list()
+    if #providers == 0 then
+      return M.notify(ctx, 'No providers available', 'WarningMsg')
     end
-    table.sort(providers)
 
     vim.ui.select(providers, {
       prompt = 'Select provider: ',
