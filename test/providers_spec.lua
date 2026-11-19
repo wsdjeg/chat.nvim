@@ -139,6 +139,24 @@ local function fake_system(responder)
   end
 end
 
+--- Install a fake vim.system that records the callback instead of running it.
+---
+--- Async providers must return before the server answers, so tests need to
+--- observe the "still loading" state first and deliver the response later via
+--- `state:respond(...)`.
+local function pending_system()
+  local state = { calls = 0 }
+  vim.system = function(cmd, opts, cb)
+    state.calls = state.calls + 1
+    state.cb = cb
+    return {}
+  end
+  function state:respond(out)
+    self.cb(out)
+  end
+  return state
+end
+
 --- Build a request through a provider and return (jobid, j, body)
 --- Creates a fresh session per call (request marks session in_progress)
 local function do_request(mod, messages, model)
@@ -437,21 +455,37 @@ function TestProviders:test_qwen_no_pagination_when_small_total()
   lu.assertEquals(models, { 'q-only' })
 end
 
-function TestProviders:test_ollama_available_models_sync()
+function TestProviders:test_ollama_available_models_async()
   local provider = load_fresh('ollama')
-  fake_system(function()
-    return { code = 0, stdout = '{"models":[{"name":"llama3"},{"name":"qwen2"}]}' }
-  end)
-  local models = provider.available_models()
-  lu.assertEquals(models, { 'llama3', 'qwen2' })
+  local state = pending_system()
+  -- First call returns immediately with the (still empty) cache instead of
+  -- blocking the main loop on the local server.
+  lu.assertEquals(provider.available_models(), {}, 'empty while loading')
+  lu.assertEquals(state.calls, 1, 'one background fetch')
+
+  state:respond({ code = 0, stdout = '{"models":[{"name":"llama3"},{"name":"qwen2"}]}' })
+  lu.assertEquals(provider.available_models(), { 'llama3', 'qwen2' }, 'filled after response')
+  lu.assertEquals(state.calls, 1, 'second call replays the cache')
 end
 
 function TestProviders:test_ollama_available_models_failure()
   local provider = load_fresh('ollama')
-  fake_system(function()
-    return { code = 7, stdout = '' }
-  end)
+  local state = pending_system()
+  lu.assertEquals(provider.available_models(), {}, 'empty while loading')
+
+  state:respond({ code = 7, stdout = '' })
   lu.assertEquals(provider.available_models(), {}, 'connection refused -> empty')
+  -- A failure must clear the in-flight guard so a server started later is
+  -- still discovered instead of being wedged forever.
+  lu.assertEquals(state.calls, 2, 'retries after a failed fetch')
+end
+
+function TestProviders:test_ollama_available_models_invalid_json()
+  local provider = load_fresh('ollama')
+  local state = pending_system()
+  provider.available_models()
+  state:respond({ code = 0, stdout = 'not json{{{' })
+  lu.assertEquals(provider.available_models(), {}, 'invalid JSON tolerated')
 end
 
 function TestProviders:test_ollama_custom_host()
