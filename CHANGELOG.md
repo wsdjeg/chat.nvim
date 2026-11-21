@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.13.0](https://github.com/wsdjeg/chat.nvim/compare/v1.12.0...v1.13.0) (2026-11-21)
+
+
+### Features
+
+* **config:** add icons table for the terminal UI ([a1d76e1](https://github.com/wsdjeg/chat.nvim/commit/a1d76e14118b8becc5bc1a297bbdb9010c1c8a9a))
+* **queue:** carry message origin through the queue ([f726fe7](https://github.com/wsdjeg/chat.nvim/commit/f726fe7ad72a5a0bbe9c1243f6fed12de663de92))
+
+
+### Bug Fixes
+
+* **protocol:** support openrouter reasoning field and ignore sse comments ([7e5b472](https://github.com/wsdjeg/chat.nvim/commit/7e5b4729f4fa7e021214c237044cc9879c06f9cc))
+* **providers:** fetch ollama models asynchronously to avoid blocking ([8e77132](https://github.com/wsdjeg/chat.nvim/commit/8e77132577edca7a35d0891ffad4c1d1022be0c7))
+* **provider:** validate provider names and report the model after a switch ([6f780b6](https://github.com/wsdjeg/chat.nvim/commit/6f780b69b3b3d75466a97a011d4b546de2785c14))
+* **skills:** never append state receipts to the message list ([53ba596](https://github.com/wsdjeg/chat.nvim/commit/53ba59653f247d72639f2c5cdaa8dfc8211e14cd))
+* **skills:** redraw result title on /title and resolve /cwd against session cwd ([847bf4b](https://github.com/wsdjeg/chat.nvim/commit/847bf4bae065d8a7897d0ed0e57a7b7b14eb97c7))
+* **skills:** route receipts by origin so remote callers get feedback ([6c57eae](https://github.com/wsdjeg/chat.nvim/commit/6c57eae81c21440e6b8ef8a6511d8eca8f942b62))
+* **skills:** use a single output channel per skill ([1bf8a91](https://github.com/wsdjeg/chat.nvim/commit/1bf8a9111f7bd35087f92f2c2e9e8cff6a503a2a))
+
 ## [1.12.0](https://github.com/wsdjeg/chat.nvim/compare/v1.11.1...v1.12.0) (2026-11-15)
 
 
