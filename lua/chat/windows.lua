@@ -85,8 +85,14 @@ local function start_services()
   require('chat.mcp').connect()
 end
 
---- Dispatch skill command and append output as assistant message.
---- Gives HTTP clients feedback after sending a /command.
+--- Dispatch a skill command and append its output as a message.
+---
+--- Only the *content* channel lands in the session: a string return or a
+--- ChatSkillResult table. State-type receipts come back as nil from
+--- skills.notify() for every origin, so a state change (/title, /model, /cwd,
+--- /pin, /retry) never appends anything — the receipt is a transient popup
+--- for the local prompt and pure silence for remote callers.
+---
 --- Handler return convention:
 ---   nil      -> no output
 ---   string   -> append as assistant message (backward compatible)

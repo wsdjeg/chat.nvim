@@ -15,23 +15,31 @@
 --
 --   state-type    -> `return M.notify(ctx, ...)`
 --                    A state change (/model, /cwd, /pin, /title, /retry)
---                    needs a short receipt, but appending an assistant
---                    message would pollute the LLM history and push the
---                    receipt to IM platforms.
+--                    needs a short receipt, but it must never land in the
+--                    message list: an assistant message would pollute the
+--                    LLM history, be forwarded to bridged IM platforms and
+--                    could never be removed again. `M.notify` therefore
+--                    always returns nil, so dispatch_skill appends nothing.
 --
 -- `M.notify` routes that receipt by ctx.origin:
 --
---   local          -> log.notify (transient popup), returns nil, so nothing
---                     is appended to the session (unchanged behaviour).
---   http/...       -> returns the text instead, which dispatch_skill appends
---                     as an assistant message the remote caller can read via
---                     GET /session/:id/messages. A desktop popup is invisible
---                     to that caller, so none is emitted.
+--   local          -> log.notify (transient popup), and only when the session
+--                     is the one the desktop window is showing. A popup about
+--                     a background session would describe a state the user
+--                     cannot see. Returns nil either way.
+--   http/...       -> silence. A desktop popup is invisible to a remote caller
+--                     and a session message is noise, so the caller learns the
+--                     outcome from the return value of its own request instead:
+--                     `PUT /session/:id/title` answers 204 on success and 4xx
+--                     on failure. The fire-and-forget `POST /` path only queues
+--                     the command (204), so a client that needs the verdict uses
+--                     the typed REST endpoint or reads the session afterwards.
 --
 -- Skills that need the Neovim UI (vim.ui.select / vim.ui.input) or that would
 -- switch the local window must check ctx.origin: a remote caller cannot
--- answer a desktop prompt and must not hijack the desktop's window. They
--- return a usage string instead.
+-- answer a desktop prompt and must not hijack the desktop's window. Their
+-- no-argument remote branch is silent (returns nil) rather than a usage string,
+-- for the same reason as the receipts above.
 --
 -- Doing both channels makes the same text show up twice (transient popup +
 -- session message), which is the bug this contract exists to prevent.
@@ -68,30 +76,57 @@ local function is_local(ctx)
   return (ctx and ctx.origin or 'local') == 'local'
 end
 
---- Emit a receipt for a state-type skill, routed by ctx.origin.
+--- True when `ctx.session` is the session the desktop windows are showing.
 ---
---- Local invocations get a transient popup and nil is returned, so nothing
---- lands in the session history (unchanged behaviour). Remote invocations get
---- the text back instead, which dispatch_skill appends as an assistant
---- message: a desktop popup is invisible to an HTTP caller, so none is shown.
---
---- Routing happens here rather than through a callback injected by dispatch()
---- so that calling a handler directly (tests, scripts) behaves the same as
---- going through the dispatch path.
+--- A receipt describes state the user can see; for a background session no
+--- window exists to look at, so the popup would only be noise. Callers without
+--- a session (direct handler calls in scripts) keep the local-prompt
+--- behaviour, as does a headless instance with no windows open at all.
+--- @param ctx ChatSkillContext|nil
+--- @return boolean
+local function is_current_window(ctx)
+  local session = ctx and ctx.session
+  if not session then
+    return true
+  end
+  local ok, windows = pcall(require, 'chat.windows')
+  if not ok then
+    return true
+  end
+  local current = windows.current_session()
+  if not current then
+    -- Headless instance: no desktop session to compare against, so there is
+    -- nothing that could be "another window". Keep the popup.
+    return true
+  end
+  return session == current
+end
+
+--- Emit a receipt for a state-type skill.
+---
+--- A receipt never becomes session content: `nil` is always returned, so
+--- dispatch_skill appends nothing and the message list stays clean. Receipts
+--- are a UI affordance, and only the desktop window can render one.
+---
+--- Routing by ctx.origin:
+---
+---   local    -> transient popup, but only when the session is on screen.
+---   http/... -> silent. The remote caller cannot see a popup, and appending a
+---               message would pollute the history, so the verdict travels in
+---               the HTTP response of the typed endpoint instead
+---               (`PUT /session/:id/title` answers 204 on success, 4xx on
+---               failure). The fire-and-forget `POST /` path only acknowledges
+---               that the command was queued.
+---
 --- @param ctx ChatSkillContext|nil
 --- @param msg string|string[] Receipt text
 --- @param color? string Highlight group for the local popup
---- @return string|nil Receipt text for remote callers, nil for local ones
+--- @return nil Always nil: nothing is ever appended to the session
 function M.notify(ctx, msg, color)
-  if is_local(ctx) then
+  if is_local(ctx) and is_current_window(ctx) then
     log.notify(msg, color)
-    return nil
   end
-  -- Returning a table would be misread as a ChatSkillResult, so flatten.
-  if type(msg) == 'table' then
-    return table.concat(msg, '\n')
-  end
-  return msg
+  return nil
 end
 
 --- Register a skill
@@ -306,7 +341,10 @@ M._builtin_model = {
     end
 
     if not is_local(ctx) then
-      return 'Usage: /model <name> (interactive selection needs the Neovim UI)'
+      -- Silent for remote callers: a usage string would be appended to the
+      -- message list, and the typed endpoint PUT /session/:id/model reports
+      -- the outcome by status code.
+      return nil
     end
 
     -- No args: show selection UI
@@ -395,7 +433,9 @@ M._builtin_provider = {
     end
 
     if not is_local(ctx) then
-      return 'Usage: /provider <name> (interactive selection needs the Neovim UI)'
+      -- Silent for remote callers, same reason as /model: the typed endpoint
+      -- PUT /session/:id/provider is where a remote switch reports its verdict.
+      return nil
     end
 
     -- No args: show selection UI
@@ -478,7 +518,14 @@ M._builtin_title = {
     --- while the prompt window only carries provider/model, cwd and
     --- integrations. Both titles therefore have to be rebuilt: redraw_title()
     --- alone leaves the result window showing the stale title.
+    ---
+    --- Neither title rebuild touches a session the desktop is not showing
+    --- (see windows.redraw_title / set_result_win_title), so this stays a
+    --- pure local repaint. The receipt goes through M.notify, which keeps it
+    --- out of the session and answers remote callers with silence: they read
+    --- the outcome off the HTTP status of PUT /session/:id/title instead.
     --- @param value string new session title
+    --- @return nil Nothing appended to the session, for every origin
     local function apply_title(value)
       sessions.set_session_title(ctx.session, value)
       windows.redraw_title(ctx.session)
@@ -491,7 +538,11 @@ M._builtin_title = {
     end
 
     if not is_local(ctx) then
-      return 'Usage: /title <text> (interactive input needs the Neovim UI)'
+      -- No argument and no Neovim UI to ask: silent, so the remote caller is
+      -- not handed a usage string that would land in the message list. The
+      -- typed endpoint PUT /session/:id/title takes the title in its body and
+      -- reports success by status code.
+      return nil
     end
 
     -- No args: use vim.ui.input

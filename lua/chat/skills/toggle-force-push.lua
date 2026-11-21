@@ -8,9 +8,9 @@
 --   /toggle-force-push   # Toggle on/off
 --
 -- State-type skill: the receipt goes through skills.notify(ctx, ...), which
--- shows a transient popup for local invocations (returning nil) and hands the
--- text back to dispatch_skill for remote ones, so an HTTP caller gets an
--- answer it can actually read.
+-- shows a transient popup for a local invocation of the session on screen and
+-- stays silent for remote callers. notify() always returns nil, so nothing is
+-- ever appended to the message list.
 
 local skills = require('chat.skills')
 

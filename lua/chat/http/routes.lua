@@ -747,7 +747,14 @@ local function handle_set_title(client, path, body, content_length)
     return
   end
 
-  sessions.set_session_title(session_id, title)
+  -- The skill /title stays silent for HTTP callers and never appends a
+  -- receipt, so the client has to learn the outcome from this response.
+  -- set_session_title returns false when the session vanished or the title
+  -- is invalid; answering 204 anyway would report a write that never happened.
+  if not sessions.set_session_title(session_id, title) then
+    response.send_json(client, 409, { error = 'Session title not changed' })
+    return
+  end
   response.send_response(client, 204)
 end
 

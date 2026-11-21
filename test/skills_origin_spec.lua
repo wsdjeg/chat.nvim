@@ -1,12 +1,16 @@
 -- Coverage for the origin-aware receipt channel in lua/chat/skills.lua.
 --
 -- Contract under test:
---   * ctx.origin = 'local'  -> receipt goes to log.notify, handler returns nil
---   * ctx.origin = 'http'   -> receipt is returned as a string, no popup, so
---                             dispatch_skill appends it to the session and the
---                             remote caller can read it
+--   * a receipt is never session content: every handler returns nil from
+--     skills.notify(), so dispatch_skill appends nothing for any origin
+--   * ctx.origin = 'local'  -> transient popup, but only when the session is
+--                             the one the desktop window shows
+--   * ctx.origin = 'http'   -> no popup, no return value: the remote caller
+--                             reads the outcome from the HTTP status of the
+--                             typed endpoint (PUT /session/:id/title)
 --   * Neovim-UI-only paths (vim.ui.select / vim.ui.input / window switching)
---     are skipped for remote callers and answered with a usage string
+--     are skipped for remote callers, silently, and never reply with a usage
+--     string that would land in the message list
 --   * windows.redraw_title / set_result_win_title accept an optional session
 --     and stay a no-op for a session the desktop is not showing
 
@@ -23,7 +27,6 @@ local log = require('chat.log')
 TestSkillsOrigin = {}
 
 local SESSION_ORIG = {}
-local WINDOWS_ORIG = {}
 
 function TestSkillsOrigin:setUp()
   for _, m in ipairs({
@@ -47,7 +50,7 @@ function TestSkillsOrigin:setUp()
   }) do
     SESSION_ORIG[m] = sessions[m]
   end
-  WINDOWS_ORIG = {
+  self.windows_orig = {
     open = windows.open,
     redraw_title = windows.redraw_title,
     set_result_win_title = windows.set_result_win_title,
@@ -61,7 +64,8 @@ function TestSkillsOrigin:setUp()
   self.prompt_redraw_orig = prompt.redraw_title
   self.result_set_title_orig = result.set_title
 
-  -- Everything defaults to the benign local desktop case.
+  -- Everything defaults to the benign local desktop case: session s1 is on
+  -- screen, so its receipts are allowed to pop up.
   sessions.is_in_progress = function()
     return false
   end
@@ -104,7 +108,7 @@ function TestSkillsOrigin:tearDown()
   for m, orig in pairs(SESSION_ORIG) do
     sessions[m] = orig
   end
-  for m, orig in pairs(WINDOWS_ORIG) do
+  for m, orig in pairs(self.windows_orig) do
     windows[m] = orig
   end
   spinners.start = self.spinners_start_orig
@@ -123,14 +127,7 @@ end
 -- skills.notify routing -------------------------------------------------
 
 function TestSkillsOrigin:testNotifyLocalGoesToPopupAndReturnsNil()
-  local ctx = {
-    session = 's1',
-    origin = 'local',
-    notify = function(msg, _)
-      log.notify(msg)
-      return nil
-    end,
-  }
+  local ctx = { session = 's1', origin = 'local' }
   lu.assertNil(skills.notify(ctx, 'hello'))
   lu.assertEquals('hello', self:notify_text())
 end
@@ -140,19 +137,30 @@ function TestSkillsOrigin:testNotifyWithoutCtxFallsBackToPopup()
   lu.assertEquals('standalone', self:notify_text())
 end
 
-function TestSkillsOrigin:testNotifyFlattensTableMessagesForRemote()
-  local ctx = {
-    session = 's1',
-    origin = 'http',
-    notify = function(msg, _)
-      if type(msg) == 'table' then
-        return table.concat(msg, '\n')
-      end
-      return msg
-    end,
-  }
-  lu.assertEquals('line one\nline two', skills.notify(ctx, { 'line one', 'line two' }))
+function TestSkillsOrigin:testNotifyRemoteStaysSilentAndReturnsNil()
+  local ctx = { session = 's1', origin = 'http' }
+  lu.assertNil(skills.notify(ctx, 'remote receipt'))
   lu.assertEquals(0, #self.notified)
+end
+
+function TestSkillsOrigin:testNotifyLocalSkipsPopupForBackgroundSession()
+  -- The desktop shows "other": a popup about s1 would describe state the user
+  -- cannot see, and a session message is never an option.
+  windows.current_session = function()
+    return 'other'
+  end
+  local ctx = { session = 's1', origin = 'local' }
+  lu.assertNil(skills.notify(ctx, 'background receipt'))
+  lu.assertEquals(0, #self.notified)
+end
+
+function TestSkillsOrigin:testNotifyKeepsPopupWhenNoSessionIsOpen()
+  -- Headless: no desktop session to compare against, so nothing is "foreign".
+  windows.current_session = function()
+    return nil
+  end
+  lu.assertNil(skills.notify({ session = 's1', origin = 'local' }, 'quiet'))
+  lu.assertEquals('quiet', self:notify_text())
 end
 
 -- dispatch() wires the channel -----------------------------------------
@@ -170,7 +178,7 @@ function TestSkillsOrigin:testDispatchLocalOriginSuppressesReturn()
   skills.unregister('originlocal')
 end
 
-function TestSkillsOrigin:testDispatchHttpOriginReturnsReceipt()
+function TestSkillsOrigin:testDispatchHttpOriginReturnsNothing()
   skills.register({
     name = 'originhttp',
     handler = function(_, ctx)
@@ -178,7 +186,7 @@ function TestSkillsOrigin:testDispatchHttpOriginReturnsReceipt()
     end,
   })
   local out = skills.dispatch('/originhttp', 's1', 'http')
-  lu.assertEquals('remote receipt', out)
+  lu.assertNil(out)
   lu.assertEquals(0, #self.notified)
   skills.unregister('originhttp')
 end
@@ -201,22 +209,22 @@ end
 
 -- /title ---------------------------------------------------------------
 
-function TestSkillsOrigin:testTitleWithArgsRemoteReturnsReceipt()
+function TestSkillsOrigin:testTitleWithArgsRemoteIsSilent()
   local title_set
   sessions.set_session_title = function(_, v)
     title_set = v
   end
   local out =
     skills._builtin_title.handler('My Title', { session = 's1', origin = 'http' })
-  lu.assertEquals('Title: My Title', out)
+  lu.assertNil(out)
   lu.assertEquals('My Title', title_set)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testTitleNoArgsRemoteRefusesUI()
+function TestSkillsOrigin:testTitleNoArgsRemoteIsSilentWithoutUI()
   local out =
     skills._builtin_title.handler('', { session = 's1', origin = 'http' })
-  lu.assertStrContains(out, 'Usage: /title')
+  lu.assertNil(out)
   lu.assertEquals(0, self.ui_prompts)
   lu.assertEquals(0, #self.notified)
 end
@@ -238,30 +246,38 @@ function TestSkillsOrigin:testTitleNoArgsLocalStillPrompts()
   lu.assertEquals('Renamed', title_set)
 end
 
+function TestSkillsOrigin:testTitleLocalPopsUpAndAppendsNothing()
+  sessions.set_session_title = function() end
+  local out =
+    skills._builtin_title.handler('My Title', { session = 's1', origin = 'local' })
+  lu.assertNil(out)
+  lu.assertEquals('Title: My Title', self:notify_text())
+end
+
 -- /model ---------------------------------------------------------------
 
-function TestSkillsOrigin:testModelWithArgsRemoteReturnsReceipt()
+function TestSkillsOrigin:testModelWithArgsRemoteIsSilent()
   local model_set
   sessions.set_session_model = function(_, v)
     model_set = v
   end
   local out =
     skills._builtin_model.handler('gpt-4o', { session = 's1', origin = 'http' })
-  lu.assertEquals('Model: gpt-4o', out)
+  lu.assertNil(out)
   lu.assertEquals('gpt-4o', model_set)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testModelNoArgsRemoteRefusesUI()
+function TestSkillsOrigin:testModelNoArgsRemoteIsSilentWithoutUI()
   local out =
     skills._builtin_model.handler('', { session = 's1', origin = 'http' })
-  lu.assertStrContains(out, 'Usage: /model')
+  lu.assertNil(out)
   lu.assertEquals(0, self.ui_prompts)
 end
 
 -- /provider ------------------------------------------------------------
 
-function TestSkillsOrigin:testProviderWithArgsRemoteReturnsReceipt()
+function TestSkillsOrigin:testProviderWithArgsRemoteIsSilent()
   -- A stub provider keeps the test off the network: real dynamic providers
   -- start a background fetch whose result would race the assertions.
   package.loaded['chat.providers.origin-fake'] = nil
@@ -283,9 +299,7 @@ function TestSkillsOrigin:testProviderWithArgsRemoteReturnsReceipt()
     session = 's1',
     origin = 'http',
   })
-  -- The receipt names the model too: after switching, an unmoved model is
-  -- what makes the next request fail, so it has to be visible.
-  lu.assertEquals('Provider: origin-fake, Model: origin-fake-model', out)
+  lu.assertNil(out)
   lu.assertEquals('origin-fake', provider_set)
   lu.assertEquals('origin-fake-model', model_set)
   lu.assertEquals(0, #self.notified)
@@ -293,7 +307,7 @@ function TestSkillsOrigin:testProviderWithArgsRemoteReturnsReceipt()
   package.loaded['chat.providers.origin-fake'] = nil
 end
 
-function TestSkillsOrigin:testProviderUnknownNameRemoteRejected()
+function TestSkillsOrigin:testProviderUnknownNameRemoteRejectedSilently()
   -- A typo must not be written into the session: it would only surface later
   -- as a nil jobid inside chat.protocol.request.
   local provider_set = false
@@ -304,15 +318,15 @@ function TestSkillsOrigin:testProviderUnknownNameRemoteRejected()
     session = 's1',
     origin = 'http',
   })
-  lu.assertStrContains(out, 'Unknown provider: no-such-provider')
+  lu.assertNil(out)
   lu.assertFalse(provider_set)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testProviderNoArgsRemoteRefusesUI()
+function TestSkillsOrigin:testProviderNoArgsRemoteIsSilentWithoutUI()
   local out =
     skills._builtin_provider.handler('', { session = 's1', origin = 'http' })
-  lu.assertStrContains(out, 'Usage: /provider')
+  lu.assertNil(out)
   lu.assertEquals(0, self.ui_prompts)
 end
 
@@ -328,7 +342,7 @@ function TestSkillsOrigin:testNewRemoteDoesNotStealDesktopWindow()
   end
   local out =
     skills._builtin_new.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('New session: brand-new', out)
+  lu.assertNil(out)
   lu.assertEquals(0, opened)
   lu.assertEquals(0, #self.notified)
 end
@@ -369,8 +383,9 @@ function TestSkillsOrigin:testDeleteRemoteDoesNotOpenNextSession()
   end
   local out =
     skills._builtin_delete.handler('', { session = 's1', origin = 'http' })
-  lu.assertStrContains(out, 'next-session')
+  lu.assertNil(out)
   lu.assertEquals(0, opened)
+  lu.assertEquals(0, #self.notified)
 end
 
 -- /clear ---------------------------------------------------------------
@@ -389,8 +404,9 @@ function TestSkillsOrigin:testClearRemoteSkipsDesktopRepaint()
   end
   local out =
     skills._builtin_clear.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('Session cleared', out)
+  lu.assertNil(out)
   lu.assertEquals(0, rendered)
+  lu.assertEquals(0, #self.notified)
 end
 
 function TestSkillsOrigin:testClearLocalRepaintsWhenItIsCurrent()
@@ -420,8 +436,9 @@ function TestSkillsOrigin:testRetryRemoteSkipsLocalSpinner()
   end
   local out =
     skills._builtin_retry.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('Retrying...', out)
+  lu.assertNil(out)
   lu.assertEquals(0, started)
+  lu.assertEquals(0, #self.notified)
 end
 
 function TestSkillsOrigin:testRetryLocalStartsSpinner()
@@ -438,54 +455,65 @@ function TestSkillsOrigin:testRetryLocalStartsSpinner()
   lu.assertEquals(1, started)
 end
 
-function TestSkillsOrigin:testRetryRemoteNothingToRetry()
+function TestSkillsOrigin:testRetryRemoteNothingToRetryIsSilent()
   sessions.retry = function()
     return nil
   end
   local out =
     skills._builtin_retry.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('Nothing to retry', out)
+  lu.assertNil(out)
+  lu.assertEquals(0, #self.notified)
 end
 
 -- in-progress guard + remaining state skills ---------------------------
 
-function TestSkillsOrigin:testInProgressRemoteReturnsWarning()
+function TestSkillsOrigin:testInProgressRemoteIsSilent()
   sessions.is_in_progress = function()
     return true
   end
   local out =
     skills._builtin_model.handler('gpt-4o', { session = 's1', origin = 'http' })
-  lu.assertEquals('Request in progress.', out)
+  lu.assertNil(out)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testCwdRemoteReturnsReceipt()
+function TestSkillsOrigin:testCwdRemoteIsSilent()
   sessions.change_cwd = function() end
   local out =
     skills._builtin_cwd.handler('.', { session = 's1', origin = 'http' })
-  lu.assertStrContains(out, 'CWD:')
+  lu.assertNil(out)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testPinRemoteReturnsReceipt()
+function TestSkillsOrigin:testCwdRemoteInvalidDirIsSilent()
+  sessions.change_cwd = function() end
+  local out = skills._builtin_cwd.handler('/no/such/dir', {
+    session = 's1',
+    origin = 'http',
+  })
+  lu.assertNil(out)
+  lu.assertEquals(0, #self.notified)
+end
+
+function TestSkillsOrigin:testPinRemoteIsSilent()
   sessions.get_session_pin = function()
     return false
   end
   sessions.set_session_pin = function() end
   local out =
     skills._builtin_pin.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('Pinned', out)
+  lu.assertNil(out)
   lu.assertEquals(0, #self.notified)
 end
 
-function TestSkillsOrigin:testToggleForcePushRemoteReturnsReceipt()
+function TestSkillsOrigin:testToggleForcePushRemoteIsSilent()
   local toggle = require('chat.skills.toggle-force-push')
   sessions.get_session_disable_force_push = function()
     return false
   end
   sessions.set_session_disable_force_push = function() end
   local out = toggle.handler('', { session = 's1', origin = 'http' })
-  lu.assertEquals('Force push disabled for this session', out)
+  lu.assertNil(out)
   lu.assertEquals(0, #self.notified)
 end
 

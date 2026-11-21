@@ -472,15 +472,28 @@ The handler can return:
 | **ChatSkillResult**| A table to inject a message and optionally trigger LLM   |
 
 {: .warning }
-> **One channel per skill.** A handler must use either the content channel
-> (`return`) or the state channel (`log.notify`), never both. Returning a
-> string appends it to the session (and forwards it to bridged IM
-> integrations); `log.notify` shows a transient popup and leaves no message
-> behind. Doing both displays the same text twice and pollutes the LLM
-> history with receipts.
+> **Receipts never enter the message list.** A state-type skill (`/model`,
+> `/cwd`, `/pin`, `/title`, `/retry`, `/toggle-force-push`) reports through
+> `require('chat.skills').notify(ctx, text)`, which **always returns nil**:
 >
-> - **Content-type** (`/help`, error texts, injected prompts) → `return`, no notify.
-> - **State-type** (`/model`, `/cwd`, `/pin`, `/title`, `/retry`) → `log.notify(...)`, `return nil`.
+> - **local prompt** → a transient popup (`log.notify`), and only when the
+>   session is the one the chat window is showing. A popup about a background
+>   session would describe state you cannot see.
+> - **remote (HTTP / IM / scheduler)** → silence. A desktop popup is invisible
+>   to a remote caller, and appending an assistant message would pollute the
+>   LLM history, be forwarded to bridged IM platforms and could never be
+>   removed again. The outcome comes from the HTTP status of the typed
+>   endpoint instead (`PUT /session/:id/title` → 204 on success, 4xx on
+>   failure).
+>
+> - **Content-type** (`/help`, error texts, injected prompts) → `return` the
+>   string or `ChatSkillResult`; this *is* appended and forwarded.
+> - **State-type** → `return skills.notify(ctx, ...)`, which appends nothing
+>   for every origin.
+
+Both remote branches that need a Neovim UI (`vim.ui.select`, `vim.ui.input`)
+are silent rather than replying with a usage string: the caller cannot answer
+a desktop prompt, and a usage string would end up in the message list.
 
 **ChatSkillResult fields:**
 

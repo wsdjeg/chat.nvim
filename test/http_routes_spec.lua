@@ -812,6 +812,24 @@ function TestHTTPRoutes:test_set_title_invalid()
   lu.assertEquals(status, 400)
 end
 
+function TestHTTPRoutes:test_set_title_reports_failure_to_client()
+  -- The /title skill is silent over HTTP and appends no receipt, so the status
+  -- code is the client's only signal. A write that did not happen must not be
+  -- answered with 204.
+  local orig = sessions.set_session_title
+  sessions.set_session_title = function()
+    return false
+  end
+  local _, status, body = req(
+    'PUT',
+    '/session/' .. self.sid .. '/title',
+    '{"title":"Never applied"}'
+  )
+  sessions.set_session_title = orig
+  lu.assertEquals(status, 409)
+  lu.assertStrContains(body, 'not changed')
+end
+
 -- ─── POST /session/:id/retry ────────────────────────────
 
 function TestHTTPRoutes:test_retry_success()

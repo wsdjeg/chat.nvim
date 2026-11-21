@@ -1031,6 +1031,13 @@ curl -X PUT http://127.0.0.1:7777/session/2024-01-15-10-30-00/pin \
 
 Set a custom title for a session.
 
+This endpoint is the **only** way a remote caller learns whether the rename
+worked. The `/title` skill stays silent for HTTP callers (a desktop popup is
+invisible to them) and never appends a message to the session, so the verdict
+travels in this response's status code. The fire-and-forget `POST /` path only
+acknowledges that `/title ...` was queued (204) — send the title here when you
+need the result.
+
 **Request Body:**
 
 ```json
@@ -1046,6 +1053,7 @@ Set a custom title for a session.
 | 204 | Success - title updated |
 | 404 | Session not found |
 | 400 | Missing or invalid title value |
+| 409 | Title not changed (the session disappeared while writing) |
 
 **Example:**
 
