@@ -289,5 +289,72 @@ function TestWindowsComplete:testVimWrapperCancelsOutsideSkill()
   lu.assertEquals(0, #vim.fn[name](0, 'world'))
 end
 
+-- Two-phase round -----------------------------------------------------------
+--
+-- Between the two 'completefunc' calls Vim removes the text it is completing
+-- from the buffer. The second call therefore cannot recompute the context from
+-- the buffer; it must reuse the one captured during findstart. These tests
+-- emulate that by emptying the line before the second call.
+
+function TestWindowsComplete:testCompletefuncSecondPhaseAfterVimRemovesText()
+  edit_prompt('/gr', 3)
+
+  lu.assertEquals(0, complete.completefunc(1, ''))
+
+  -- Vim has deleted "/gr" from the line and left the cursor at column 0.
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+  local items = complete.completefunc(0, '/gr')
+  lu.assertEquals(1, #items)
+  lu.assertEquals('/greet', items[1].word)
+end
+
+function TestWindowsComplete:testCompletefuncSecondPhaseArgsAfterVimRemovesText()
+  edit_prompt('/model-select gp', 16)
+
+  lu.assertEquals(14, complete.completefunc(1, ''))
+
+  -- "/model-select gp" is gone; only the skill name prefix remains.
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '/model-select ' })
+  vim.api.nvim_win_set_cursor(0, { 1, 14 })
+
+  local items = complete.completefunc(0, 'gp')
+  lu.assertEquals(2, #items)
+  lu.assertEquals('gpt-4o', items[1].word)
+end
+
+function TestWindowsComplete:testCompletefuncCancelledRoundLeavesNoCache()
+  edit_prompt('hello world', 11)
+
+  lu.assertEquals(-3, complete.completefunc(1, ''))
+  lu.assertEquals(0, #complete.completefunc(0, 'world'))
+
+  -- A cancelled round must not leave a context behind: the buffer is emptied
+  -- the way Vim would do it, and a later second-phase call finds nothing.
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+  lu.assertEquals(0, #complete.completefunc(0, 'world'))
+end
+
+function TestWindowsComplete:testCompletefuncSecondPhaseCacheIsConsumed()
+  edit_prompt('/gr', 3)
+  lu.assertEquals(0, complete.completefunc(1, ''))
+
+  lu.assertEquals(1, #complete.completefunc(0, '/gr'))
+
+  -- The cached context is one-shot. With the buffer now empty, as Vim would
+  -- have left it, there is nothing to fall back to and no candidates come out.
+  local buf = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+  lu.assertEquals(0, #complete.completefunc(0, ''))
+end
+
 return TestWindowsComplete
 

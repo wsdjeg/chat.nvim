@@ -197,6 +197,52 @@ vim.api.nvim_create_user_command('Chat', function(opt)
     end
 
     require('chat.log').notify('Opening preview: ' .. url)
+  elseif #opt.fargs > 0 and opt.fargs[1] == 'complete' then
+    -- Trace the CTRL-X CTRL-U skill-completion path. The popup silently does
+    -- nothing when a round never starts, so this switch records the buffer
+    -- state, the insert-mode autocmds around the keystroke, and both
+    -- 'completefunc' phases.
+    local complete = require('chat.windows.complete')
+    local arg = opt.fargs[2]
+
+    if arg == 'diag' then
+      -- Dump the current state without turning tracing on. Only meaningful
+      -- from inside the prompt window, so warn when called elsewhere.
+      local d = complete.diag()
+      print(vim.inspect(d))
+      if not d.insert_mode then
+        require('chat.log').notify(
+          'Not in insert mode: press i in the prompt window, then run :Chat complete diag',
+          'WarningMsg'
+        )
+      end
+      return
+    end
+
+    local on
+    if arg == nil then
+      on = not complete.debug
+    elseif arg == 'on' then
+      on = true
+    elseif arg == 'off' then
+      on = false
+    else
+      require('chat.log').notify(
+        'Usage: :Chat complete [on|off|diag]',
+        'WarningMsg'
+      )
+      return
+    end
+
+    local state = complete.set_debug(on)
+    local log = require('chat.log')
+    if state then
+      log.notify(
+        'Completion tracing on. Trace file: ' .. complete.trace_path()
+      )
+    else
+      log.notify('Completion tracing off')
+    end
   else
     require('chat').open()
   end
@@ -276,6 +322,7 @@ end, {
       'preview',
       'bridge',
       'unbridge',
+      'complete',
     })
   end,
 })
