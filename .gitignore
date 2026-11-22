@@ -3,6 +3,7 @@ test/.deps/
 luacov.stats.out
 luacov.report.out
 coverage.log
+profile.log
 test/junit_output.xml
 .junit/
 test_temp_ffmpeg/

@@ -1,5 +1,23 @@
 .PHONY: test coverage clean install-deps install-luaunit install-job junit help
 
+# ---------------------------------------------------------------------------
+# Test dependencies (luaunit, job.nvim, luacov) live in test/.deps.
+#
+# `test` used to depend on the `install-deps` target, which spawns a whole
+# extra headless nvim on every run just to print "already installed". That
+# startup is several seconds even when nothing is downloaded, and for a small
+# `make test PATTERN=foo` it can outweigh the tests themselves.
+#
+# A stamp file makes the check free: the installer only runs when the stamp is
+# missing (first run, new checkout, or when test/install_deps.lua changes).
+# Delete test/.deps, or run `make install-deps`, to force a re-download.
+# ---------------------------------------------------------------------------
+DEPS_STAMP := test/.deps/.installed
+
+$(DEPS_STAMP): test/install_deps.lua
+	@nvim --headless -u test/minimal_init.lua -c "lua dofile('test/install_deps.lua')" -c "qa!"
+	@touch $(DEPS_STAMP)
+
 # Default target
 help:
 	@echo "Available targets:"
@@ -16,12 +34,15 @@ help:
 	@echo "  make test PATTERN=write_file            # Match test/**/*write_file*_spec.lua"
 	@echo "  make test PATTERN=git_add               # Match test/**/*git_add*_spec.lua"
 	@echo "  make test PATTERN=test/tools/git_add_spec.lua  # Full path"
+	@echo "  make test PROFILE=1                     # Report slowest tests/classes"
 	@echo "  make coverage                           # Run tests and report coverage"
 	@echo "  make coverage COV_THRESHOLD=80          # Fail when coverage < 80%"
 
-# Install all test dependencies (cross-platform, uses Lua)
+# Install all test dependencies (cross-platform, uses Lua).
+# Always re-runs the installer, which is idempotent and skips existing files.
 install-deps:
 	@nvim --headless -u test/minimal_init.lua -c "lua dofile('test/install_deps.lua')" -c "qa!"
+	@touch $(DEPS_STAMP)
 
 # Aliases for individual dependency install (same cross-platform Lua script)
 install-luaunit: install-deps
@@ -32,9 +53,9 @@ install-job: install-deps
 # Examples:
 #   make test PATTERN=test/tools/write_file_spec.lua
 #   make test PATTERN=write_file  (shorthand for test/**/*write_file*_spec.lua)
-test: install-deps
+test: $(DEPS_STAMP)
 	@echo "Running tests with nvim --headless..."
-	@nvim --headless -u test/minimal_init.lua \
+	@PROFILE='$(PROFILE)' nvim --headless -u test/minimal_init.lua \
 		-c "lua _G.TEST_PATTERN = '$(PATTERN)'" \
 		-c "lua dofile('test/run.lua')" \
 		-c "qa!"
@@ -43,7 +64,7 @@ test: install-deps
 # COVERAGE=1 enables luacov in test/minimal_init.lua; the report step
 # parses luacov.stats.out. Report-only by default, enforce a threshold
 # with COV_THRESHOLD=<n> (overall % across lua/chat/**).
-coverage: install-deps
+coverage: $(DEPS_STAMP)
 	@echo "Running tests with coverage..."
 	@rm -f luacov.stats.out luacov.report.out coverage.log
 	@COVERAGE=1 nvim --headless -u test/minimal_init.lua \
@@ -61,7 +82,7 @@ clean:
 	@echo "Cleaning up..."
 	@rm -rf test/*.lua~
 	@rm -rf test/*.out
-	@rm -rf luacov.stats.out luacov.report.out coverage.log
+	@rm -rf luacov.stats.out luacov.report.out coverage.log profile.log
 	@rm -rf *.swp
 	@rm -rf /tmp/chat_nvim_test_* 2>/dev/null || true
 
