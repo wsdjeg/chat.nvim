@@ -4,6 +4,7 @@ local config = require('chat.config')
 local sessions = require('chat.sessions')
 local integrations = require('chat.integrations')
 local title = require('chat.windows.title')
+local complete = require('chat.windows.complete')
 
 -- Placeholder shown when the prompt buffer is empty. It is rendered as
 -- virtual text only, so it never leaks into get_content().
@@ -12,6 +13,10 @@ M.placeholder = '输入消息...'
 -- Plain placeholder highlight: used in Insert mode, where the prompt window
 -- has no CursorLine to blend with.
 local COMMENT_HL = 'Comment'
+
+-- 'completefunc' for the prompt buffer: CTRL-X CTRL-U completes skill names
+-- (and skill arguments) via chat.windows.complete.
+M.completefunc_name = complete.option_value()
 
 -- Prompt window state
 local prompt_win = -1
@@ -218,6 +223,10 @@ end
 function M.create_buffer()
   prompt_buf = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = prompt_buf })
+  -- Enable CTRL-X CTRL-U skill completion in the prompt buffer.
+  vim.api.nvim_set_option_value('completefunc', M.completefunc_name, {
+    buf = prompt_buf,
+  })
   attach_placeholder_autocmds(prompt_buf)
   M.render_placeholder()
   return prompt_buf

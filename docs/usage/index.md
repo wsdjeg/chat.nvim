@@ -345,6 +345,22 @@ When no arguments are provided for `/model` and `/provider`, a selection UI (`vi
 
 `/provider <name>` switches the session and then tries to adopt the new provider's first available model. Some providers resolve their model list asynchronously (the first call only starts a background fetch), so the model may not be known yet: the receipt then names the model that is still in use, and `/model` lets you pick one explicitly. An unknown provider name is rejected instead of being written into the session.
 
+### Completion
+
+The prompt buffer sets `'completefunc'`, so insert-mode `CTRL-X CTRL-U` completes skill names, with each skill's description shown in the popup menu:
+
+```
+/cle        " suggests /clear, /cleanup
+```
+
+Skills can also complete their own arguments by defining the optional `complete(args)` field of the `ChatSkill` table. When a skill has it, `CTRL-X CTRL-U` after `/name ` suggests the values it returns, filtered by the typed prefix:
+
+```
+/model gp   " suggests gpt-4o, gpt-4o-mini
+```
+
+Completion only happens at a token that starts with `/` or in the arguments of a skill that provides `complete`; anywhere else `CTRL-X CTRL-U` cancels and leaves the buffer untouched.
+
 ### Custom Skills
 
 You can register your own skills via configuration or Lua API:
