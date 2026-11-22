@@ -227,10 +227,6 @@ function M.create_buffer()
   vim.api.nvim_set_option_value('completefunc', M.completefunc_name, {
     buf = prompt_buf,
   })
-  -- Trace the insert-mode events around the keystroke, so a round that never
-  -- reaches 'completefunc' is still visible. No-ops unless tracing is enabled
-  -- with `:Chat complete` (see chat.windows.complete.set_debug).
-  complete.attach(prompt_buf)
   -- Created after attach_placeholder_autocmds, which clears this group.
   attach_placeholder_autocmds(prompt_buf)
   -- 'completefunc' caches the context of a round between its two phases; drop
