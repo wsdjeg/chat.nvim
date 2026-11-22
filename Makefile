@@ -18,6 +18,30 @@ $(DEPS_STAMP): test/install_deps.lua
 	@nvim --headless -u test/minimal_init.lua -c "lua dofile('test/install_deps.lua')" -c "qa!"
 	@touch $(DEPS_STAMP)
 
+# ---------------------------------------------------------------------------
+# Passing Make variables to headless nvim: use the environment, not a
+# POSIX-style inline prefix.
+#
+#   PROFILE='$(PROFILE)' nvim ...        <-- broken on Windows
+#   COVERAGE=1 nvim ...                  <-- broken on Windows
+#
+# `VAR=value cmd` is shell syntax. On Windows make hands the recipe line to
+# cmd.exe, which takes `PROFILE='1' nvim ...` as the name of a single program
+# to run, so every `make test PROFILE=1` / `make coverage` invocation dies with
+# "not recognized as an internal or external command".
+#
+# GNU Make's `export` directive puts the variable straight into the child
+# process environment, independent of the shell (cmd.exe, sh, PowerShell,
+# zsh...), so the recipe stays a single plain command on every platform.
+#
+# COVERAGE in particular must already be in the environment when
+# test/minimal_init.lua is sourced (luacov has to hook before any plugin
+# source loads), so it cannot be passed with a `-c "lua vim.env.COVERAGE=..."`
+# line either - that runs after the init file.
+# ---------------------------------------------------------------------------
+export PROFILE
+export COVERAGE
+
 # Default target
 help:
 	@echo "Available targets:"
@@ -53,9 +77,10 @@ install-job: install-deps
 # Examples:
 #   make test PATTERN=test/tools/write_file_spec.lua
 #   make test PATTERN=write_file  (shorthand for test/**/*write_file*_spec.lua)
+# PROFILE=1 is handed to nvim through the exported environment (see above).
 test: $(DEPS_STAMP)
 	@echo "Running tests with nvim --headless..."
-	@PROFILE='$(PROFILE)' nvim --headless -u test/minimal_init.lua \
+	@nvim --headless -u test/minimal_init.lua \
 		-c "lua _G.TEST_PATTERN = '$(PATTERN)'" \
 		-c "lua dofile('test/run.lua')" \
 		-c "qa!"
@@ -64,10 +89,16 @@ test: $(DEPS_STAMP)
 # COVERAGE=1 enables luacov in test/minimal_init.lua; the report step
 # parses luacov.stats.out. Report-only by default, enforce a threshold
 # with COV_THRESHOLD=<n> (overall % across lua/chat/**).
+#
+# COVERAGE=1 is a target-specific *exported* variable, so it reaches nvim
+# through its environment on every platform (cmd.exe included) instead of
+# the POSIX-only `COVERAGE=1 nvim ...` prefix. It must be available before
+# test/minimal_init.lua is sourced, so a `-c "lua ..."` line would be too late.
+coverage: export COVERAGE := 1
 coverage: $(DEPS_STAMP)
 	@echo "Running tests with coverage..."
 	@rm -f luacov.stats.out luacov.report.out coverage.log
-	@COVERAGE=1 nvim --headless -u test/minimal_init.lua \
+	@nvim --headless -u test/minimal_init.lua \
 		-c "lua _G.TEST_PATTERN = '$(PATTERN)'" \
 		-c "lua dofile('test/run.lua')" \
 		-c "qa!"
