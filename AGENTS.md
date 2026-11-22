@@ -285,6 +285,27 @@ end
 - Always include `storage_dir` so memory, plan, etc. auto-derive their paths
 - Clean up temp dirs in `tearDown`
 
+### Never simulate keystrokes in headless tests
+
+**Forbidden:** driving insert-mode behavior with `nvim_input`, `vim.cmd('normal! ...')`, or `feedkeys` inside `nvim --headless`.
+
+Once such a probe enters insert mode, the headless instance blocks waiting for input and `qa!` never runs - the test job hangs forever with no output, and looks exactly like an infinite loop.
+
+Instead, call the function under test directly with the same buffer state. The logic is identical, there is no main-loop dependency, and the test always terminates:
+
+```lua
+-- Instead of: nvim_input('i/gr') and <C-x><C-u>
+local buf = prompt.create_buffer()
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '/gr' })
+
+local start = complete.completefunc(1, '')     -- findstart: returns column
+local items = complete.completefunc(0, '/gr')  -- candidates
+```
+
+`complete_info()` also cannot be asserted this way - it only reflects state produced by a real completion round in the main loop. Assert on the returned value instead.
+
+If a manual keystroke check is genuinely required, use an interactive Neovim session - never a headless test job.
+
 ---
 
 ## Project Structure
@@ -310,3 +331,4 @@ chat.nvim/
 ├── AGENTS.md
 └── CHANGELOG.md          # Auto-generated, DO NOT EDIT
 ```
+
