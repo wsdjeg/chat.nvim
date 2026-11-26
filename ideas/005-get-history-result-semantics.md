@@ -1,6 +1,6 @@
 # 005 - get_history 结果语义与体积预算打磨
 
-**状态:** accepted
+**状态:** shipped — `feat(tools): complete get_history result semantics`
 
 ## 动机
 

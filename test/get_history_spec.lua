@@ -162,9 +162,9 @@ function TestGetHistory:testCustomLimit()
   lu.assertEquals(#data.messages, 5)
 end
 
-function TestGetHistory:testLimitClampedTo50()
+function TestGetHistory:testLimitClampedToMaxLimit()
   local sid = sessions.new()
-  for i = 1, 60 do
+  for i = 1, 260 do
     sessions.append_message(sid, {
       role = 'user',
       content = 'Message ' .. i,
@@ -173,13 +173,16 @@ function TestGetHistory:testLimitClampedTo50()
   end
 
   local result = get_history.get_history(
-    { limit = 100 },
+    { limit = 300 },
     { session = sid }
   )
   local data = vim.json.decode(result.content)
 
-  lu.assertEquals(data.limit, 50)
-  lu.assertEquals(data.returned, 50)
+  -- The message-count ceiling only keeps offset pagination finite; the byte
+  -- budget is the real constraint, so a screenful of short turns is no
+  -- longer capped at 50.
+  lu.assertEquals(data.limit, 200)
+  lu.assertEquals(data.returned, 200)
 end
 
 function TestGetHistory:testLimitLargerThanTotal()
@@ -202,7 +205,7 @@ function TestGetHistory:testLimitLargerThanTotal()
   lu.assertEquals(data.returned, 3)
 end
 
-function TestGetHistory:testNegativeOffsetClampedToZero()
+function TestGetHistory:testNegativeOffsetBeyondStartClampsToZero()
   local sid = sessions.new()
   sessions.append_message(sid, {
     role = 'user',
@@ -216,8 +219,109 @@ function TestGetHistory:testNegativeOffsetClampedToZero()
   )
   local data = vim.json.decode(result.content)
 
+  -- Only ONE entry exists, so -10 overshoots the start: clamp to 0 rather
+  -- than to a negative position.
   lu.assertEquals(data.offset, 0)
   lu.assertEquals(data.returned, 1)
+end
+
+function TestGetHistory:testNegativeOffsetReturnsTail()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history(
+    { offset = -2 },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  -- -2 is "the last 2". Clamping to 0 would answer with the OLDEST
+  -- messages, the exact opposite of the request.
+  lu.assertEquals(data.offset, 8)
+  lu.assertEquals(data.returned, 2)
+  lu.assertEquals(data.messages[1].index, 8)
+  lu.assertEquals(data.messages[1].content, 'Message 9')
+  lu.assertEquals(data.messages[2].index, 9)
+end
+
+function TestGetHistory:testNegativeOffsetWithLimit()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history(
+    { offset = -5, limit = 2 },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  -- "start at the 5th from the end, take 2"
+  lu.assertEquals(data.offset, 5)
+  lu.assertEquals(data.returned, 2)
+  lu.assertEquals(data.messages[1].index, 5)
+end
+
+function TestGetHistory:testNegativeOffsetCountsWithinMatches()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = i % 2 == 0 and 'keyword ' .. i or 'other ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history(
+    { search = 'keyword', offset = -2 },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  -- The tail is counted inside the MATCHED set, and the echoed offset is
+  -- a position in that set (3 of 5 matches), not a global message index.
+  lu.assertEquals(data.total_matched, 5)
+  lu.assertEquals(data.offset, 3)
+  lu.assertEquals(data.returned, 2)
+  -- Matches are messages 2/4/6/8/10 (0-indexed: 1/3/5/7/9): the last two
+  -- matched entries are 7 and 9.
+  lu.assertEquals(data.messages[1].index, 7)
+  lu.assertEquals(data.messages[2].index, 9)
+end
+
+function TestGetHistory:testNegativeOffsetEchoesForwardCursor()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  local tail = vim.json.decode(get_history.get_history(
+    { offset = -4, limit = 2 },
+    { session = sid }
+  ).content)
+
+  -- A paginating caller needs a non-negative cursor it can continue from.
+  local next_page = vim.json.decode(get_history.get_history(
+    { offset = tail.offset + tail.limit, limit = 2 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(next_page.messages[1].index, 8)
+  lu.assertEquals(next_page.messages[2].index, 9)
 end
 
 function TestGetHistory:testOffsetBeyondTotal()
@@ -838,7 +942,10 @@ function TestGetHistory:testLargeContentTruncated()
   -- rest of that message is read again by raising max_bytes.
   lu.assertEquals(data.next_offset, 1)
   lu.assertNotNil(data.note)
-  lu.assertStrContains(data.note, 'larger max_bytes')
+  -- "Increase max_bytes" is not actionable; the note names the exact
+  -- budget a retry needs.
+  lu.assertStrContains(data.note, 'retry with max_bytes=')
+  lu.assertNotNil(data.required_bytes)
   lu.assertEquals(data.returned, 1)
 
   -- The head of the message is kept, marked as truncated
@@ -949,6 +1056,185 @@ function TestGetHistory:testTruncationWithSearch()
   lu.assertEquals(data.search, 'match')
   lu.assertEquals(data.total_matched, 2)
   lu.assertEquals(data.truncated, true)
+end
+
+-- ─── get_history() — pagination numbering ───────────────────────
+
+function TestGetHistory:testNextMessageIndexSkipsDroppedEntries()
+  local sid = sessions.new()
+  -- Real turns interleaved with on_complete bookkeeping markers: after
+  -- filtering, working positions (the pagination cursor) no longer match
+  -- the global message indices.
+  for i = 1, 6 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = string.rep('z', 4000),
+      created = 1000 + i,
+    })
+    sessions.append_message(sid, {
+      on_complete = true,
+      usage = { total_tokens = i },
+      created = 1000 + i,
+    })
+  end
+
+  local data = vim.json.decode(get_history.get_history(
+    { limit = 10, max_bytes = 8192 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(data.truncated, true)
+  lu.assertNotNil(data.next_offset)
+  lu.assertNotNil(data.next_message_index)
+  -- Two numbering systems on purpose: the cursor (position in the working
+  -- set) and the stable global index. Every filtered marker pushes them
+  -- further apart.
+  lu.assertTrue(data.next_message_index > data.next_offset)
+
+  -- Following the cursor lands exactly on the advertised index.
+  local next_page = vim.json.decode(get_history.get_history(
+    { offset = data.next_offset, limit = 1, max_bytes = 8192 },
+    { session = sid }
+  ).content)
+  lu.assertEquals(next_page.messages[1].index, data.next_message_index)
+end
+
+function TestGetHistory:testNextMessageIndexWithSearch()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'gap filler',
+    created = 1001,
+  })
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'match ' .. string.rep('a', 6000),
+    created = 1002,
+  })
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'gap filler',
+    created = 1003,
+  })
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'match ' .. string.rep('b', 6000),
+    created = 1004,
+  })
+
+  local data = vim.json.decode(get_history.get_history(
+    { search = 'match', limit = 5, max_bytes = 4096 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(data.total_matched, 2)
+  lu.assertEquals(data.truncated, true)
+  -- Under search the cursor counts matches while next_message_index stays a
+  -- global message index: conflating them re-reads the wrong message.
+  lu.assertEquals(data.next_message_index, 3)
+
+  local next_page = vim.json.decode(get_history.get_history(
+    { search = 'match', offset = data.next_offset, max_bytes = 4096 },
+    { session = sid }
+  ).content)
+  lu.assertEquals(next_page.messages[1].index, data.next_message_index)
+end
+
+function TestGetHistory:testNoNextMessageIndexWhenPageIsExhausted()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = string.rep('q', 20000),
+    created = 1001,
+  })
+
+  local data = vim.json.decode(get_history.get_history(
+    { max_bytes = 4096 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(data.truncated, true)
+  -- The last (and only) message's head was returned; there is nothing
+  -- after it, so no forward cursor is advertised.
+  lu.assertEquals(data.next_offset, 1)
+  lu.assertIsNil(data.next_message_index)
+end
+
+-- ─── get_history() — actionable retry budget ───────────────────
+
+function TestGetHistory:testRequiredBytesRetryReadsWholeMessage()
+  local sid = sessions.new()
+  local big = string.rep('word ', 20000) -- ~100 KB
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = big,
+    created = 1001,
+  })
+
+  local first = vim.json.decode(get_history.get_history(
+    { max_bytes = 4096 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(first.truncated, true)
+  lu.assertEquals(first.messages[1].content_truncated, true)
+  lu.assertNotNil(first.required_bytes)
+  lu.assertTrue(first.required_bytes > 4096)
+  lu.assertStrContains(first.note, 'retry with max_bytes=')
+
+  -- The advertised budget must work on the FIRST retry: no bisection, no
+  -- repeated probing, which is what an adjective ("increase max_bytes")
+  -- forces on the caller.
+  local retry = vim.json.decode(get_history.get_history(
+    { max_bytes = first.required_bytes },
+    { session = sid }
+  ).content)
+
+  lu.assertIsNil(retry.truncated)
+  lu.assertIsNil(retry.required_bytes)
+  lu.assertIsNil(retry.messages[1].content_truncated)
+  lu.assertEquals(retry.messages[1].content, big)
+end
+
+function TestGetHistory:testRequiredBytesOmittedAboveCeiling()
+  local sid = sessions.new()
+  -- ~300 KB cannot fit under the 204800 ceiling, so no retry budget is
+  -- advertised: a value above the ceiling would be clamped back down and
+  -- silently repeat the same result.
+  local huge = string.rep('word ', 60000)
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = huge,
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = 4096 },
+    { session = sid }
+  )
+
+  lu.assertTrue(#result.content <= 4096, 'response exceeded max_bytes')
+  local data = vim.json.decode(result.content)
+  lu.assertIsNil(data.required_bytes)
+  lu.assertStrContains(data.note, 'ceiling')
+end
+
+function TestGetHistory:testRequiredBytesAbsentWhenNothingWasCut()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'small',
+    created = 1001,
+  })
+
+  local data = vim.json.decode(get_history.get_history(
+    {},
+    { session = sid }
+  ).content)
+
+  lu.assertIsNil(data.truncated)
+  lu.assertIsNil(data.required_bytes)
+  lu.assertIsNil(data.next_message_index)
 end
 
 -- ─── get_history() — entry classification ──────────────────────

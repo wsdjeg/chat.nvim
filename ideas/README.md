@@ -33,5 +33,5 @@
 | [002](./002-mcp2-stateless-client.md) | MCP 2.0 无状态客户端适配(2026-07-28 规范) | design |
 | [003](./003-finish-reason-handling.md) | finish_reason 处理统一与兜底 | draft |
 | [004](./004-multi-token-support.md) | 多 token 支持(多账号 api_key 轮询/故障切换) | done |
-| [005](./005-get-history-result-semantics.md) | get_history 结果语义与体积预算打磨 | accepted |
+| [005](./005-get-history-result-semantics.md) | get_history 结果语义与体积预算打磨 | shipped |
 

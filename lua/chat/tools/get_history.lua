@@ -9,10 +9,10 @@ local config = require('chat.config')
 
 -- ── Size budget ──────────────────────────────────────────────────────
 -- History messages carry raw content, and a single tool result (a
--- read_file, a fetch_web, a git diff) can be hundreds of KB. Returning 50
--- of them would push the very request that carries the tool result over
--- the model's context window, so the result is capped by BYTES, not just
--- by message count.
+-- read_file, a fetch_web, a git diff) can be hundreds of KB. Returning a
+-- screenful of them would push the very request that carries the tool
+-- result over the model's context window, so the result is capped by
+-- BYTES, not just by message count.
 --
 -- The budget is configurable via `tools.get_history` so a large-context
 -- model can read a whole tool result in one call while a small one keeps
@@ -26,9 +26,21 @@ local MIN_MAX_BYTES = 2048 -- floor: a smaller body cannot hold the envelope
 -- note alone costs more bytes, so such a message is dropped instead of
 -- cut (it is still reported through next_offset/note).
 local MIN_ENTRY_BYTES = 160
--- Metadata that appears only after layout (truncated, next_offset, note,
--- bytes) plus JSON punctuation, reserved before content is laid out.
+-- Metadata that appears only after layout (truncated, next_offset,
+-- next_message_index, required_bytes, note, bytes) plus JSON punctuation,
+-- reserved before content is laid out.
 local ENVELOPE_HEADROOM = 512
+-- Slack on the exact budget a retry needs: the note and the extra metadata
+-- grow when they name a larger number. Over-estimating costs a few unused
+-- bytes, under-estimating costs another whole round trip.
+local REQUIRED_BYTES_PADDING = 128
+
+-- ── Page geometry ────────────────────────────────────────────────────
+-- The message-count ceiling exists only to keep `offset` pagination
+-- finite; the real constraint is the byte budget above. A page of 50 short
+-- turns is a few KB, so capping there makes the budget idle and forces the
+-- model to page through history it could have read in one call.
+local MAX_LIMIT = 200
 
 -- ── Entry classification ─────────────────────────────────────────────
 -- The session history is a mixed bag: real conversation turns, UI-only
@@ -201,12 +213,19 @@ end
 --- boundary and returned as a head plus a truncation note; everything after
 --- it is dropped.
 ---
+--- When an entry cannot be returned (or cannot be returned whole), the
+--- layout also reports the exact budget a retry would need. "Increase
+--- max_bytes" is not actionable - the model cannot infer the number and
+--- ends up bisecting, burning tokens and sometimes looping - whereas
+--- "retry with max_bytes=NNNN" is right on the first try.
+---
 ---@param entries table[] Working-set slices, first one at working position `offset`
 ---@param offset integer 0-based working-set position of entries[1]
 ---@param envelope table Response skeleton with metadata already filled in
 ---@param max_bytes integer Budget for the whole encoded response
 ---@return table[] kept Chosen entries, possibly with content cut
----@return table layout { truncated, next_offset, cut_index, dropped_whole }
+---@return table layout { truncated, next_offset, cut_index, dropped_whole,
+---   required_bytes, required_too_big }
 local function fit_entries(entries, offset, envelope, max_bytes)
   local budget = max_bytes - #vim.json.encode(envelope) - ENVELOPE_HEADROOM
   local used = 0
@@ -216,6 +235,8 @@ local function fit_entries(entries, offset, envelope, max_bytes)
     next_offset = nil,
     cut_index = nil,
     dropped_whole = nil,
+    required_bytes = nil,
+    required_too_big = false,
   }
 
   for i, entry in ipairs(entries) do
@@ -283,6 +304,16 @@ local function fit_entries(entries, offset, envelope, max_bytes)
         layout.next_offset = wpos
         layout.dropped_whole = entry.index
       end
+
+      -- Budget that would have fit this entry whole. `remaining` is what
+      -- was left when the loop reached the entry, so `size - remaining` is
+      -- exactly the shortfall; the budget is measured against the same
+      -- envelope, hence the same formula for the cut and the dropped cases.
+      layout.required_bytes = math.max(
+        max_bytes + (size - remaining) + REQUIRED_BYTES_PADDING,
+        MIN_MAX_BYTES
+      )
+      layout.required_too_big = layout.required_bytes > max_bytes_limit()
       break
     end
   end
@@ -296,21 +327,45 @@ end
 ---@return string
 local function truncation_note(layout, max_bytes)
   if layout.cut_index ~= nil then
+    if not layout.required_too_big then
+      return string.format(
+        'Result capped at %d bytes. Message index %d was cut (see '
+          .. 'content_truncated/original_bytes); retry with max_bytes=%d to '
+          .. 'read it whole, then continue from offset=%d.',
+        max_bytes,
+        layout.cut_index,
+        layout.required_bytes,
+        layout.next_offset
+      )
+    end
     return string.format(
       'Result capped at %d bytes. Message index %d was cut (see '
-        .. 'content_truncated/original_bytes); re-read it with a larger '
-        .. 'max_bytes, then continue from offset=%d.',
+        .. 'content_truncated/original_bytes); it does not fit whole under '
+        .. 'the %d-byte ceiling. Continue from offset=%d.',
       max_bytes,
       layout.cut_index,
+      max_bytes_limit(),
       layout.next_offset
     )
   end
   if layout.dropped_whole ~= nil then
+    if not layout.required_too_big then
+      return string.format(
+        'Result capped at %d bytes. Message index %d needs about %d bytes; '
+          .. 'retry with max_bytes=%d.',
+        max_bytes,
+        layout.dropped_whole,
+        layout.required_bytes,
+        layout.required_bytes
+      )
+    end
     return string.format(
-      'Result capped at %d bytes. Message index %d does not fit; increase '
-        .. 'max_bytes (ceiling %d) or narrow the range.',
+      'Result capped at %d bytes. Message index %d needs about %d bytes, '
+        .. 'above the %d-byte ceiling; narrow the range with offset/limit '
+        .. 'or search= instead.',
       max_bytes,
       layout.dropped_whole,
+      layout.required_bytes,
       max_bytes_limit()
     )
   end
@@ -322,8 +377,9 @@ local function truncation_note(layout, max_bytes)
 end
 
 ---@class ChatToolsGetHistoryAction
----@field offset? integer Starting index (0 = oldest message, default 0)
----@field limit? integer Number of messages to retrieve (default 20, max 50)
+---@field offset? integer Starting index (0 = oldest message, negative = from
+---   the end, default 0)
+---@field limit? integer Number of messages to retrieve (default 20, max 200)
 ---@field search? string Keyword to filter messages (case-insensitive)
 ---@field max_bytes? integer Byte budget for the returned JSON
 
@@ -343,12 +399,15 @@ Returns the requested messages with their role, content, and timestamp. Non-conv
 
 When `search` is provided, only messages whose content or reasoning contains the keyword (case-insensitive) are returned. Offset and limit apply to the filtered results.
 
-The result is capped by bytes (max_bytes, default 32768, allowed 2048-204800), because a single tool result in the history can be very large. When the budget is exhausted the response reports `truncated: true`, `next_offset` (the position to continue from) and a `note`; a partially returned message is marked `content_truncated: true` with its `original_bytes`.
+`offset` may be negative: -1 is the newest message, -20 asks for the last 20. The response echoes the resolved (non-negative) position, so paging always continues forward from there.
+
+The result is capped by bytes (max_bytes, default 32768, allowed 2048-204800), because a single tool result in the history can be very large. When the budget is exhausted the response reports `truncated: true`, `next_offset` (position to continue from), `next_message_index` (the global message index at that position) and a `note`. A message that only partially fits is marked `content_truncated: true` with its `original_bytes`; when an entry does not fit at all, `required_bytes` is the exact budget that would make it readable.
 
 Examples:
 - get_history(offset=0, limit=20) — Get the first 20 messages (oldest)
 - get_history(offset=20, limit=20) — Get messages 21-40
-- get_history(offset=0, limit=50) — Get first 50 messages (max)
+- get_history(offset=-10) — Get the last 10 messages (newest)
+- get_history(offset=0, limit=200) — Get first 200 messages (max)
 - get_history(search="error") — Search for messages containing "error"
 - get_history(search="config", offset=0, limit=10) — Search "config", first 10 matches
 - get_history(offset=12, max_bytes=8000) — Continue from next_offset with a smaller budget
@@ -358,11 +417,11 @@ Examples:
         properties = {
           offset = {
             type = 'integer',
-            description = 'Starting index (0 = oldest message, default 0)',
+            description = 'Starting index (0 = oldest message, negative counts back from the newest, default 0). For search, it counts within the matched messages. The response echoes the resolved non-negative value.',
           },
           limit = {
             type = 'integer',
-            description = 'Number of messages to retrieve (default 20, max 50)',
+            description = 'Number of messages to retrieve (default 20, max 200). The byte budget usually binds first.',
           },
           search = {
             type = 'string',
@@ -370,7 +429,7 @@ Examples:
           },
           max_bytes = {
             type = 'integer',
-            description = 'Byte budget for the returned JSON (default 32768, allowed 2048-204800). Values <= 0 fall back to the default. Check `truncated`/`next_offset` when the budget is exhausted.',
+            description = 'Byte budget for the returned JSON (default 32768, allowed 2048-204800). Values <= 0 fall back to the default. Check `truncated`/`next_offset`/`required_bytes` when the budget is exhausted.',
           },
         },
         required = {},
@@ -394,34 +453,38 @@ function M.get_history(action, ctx)
   -- a crashed tool call costs a whole request round trip. tonumber() accepts
   -- numbers unchanged and numeric strings, everything else becomes the
   -- default.
-  local offset = math.max(math.floor(tonumber(action.offset) or 0), 0)
+  --
+  -- A negative offset is a deliberate "give me the tail" request, so it is
+  -- resolved against the working set below instead of clamped to 0:
+  -- clamping answers "the last few turns" with the OLDEST messages, which
+  -- is the opposite of what was asked.
+  local raw_offset = math.floor(tonumber(action.offset) or 0)
   local limit = math.floor(tonumber(action.limit) or 20)
   if limit < 1 then
     limit = 1
   end
-  limit = math.min(limit, 50)
+  limit = math.min(limit, MAX_LIMIT)
   local max_bytes = normalize_max_bytes(action.max_bytes)
   local search = action.search
   local search_lower = search and search ~= '' and search:lower() or nil
 
-  -- Response skeleton. Every branch - empty history, offset out of range,
-  -- normal page - returns the same JSON shape, so callers parse one form
-  -- instead of `if string.find(content, "No messages")`.
-  local response = {
-    total = 0,
-    offset = offset,
-    limit = limit,
-    max_bytes = max_bytes,
-    returned = 0,
-    messages = {},
-  }
-  if search_lower then
-    response.search = search
-  end
-
   local messages = sessions.get_messages(ctx.session)
   if not messages or #messages == 0 then
-    response.note = 'No messages in session history.'
+    -- Response skeleton. Every branch - empty history, offset out of
+    -- range, normal page - returns the same JSON shape, so callers parse
+    -- one form instead of `if string.find(content, "No messages")`.
+    local response = {
+      total = 0,
+      offset = math.max(raw_offset, 0),
+      limit = limit,
+      max_bytes = max_bytes,
+      returned = 0,
+      messages = {},
+      note = 'No messages in session history.',
+    }
+    if search_lower then
+      response.search = search
+    end
     return { content = encode_response(response) }
   end
 
@@ -461,8 +524,27 @@ function M.get_history(action, ctx)
     end
   end
 
-  response.total = #entries
+  -- Resolve the offset against the working set. A negative value counts
+  -- back from the end - offset=-20 is "the last 20" - and a value that
+  -- overshoots the start clamps to 0 rather than to a negative position.
+  -- The response echoes the resolved value: a paginating caller needs a
+  -- forward cursor it can add 1 to, not a relative one it has to re-derive
+  -- (and, with search, re-derive against a different set each time).
+  local offset = raw_offset
+  if offset < 0 then
+    offset = math.max(#working_set + offset, 0)
+  end
+
+  local response = {
+    total = #entries,
+    offset = offset,
+    limit = limit,
+    max_bytes = max_bytes,
+    returned = 0,
+    messages = {},
+  }
   if search_lower then
+    response.search = search
     response.total_matched = #working_set
   end
 
@@ -498,6 +580,20 @@ function M.get_history(action, ctx)
   if layout.truncated then
     response.truncated = true
     response.next_offset = layout.next_offset
+    -- Two numbering systems on purpose: `next_offset` is the pagination
+    -- cursor (a position inside the working set, which shifts as soon as
+    -- search is used), while `next_message_index` is the stable global
+    -- index the same entry carries in `messages[].index`. Conflating them
+    -- is how a model re-reads the wrong message after a search.
+    local next_entry = working_set[layout.next_offset + 1]
+    if next_entry ~= nil then
+      response.next_message_index = next_entry.index
+    end
+    -- Only advertise a budget the caller can actually pass: a value above
+    -- the ceiling would be clamped back down and silently repeat.
+    if layout.required_bytes ~= nil and not layout.required_too_big then
+      response.required_bytes = layout.required_bytes
+    end
     response.note = truncation_note(layout, max_bytes)
   end
 
@@ -512,6 +608,8 @@ function M.get_history(action, ctx)
     response.returned = 0
     response.truncated = true
     response.next_offset = offset
+    response.next_message_index = nil
+    response.required_bytes = nil
     response.note = nil
     content = encode_response(response)
     if #content > max_bytes then
