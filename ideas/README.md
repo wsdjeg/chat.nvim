@@ -34,4 +34,5 @@
 | [003](./003-finish-reason-handling.md) | finish_reason 处理统一与兜底 | draft |
 | [004](./004-multi-token-support.md) | 多 token 支持(多账号 api_key 轮询/故障切换) | done |
 | [005](./005-get-history-result-semantics.md) | get_history 结果语义与体积预算打磨 | shipped |
+| [006](./006-memory-system-fixes.md) | 记忆系统实现缺口修正(metadata 透传 / 类型过滤 / 权重) | shipped |
 

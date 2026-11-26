@@ -134,10 +134,15 @@ local default = {
       retention_days = 7,
       max_memories = 100,
       similarity_threshold = 0.4,
+      -- Ranking weight applied inside the daily module (multiplied once,
+      -- only here -- chat.memory.init does not add its own multiplier).
+      priority_weight = 1.5,
     },
     working = {
       enable = true,
       max_memories = 20,
+      -- Ranking weight applied inside the working module (multiplied once,
+      -- only here -- chat.memory.init does not add its own multiplier).
       priority_weight = 2.0,
     },
     -- Override for memory storage directory.

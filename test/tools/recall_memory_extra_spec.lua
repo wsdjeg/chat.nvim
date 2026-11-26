@@ -5,7 +5,7 @@
 --   * keyword fallback re-query when the first search misses
 --   * format_time buckets (just now / min / hours / days / date)
 --   * cwd folder suffix and working-memory metadata badges
---   * memory_type filtering of results
+--   * memory_type filter forwarded to retrieve_memories (source-level)
 
 local lu = require('luaunit')
 
@@ -17,6 +17,12 @@ local config = require('chat.config')
 TestRecallMemoryExtra = {}
 
 local SID = 'recall-extra-session'
+
+-- Mirror of the real memory_type tag stored in the memory content prefix:
+-- "[<memory_type>][<category>] content"
+local function type_of(entry)
+  return entry.content:match('^%[(%w+)%]')
+end
 
 function TestRecallMemoryExtra:setUp()
   self.orig = {}
@@ -37,13 +43,27 @@ function TestRecallMemoryExtra:setUp()
   })
   self.retrieve_calls = {}
   self.memories_result = {}
-  memory.retrieve_memories = function(query, session, limit)
+  self.retrieve_override = nil
+
+  -- The real retrieve_memories filters by opts.memory_type at the source, so
+  -- the stub must do the same: a stub that ignores opts would "pass" only
+  -- because recall_memory used to filter results afterwards.
+  memory.retrieve_memories = function(query, session, limit, opts)
     table.insert(self.retrieve_calls, {
       query = query,
       session = session,
       limit = limit,
+      memory_type = opts and opts.memory_type or nil,
     })
-    return self.memories_result
+
+    local result = self.memories_result
+    local memory_type = opts and opts.memory_type
+    if memory_type then
+      result = vim.tbl_filter(function(entry)
+        return type_of(entry) == memory_type
+      end, result)
+    end
+    return result
   end
 end
 
@@ -207,6 +227,40 @@ function TestRecallMemoryExtra:testMemoryTypeFiltersResults()
   lu.assertStrContains(result.content, '📅 Daily: 1')
   -- long_term entries are filtered out
   lu.assertNil(result.content:find('long term fact', 1, true))
+
+  -- The type filter must reach retrieve_memories itself (source-level
+  -- filtering), otherwise a target-type memory ranked below the top-N
+  -- would be silently dropped before recall_memory ever sees it.
+  lu.assertEquals('daily', self.retrieve_calls[1].memory_type)
+end
+
+function TestRecallMemoryExtra:testTypeFilterSurvivesKeywordFallback()
+  -- Both searches must carry memory_type, and the fallback must use the
+  -- resolved target session (all_sessions), not ctx.session.
+  local calls = {}
+  memory.retrieve_memories = function(query, session, limit, opts)
+    table.insert(calls, {
+      query = query,
+      session = session,
+      memory_type = opts and opts.memory_type,
+    })
+    return {}
+  end
+
+  tools.call('recall_memory', {
+    query = 'alpha beta',
+    memory_type = 'working',
+    all_sessions = true,
+  }, { session = SID })
+
+  lu.assertEquals(2, #calls, 'expected main search + keyword fallback')
+  for _, call in ipairs(calls) do
+    lu.assertEquals('working', call.memory_type,
+      'memory_type must be forwarded on every search')
+    lu.assertNil(call.session,
+      'all_sessions=true must send a nil session on every search, '
+        .. 'including the keyword fallback')
+  end
 end
 
 return TestRecallMemoryExtra

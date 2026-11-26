@@ -6,6 +6,9 @@ local atomic = require('chat.memory.atomic')
 
 local long_term_memories = {}
 
+-- 90 天未被检索视为陈旧，可被 cleanup 淘汰
+local STALE_SECONDS = 90 * 86400
+
 -- 生成记忆ID
 local function generate_id()
   local MEMORY_ID_STRFTIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
@@ -18,7 +21,9 @@ end
 
 -- 获取存储路径
 local function get_storage_path()
-  return vim.fs.normalize(config.get_memory_storage_dir() .. '/long_term_memories.json')
+  return vim.fs.normalize(
+    config.get_memory_storage_dir() .. '/long_term_memories.json'
+  )
 end
 
 -- 初始化存储目录
@@ -27,6 +32,31 @@ local function init_storage()
   if vim.fn.isdirectory(storage_dir) == 0 then
     vim.fn.mkdir(storage_dir, 'p')
   end
+end
+
+-- 读取置信度（nil 安全：import / 手工编辑的数据可能没有 metadata）
+local function get_confidence(mem)
+  return mem.metadata and mem.metadata.confidence or 1.0
+end
+
+-- 读取分类（nil 安全）
+local function get_category(mem)
+  return mem.metadata and mem.metadata.category
+end
+
+-- 把存储对象转成检索视图。
+-- 检索不应把 priority / similarity 写回持久化记录，否则任何一次 save
+-- 都会把检索态落盘。metadata 用引用共享，拷贝开销可忽略。
+local function to_view(mem, priority)
+  return {
+    id = mem.id,
+    session = mem.session,
+    role = mem.role,
+    content = mem.content,
+    timestamp = mem.timestamp,
+    metadata = mem.metadata,
+    priority = priority,
+  }
 end
 
 -- 文本相似度计算（委托给公共模块）
@@ -86,12 +116,13 @@ function M.store(session, role, content, metadata)
     hit_count = 1,
     last_accessed = os.time(),
     updated_at = os.time(),
-    metadata = metadata or {
+    -- 合并默认值：调用方传入部分字段时，其余字段仍可用
+    metadata = vim.tbl_deep_extend('force', {
       memory_type = 'long_term',
       category = 'fact',
       source = 'extracted',
       confidence = 1.0,
-    },
+    }, metadata or {}),
   }
 
   -- 解析内容中的元数据标记
@@ -106,11 +137,10 @@ function M.store(session, role, content, metadata)
   -- 限制最大记忆数量
   local max_memories = config.config.memory.long_term.max_memories or 500
   if #long_term_memories > max_memories then
-    -- 按访问次数和时间排序，保留重要的记忆
+    -- 按访问次数和置信度排序，保留重要的记忆
     table.sort(long_term_memories, function(a, b)
-      -- 优先保留高置信度和频繁访问的记忆
-      local score_a = (a.access_count or 0) + (a.metadata.confidence or 0)
-      local score_b = (b.access_count or 0) + (b.metadata.confidence or 0)
+      local score_a = (a.access_count or 0) + get_confidence(a)
+      local score_b = (b.access_count or 0) + get_confidence(b)
       return score_a > score_b
     end)
     long_term_memories = vim.list_slice(long_term_memories, 1, max_memories)
@@ -138,17 +168,15 @@ function M.retrieve(query, session, limit)
       -- 访问频率加成
       local access_bonus = math.min((memory.access_count or 0) * 0.05, 0.2)
 
-      -- 置信度加成
-      local confidence_bonus = (memory.metadata.confidence or 1.0) * 0.1
+      -- 置信度加成（nil 安全）
+      local confidence_bonus = get_confidence(memory) * 0.1
 
       -- 时间衰减（越久远的记忆权重略低）
       local age_days = (os.time() - memory.timestamp) / 86400
       local recency_bonus = math.max(0, (30 - age_days) / 30) * 0.1
 
-      local total_score = sim
-        + access_bonus
-        + confidence_bonus
-        + recency_bonus
+      local total_score =
+        sim + access_bonus + confidence_bonus + recency_bonus
 
       if total_score >= threshold then
         table.insert(scored, {
@@ -165,20 +193,20 @@ function M.retrieve(query, session, limit)
     return a.priority > b.priority
   end)
 
-  -- 返回结果并更新访问计数
+  -- 只有入选的结果才算一次访问；同步保存，避免退出丢计数
   local results = {}
+  local accessed = false
   for i = 1, math.min(#scored, limit) do
     local mem = scored[i].memory
     mem.access_count = (mem.access_count or 0) + 1
     mem.last_accessed = os.time()
-    mem.priority = scored[i].priority
-    table.insert(results, mem)
+    accessed = true
+    table.insert(results, to_view(mem, scored[i].priority))
   end
 
-  -- 异步保存访问计数更新
-  vim.defer_fn(function()
+  if accessed then
     M.save()
-  end, 1000)
+  end
 
   return results
 end
@@ -188,7 +216,7 @@ function M.retrieve_by_category(category, limit)
   limit = limit or 10
 
   local filtered = vim.tbl_filter(function(mem)
-    return mem.metadata and mem.metadata.category == category
+    return get_category(mem) == category
   end, long_term_memories)
 
   -- 按时间排序（最新的在前）
@@ -240,7 +268,7 @@ function M.get_all()
       access_count = m.access_count,
       hit_count = m.hit_count,
       updated_at = m.updated_at,
-      category = m.metadata and m.metadata.category,
+      category = get_category(m),
       confidence = m.metadata and m.metadata.confidence,
     }
   end, long_term_memories)
@@ -281,7 +309,7 @@ function M.update(id, new_content, new_metadata)
       mem.content = new_content
       if new_metadata then
         mem.metadata =
-          vim.tbl_deep_extend('force', mem.metadata, new_metadata)
+          vim.tbl_deep_extend('force', mem.metadata or {}, new_metadata)
       end
       mem.timestamp = os.time()
       M.save()
@@ -301,13 +329,14 @@ function M.merge_duplicates()
     local content_key = mem.content:lower():gsub('%s+', ' ')
     if seen[content_key] then
       table.insert(duplicates, i)
-      -- 合并元数据到原始记忆
+      -- 合并元数据到原始记忆（import 进来的记忆可能没有 metadata）
       local original = long_term_memories[seen[content_key]]
+      original.metadata = original.metadata or {}
       original.access_count = (original.access_count or 0)
         + (mem.access_count or 0)
       original.metadata.confidence = math.max(
         original.metadata.confidence or 1.0,
-        mem.metadata.confidence or 1.0
+        mem.metadata and mem.metadata.confidence or 1.0
       )
     else
       seen[content_key] = i
@@ -329,17 +358,18 @@ function M.merge_duplicates()
   return #duplicates
 end
 
--- 清理过期或低质量记忆
+-- 清理陈旧记忆（长期零访问 + 超过 STALE_SECONDS 未更新）
+-- 注意：存入时 confidence 恒为 1.0，基于置信度的条件永远为真，是空操作。
 function M.cleanup()
   local count_before = #long_term_memories
+  local now = os.time()
 
-  -- 移除低置信度且从未访问的记忆
   long_term_memories = vim.tbl_filter(function(mem)
-    local confidence = mem.metadata and mem.metadata.confidence or 1.0
     local access_count = mem.access_count or 0
+    local age = now - (mem.timestamp or 0)
 
-    -- 保留：置信度 > 0.5 或至少被访问过一次
-    return confidence > 0.5 or access_count > 0
+    -- 保留：被检索过，或仍在新鲜期内
+    return access_count > 0 or age < STALE_SECONDS
   end, long_term_memories)
 
   local removed = count_before - #long_term_memories
@@ -365,7 +395,7 @@ function M.get_stats()
 
   for _, mem in ipairs(long_term_memories) do
     -- 按分类统计
-    local category = mem.metadata and mem.metadata.category or 'uncategorized'
+    local category = get_category(mem) or 'uncategorized'
     stats.by_category[category] = (stats.by_category[category] or 0) + 1
 
     -- 按会话统计
@@ -392,7 +422,10 @@ function M.export(format)
   format = format or 'json'
 
   if format == 'json' then
-    return vim.json.encode(long_term_memories, { indent = 2 })
+    -- `indent` must be a string: a number is concatenated verbatim as the
+    -- indent prefix and produces invalid JSON ("2\"key\""). A broken export
+    -- could not be re-imported, which defeats the backup purpose.
+    return vim.json.encode(long_term_memories, { indent = '  ' })
   elseif format == 'markdown' then
     local lines = { '# Long-term Memories\n' }
     local stats = M.get_stats() -- 获取统计信息
@@ -487,13 +520,13 @@ end
 -- 高级搜索（支持组合条件）
 function M.advanced_search(options)
   options = options or {}
-  local results = {}
+  local matches = {}
 
   for _, mem in ipairs(long_term_memories) do
     local match = true
 
-    -- 分类过滤
-    if options.category and mem.metadata.category ~= options.category then
+    -- 分类过滤（nil 安全）
+    if options.category and get_category(mem) ~= options.category then
       match = false
     end
 
@@ -514,34 +547,35 @@ function M.advanced_search(options)
     -- 置信度过滤
     if
       options.min_confidence
-      and (mem.metadata.confidence or 0) < options.min_confidence
+      and (mem.metadata and mem.metadata.confidence or 0)
+        < options.min_confidence
     then
       match = false
     end
 
-    -- 文本搜索
+    -- 文本搜索（分数只存在本次查询的包装表里，不写回记忆）
+    local score = nil
     if options.query then
-      local sim = similarity.text_similarity(options.query, mem.content)
-      if sim < (options.threshold or 0.3) then
+      score = similarity.text_similarity(options.query, mem.content)
+      if score < (options.threshold or 0.3) then
         match = false
       end
-      mem.search_score = sim
     end
 
     if match then
-      table.insert(results, mem)
+      table.insert(matches, { memory = mem, score = score })
     end
   end
 
   -- 排序
   if options.sort_by then
-    table.sort(results, function(a, b)
+    table.sort(matches, function(a, b)
       if options.sort_by == 'timestamp' then
-        return a.timestamp > b.timestamp
+        return a.memory.timestamp > b.memory.timestamp
       elseif options.sort_by == 'access_count' then
-        return (a.access_count or 0) > (b.access_count or 0)
+        return (a.memory.access_count or 0) > (b.memory.access_count or 0)
       elseif options.sort_by == 'relevance' then
-        return (a.search_score or 0) > (b.search_score or 0)
+        return (a.score or 0) > (b.score or 0)
       end
       return false
     end)
@@ -549,16 +583,18 @@ function M.advanced_search(options)
 
   -- 限制结果数量
   if options.limit then
-    results = vim.list_slice(results, 1, options.limit)
+    matches = vim.list_slice(matches, 1, options.limit)
   end
 
-  return results
+  return vim.tbl_map(function(item)
+    return item.memory
+  end, matches)
 end
 
 -- 初始化
 M.load()
 
--- 定期清理（每周清理一次低质量记忆）
+-- 定期清理（每周清理一次陈旧记忆）
 vim.loop.new_timer():start(604800000, 604800000, function()
   vim.schedule(function()
     M.cleanup()

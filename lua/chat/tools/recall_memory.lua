@@ -84,7 +84,7 @@ local function get_last_user_message(session_id)
   return nil
 end
 
--- 解析记忆内容（提取类型和分类）
+-- 解析记忆内容（提取类型和分类），仅用于展示
 local function parse_memory(mem_content)
   local memory_type, category, content =
     mem_content:match('%[(%w+)%]%[(%w+)%]%s*(.*)')
@@ -151,6 +151,13 @@ local function format_time(timestamp)
   end
 end
 
+---检索（类型过滤在源头完成）
+local function search(query, target_session, limit, memory_type)
+  return memory.retrieve_memories(query, target_session, limit, {
+    memory_type = memory_type,
+  })
+end
+
 function M.recall_memory(arguments, ctx)
   if not config.config.memory or not config.config.memory.enable then
     return {
@@ -179,29 +186,15 @@ function M.recall_memory(arguments, ctx)
     target_session = nil
   end
 
-  -- 检索记忆
-  local memories = memory.retrieve_memories(query, target_session, limit)
-
-  -- 如果指定了记忆类型，过滤结果
-  if memory_type then
-    memories = vim.tbl_filter(function(mem)
-      local parsed = parse_memory(mem.content)
-      return parsed.memory_type == memory_type
-    end, memories)
-  end
+  -- 检索记忆。类型过滤下沉到源头 —— 原先"先取 top-N 再过滤"会在
+  -- 目标类型的记忆排在第 N 名之外时返回空结果。
+  local memories = search(query, target_session, limit, memory_type)
 
   -- 如果没有结果，尝试用关键词重新搜索
   if #memories == 0 then
     local keywords = extract_keywords(query, 1)
     if #keywords > 0 then
-      memories = memory.retrieve_memories(keywords[1], ctx.session, limit)
-
-      if memory_type then
-        memories = vim.tbl_filter(function(mem)
-          local parsed = parse_memory(mem.content)
-          return parsed.memory_type == memory_type
-        end, memories)
-      end
+      memories = search(keywords[1], target_session, limit, memory_type)
     end
   end
 
@@ -356,7 +349,8 @@ MEMORY TYPES (Priority Order):
 FEATURES:
 • Auto keyword extraction from conversation
 • Priority-based ranking
-• Type filtering
+• Type filtering (filtered at the source, so a type with matches
+  always returns results even when ranked below other types)
 • Session isolation
 
 Examples:
@@ -416,3 +410,4 @@ function M.info(action, ctx)
 end
 
 return M
+

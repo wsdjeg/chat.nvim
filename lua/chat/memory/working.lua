@@ -1,4 +1,5 @@
 local M = {}
+
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
 local atomic = require('chat.memory.atomic')
@@ -12,6 +13,20 @@ end
 
 local function get_current_session()
   return require('chat.windows').current_session()
+end
+
+-- 把存储对象转成检索视图：检索不应把 priority 写回持久化记录，
+-- 否则任何一次 save 都会把检索态落盘。
+local function to_view(mem, priority)
+  return {
+    id = mem.id,
+    session = mem.session,
+    role = mem.role,
+    content = mem.content,
+    timestamp = mem.timestamp,
+    metadata = mem.metadata,
+    priority = priority,
+  }
 end
 
 function M.get_all()
@@ -39,6 +54,14 @@ function M.store(session, role, content, metadata)
         existing.timestamp = os.time()
         existing.hit_count = (existing.hit_count or 0) + 1
         existing.updated_at = os.time()
+        -- 去重命中时也吸收新传入的 metadata（importance / type 变更生效）
+        if metadata then
+          existing.metadata = vim.tbl_deep_extend(
+            'force',
+            existing.metadata or {},
+            metadata
+          )
+        end
         M.save()
         return existing.id
       end
@@ -52,10 +75,10 @@ function M.store(session, role, content, metadata)
     content = content,
     timestamp = os.time(),
     priority = 1.0, -- Base priority
-    metadata = metadata or {
+    metadata = vim.tbl_deep_extend('force', {
       type = 'general', -- general, task, decision, context, issue
       importance = 'normal', -- low, normal, high, critical
-    },
+    }, metadata or {}),
     ttl = 3600, -- Default 1 hour TTL (time-to-live)
     created_at = os.time(),
     hit_count = 1,
@@ -89,12 +112,13 @@ function M.retrieve(query, limit)
 
   limit = limit or 10
   local session = get_current_session()
+  local weight = config.config.memory.working.priority_weight or 2.0
   local scored = {}
   local now = os.time()
 
   for _, memory in ipairs(working_memories) do
     -- Check if expired
-    if now - memory.created_at > memory.ttl then
+    if now - (memory.created_at or now) > (memory.ttl or 3600) then
       -- Mark as expired, cleanup later
       memory.expired = true
       goto continue
@@ -122,14 +146,13 @@ function M.retrieve(query, limit)
     end
 
     -- Time decay (newer is more important)
-    local age_minutes = (now - memory.timestamp) / 60
+    local age_minutes = (now - (memory.timestamp or now)) / 60
     local recency_bonus = math.max(0, (60 - age_minutes) / 60) * 0.2
 
-    -- Total priority
-    local total_priority = sim
-      + session_bonus
-      + importance_bonus
-      + recency_bonus
+    -- Total priority (weight applied here, once -- chat.memory.init
+    -- deliberately does not multiply again)
+    local total_priority = (sim + session_bonus + importance_bonus + recency_bonus)
+      * weight
 
     if total_priority > 0 then
       table.insert(scored, {
@@ -146,14 +169,10 @@ function M.retrieve(query, limit)
     return a.priority > b.priority
   end)
 
-  -- Return results
+  -- Return results as views (never mutate the stored object)
   local results = {}
   for i = 1, math.min(#scored, limit) do
-    -- Apply working memory weight multiplier
-    local mem = scored[i].memory
-    mem.priority = scored[i].priority
-      * (config.config.memory.working.priority_weight or 2.0)
-    table.insert(results, mem)
+    table.insert(results, to_view(scored[i].memory, scored[i].priority))
   end
 
   return results
@@ -174,7 +193,7 @@ function M.cleanup_expired()
   local count_before = #working_memories
 
   working_memories = vim.tbl_filter(function(mem)
-    return (now - mem.created_at) <= mem.ttl
+    return (now - (mem.created_at or now)) <= (mem.ttl or 3600)
   end, working_memories)
 
   local removed = count_before - #working_memories

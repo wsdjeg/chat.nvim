@@ -40,7 +40,8 @@
 
 local M = {}
 local config = require('chat.config')
-local working_memory = require('chat.memory.working')
+-- Memory writes go through chat.memory (not chat.memory.working directly),
+-- so the global `memory.enable` switch is honoured
 
 ---@type ChatPlan[]
 local plans = {}
@@ -125,10 +126,11 @@ function M.create(title, steps, context)
   M.save()
 
   -- Auto store to working memory
-  working_memory.store(
+  require('chat.memory').store_memory(
     context and context.session,
     'system',
-    string.format('[plan] Created: %s', title)
+    string.format('[plan] Created: %s', title),
+    'working'
   )
 
   return plan
@@ -266,10 +268,11 @@ function M.start_next(plan_id)
       M.save()
 
       -- Update working memory
-      working_memory.store(
+      require('chat.memory').store_memory(
         plan.context and plan.context.session,
         'system',
-        string.format('[plan] Started step %d: %s', step.id, step.content)
+        string.format('[plan] Started step %d: %s', step.id, step.content),
+        'working'
       )
 
       return step

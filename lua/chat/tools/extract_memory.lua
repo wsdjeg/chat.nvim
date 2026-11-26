@@ -215,18 +215,21 @@ local function detect_work_type(text)
 end
 
 -- 检测重要性
+--
+-- critical 只留给"真紧急"的词。'重要' 在中文里通常表示"值得优先处理"
+-- 而非"立刻处理关键问题"，且它同时出现在两档关键词里时，先查的那一档
+-- 会永远胜出 → high 永不可达。所以 '重要' 归 high。
 local function detect_importance(text)
   local text_lower = text:lower()
 
-  local critical_keywords =
-    { '紧急', '重要', 'critical', 'urgent', '必须', '关键' }
+  local critical_keywords = { '紧急', '必须', '关键', 'critical', 'urgent' }
   for _, keyword in ipairs(critical_keywords) do
     if text_lower:find(keyword:lower(), 1, true) then
       return 'critical'
     end
   end
 
-  local high_keywords = { '优先', '尽快', 'high', 'priority', '重要' }
+  local high_keywords = { '重要', '优先', '尽快', 'high', 'priority' }
   for _, keyword in ipairs(high_keywords) do
     if text_lower:find(keyword:lower(), 1, true) then
       return 'high'
@@ -313,6 +316,21 @@ local function extract_important_sentences(text, max_sentences)
   return vim.list_slice(sentences, 1, max_sentences or 3)
 end
 
+-- 构造 working 记忆的 metadata（其他类型只保留调用方显式给出的字段）
+local function build_metadata(memory_type, source, explicit)
+  explicit = explicit or {}
+
+  if memory_type == 'working' then
+    return {
+      type = explicit.work_type or detect_work_type(source),
+      importance = explicit.importance
+        or detect_importance(source),
+    }
+  end
+
+  return nil
+end
+
 function M.extract_memory(arguments, ctx)
   if not config.config.memory or not config.config.memory.enable then
     return {
@@ -356,27 +374,24 @@ function M.extract_memory(arguments, ctx)
       local memory_type = mem.memory_type
         or arguments.memory_type
         or detect_memory_type(mem.content)
-      local category = mem.category or detect_category(mem.content)
+      local category = mem.category
+        or arguments.category
+        or detect_category(mem.content)
 
       -- 构建标记内容
       local marked_content =
         string.format('[%s][%s] %s', memory_type, category, mem.content)
 
-      -- 准备metadata
-      local metadata = nil
-      if memory_type == 'working' then
-        metadata = {
-          type = mem.work_type or detect_work_type(mem.content),
-          importance = mem.importance or detect_importance(mem.content),
-        }
-      end
+      -- metadata 必须一路传到存储层，否则 importance / work_type 无效
+      local metadata = build_metadata(memory_type, mem.content, mem)
 
       -- 存储到对应的记忆系统
       local memory_id = memory.store_memory(
         ctx.session,
         'system',
         marked_content,
-        memory_type
+        memory_type,
+        metadata
       )
 
       if memory_id then
@@ -385,6 +400,7 @@ function M.extract_memory(arguments, ctx)
           content = mem.content,
           memory_type = memory_type,
           category = category,
+          metadata = metadata,
           stored = true,
         })
       end
@@ -405,21 +421,15 @@ function M.extract_memory(arguments, ctx)
       local marked_content =
         string.format('[%s][%s] %s', memory_type, category, sentence)
 
-      -- 准备metadata（工作记忆专用）
-      local metadata = nil
-      if memory_type == 'working' then
-        metadata = {
-          type = detect_work_type(sentence),
-          importance = detect_importance(sentence),
-        }
-      end
+      local metadata = build_metadata(memory_type, sentence, arguments)
 
       -- 存储记忆
       local memory_id = memory.store_memory(
         ctx.session,
         'system',
         marked_content,
-        memory_type
+        memory_type,
+        metadata
       )
 
       if memory_id then
@@ -456,7 +466,9 @@ function M.extract_memory(arguments, ctx)
       extracted_count = #extracted_memories,
       type_statistics = type_stats,
       memories = extracted_memories,
-    }, { indent = 2 }),
+    -- `indent` must be a string: a number is concatenated verbatim as the
+    -- indent prefix and produces invalid JSON ("2\"key\"").
+    }, { indent = '  ' }),
   }
 end
 
@@ -484,6 +496,11 @@ CATEGORIES:
 • preference: Personal habits, preferences, routines
 • skill: Technical abilities, knowledge, expertise
 • event: Specific events, occurrences
+
+WORKING MEMORY METADATA:
+• work_type: general | task | decision | context | issue (auto-detected)
+• importance: low | normal | high | critical (auto-detected)
+Both raise the retrieval priority of the memory.
 
 Examples:
 @extract_memory text="Python的GIL是全局解释器锁" memory_type="long_term"
@@ -540,6 +557,16 @@ Examples:
             enum = { 'fact', 'preference', 'skill', 'event' },
             description = 'Default category for all memories',
           },
+          work_type = {
+            type = 'string',
+            enum = { 'general', 'task', 'decision', 'context', 'issue' },
+            description = 'Default working memory subtype (working memory only)',
+          },
+          importance = {
+            type = 'string',
+            enum = { 'low', 'normal', 'high', 'critical' },
+            description = 'Default importance level (working memory only)',
+          },
         },
       },
     },
@@ -570,3 +597,4 @@ function M.info(action, ctx)
 end
 
 return M
+

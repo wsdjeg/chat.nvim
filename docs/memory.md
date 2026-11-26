@@ -136,16 +136,17 @@ require('chat').setup({
     -- Daily memory: Temporary tasks and goals (auto-expires)
     daily = {
       enable = true,
-      retention_days = 7,           -- Days before auto-deletion
+      retention_days = 7,           -- Days before auto-deletion (snapshotted per memory)
       max_memories = 100,           -- Maximum daily memories
       similarity_threshold = 0.4,
+      priority_weight = 1.5,        -- Ranking multiplier (applied once)
     },
 
     -- Working memory: Current session focus (highest priority)
     working = {
       enable = true,
       max_memories = 20,            -- Maximum working memories per session
-      priority_weight = 2.0,        -- Priority multiplier (higher = more important)
+      priority_weight = 2.0,        -- Ranking multiplier (applied once)
     },
 
     -- Storage location
@@ -164,13 +165,20 @@ require('chat').setup({
 | `long_term.retrieval_limit`      | number  | `3`                                  | Maximum memories to retrieve per query |
 | `long_term.similarity_threshold` | number  | `0.3`                                | Similarity threshold (0-1)             |
 | `daily.enable`                   | boolean | `true`                               | Enable daily memory                    |
-| `daily.retention_days`           | number  | `7`                                  | Days before auto-deletion              |
+| `daily.retention_days`           | number  | `7`                                  | Days before auto-deletion (snapshotted per memory) |
 | `daily.max_memories`             | number  | `100`                                | Maximum daily memories                 |
 | `daily.similarity_threshold`     | number  | `0.4`                                | Similarity threshold (0-1)             |
+| `daily.priority_weight`          | number  | `1.5`                                | Ranking multiplier (applied once)      |
 | `working.enable`                 | boolean | `true`                               | Enable working memory                  |
 | `working.max_memories`           | number  | `20`                                 | Maximum working memories per session   |
-| `working.priority_weight`        | number  | `2.0`                                | Priority multiplier                    |
-| `storage_dir`                    | string  | `stdpath('data')/chat.nvim/memory/` | Storage directory                      |
+| `working.priority_weight`        | number  | `2.0`                                | Ranking multiplier (applied once)      |
+| `storage_dir`                    | string  | `stdpath('data')/chat.nvim/memory/` | Storage directory for the three JSON files |
+
+{: .info }
+
+> `priority_weight` is multiplied **exactly once**, inside the module that owns
+> the memory (working `2.0`, daily `1.5`, long-term `1.0`). `chat.memory` only
+> merges and sorts the scores it receives — it must not multiply again.
 
 ---
 
@@ -348,7 +356,9 @@ Any information that doesn't match working or daily memory keywords is stored as
 
 ## Memory Retrieval Priority
 
-When retrieving memories, the system uses priority-based ranking:
+When retrieving memories, the system uses priority-based ranking. Each module
+computes its own final score and applies its weight **once**; `chat.memory`
+merges the results and sorts them without adding another multiplier:
 
 1. **Working Memory** (Priority: 2.0x)
 
@@ -366,6 +376,14 @@ When retrieving memories, the system uses priority-based ranking:
    - Normal priority
    - Permanent knowledge
    - Based on similarity
+
+Retrieval returns a **view** of each memory (id/session/role/content
+/timestamp/metadata/priority). The stored record is never mutated by a query,
+so no retrieval state leaks back into the JSON files.
+
+When `memory_type` is given, the filter is applied **at the source**: only that
+module is queried, so a matching memory is returned even if its score would
+rank below other types' results.
 
 **Example Output:**
 
@@ -394,41 +412,48 @@ When retrieving memories, the system uses priority-based ranking:
 
 ## Storage Location
 
-Memory data is stored in:
+Memory data is stored as three flat JSON files (no per-type directories):
 
 ```
-stdpath('data')/chat.nvim/memory/
-├── working/
-│   └── session-id.json
-├── daily/
-│   └── date-based-files.json
-└── long_term/
-    └── memories.json
+storage_dir/memory/
+├── working_memories.json
+├── daily_memories.json
+└── long_term_memories.json
 ```
+
+`storage_dir` itself defaults to `stdpath('data') .. '/chat.nvim/'`; the memory
+files live under its `memory/` sub-directory (override with
+`memory.storage_dir`).
 
 ### Working Memory Storage
 
 ```
-stdpath('data')/chat.nvim/memory/working/
+storage_dir/memory/working_memories.json
 ```
 
-Each session has its own working memory file that is automatically cleaned up when the session ends.
+All sessions share this file; every record carries its own `session` field.
+Records whose TTL expired are removed by `working.cleanup_expired()`.
 
 ### Daily Memory Storage
 
 ```
-stdpath('data')/chat.nvim/memory/daily/
+storage_dir/memory/daily_memories.json
 ```
 
-Daily memories are stored with timestamps and automatically cleaned up after the retention period.
+Each record snapshots `expiry_days` at write time, so changing
+`daily.retention_days` does not retroactively shorten the life of memories that
+already exist. Expired records are removed hourly.
 
 ### Long-term Memory Storage
 
 ```
-stdpath('data')/chat.nvim/memory/long_term/memories.json
+storage_dir/memory/long_term_memories.json
 ```
 
-Long-term memories are stored permanently and persist across sessions.
+Long-term memories persist across sessions until they are evicted by the
+`max_memories` cap or by `cleanup()`, which drops records that were never
+retrieved for 90 days (`clear_session_memories()` is the explicit per-session
+cleanup).
 
 ---
 

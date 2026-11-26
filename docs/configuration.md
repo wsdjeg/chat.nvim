@@ -550,16 +550,17 @@ memory = {
   -- Daily memory: Temporary tasks and goals (auto-expires)
   daily = {
     enable = true,
-    retention_days = 7,           -- Days before auto-deletion
+    retention_days = 7,           -- Days before auto-deletion (snapshotted per memory)
     max_memories = 100,           -- Maximum daily memories
     similarity_threshold = 0.4,
+    priority_weight = 1.5,        -- Ranking multiplier (applied once)
   },
 
   -- Working memory: Current session focus (highest priority)
   working = {
     enable = true,
     max_memories = 20,            -- Maximum working memories per session
-    priority_weight = 2.0,        -- Priority multiplier (higher = more important)
+    priority_weight = 2.0,        -- Ranking multiplier (applied once)
   },
 
   -- Storage location (optional, defaults to storage_dir .. 'memory/')
@@ -847,6 +848,7 @@ require('chat').setup({
     daily = {
       retention_days = 7,
       max_memories = 100,
+      priority_weight = 1.5,
     },
     working = {
       max_memories = 20,
