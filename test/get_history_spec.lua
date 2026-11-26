@@ -10,6 +10,15 @@ function TestGetHistory:setUp()
   config.setup({
     provider = 'test-provider',
     model = 'test-model',
+    -- config.setup() deep-merges, so a budget set by one test would leak
+    -- into the next one. Reset both keys to the built-in defaults here;
+    -- individual tests override them as needed.
+    tools = {
+      get_history = {
+        default_max_bytes = 32768,
+        max_bytes_limit = 204800,
+      },
+    },
   })
   -- Use a temp directory to avoid polluting real session cache
   self.test_cache_dir = vim.fn.tempname() .. '/'
@@ -664,6 +673,129 @@ function TestGetHistory:testMaxBytesNonNumberFallsBackToDefault()
   local data = vim.json.decode(result.content)
 
   lu.assertEquals(data.max_bytes, 32768)
+end
+
+-- ─── get_history() — configurable byte budget ───────────────────
+
+--- Create a session with one small message, ready for budget assertions.
+---@return string sid
+function TestGetHistory:smallSession()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+  return sid
+end
+
+function TestGetHistory:testConfigDefaultMaxBytesApplied()
+  config.setup({
+    tools = { get_history = { default_max_bytes = 65536 } },
+  })
+  local sid = self:smallSession()
+
+  -- max_bytes omitted: the configured default must be what the response
+  -- reports, not the hardcoded fallback.
+  local data = vim.json.decode(
+    get_history.get_history({}, { session = sid }).content
+  )
+  lu.assertEquals(data.max_bytes, 65536)
+end
+
+function TestGetHistory:testConfigLimitClampsExplicitMaxBytes()
+  config.setup({
+    tools = { get_history = { max_bytes_limit = 51200 } },
+  })
+  local sid = self:smallSession()
+
+  local data = vim.json.decode(
+    get_history.get_history({ max_bytes = 10 * 1024 * 1024 }, { session = sid }).content
+  )
+  lu.assertEquals(data.max_bytes, 51200)
+end
+
+function TestGetHistory:testConfigLimitNeverBelowDefault()
+  -- A config that raised only the default would otherwise cap explicit
+  -- values below the no-argument budget, which is nonsense: asking for
+  -- max_bytes=61440 would silently return 8192.
+  config.setup({
+    tools = { get_history = { default_max_bytes = 61440, max_bytes_limit = 8192 } },
+  })
+  local sid = self:smallSession()
+
+  -- Explicit value equal to the default survives: the effective ceiling is
+  -- max(limit, default) = 61440.
+  local data = vim.json.decode(
+    get_history.get_history({ max_bytes = 61440 }, { session = sid }).content
+  )
+  lu.assertEquals(data.max_bytes, 61440)
+end
+
+function TestGetHistory:testConfigExplicitSmallBudgetHonored()
+  config.setup({
+    tools = { get_history = { default_max_bytes = 61440, max_bytes_limit = 8192 } },
+  })
+  local sid = self:smallSession()
+
+  -- An explicit small value is a deliberate caller choice, not a default:
+  -- it must not be raised to the (larger) default.
+  local data = vim.json.decode(
+    get_history.get_history({ max_bytes = 8192 }, { session = sid }).content
+  )
+  lu.assertEquals(data.max_bytes, 8192)
+end
+
+function TestGetHistory:testConfigInvalidBudgetFallsBack()
+  config.setup({
+    tools = { get_history = { default_max_bytes = 'big', max_bytes_limit = -1 } },
+  })
+  local sid = self:smallSession()
+
+  local data = vim.json.decode(
+    get_history.get_history({}, { session = sid }).content
+  )
+  -- 'big' is not a number and -1 is not positive: both fall back.
+  lu.assertEquals(data.max_bytes, 32768)
+end
+
+function TestGetHistory:testConfigBudgetBelowFloorClampedUp()
+  config.setup({
+    tools = { get_history = { default_max_bytes = 100 } },
+  })
+  local sid = self:smallSession()
+
+  local data = vim.json.decode(
+    get_history.get_history({}, { session = sid }).content
+  )
+  -- The response envelope cannot fit below the floor.
+  lu.assertEquals(data.max_bytes, 2048)
+end
+
+function TestGetHistory:testStringOffsetDoesNotRaise()
+  config.setup({
+    tools = { get_history = { default_max_bytes = 32768, max_bytes_limit = 204800 } },
+  })
+  local sid = sessions.new()
+  for i = 1, 5 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  -- Models sometimes emit numeric strings; a crash here would cost a whole
+  -- request round trip.
+  local data = vim.json.decode(
+    get_history.get_history(
+      { offset = '3', limit = '2' },
+      { session = sid }
+    ).content
+  )
+  lu.assertEquals(data.offset, 3)
+  lu.assertEquals(data.limit, 2)
+  lu.assertEquals(data.messages[1].index, 3)
 end
 
 function TestGetHistory:testBytesFieldMatchesContentLength()

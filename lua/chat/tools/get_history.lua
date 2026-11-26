@@ -5,6 +5,7 @@ local M = {}
 
 local log = require('chat.log')
 local util = require('chat.util')
+local config = require('chat.config')
 
 -- ── Size budget ──────────────────────────────────────────────────────
 -- History messages carry raw content, and a single tool result (a
@@ -12,8 +13,14 @@ local util = require('chat.util')
 -- of them would push the very request that carries the tool result over
 -- the model's context window, so the result is capped by BYTES, not just
 -- by message count.
-local DEFAULT_MAX_BYTES = 32 * 1024 -- budget used when max_bytes is omitted
-local MAX_MAX_BYTES = 200 * 1024 -- hard ceiling for an explicit max_bytes
+--
+-- The budget is configurable via `tools.get_history` so a large-context
+-- model can read a whole tool result in one call while a small one keeps
+-- the default. The two constants below are only fallbacks, used when the
+-- user config is missing or invalid; MIN_MAX_BYTES is a hard floor, below
+-- which the response envelope itself would no longer fit.
+local FALLBACK_MAX_BYTES = 32 * 1024 -- default when config is missing
+local FALLBACK_MAX_BYTES_LIMIT = 200 * 1024 -- ceiling when config is missing
 local MIN_MAX_BYTES = 2048 -- floor: a smaller body cannot hold the envelope
 -- Content prefix below this size is not worth returning: the truncation
 -- note alone costs more bytes, so such a message is dropped instead of
@@ -32,21 +39,57 @@ local ENVELOPE_HEADROOM = 512
 -- nothing.
 local CONVERSATIONAL_ROLES = { 'user', 'assistant', 'tool' }
 
+--- Read one numeric budget from `tools.get_history` config.
+--- Invalid values (missing, wrong type, <= 0) fall back to the built-in
+--- constant, and nothing may drop below MIN_MAX_BYTES, the size at which
+--- the response envelope itself stops fitting.
+---@param key 'default_max_bytes'|'max_bytes_limit'
+---@param fallback integer
+---@return integer
+local function config_budget(key, fallback)
+  local tools = type(config.config) == 'table' and config.config.tools or nil
+  local budget = type(tools) == 'table' and tools.get_history or nil
+  local v = type(budget) == 'table' and budget[key] or nil
+  if type(v) ~= 'number' or v <= 0 then
+    return fallback
+  end
+  return math.max(math.floor(v), MIN_MAX_BYTES)
+end
+
+--- Default byte budget: used when the caller omits max_bytes.
+---@return integer
+local function default_max_bytes()
+  return config_budget('default_max_bytes', FALLBACK_MAX_BYTES)
+end
+
+--- Ceiling for an explicit max_bytes. Never lower than the default, so a
+--- config that raised only one of the two keys still behaves monotonically.
+---@return integer
+local function max_bytes_limit()
+  local limit = config_budget('max_bytes_limit', FALLBACK_MAX_BYTES_LIMIT)
+  local def = default_max_bytes()
+  if limit < def then
+    return def
+  end
+  return limit
+end
+
 --- Normalize the max_bytes parameter.
---- Non-number values and values <= 0 fall back to the default; the rest
---- is clamped into [MIN_MAX_BYTES, MAX_MAX_BYTES] so every accepted value
---- can actually hold a valid result body.
+--- Non-number values and values <= 0 fall back to the configured default;
+--- the rest is clamped into [MIN_MAX_BYTES, max_bytes_limit()] so every
+--- accepted value can actually hold a valid result body.
 ---@param v any
 ---@return integer
 local function normalize_max_bytes(v)
   if type(v) ~= 'number' or v <= 0 then
-    return DEFAULT_MAX_BYTES
+    return default_max_bytes()
   end
   if v < MIN_MAX_BYTES then
     return MIN_MAX_BYTES
   end
-  if v > MAX_MAX_BYTES then
-    return MAX_MAX_BYTES
+  local limit = max_bytes_limit()
+  if v > limit then
+    return limit
   end
   return math.floor(v)
 end
@@ -268,7 +311,7 @@ local function truncation_note(layout, max_bytes)
         .. 'max_bytes (ceiling %d) or narrow the range.',
       max_bytes,
       layout.dropped_whole,
-      MAX_MAX_BYTES
+      max_bytes_limit()
     )
   end
   return string.format(
@@ -347,8 +390,12 @@ function M.get_history(action, ctx)
     return { error = 'No active session' }
   end
 
-  local offset = math.max(math.floor(action.offset or 0), 0)
-  local limit = math.floor(action.limit or 20)
+  -- The model writes these values, so a string or a float must not raise:
+  -- a crashed tool call costs a whole request round trip. tonumber() accepts
+  -- numbers unchanged and numeric strings, everything else becomes the
+  -- default.
+  local offset = math.max(math.floor(tonumber(action.offset) or 0), 0)
+  local limit = math.floor(tonumber(action.limit) or 20)
   if limit < 1 then
     limit = 1
   end
@@ -472,7 +519,7 @@ function M.get_history(action, ctx)
         'get_history metadata does not fit max_bytes=%d. '
           .. 'Increase max_bytes (ceiling %d).',
         max_bytes,
-        MAX_MAX_BYTES
+        max_bytes_limit()
       )
     end
   end

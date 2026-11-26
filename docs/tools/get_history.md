@@ -32,7 +32,7 @@ Get conversation history messages from the current session.
 | `offset`    | integer | Starting index (0 = oldest message, default: 0)                    |
 | `limit`     | integer | Number of messages to retrieve (default: 20, max: 50)              |
 | `search`    | string  | Filter messages by keyword (case-insensitive), matched against `content` **and** `reasoning_content`. Offset/limit apply to filtered results |
-| `max_bytes` | integer | Byte budget for the returned JSON (default: 32768, allowed: 2048-204800). Values `<= 0` fall back to the default |
+| `max_bytes` | integer | Byte budget for the returned JSON (default: `tools.get_history.default_max_bytes`, 32768; allowed up to `tools.get_history.max_bytes_limit`, 204800; hard floor 2048). Values `<= 0` fall back to the default |
 
 ## Response
 
@@ -128,6 +128,7 @@ A message that only partially fits is returned with its role, its original
 > - `offset` and `limit` apply to the filtered results when `search` is used
 > - The result is capped by **bytes**, not just by message count: a single tool result (`read_file`, `fetch_web`, `git_diff`) can be hundreds of KB, and returning 50 of them would overflow the very context window the tool is trying to help with
 > - When `truncated` is `true`, follow `note`/`next_offset`: pages continue forward, while a message cut mid-content (`content_truncated`, `original_bytes`) is re-read with a larger `max_bytes`
+> - Both budget bounds are configurable via `tools.get_history` (`default_max_bytes`, `max_bytes_limit`). The built-in floor of 2048 bytes is not configurable: below it the response envelope itself stops fitting, and the effective ceiling is never lower than the default
 > - Content is always cut at a UTF-8 boundary, so CJK text never turns into invalid bytes
 > - Useful for maintaining context across long conversations
 

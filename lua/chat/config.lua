@@ -168,6 +168,18 @@ local default = {
     lazy = true,
     -- Tools always included in requests when lazy mode is on (find_tool is always included).
     essential = { 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' },
+    -- get_history result size budget. The tool returns conversation
+    -- history, and a single tool result inside that history (read_file,
+    -- fetch_web, git_diff) can be hundreds of KB, so the payload is capped
+    -- by BYTES rather than by message count.
+    get_history = {
+      -- Budget used when the caller omits max_bytes (default: 32768).
+      default_max_bytes = 32768,
+      -- Ceiling for an explicit max_bytes (default: 204800). Raise it for
+      -- large-context models that can afford reading a whole tool result
+      -- in one call.
+      max_bytes_limit = 204800,
+    },
   },
   -- Auto-retry configuration for LLM requests on connection errors and timeouts
   retry = {

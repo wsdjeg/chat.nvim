@@ -191,6 +191,8 @@ Control which tools are sent with each request:
 | ----------------- | -------- | --------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `tools.lazy`      | boolean  | `true`                                                                      | Send only essential + activated tools instead of all tools |
 | `tools.essential` | string[] | `{ 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' }` | Tools always included in requests when lazy mode is on   |
+| `tools.get_history.default_max_bytes` | number | `32768` | Byte budget for `get_history` when the caller omits `max_bytes` |
+| `tools.get_history.max_bytes_limit`   | number | `204800` | Ceiling for an explicit `max_bytes` in `get_history`           |
 
 ### Example
 
@@ -199,6 +201,14 @@ require('chat').setup({
   tools = {
     lazy = true, -- set false to send all tools with every request
     essential = { 'read_file', 'list_directory', 'search_text', 'find_files', 'get_time' },
+    get_history = {
+      -- The get_history tool result is capped by BYTES rather than by
+      -- message count: one tool result in the history (read_file,
+      -- fetch_web, git_diff) can be hundreds of KB. Raise the ceiling on
+      -- a large-context model so a whole tool result fits in one call.
+      default_max_bytes = 32768,
+      max_bytes_limit = 204800,
+    },
   },
 })
 ```
