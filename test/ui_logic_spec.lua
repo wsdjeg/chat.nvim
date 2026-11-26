@@ -643,11 +643,57 @@ function TestContextTruncate:test_tool_call_with_content_kept_without_calls()
 end
 
 function TestContextTruncate:test_generate_context_notice()
-  local notice = context._generate_context_notice(100, 40, 10, 60)
-  lu.assertStrContains(notice, '100 total')
-  lu.assertStrContains(notice, '10-60')
-  lu.assertStrContains(notice, '100 messages in total history')
-  lu.assertStrContains(notice, '40 messages')
+  -- total and window_start live in ONE coordinate space (conversation
+  -- messages, system excluded), so the printed counts agree with each other.
+  local notice = context._generate_context_notice(582, 493)
+  lu.assertStrContains(
+    notice,
+    'Showing the latest 90 of 582 messages; the earlier 492 were truncated.'
+  )
+  lu.assertNil(notice:find('total history', 1, true))
+
+  -- Paging walks backwards across the truncation boundary. 90 messages are
+  -- shown, so offset=-110 (582-110+1 = 473) is the 20 messages right before
+  -- the window, and offset=-130 continues immediately above them.
+  lu.assertStrContains(notice, 'offset=-110, limit=20')
+  lu.assertStrContains(notice, 'offset=-130, limit=20')
+  lu.assertStrContains(notice, 'negative offset')
+end
+
+function TestContextTruncate:test_context_notice_first_page_only()
+  -- 15 hidden messages are fewer than a page, so the example must advertise
+  -- the real size instead of a full one, and no second page is printed.
+  local notice = context._generate_context_notice(30, 16)
+  lu.assertStrContains(notice, 'offset=-30, limit=15')
+  lu.assertEquals(select(2, notice:gsub('\n%- get_history', '')), 1)
+end
+
+function TestContextTruncate:test_notice_total_excludes_system_messages()
+  -- Regression: the notice used to report `#messages` (system included) as
+  -- the total while the window bounds were conversation indexes, so
+  -- "567 total, showing 493-566" disagreed with itself by exactly the
+  -- number of system messages.
+  local msgs = { { role = 'system', content = 'sys' } }
+  for i = 1, 59 do
+    table.insert(msgs, { role = 'user', content = 'm' .. i })
+  end
+
+  local result = context.truncate_messages(msgs, {
+    trigger_threshold = 10,
+    keep_recent = 10,
+  })
+  local notice = result[#result].content
+  local total = tonumber(notice:match('of (%d+)'))
+  lu.assertEquals(total, 59, 'system messages are not conversation messages')
+  lu.assertEquals(select(2, notice:gsub('Showing the latest', '')), 1)
+end
+
+function TestContextTruncate:test_context_notice_no_truncation()
+  lu.assertStrContains(context._generate_context_notice(10, 1), 'All 10')
+  lu.assertStrContains(
+    context._generate_context_notice(0, 1),
+    'No conversation messages'
+  )
 end
 
 function TestContextTruncate:test_get_stats()

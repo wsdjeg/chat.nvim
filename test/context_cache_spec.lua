@@ -67,7 +67,7 @@ end
 local function make_notice()
   return {
     role = 'system',
-    content = context._generate_context_notice(100, 40, 10, 60),
+    content = context._generate_context_notice(100, 40),
   }
 end
 

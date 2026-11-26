@@ -5,6 +5,9 @@ local M = {}
 
 local log = require('chat.log')
 
+-- Page size used by the paging examples in the context-window notice.
+local NOTICE_PAGE = 20
+
 -- Default configuration
 M.DEFAULT_CONFIG = {
   trigger_threshold = 50, -- Trigger truncation at this message count
@@ -165,7 +168,7 @@ function M.truncate_messages(messages, config)
   -- Build final result: static system messages + cleaned history, with the
   -- volatile notice ALWAYS as the very last message.
   --
-  -- The notice embeds per-request numbers (total messages, window bounds),
+  -- The notice embeds per-request numbers (total messages, window start),
   -- so its content changes on every request once truncation has fired.
   -- Anywhere in front of content that is supposed to stay cached it
   -- invalidates the provider's prefix cache at its position; the previous
@@ -187,12 +190,7 @@ function M.truncate_messages(messages, config)
 
   table.insert(result, {
     role = 'system',
-    content = M._generate_context_notice(
-      #messages,
-      #cleaned,
-      start_idx,
-      #other_messages
-    ),
+    content = M._generate_context_notice(#other_messages, start_idx),
   })
 
   log.info(
@@ -245,32 +243,92 @@ function M.strip_trailing_notice(messages)
   return out
 end
 
---- Generate context window notice message
---- @param total integer: Total messages before truncation
---- @param kept integer: Messages kept after truncation
---- @param start_idx integer: Starting index of kept messages
---- @param end_idx integer: Ending index
---- @return string: Notice content
-function M._generate_context_notice(total, kept, start_idx, end_idx)
-  return string.format(
-    [[
-[Context Window Notice]
+--- Generate the context-window notice message.
+---
+--- All numbers share ONE coordinate space: `total` counts the conversation
+--- messages of the request (system messages excluded - they are never part
+--- of the pageable history) and `window_start` is their 1-based position
+--- where the visible window begins. The previous wording mixed `#messages`
+--- (system included) with conversation indexes, so "580 total, showing
+--- 493-579" disagreed with itself by exactly the system count.
+---
+--- Paging is advertised with NEGATIVE offsets: `get_history` resolves them
+--- from the newest message, so the first example always lands immediately
+--- before the current window, and each next page continues where the
+--- previous one stopped. That is the direction the model actually needs -
+--- reading backwards across the truncation boundary - whereas a plain
+--- `offset=0` walks from the oldest message and answers the wrong question.
+---
+--- The reported span is measured before orphaned tool_calls/tool_results
+--- are pruned, so the actual kept count can be one or two lower. The
+--- examples stay correct either way: they are resolved from the end of
+--- history, not from `window_start`.
+--- @param total integer Conversation messages before truncation
+--- @param window_start integer 1-based position of the first kept message
+--- @return string Notice content
+function M._generate_context_notice(total, window_start)
+  total = math.max(math.floor(tonumber(total) or 0), 0)
+  window_start = math.max(math.floor(tonumber(window_start) or 1), 1)
 
-Due to context length limits, only the most recent messages are displayed.
-Earlier messages (%d total, showing %d-%d) have been truncated.
+  if total == 0 then
+    return '[Context Window Notice]\nNo conversation messages yet.'
+  end
+  if window_start <= 1 then
+    return string.format(
+      '[Context Window Notice]\nAll %d messages are shown.',
+      total
+    )
+  end
 
-To access earlier conversation history, use the `get_history` tool:
-- get_history(offset=0, limit=20) — Get first 20 messages
-- get_history(offset=20, limit=20) — Get next 20 messages
+  window_start = math.min(window_start, total)
+  local hidden = window_start - 1
+  local shown = total - hidden
 
-Current session has %d messages in total history. Current window shows %d messages.
-]],
-    total,
-    start_idx,
-    end_idx,
-    total,
-    kept
+  local lines = {
+    '[Context Window Notice]',
+    string.format(
+      'Showing the latest %d of %d messages; the earlier %d were truncated.',
+      shown,
+      total,
+      hidden
+    ),
+    'Continue backwards with `get_history`: '
+      .. 'a negative offset counts from the newest message.',
+  }
+
+  -- First page: ends right before the window. A negative offset of
+  -- `shown + page` resolves to `total - shown - page == hidden - page`,
+  -- i.e. exactly one page before `window_start`.
+  local page = math.min(NOTICE_PAGE, hidden)
+  local cursor = shown + page
+  table.insert(
+    lines,
+    string.format(
+      '- get_history(offset=-%d, limit=%d) — the %d messages just before this window',
+      cursor,
+      page,
+      page
+    )
   )
+
+  -- Second page continues where the first stopped; its size shrinks when
+  -- less than a full page remains, so the printed limit is always truthful.
+  local remaining = hidden - page
+  if remaining > 0 then
+    local next_page = math.min(NOTICE_PAGE, remaining)
+    cursor = cursor + next_page
+    table.insert(
+      lines,
+      string.format(
+        '- get_history(offset=-%d, limit=%d) — the %d before those',
+        cursor,
+        next_page,
+        next_page
+      )
+    )
+  end
+
+  return table.concat(lines, '\n')
 end
 
 --- Get context statistics for a session
