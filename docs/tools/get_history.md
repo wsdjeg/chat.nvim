@@ -132,6 +132,49 @@ additive (`offset + limit`), which a relative value could not provide -
 under `search` the relative position would also have to be re-derived
 against a different set every call.
 
+### Reading across the truncation boundary
+
+When [context truncation](../configuration.md#context-window-configuration) is
+active, the request the model sees no longer contains the older messages, but
+the session history still does. This tool is how that history is read back, and
+the `[Context Window Notice]` at the tail of the request already carries the
+exact calls:
+
+```text
+[Context Window Notice]
+Showing the latest 82 of 700 messages; the earlier 618 were truncated.
+Continue backwards with `get_history`: a negative offset counts from the newest message.
+- get_history(offset=-102, limit=20) — the 20 messages just before this window
+- get_history(offset=-122, limit=20) — the 20 before those
+```
+
+Copying those examples verbatim reaches the truncated history with no
+arithmetic on the caller's side. Two properties make the printed numbers
+trustworthy:
+
+- The counts share **one** coordinate space: `700` counts conversation messages
+  only (system messages are excluded, and so are the bookkeeping markers this
+  tool drops), so `82 + 618 = 700` always holds.
+- The offsets count back from the **newest** message, so the first page ends
+  immediately before the current window and each next page continues where the
+  previous one stopped. Starting at `offset=0` instead would walk forward from
+  the oldest message and answer the opposite question.
+
+Resolving the first page by hand: a negative offset `-N` starts at entry
+`total - N + 1`, so `-102` starts at message `599` of `700` and returns
+`599-618` - the 20 messages directly before the window that begins at `619`.
+The printed `limit` shrinks on the last page when fewer than a full page
+remains, so it is never larger than what the range can supply.
+
+{: .info }
+
+> `error` and `notice` lines keep their slots in the working set - they are
+> real information, see [Record kinds](#record-kinds) - while the notice counts
+> conversation messages only. A page boundary can therefore sit an entry or two
+> off when such lines exist near it; the `index` echoed on each returned
+> message is the authoritative position, since it is global and unaffected by
+> filtering.
+
 ### Truncation
 
 A message that only partially fits is returned with its role, its original

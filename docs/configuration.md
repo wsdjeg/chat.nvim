@@ -357,6 +357,28 @@ context = {
 }
 ```
 
+`enable = false` bypasses the whole path and sends the full history. Otherwise
+truncation keeps every system message plus the newest turns (the cutoff is
+pulled back to the nearest `user` message, so a request never starts mid-turn)
+and prunes any tool_call/tool_result pair that the cut would have separated.
+The dropped messages stay in the session history: `get_history` reads them
+back, and a `[Context Window Notice]` appended as the very last request message
+says how many are missing and which calls fetch them:
+
+```text
+[Context Window Notice]
+Showing the latest 82 of 700 messages; the earlier 618 were truncated.
+Continue backwards with `get_history`: a negative offset counts from the newest message.
+- get_history(offset=-102, limit=20) — the 20 messages just before this window
+- get_history(offset=-122, limit=20) — the 20 before those
+```
+
+`82 + 618 = 700` because the counts share one coordinate space, and the offsets
+count back from the newest message: `-102` resolves to message `599`, i.e. the
+20 messages ending right where the current window begins at `619`. See
+[Reading across the truncation boundary](./tools/get_history.md#reading-across-the-truncation-boundary)
+for the full arithmetic.
+
 ### Notes
 
 - When conversation exceeds `trigger_threshold` messages, older messages may be summarized or removed

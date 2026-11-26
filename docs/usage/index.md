@@ -35,8 +35,8 @@ chat.nvim provides several commands to manage your AI conversations. The main co
 | `:Chat load <path>`   | Load session from file path or URL                  |
 | `:Chat share`         | Share current session via pastebin                  |
 | `:Chat preview`       | Open HTML preview of current session in browser     |
-| `:Chat bridge`        | Bind current session to external platform           |
-| `:Chat unbridge [im]` | Unbind integration (all or specific platform)       |
+| `:Chat bridge <platform>` | Bind current session to external platform        |
+| `:Chat unbridge [platform...]` | Unbind integrations (no argument unbinds all) |
 
 ---
 

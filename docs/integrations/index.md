@@ -43,7 +43,9 @@ All IM integrations share these common features:
 ### Commands
 
 - `:Chat bridge <platform>` - Bind current session to platform
-- `:Chat unbridge [platform]` - Unbind integration (all or specific platform)
+- `:Chat unbridge [platform...]` - Unbind integrations: no argument unbinds
+  every platform, several names unbind each in turn (unknown names and
+  platforms that were never bound are reported separately)
 - `/session [number|id]` - Check/update session binding
 - `/list [pattern] [-p N]` - List available sessions (optional pattern filter,
   `-p N` selects page N)
