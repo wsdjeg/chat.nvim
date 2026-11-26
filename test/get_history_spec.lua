@@ -571,6 +571,237 @@ function TestGetHistory:testSearchSpecialCharacters()
   lu.assertEquals(data.returned, 1)
 end
 
+-- ─── get_history() — byte budget ────────────────────────────────
+
+function TestGetHistory:testSchemeHasMaxBytesProperty()
+  local scheme = get_history.scheme()
+  lu.assertNotNil(scheme['function'].parameters.properties.max_bytes)
+  lu.assertEquals(
+    scheme['function'].parameters.properties.max_bytes.type,
+    'integer'
+  )
+end
+
+function TestGetHistory:testMaxBytesDefaultReportedInResponse()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.max_bytes, 32768)
+  lu.assertIsNil(data.truncated)
+  lu.assertIsNil(data.next_offset)
+end
+
+function TestGetHistory:testMaxBytesBelowFloorClampedUp()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = 10 },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.max_bytes, 2048)
+end
+
+function TestGetHistory:testMaxBytesAboveCeilingClampedDown()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = 10 * 1024 * 1024 },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.max_bytes, 204800)
+end
+
+function TestGetHistory:testMaxBytesNonNumberFallsBackToDefault()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = '1024' },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.max_bytes, 32768)
+end
+
+function TestGetHistory:testBytesFieldMatchesContentLength()
+  local sid = sessions.new()
+  for i = 1, 3 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  -- The reported size is the size of the payload that was sent.
+  lu.assertEquals(data.bytes, #result.content)
+end
+
+function TestGetHistory:testLargeContentTruncated()
+  local sid = sessions.new()
+  local big = string.rep('word ', 20000) -- ~100 KB of content
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = big,
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = 4096 },
+    { session = sid }
+  )
+
+  -- Never exceed the requested budget
+  lu.assertTrue(#result.content <= 4096, 'response exceeded max_bytes')
+
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.truncated, true)
+  -- The head of message 0 was returned, so paging continues AFTER it; the
+  -- rest of that message is read again by raising max_bytes.
+  lu.assertEquals(data.next_offset, 1)
+  lu.assertNotNil(data.note)
+  lu.assertStrContains(data.note, 'larger max_bytes')
+  lu.assertEquals(data.returned, 1)
+
+  -- The head of the message is kept, marked as truncated
+  local msg = data.messages[1]
+  lu.assertEquals(msg.index, 0)
+  lu.assertEquals(msg.role, 'tool')
+  lu.assertEquals(msg.content_truncated, true)
+  lu.assertEquals(msg.original_bytes, #big)
+  lu.assertTrue(#msg.content < #big)
+  lu.assertStrContains(msg.content, 'word')
+  lu.assertStrContains(msg.content, 'Content truncated')
+end
+
+function TestGetHistory:testTruncatedContentStaysValidUtf8()
+  local sid = sessions.new()
+  -- Multi-byte characters: a byte-based cut would split a codepoint
+  local big = string.rep('中文内容测试', 8000)
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = big,
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { max_bytes = 2048 },
+    { session = sid }
+  )
+
+  lu.assertTrue(#result.content <= 2048, 'response exceeded max_bytes')
+  -- Decoding fails on invalid UTF-8, so this asserts the cut was clean
+  local ok, data = pcall(vim.json.decode, result.content)
+  lu.assertTrue(ok, 'truncated payload is not valid JSON/UTF-8')
+  lu.assertEquals(data.messages[1].content_truncated, true)
+end
+
+function TestGetHistory:testBudgetStopsAfterFittingMessages()
+  local sid = sessions.new()
+  -- 10 messages of ~4 KB each
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = string.rep('x', 4000),
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history(
+    { limit = 10, max_bytes = 8192 },
+    { session = sid }
+  )
+
+  lu.assertTrue(#result.content <= 8192, 'response exceeded max_bytes')
+
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.total, 10)
+  lu.assertEquals(data.returned, #data.messages)
+  lu.assertTrue(data.returned < 10, 'budget did not limit the result')
+  lu.assertEquals(data.truncated, true)
+  -- next_offset points at the first incomplete message
+  lu.assertEquals(data.next_offset, data.messages[#data.messages].index + 1)
+end
+
+function TestGetHistory:testContinueFromNextOffset()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = string.rep('y', 4000),
+      created = 1000 + i,
+    })
+  end
+
+  local first = vim.json.decode(get_history.get_history(
+    { limit = 10, max_bytes = 8192 },
+    { session = sid }
+  ).content)
+
+  local second = vim.json.decode(get_history.get_history(
+    { offset = first.next_offset, limit = 10, max_bytes = 8192 },
+    { session = sid }
+  ).content)
+
+  lu.assertEquals(second.offset, first.next_offset)
+  lu.assertTrue(second.returned > 0)
+  lu.assertEquals(second.messages[1].index, first.next_offset)
+end
+
+function TestGetHistory:testTruncationWithSearch()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'match ' .. string.rep('a', 6000),
+    created = 1001,
+  })
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'match ' .. string.rep('b', 6000),
+    created = 1002,
+  })
+
+  local result = get_history.get_history(
+    { search = 'match', max_bytes = 4096 },
+    { session = sid }
+  )
+
+  lu.assertTrue(#result.content <= 4096, 'response exceeded max_bytes')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.search, 'match')
+  lu.assertEquals(data.total_matched, 2)
+  lu.assertEquals(data.truncated, true)
+end
+
 -- ─── info() tests ───────────────────────────────────────────────
 
 function TestGetHistory:testInfoDefault()

@@ -22,14 +22,56 @@ Get conversation history messages from the current session.
 - `@get_history offset=0 limit=50` - Get first 50 messages (max)
 - `@get_history search="error"` - Search for messages containing "error"
 - `@get_history search="config" offset=0 limit=10` - First 10 messages matching "config"
+- `@get_history max_bytes=8000` - Same range, smaller payload budget
+- `@get_history offset=12 max_bytes=150000` - Continue from `next_offset` with a bigger budget
 
 ## Parameters
 
-| Parameter | Type    | Description                                                        |
-| --------- | ------- | ------------------------------------------------------------------ |
-| `offset`  | integer | Starting index (0 = oldest message, default: 0)                    |
-| `limit`   | integer | Number of messages to retrieve (default: 20, max: 50)              |
-| `search`  | string  | Filter messages by keyword (case-insensitive). Offset/limit apply to filtered results |
+| Parameter   | Type    | Description                                                        |
+| ----------- | ------- | ------------------------------------------------------------------ |
+| `offset`    | integer | Starting index (0 = oldest message, default: 0)                    |
+| `limit`     | integer | Number of messages to retrieve (default: 20, max: 50)              |
+| `search`    | string  | Filter messages by keyword (case-insensitive). Offset/limit apply to filtered results |
+| `max_bytes` | integer | Byte budget for the returned JSON (default: 32768, allowed: 2048-204800). Values `<= 0` fall back to the default |
+
+## Response
+
+```json
+{
+  "total": 85,
+  "offset": 0,
+  "limit": 20,
+  "max_bytes": 32768,
+  "returned": 3,
+  "messages": [{ "index": 0, "role": "user", "content": "...", "created": 1736490600 }],
+  "truncated": true,
+  "next_offset": 3,
+  "note": "Result capped at 32768 bytes. ...",
+  "bytes": 31002
+}
+```
+
+| Field               | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `total`             | Total messages in the session (before filtering)                   |
+| `offset`            | Requested offset                                                   |
+| `limit`             | Requested (and clamped) limit                                      |
+| `max_bytes`         | Effective byte budget (after defaulting/clamping)                  |
+| `returned`          | Number of messages actually returned                            |
+| `search`            | Echo of the search keyword (only when `search` is used)            |
+| `total_matched`     | Match count when `search` is used                                  |
+| `truncated`         | `true` when the byte budget cut the result                          |
+| `next_offset`       | Position to continue from on the next call                          |
+| `note`              | Human-readable explanation of what was cut and how to continue     |
+| `bytes`             | Actual encoded size of this response                               |
+
+A message that only partially fits is returned with its role, its original
+`index`/`created`, and two extra fields:
+
+| Field              | Description                                              |
+| ------------------ | -------------------------------------------------------- |
+| `content_truncated`| `true` when only the head of the content was returned      |
+| `original_bytes`   | Encoded size of the original content before the cut       |
 
 ## Notes
 
@@ -40,5 +82,8 @@ Get conversation history messages from the current session.
 > - Maximum 50 messages per request
 > - When `search` is provided, only messages containing the keyword (case-insensitive) are returned
 > - `offset` and `limit` apply to the filtered results when `search` is used
+> - The result is capped by **bytes**, not just by message count: a single tool result (`read_file`, `fetch_web`, `git_diff`) can be hundreds of KB, and returning 50 of them would overflow the very context window the tool is trying to help with
+> - When `truncated` is `true`, follow `note`/`next_offset`: pages continue forward, while a message cut mid-content (`content_truncated`, `original_bytes`) is re-read with a larger `max_bytes`
+> - Content is always cut at a UTF-8 boundary, so CJK text never turns into invalid bytes
 > - Useful for maintaining context across long conversations
 
