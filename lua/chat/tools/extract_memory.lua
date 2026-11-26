@@ -316,19 +316,35 @@ local function extract_important_sentences(text, max_sentences)
   return vim.list_slice(sentences, 1, max_sentences or 3)
 end
 
--- 构造 working 记忆的 metadata（其他类型只保留调用方显式给出的字段）
+-- 构造记忆 metadata。
+--
+-- working：自动推断 type / importance，调用方显式给出的值优先。
+-- 其他类型：只透传已知的 metadata 字段（category / confidence / source），
+-- 不把 text、memories 这类入参塞进 metadata。
+local PASS_THROUGH_METADATA_KEYS = { 'category', 'confidence', 'source' }
+
 local function build_metadata(memory_type, source, explicit)
   explicit = explicit or {}
 
   if memory_type == 'working' then
     return {
       type = explicit.work_type or detect_work_type(source),
-      importance = explicit.importance
-        or detect_importance(source),
+      importance = explicit.importance or detect_importance(source),
     }
   end
 
-  return nil
+  local metadata = {}
+  for _, key in ipairs(PASS_THROUGH_METADATA_KEYS) do
+    if explicit[key] ~= nil then
+      metadata[key] = explicit[key]
+    end
+  end
+
+  if next(metadata) == nil then
+    return nil
+  end
+
+  return metadata
 end
 
 function M.extract_memory(arguments, ctx)

@@ -25,15 +25,15 @@ end
 
 function TestMemorySimilarity:testTokenOverlapEnglish()
   local score = similarity.text_similarity('neovim plugin', 'neovim lua plugin')
-  -- Both tokens match: 2/2 = 1.0
-  lu.assertEquals(score, 1.0)
+  -- Jaccard: intersection {neovim, plugin} = 2, union = 3 -> 2/3
+  lu.assertAlmostEquals(score, 2 / 3, 0.01)
 end
 
 function TestMemorySimilarity:testTokenOverlapPartial()
   local score = similarity.text_similarity('neovim python', 'neovim lua plugin')
-  -- 1 out of 2 tokens match
-  lu.assertTrue(score >= 0.5)
-  lu.assertTrue(score < 1.0)
+  -- Jaccard: intersection {neovim} = 1, union = 4 -> 0.25
+  lu.assertTrue(score >= 0.2, 'single shared token over a 4-token union')
+  lu.assertTrue(score < 0.5, 'short query must not score like full coverage')
 end
 
 function TestMemorySimilarity:testNoTokenOverlap()
@@ -57,6 +57,28 @@ end
 function TestMemorySimilarity:testEmptyStrings()
   lu.assertEquals(similarity.text_similarity('', ''), 1.0)
   lu.assertEquals(similarity.text_similarity('hello', ''), 0)
+end
+
+-- === Jaccard denominator (shared / union) ===
+
+function TestMemorySimilarity:testJaccardUsesUnionDenominator()
+  -- 2 shared tokens, 1 extra token in the content -> 2/3, not 2/2.
+  local score = similarity.text_similarity('lua vim', 'vim lua editor')
+  lu.assertAlmostEquals(score, 2 / 3, 0.01)
+
+  -- Two tokens matching two of five content tokens -> 2/5. The old
+  -- query-length denominator returned 1.0 here, which made "mentions every
+  -- query word somewhere" indistinguishable from "covers the whole content".
+  local partial =
+    similarity.text_similarity('alpha beta', 'alpha gamma beta delta epsilon')
+  lu.assertAlmostEquals(partial, 2 / 5, 0.02)
+end
+
+function TestMemorySimilarity:testOrderInsensitiveFullOverlap()
+  -- Same token set in a different order: every token is shared -> 1.0.
+  local a = 'alpha beta gamma'
+  local b = 'gamma beta alpha'
+  lu.assertEquals(similarity.text_similarity(a, b), 1.0)
 end
 
 -- === Levenshtein fallback ===

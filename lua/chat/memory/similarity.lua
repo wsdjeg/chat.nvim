@@ -40,6 +40,17 @@ local function split_words(text)
 end
 M._split_words = split_words
 
+---Count the entries of a token set.
+---@param words table<string, boolean>
+---@return number
+local function count_keys(words)
+  local count = 0
+  for _ in pairs(words) do
+    count = count + 1
+  end
+  return count
+end
+
 ---Calculate Levenshtein distance between two strings.
 ---@param s1 string
 ---@param s2 string
@@ -66,9 +77,9 @@ local function levenshtein(s1, s2)
     for j = 1, len2 do
       local cost = (s1:sub(i, i) == s2:sub(j, j)) and 0 or 1
       curr[j] = math.min(
-        curr[j - 1] + 1,    -- insertion
-        prev[j] + 1,        -- deletion
-        prev[j - 1] + cost  -- substitution
+        curr[j - 1] + 1, -- insertion
+        prev[j] + 1, -- deletion
+        prev[j - 1] + cost -- substitution
       )
     end
     -- Swap rows
@@ -100,8 +111,15 @@ end
 ---Strategy (best score wins):
 ---1. Exact match -> 1.0
 ---2. Substring match -> 0.8
----3. Token overlap (Jaccard-like) -> 0..1
+---3. Token overlap (Jaccard index: shared tokens / union of both token
+---   sets) -> 0..1
 ---4. Levenshtein similarity (fuzzy) -> 0..1, scaled by 0.6
+---
+---The Jaccard denominator used to be the number of *query* tokens, which
+---made any short query that hit a single token score 1.0 - that inflated
+---both retrieval ranking and the dedup/merge decisions. Dividing by the
+---union keeps a match proportional to how much of the content it actually
+---covers: `"lua vim" vs "vim lua editor"` is 2/3, not 1.0.
 ---
 ---@param query string|nil
 ---@param content string|nil
@@ -124,22 +142,21 @@ function M.text_similarity(query, content)
     return 0.8
   end
 
-  -- Token overlap
+  -- Token overlap (Jaccard index: intersection / union)
   local query_words = split_words(query_lower)
   local content_words = split_words(content_lower)
 
-  local matches = 0
-  local total = 0
+  local shared = 0
   for word in pairs(query_words) do
-    total = total + 1
     if content_words[word] then
-      matches = matches + 1
+      shared = shared + 1
     end
   end
 
+  local union = count_keys(query_words) + count_keys(content_words) - shared
   local token_score = 0
-  if total > 0 then
-    token_score = matches / total
+  if union > 0 then
+    token_score = shared / union
   end
 
   -- Levenshtein similarity as fuzzy fallback (scaled down)

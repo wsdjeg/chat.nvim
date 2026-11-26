@@ -1,13 +1,49 @@
 -- lua/chat/memory/long_term.lua
 local M = {}
+
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
-local atomic = require('chat.memory.atomic')
+local persist = require('chat.memory.persist')
 
 local long_term_memories = {}
 
 -- 90 天未被检索视为陈旧，可被 cleanup 淘汰
 local STALE_SECONDS = 90 * 86400
+
+-- 去重阈值：相似度 >= 0.85 视为同一条记忆
+local DEDUP_THRESHOLD = 0.85
+
+-- 定时维护间隔（每周清理一次陈旧记忆 + 合并重复）
+local MAINTENANCE_INTERVAL_MS = 604800000
+
+-- 持久化管道：延迟加载 + 可关闭定时器（见 chat.memory.persist）
+local db = persist.new({
+  name = 'LongTerm',
+  path = function()
+    local dir = config.get_memory_storage_dir()
+    if not dir then
+      return nil
+    end
+    return dir .. '/long_term_memories.json'
+  end,
+  get = function()
+    return long_term_memories
+  end,
+  set = function(list)
+    long_term_memories = list
+  end,
+})
+
+---确保当前配置对应的数据已加载（目录变化时重读），并保证维护定时器在运行。
+---模块不再在 require 时启动定时器（那时配置还没就绪），所以首次使用要补上，
+---否则懒加载路径下周期性 cleanup/merge 永远不会触发。
+local function ready()
+  db.ensure_loaded()
+  db.start_timer(MAINTENANCE_INTERVAL_MS, function()
+    M.cleanup()
+    M.merge_duplicates()
+  end)
+end
 
 -- 生成记忆ID
 local function generate_id()
@@ -17,21 +53,6 @@ local function generate_id()
     os.date(MEMORY_ID_STRFTIME_FORMAT),
     math.random(1000, 9999)
   )
-end
-
--- 获取存储路径
-local function get_storage_path()
-  return vim.fs.normalize(
-    config.get_memory_storage_dir() .. '/long_term_memories.json'
-  )
-end
-
--- 初始化存储目录
-local function init_storage()
-  local storage_dir = config.get_memory_storage_dir()
-  if vim.fn.isdirectory(storage_dir) == 0 then
-    vim.fn.mkdir(storage_dir, 'p')
-  end
 end
 
 -- 读取置信度（nil 安全：import / 手工编辑的数据可能没有 metadata）
@@ -88,8 +109,9 @@ function M.store(session, role, content, metadata)
     return nil
   end
 
-  -- 去重检查：相似度 >0.85 则更新已有记忆
-  local DEDUP_THRESHOLD = 0.85
+  ready()
+
+  -- 去重检查：相似度 >= 0.85 则更新已有记忆
   for _, existing in ipairs(long_term_memories) do
     if existing.session == session then
       local sim = similarity.text_similarity(content, existing.content)
@@ -156,6 +178,8 @@ function M.retrieve(query, session, limit)
     return {}
   end
 
+  ready()
+
   limit = limit or config.config.memory.long_term.retrieval_limit or 3
   local threshold = config.config.memory.long_term.similarity_threshold or 0.3
   local scored = {}
@@ -175,8 +199,7 @@ function M.retrieve(query, session, limit)
       local age_days = (os.time() - memory.timestamp) / 86400
       local recency_bonus = math.max(0, (30 - age_days) / 30) * 0.1
 
-      local total_score =
-        sim + access_bonus + confidence_bonus + recency_bonus
+      local total_score = sim + access_bonus + confidence_bonus + recency_bonus
 
       if total_score >= threshold then
         table.insert(scored, {
@@ -213,6 +236,8 @@ end
 
 -- 按分类检索
 function M.retrieve_by_category(category, limit)
+  ready()
+
   limit = limit or 10
 
   local filtered = vim.tbl_filter(function(mem)
@@ -229,6 +254,8 @@ end
 
 -- 按关键词搜索
 function M.search_by_keywords(keywords, limit)
+  ready()
+
   limit = limit or 10
   local scored = {}
 
@@ -259,6 +286,8 @@ end
 
 -- 获取所有记忆（用于统计和管理）
 function M.get_all()
+  ready()
+
   return vim.tbl_map(function(m)
     return {
       id = m.id,
@@ -276,6 +305,8 @@ end
 
 -- 删除记忆
 function M.delete(id)
+  ready()
+
   local count_before = #long_term_memories
   long_term_memories = vim.tbl_filter(function(mem)
     return mem.id ~= id
@@ -290,6 +321,8 @@ end
 
 -- 批量删除（按条件）
 function M.delete_by_filter(filter_fn)
+  ready()
+
   local count_before = #long_term_memories
   long_term_memories = vim.tbl_filter(function(mem)
     return not filter_fn(mem)
@@ -304,6 +337,8 @@ end
 
 -- 更新记忆内容
 function M.update(id, new_content, new_metadata)
+  ready()
+
   for _, mem in ipairs(long_term_memories) do
     if mem.id == id then
       mem.content = new_content
@@ -320,47 +355,67 @@ function M.update(id, new_content, new_metadata)
 end
 
 -- 合并重复记忆
+--
+-- 之前只比较 `content:lower():gsub('%s+',' ')` 的完全相等，与 store()
+-- 使用的 0.85 相似度阈值不一致：近似重复（多一个空格、措辞微调）永远不会
+-- 被合并，文件会慢慢长到 max_memories 上限。这里复用同一个 similarity，
+-- 所以「会被 store() 去重的两条内容」在离线合并时也一定会被合并。
+--
+-- 合并只在**同一会话内**进行：跨会话合并会把 A 会话的记忆并进 B 会话的
+-- 记录里，破坏 retrieve() 的会话隔离。
 function M.merge_duplicates()
-  local seen = {}
-  local duplicates = {}
+  ready()
 
-  -- 检测重复内容
-  for i, mem in ipairs(long_term_memories) do
-    local content_key = mem.content:lower():gsub('%s+', ' ')
-    if seen[content_key] then
-      table.insert(duplicates, i)
+  local kept = {}
+  local merged_count = 0
+
+  for _, mem in ipairs(long_term_memories) do
+    local target = nil
+
+    for _, candidate in ipairs(kept) do
+      if
+        candidate.session == mem.session
+        and similarity.text_similarity(candidate.content, mem.content)
+          >= DEDUP_THRESHOLD
+      then
+        target = candidate
+        break
+      end
+    end
+
+    if target then
       -- 合并元数据到原始记忆（import 进来的记忆可能没有 metadata）
-      local original = long_term_memories[seen[content_key]]
-      original.metadata = original.metadata or {}
-      original.access_count = (original.access_count or 0)
+      target.metadata = target.metadata or {}
+      target.access_count = (target.access_count or 0)
         + (mem.access_count or 0)
-      original.metadata.confidence = math.max(
-        original.metadata.confidence or 1.0,
+      target.hit_count = (target.hit_count or 0) + (mem.hit_count or 0)
+      target.metadata.confidence = math.max(
+        target.metadata.confidence or 1.0,
         mem.metadata and mem.metadata.confidence or 1.0
       )
+      -- 保留更新的时间戳，避免合并后看起来像陈旧记忆被 cleanup 掉
+      if (mem.timestamp or 0) > (target.timestamp or 0) then
+        target.timestamp = mem.timestamp
+      end
+      merged_count = merged_count + 1
     else
-      seen[content_key] = i
+      table.insert(kept, mem)
     end
   end
 
-  -- 移除重复记忆（从后往前删除）
-  table.sort(duplicates, function(a, b)
-    return a > b
-  end)
-  for _, idx in ipairs(duplicates) do
-    table.remove(long_term_memories, idx)
-  end
-
-  if #duplicates > 0 then
+  if merged_count > 0 then
+    long_term_memories = kept
     M.save()
   end
 
-  return #duplicates
+  return merged_count
 end
 
 -- 清理陈旧记忆（长期零访问 + 超过 STALE_SECONDS 未更新）
 -- 注意：存入时 confidence 恒为 1.0，基于置信度的条件永远为真，是空操作。
 function M.cleanup()
+  ready()
+
   local count_before = #long_term_memories
   local now = os.time()
 
@@ -382,6 +437,8 @@ end
 
 -- 获取统计信息
 function M.get_stats()
+  ready()
+
   local stats = {
     total = #long_term_memories,
     by_category = {},
@@ -419,6 +476,8 @@ end
 
 -- 导出记忆（用于备份或迁移）
 function M.export(format)
+  ready()
+
   format = format or 'json'
 
   if format == 'json' then
@@ -445,6 +504,8 @@ end
 
 -- 导入记忆
 function M.import(data, format)
+  ready()
+
   format = format or 'json'
 
   if format == 'json' then
@@ -466,38 +527,31 @@ function M.import(data, format)
 end
 
 -- 加载记忆
+--
+-- 显式 load() 仍然可用（测试与手动重载），但模块不再在 require 时读盘：
+-- 那一刻 config 还没 setup，读到的会是默认目录。首次使用时由 ready() 懒加载。
 function M.load()
-  init_storage()
-
-  local path = get_storage_path()
-  local file = io.open(path, 'r')
-
-  if not file then
-    long_term_memories = {}
-    return long_term_memories
-  end
-
-  local content = file:read('*a')
-  io.close(file)
-
-  local ok, parsed = pcall(vim.json.decode, content)
-  if ok and type(parsed) == 'table' then
-    long_term_memories = parsed
-  else
-    long_term_memories = {}
-  end
-
-  return long_term_memories
+  db.start_timer(MAINTENANCE_INTERVAL_MS, function()
+    M.cleanup()
+    M.merge_duplicates()
+  end)
+  return db.load()
 end
 
 -- 保存记忆（原子写入，rename 失败时回退直接写，见 chat.memory.atomic）
 function M.save()
-  init_storage()
+  return db.save()
+end
 
-  return atomic.atomic_write(
-    get_storage_path(),
-    vim.json.encode(long_term_memories)
-  )
+---维护定时器是否在运行
+---@return boolean
+function M.has_cleanup_timer()
+  return db.has_timer()
+end
+
+---关闭维护定时器（句柄不再被丢弃，可随时停止）
+function M.stop_cleanup_timer()
+  db.stop_timer()
 end
 
 -- 批量操作接口
@@ -519,6 +573,8 @@ end
 
 -- 高级搜索（支持组合条件）
 function M.advanced_search(options)
+  ready()
+
   options = options or {}
   local matches = {}
 
@@ -590,17 +646,6 @@ function M.advanced_search(options)
     return item.memory
   end, matches)
 end
-
--- 初始化
-M.load()
-
--- 定期清理（每周清理一次陈旧记忆）
-vim.loop.new_timer():start(604800000, 604800000, function()
-  vim.schedule(function()
-    M.cleanup()
-    M.merge_duplicates()
-  end)
-end)
 
 return M
 

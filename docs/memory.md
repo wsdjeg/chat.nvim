@@ -410,6 +410,38 @@ rank below other types' results.
 
 ---
 
+## Similarity Scoring
+
+All three tiers share one scorer (`chat.memory.similarity`), which is used for
+retrieval **and** for deduplication / merge decisions. The returned score is the
+best of:
+
+| Rule | Score |
+| ---- | ----- |
+| Exact match (case-insensitive) | `1.0` |
+| Query is a substring of the content | `0.8` |
+| Token overlap (Jaccard index) | `shared / union` |
+| Levenshtein similarity (fuzzy typo fallback) | `0..1`, scaled by `0.6` |
+
+Tokens are English words plus per-character CJK unigrams, so Chinese content
+matches without a segmenter.
+
+The Jaccard denominator is the **union** of both token sets. It used to be the
+number of query tokens, which scored `1.0` whenever a short query happened to
+hit one word — inflating both ranking and dedup. With the union denominator a
+match is proportional to how much of the content it actually covers:
+
+```
+"lua vim"    vs "vim lua editor"                    -> 2/3
+"alpha beta" vs "alpha gamma beta delta epsilon"    -> 2/5
+"alpha beta gamma" vs "gamma beta alpha"            -> 1.0  (same token set)
+```
+
+Records are considered duplicates when the score is `>= 0.85`; `store()` then
+updates the existing record instead of adding a new one.
+
+---
+
 ## Storage Location
 
 Memory data is stored as three flat JSON files (no per-type directories):
@@ -432,7 +464,9 @@ storage_dir/memory/working_memories.json
 ```
 
 All sessions share this file; every record carries its own `session` field.
-Records whose TTL expired are removed by `working.cleanup_expired()`.
+Records whose TTL expired are removed by `working.cleanup_expired()`. A
+repeating timer runs it every 5 minutes; `working.stop_cleanup_timer()` closes
+the handle (and `memory.shutdown()` stops all three tiers' timers).
 
 ### Daily Memory Storage
 
@@ -442,7 +476,8 @@ storage_dir/memory/daily_memories.json
 
 Each record snapshots `expiry_days` at write time, so changing
 `daily.retention_days` does not retroactively shorten the life of memories that
-already exist. Expired records are removed hourly.
+already exist. Expired records are removed hourly; `daily.stop_cleanup_timer()`
+closes that timer.
 
 ### Long-term Memory Storage
 
@@ -454,6 +489,27 @@ Long-term memories persist across sessions until they are evicted by the
 `max_memories` cap or by `cleanup()`, which drops records that were never
 retrieved for 90 days (`clear_session_memories()` is the explicit per-session
 cleanup).
+
+A weekly maintenance timer also runs `merge_duplicates()`, which folds records
+scored `>= 0.85` by the shared similarity scorer into one — the same threshold
+`store()` uses, so a pair that `store()` would deduplicate is also merged
+offline. Merging only happens **within one session**: folding across sessions
+would move a memory into another conversation and break session isolation.
+Merged records keep the summed `access_count` / `hit_count`, the higher
+`confidence`, and the newer timestamp.
+
+### Loading and Writing
+
+The three modules load their file **lazily, on first use**, not at `require`
+time — at require time `config.setup()` may not have run yet, so the module
+would read the default storage directory. Switching `memory.storage_dir` at
+runtime reloads on the next access instead of keeping the previous directory's
+data in memory.
+
+Writes are synchronous: `store()`, `update()` and `delete()` persist before
+returning, so a crash right after a call cannot lose the record. Every write
+goes through a temp-file-plus-rename helper (`chat.memory.atomic`) with a
+direct-write fallback for platforms where the target file is locked.
 
 ---
 

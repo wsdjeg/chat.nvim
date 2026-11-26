@@ -154,5 +154,15 @@ function M.get_stats()
   }
 end
 
+---关闭三个记忆模块的定时维护任务
+---
+---定时器句柄由各模块持有（见 chat.memory.persist），插件卸载或测试清理时
+---调用这里，避免回调在已删除的存储目录上继续触发。
+function M.shutdown()
+  long_term.stop_cleanup_timer()
+  daily.stop_cleanup_timer()
+  working.stop_cleanup_timer()
+end
+
 return M
 

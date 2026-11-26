@@ -2,9 +2,12 @@ local M = {}
 
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
-local atomic = require('chat.memory.atomic')
+local persist = require('chat.memory.persist')
 
 local working_memories = {}
+
+-- 定时清理间隔（每 5 分钟）
+local CLEANUP_INTERVAL_MS = 300000
 
 -- Generate working memory ID
 local function generate_id()
@@ -13,6 +16,42 @@ end
 
 local function get_current_session()
   return require('chat.windows').current_session()
+end
+
+-- 持久化管道：延迟加载 + 可关闭定时器（见 chat.memory.persist）
+local db = persist.new({
+  name = 'Working',
+  path = function()
+    local dir = config.get_memory_storage_dir()
+    if not dir then
+      return nil
+    end
+    -- storage_dir 未必带尾斜杠（memory.storage_dir 可被用户改写）
+    if dir:sub(-1) ~= '/' then
+      dir = dir .. '/'
+    end
+    return dir .. 'working_memories.json'
+  end,
+  get = function()
+    return working_memories
+  end,
+  set = function(list)
+    working_memories = list
+  end,
+  on_loaded = function()
+    -- 加载后立刻清掉 TTL 过期的记忆（内部会自行 ensure_loaded，
+    -- 此时 loaded_path 已一致，不会递归重读）
+    M.cleanup_expired()
+  end,
+})
+
+---确保当前配置对应的数据已加载（目录变化时重读），并保证清理定时器在运行。
+---模块不再在 require 时启动定时器（那时配置还没就绪），所以首次使用要补上。
+local function ready()
+  db.ensure_loaded()
+  db.start_timer(CLEANUP_INTERVAL_MS, function()
+    M.cleanup_expired()
+  end)
 end
 
 -- 把存储对象转成检索视图：检索不应把 priority 写回持久化记录，
@@ -30,6 +69,8 @@ local function to_view(mem, priority)
 end
 
 function M.get_all()
+  ready()
+
   return vim.tbl_filter(function(mem)
     return not mem.expired
   end, working_memories)
@@ -41,10 +82,12 @@ function M.store(session, role, content, metadata)
     return nil
   end
 
+  ready()
+
   -- Use current session if not specified
   session = session or get_current_session()
 
-  -- 去重检查：相似度 >0.85 则更新已有记忆
+  -- 去重检查：相似度 >= 0.85 则更新已有记忆
   local DEDUP_THRESHOLD = 0.85
   for _, existing in ipairs(working_memories) do
     if existing.session == session and not existing.expired then
@@ -110,6 +153,8 @@ function M.retrieve(query, limit)
     return {}
   end
 
+  ready()
+
   limit = limit or 10
   local session = get_current_session()
   local weight = config.config.memory.working.priority_weight or 2.0
@@ -151,8 +196,8 @@ function M.retrieve(query, limit)
 
     -- Total priority (weight applied here, once -- chat.memory.init
     -- deliberately does not multiply again)
-    local total_priority = (sim + session_bonus + importance_bonus + recency_bonus)
-      * weight
+    local total_priority =
+      (sim + session_bonus + importance_bonus + recency_bonus) * weight
 
     if total_priority > 0 then
       table.insert(scored, {
@@ -180,6 +225,8 @@ end
 
 -- Get all working memories for specified session
 function M.get_session_memories(session)
+  ready()
+
   session = session or get_current_session()
 
   return vim.tbl_filter(function(mem)
@@ -189,6 +236,8 @@ end
 
 -- Cleanup expired memories
 function M.cleanup_expired()
+  ready()
+
   local now = os.time()
   local count_before = #working_memories
 
@@ -206,6 +255,8 @@ end
 
 -- Cleanup working memories for specified session
 function M.cleanup_session(session)
+  ready()
+
   session = session or get_current_session()
 
   local count_before = #working_memories
@@ -223,6 +274,8 @@ end
 
 -- Update memory importance
 function M.update_importance(memory_id, importance)
+  ready()
+
   for _, mem in ipairs(working_memories) do
     if mem.id == memory_id then
       mem.metadata = mem.metadata or {}
@@ -236,6 +289,8 @@ end
 
 -- Extend memory TTL
 function M.extend_ttl(memory_id, additional_seconds)
+  ready()
+
   for _, mem in ipairs(working_memories) do
     if mem.id == memory_id then
       mem.ttl = mem.ttl + (additional_seconds or 3600)
@@ -249,6 +304,8 @@ end
 
 -- Mark task as completed
 function M.mark_completed(memory_id, notes)
+  ready()
+
   for _, mem in ipairs(working_memories) do
     if mem.id == memory_id then
       mem.metadata = mem.metadata or {}
@@ -265,6 +322,8 @@ end
 
 -- Get statistics
 function M.get_stats(session)
+  ready()
+
   session = session or get_current_session()
 
   local stats = {
@@ -305,54 +364,36 @@ function M.text_similarity(query, content)
   return similarity.text_similarity(query, content)
 end
 
--- Load working memories
+-- 加载/保存
+--
+-- 显式 load() 仍然可用，但模块不再在 require 时读盘：那一刻 config
+-- 还没 setup，读到的会是默认目录。首次使用时由 ready() 懒加载。
 function M.load()
-  local storage_dir = config.get_memory_storage_dir()
-  if not storage_dir then
-    return
-  end
-
-  local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
-  local file = io.open(path, 'r')
-
-  if not file then
-    working_memories = {}
-    return
-  end
-
-  local content = file:read('*a')
-  io.close(file)
-
-  local ok, parsed = pcall(vim.json.decode, content)
-  if ok and type(parsed) == 'table' then
-    working_memories = parsed
-  else
-    working_memories = {}
-  end
-
-  -- Auto cleanup expired memories after loading
-  M.cleanup_expired()
+  db.start_timer(CLEANUP_INTERVAL_MS, function()
+    M.cleanup_expired()
+  end)
+  return db.load()
 end
 
--- Save working memories (atomic write with rename-failure fallback,
--- see chat.memory.atomic)
 function M.save()
-  local storage_dir = config.get_memory_storage_dir()
-  if not storage_dir then
-    return false
-  end
+  return db.save()
+end
 
-  -- Ensure directory exists
-  if vim.fn.isdirectory(storage_dir) == 0 then
-    vim.fn.mkdir(storage_dir, 'p')
-  end
+---清理定时器是否在运行
+---@return boolean
+function M.has_cleanup_timer()
+  return db.has_timer()
+end
 
-  local path = vim.fs.normalize(storage_dir .. '/working_memories.json')
-  return atomic.atomic_write(path, vim.json.encode(working_memories))
+---关闭清理定时器（句柄不再被丢弃，可随时停止）
+function M.stop_cleanup_timer()
+  db.stop_timer()
 end
 
 -- Delete specified memory
 function M.delete(memory_id)
+  ready()
+
   local count_before = #working_memories
   working_memories = vim.tbl_filter(function(mem)
     return mem.id ~= memory_id
@@ -367,12 +408,16 @@ end
 
 -- Clear all working memories
 function M.clear()
+  ready()
+
   working_memories = {}
   M.save()
 end
 
 -- Promote working memory to long-term memory
 function M.promote_to_long_term(memory_id)
+  ready()
+
   local memory = nil
   for _, mem in ipairs(working_memories) do
     if mem.id == memory_id then
@@ -401,16 +446,6 @@ function M.promote_to_long_term(memory_id)
 
   return nil, 'Failed to promote to long-term memory'
 end
-
--- Initialize
-M.load()
-
--- Setup periodic cleanup (every 5 minutes)
-vim.loop.new_timer():start(300000, 300000, function()
-  vim.schedule(function()
-    M.cleanup_expired()
-  end)
-end)
 
 return M
 

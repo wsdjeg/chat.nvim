@@ -3,17 +3,53 @@ local M = {}
 
 local config = require('chat.config')
 local similarity = require('chat.memory.similarity')
-local atomic = require('chat.memory.atomic')
+local persist = require('chat.memory.persist')
 
 local daily_memories = {}
 
 -- 去重阈值：相似度 >= 0.85 视为同一条记忆
 local DEDUP_THRESHOLD = 0.85
 
+-- 定时清理间隔（每小时）
+local CLEANUP_INTERVAL_MS = 3600000
+
 -- 读取配置（nil 安全：调用方可能只提供部分 memory 配置）
 local function cfg()
   local memory_config = config.config.memory
   return (memory_config and memory_config.daily) or {}
+end
+
+-- 持久化管道：延迟加载（模块 require 时还没有 config），
+-- 存储目录变化时自动重读，定时器句柄可关闭。
+local db = persist.new({
+  name = 'Daily',
+  path = function()
+    local dir = config.get_memory_storage_dir()
+    if not dir then
+      return nil
+    end
+    -- storage_dir 未必带尾斜杠（memory.storage_dir 可被用户改写）
+    if dir:sub(-1) ~= '/' then
+      dir = dir .. '/'
+    end
+    return dir .. 'daily_memories.json'
+  end,
+  get = function()
+    return daily_memories
+  end,
+  set = function(list)
+    daily_memories = list
+  end,
+})
+
+---确保当前配置对应的数据已加载（目录变化时重读），并保证清理定时器在运行。
+---模块不再在 require 时启动定时器（那时配置还没就绪），所以首次使用要补上，
+---否则懒加载路径下周期性清理永远不会触发。
+local function ready()
+  db.ensure_loaded()
+  db.start_timer(CLEANUP_INTERVAL_MS, function()
+    M.cleanup_expired()
+  end)
 end
 
 -- 获取当天日期键
@@ -50,6 +86,8 @@ function M.store(session, role, content, metadata)
   if cfg().enable == false then
     return nil
   end
+
+  ready()
 
   local timestamp = os.time()
 
@@ -110,6 +148,8 @@ function M.retrieve(query, limit)
     return {}
   end
 
+  ready()
+
   limit = limit or 5
   local threshold = cfg().similarity_threshold or 0.4
   local weight = cfg().priority_weight or 1.5
@@ -146,6 +186,8 @@ end
 
 -- 清理过期记忆（按每条记忆自己的 expiry_days）
 function M.cleanup_expired()
+  ready()
+
   local now = os.time()
   local count_before = #daily_memories
 
@@ -167,43 +209,35 @@ function M.text_similarity(query, content)
 end
 
 -- 加载/保存
+--
+-- 显式 load() 仍然可用（测试与手动重载），但模块不再在 require 时
+-- 读盘：那一刻 config 还没 setup，读到的会是默认目录。
 function M.load()
-  local path = config.get_memory_storage_dir() .. 'daily_memories.json'
-  local file = io.open(path, 'r')
-
-  -- 文件不存在时必须清空内存态。只 return 会把上一个存储目录
-  -- （或上一轮测试）的数据留在内存里。
-  if not file then
-    daily_memories = {}
-    return
-  end
-
-  local ok, data = pcall(vim.json.decode, file:read('*a'))
-  file:close()
-  if ok and type(data) == 'table' then
-    daily_memories = data
-  else
-    daily_memories = {}
-  end
+  db.start_timer(CLEANUP_INTERVAL_MS, function()
+    M.cleanup_expired()
+  end)
+  return db.load()
 end
 
--- 保存（原子写入，rename 失败时回退直接写，见 chat.memory.atomic）
 function M.save()
-  local storage_dir = config.get_memory_storage_dir()
-  if not storage_dir then
-    return false
-  end
+  return db.save()
+end
 
-  if vim.fn.isdirectory(storage_dir) == 0 then
-    vim.fn.mkdir(storage_dir, 'p')
-  end
+---清理定时器是否在运行
+---@return boolean
+function M.has_cleanup_timer()
+  return db.has_timer()
+end
 
-  local path = storage_dir .. 'daily_memories.json'
-  return atomic.atomic_write(path, vim.json.encode(daily_memories))
+---关闭清理定时器（句柄不再被丢弃，可随时停止）
+function M.stop_cleanup_timer()
+  db.stop_timer()
 end
 
 -- 获取所有日常记忆
 function M.get_all()
+  ready()
+
   return vim.tbl_map(function(m)
     return {
       id = m.id,
@@ -216,6 +250,8 @@ end
 
 -- 删除指定记忆
 function M.delete(id)
+  ready()
+
   local count_before = #daily_memories
   daily_memories = vim.tbl_filter(function(mem)
     return mem.id ~= id
@@ -230,6 +266,8 @@ end
 
 -- 获取统计信息
 function M.get_stats()
+  ready()
+
   local now = os.time()
 
   return {
@@ -240,15 +278,6 @@ function M.get_stats()
     end, daily_memories),
   }
 end
-
-M.load()
-
--- 定时清理过期记忆（每小时执行一次）
-vim.loop.new_timer():start(3600000, 3600000, function()
-  vim.schedule(function()
-    M.cleanup_expired()
-  end)
-end)
 
 return M
 
