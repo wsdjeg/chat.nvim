@@ -257,6 +257,68 @@ function TestIntegrationsInitExtra:testFormatSummaryUntitledAndPin()
   lu.assertStrContains(sent, '📌')
 end
 
+function TestIntegrationsInitExtra:testFormatSummaryIncludesCwd()
+  -- The binding confirmation reports the same fields as `/status`. CWD is the
+  -- one field that decides which project the chat actually edits, so it must
+  -- not be silently omitted.
+  windows.current_session = function() return 'sess-cwd' end
+  stub_sessions({
+    ['sess-cwd'] = { title = 'Cwd Session', messages = {}, provider = 'p', model = 'm' },
+  })
+  sessions.getcwd = function() return '/tmp/project/dir' end
+  local handler = capture_handler()
+  local sent
+  discord.send_message = function(c) sent = c end
+  handler({ content = '/session' })
+  lu.assertStrContains(sent, 'CWD: /tmp/project/dir')
+  lu.assertStrContains(sent, 'Provider: p')
+  lu.assertStrContains(sent, 'Model: m')
+  lu.assertStrContains(sent, 'Messages: 0')
+end
+
+function TestIntegrationsInitExtra:testFormatSummaryCwdFallsBackToVimCwd()
+  -- A session that never recorded a cwd is reported with the one that would
+  -- be used instead, not with a blank field.
+  windows.current_session = function() return 'sess-nocwd' end
+  stub_sessions({
+    ['sess-nocwd'] = { title = 'No Cwd', messages = {}, provider = 'p', model = 'm' },
+  })
+  sessions.getcwd = function() return nil end
+  local handler = capture_handler()
+  local sent
+  discord.send_message = function(c) sent = c end
+  handler({ content = '/session' })
+  lu.assertStrContains(sent, 'CWD: ' .. vim.fn.getcwd())
+end
+
+function TestIntegrationsInitExtra:testFormatSummaryCwdOnBindById()
+  -- `/session <id>` goes through the same summary builder, so it reports CWD
+  -- as well.
+  stub_sessions({
+    ['sess-byid'] = { title = 'ById', messages = {}, provider = 'p', model = 'm' },
+  })
+  sessions.getcwd = function() return '/tmp/other/project' end
+  local handler = capture_handler()
+  local sent
+  discord.send_message = function(c) sent = c end
+  handler({ content = '/session sess-byid' })
+  lu.assertStrContains(sent, 'CWD: /tmp/other/project')
+end
+
+function TestIntegrationsInitExtra:testFormatSummaryCwdOnBindByIndex()
+  -- Same for the numbered `/list` → `/session N` path.
+  stub_sessions({
+    ['sess-idx'] = { title = 'Idx', messages = {}, provider = 'p', model = 'm' },
+  })
+  sessions.getcwd = function() return '/tmp/index/project' end
+  local handler = capture_handler()
+  handler({ content = '/list' })
+  local sent
+  discord.send_message = function(c) sent = c end
+  handler({ content = '/session 1' })
+  lu.assertStrContains(sent, 'CWD: /tmp/index/project')
+end
+
 --- Build `count` sessions, newest = highest number (created === index).
 local function numbered_sessions(count)
   local data = {}
@@ -412,3 +474,4 @@ function TestIntegrationsInitExtra:testSessionListIsPerChat()
 end
 
 return TestIntegrationsInitExtra
+

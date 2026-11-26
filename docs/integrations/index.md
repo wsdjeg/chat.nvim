@@ -51,6 +51,29 @@ All IM integrations share these common features:
   `-p N` selects page N)
 - `/clear` - Clear current session messages
 
+### `/session` confirmation
+
+`/session` replies with the binding it just established, using the same fields
+`/status` reports:
+
+```text
+📌 Fix memory leak
+  ID: 2024-01-15-10-30-00
+  Provider: openai
+  Model: gpt-4o
+  CWD: /home/user/projects/chat.nvim
+  Messages: 12
+```
+
+`CWD` is included on purpose. A binding to a session whose working directory is
+not the project you meant to work in is exactly the mistake this confirmation
+should let you catch — the chat will edit whatever files its cwd points at.
+When a session has never recorded a cwd, the field shows the directory that
+would be used instead, never a blank value.
+
+The same summary is returned by every binding path: bare `/session`,
+`/session <number>` from `/list`, and `/session <id>`.
+
 ### `/list` pagination
 
 Sessions are listed 10 per page and rendered as a markdown ordered list
@@ -374,3 +397,4 @@ Start from `lua/chat/integrations/discord.lua` for the facade and contract, and
 - [WeCom Integration](./wecom/) - Setup WeCom webhook/API
 - [Weixin Integration](./weixin/) - Setup personal WeChat via QR login
 - [HTTP API](../api/http/) - HTTP API integration
+

@@ -55,16 +55,22 @@ local function format_session_summary(session_id)
   local provider = data.provider or 'default'
   local model = data.model or 'default'
   local message_count = #(data.messages or {})
+  -- The bound session is confirmed with the same fields `/status` reports,
+  -- CWD included: binding a session whose working directory differs from the
+  -- one the chat is expected to work in is exactly the mistake the
+  -- confirmation should let you catch.
+  local cwd = sessions.getcwd(session_id) or vim.fn.getcwd()
   local pin = sessions.get_session_pin(session_id)
   local pin_marker = pin and '📌 ' or ''
 
   return string.format(
-    '%s%s\n  ID: %s\n  Provider: %s\n  Model: %s\n  Messages: %d',
+    '%s%s\n  ID: %s\n  Provider: %s\n  Model: %s\n  CWD: %s\n  Messages: %d',
     pin_marker,
     title,
     session_id,
     provider,
     model,
+    cwd,
     message_count
   )
 end
