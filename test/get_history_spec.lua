@@ -77,8 +77,14 @@ end
 function TestGetHistory:testEmptySession()
   local sid = sessions.new()
   local result = get_history.get_history({}, { session = sid })
-  lu.assertNotNil(result.content)
-  lu.assertEquals(result.content, 'No messages in session history.')
+
+  -- Every branch returns the same JSON shape; an empty session is not a
+  -- special text response.
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.total, 0)
+  lu.assertEquals(data.returned, 0)
+  lu.assertEquals(#data.messages, 0)
+  lu.assertStrContains(data.note, 'No messages in session history')
 end
 
 -- ─── get_history() — basic retrieval ────────────────────────────
@@ -219,8 +225,11 @@ function TestGetHistory:testOffsetBeyondTotal()
     { offset = 10 },
     { session = sid }
   )
-  lu.assertStrContains(result.content, 'beyond total message count')
-  lu.assertStrContains(result.content, '5')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.returned, 0)
+  lu.assertEquals(data.total, 5)
+  lu.assertStrContains(data.note, 'beyond total message count')
+  lu.assertStrContains(data.note, '5')
 end
 
 function TestGetHistory:testOffsetEqualsTotal()
@@ -237,7 +246,9 @@ function TestGetHistory:testOffsetEqualsTotal()
     { offset = 3 },
     { session = sid }
   )
-  lu.assertStrContains(result.content, 'beyond total message count')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.returned, 0)
+  lu.assertStrContains(data.note, 'beyond total message count')
 end
 
 -- ─── get_history() — message fields ─────────────────────────────
@@ -405,8 +416,10 @@ function TestGetHistory:testSearchNoMatches()
     { search = 'nonexistent' },
     { session = sid }
   )
-  lu.assertStrContains(result.content, 'beyond matched message count')
-  lu.assertStrContains(result.content, '0')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.total_matched, 0)
+  lu.assertEquals(data.returned, 0)
+  lu.assertStrContains(data.note, 'beyond matched message count')
 end
 
 function TestGetHistory:testSearchWithOffsetAndLimit()
@@ -440,7 +453,9 @@ function TestGetHistory:testSearchOnEmptySession()
     { search = 'test' },
     { session = sid }
   )
-  lu.assertEquals(result.content, 'No messages in session history.')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.returned, 0)
+  lu.assertStrContains(data.note, 'No messages in session history')
 end
 
 function TestGetHistory:testSearchEmptyStringBehavesLikeNoSearch()
@@ -548,8 +563,10 @@ function TestGetHistory:testSearchOffsetBeyondMatched()
     { search = 'match', offset = 5 },
     { session = sid }
   )
-  lu.assertStrContains(result.content, 'beyond matched message count')
-  lu.assertStrContains(result.content, 'match')
+  local data = vim.json.decode(result.content)
+  lu.assertEquals(data.returned, 0)
+  lu.assertStrContains(data.note, 'beyond matched message count')
+  lu.assertStrContains(data.note, 'match')
 end
 
 function TestGetHistory:testSearchSpecialCharacters()
@@ -800,6 +817,251 @@ function TestGetHistory:testTruncationWithSearch()
   lu.assertEquals(data.search, 'match')
   lu.assertEquals(data.total_matched, 2)
   lu.assertEquals(data.truncated, true)
+end
+
+-- ─── get_history() — entry classification ──────────────────────
+
+function TestGetHistory:testBookkeepingMarkersAreDropped()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Question',
+    created = 1001,
+  })
+  -- What sessions/tools.lua appends after every finished request: usage
+  -- bookkeeping with neither role nor content.
+  sessions.append_message(sid, {
+    on_complete = true,
+    usage = { total_tokens = 120 },
+    created = 1002,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.total, 1)
+  lu.assertEquals(data.returned, 1)
+  lu.assertEquals(#data.messages, 1)
+  lu.assertEquals(data.messages[1].role, 'user')
+end
+
+function TestGetHistory:testBookkeepingDoesNotConsumeLimit()
+  local sid = sessions.new()
+  for i = 1, 10 do
+    sessions.append_message(sid, {
+      role = 'user',
+      content = 'Message ' .. i,
+      created = 1000 + i,
+    })
+    sessions.append_message(sid, {
+      on_complete = true,
+      usage = { total_tokens = i },
+      created = 1000 + i,
+    })
+  end
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  -- 10 real messages fit inside the default limit of 20; before the fix
+  -- the 10 markers ate half the slots and only 10 of 20 were returned.
+  lu.assertEquals(data.total, 10)
+  lu.assertEquals(data.returned, 10)
+end
+
+function TestGetHistory:testErrorMessageKeptWithKind()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Do something',
+    created = 1001,
+  })
+  sessions.append_message(sid, {
+    error = 'Request cancelled by user.',
+    created = 1002,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.total, 2)
+  local error_entry = data.messages[2]
+  lu.assertEquals(error_entry.kind, 'error')
+  lu.assertIsNil(error_entry.role)
+  lu.assertEquals(error_entry.content, 'Request cancelled by user.')
+end
+
+function TestGetHistory:testNoticeKeptWithKind()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hello',
+    created = 1001,
+  })
+  sessions.append_message(sid, {
+    notice = 'API key #2 rotated after rate limit',
+    created = 1002,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  local notice_entry = data.messages[2]
+  lu.assertEquals(notice_entry.kind, 'notice')
+  lu.assertEquals(
+    notice_entry.content,
+    'API key #2 rotated after rate limit'
+  )
+end
+
+function TestGetHistory:testConversationalEntriesAreKindMessage()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hi',
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.messages[1].kind, 'message')
+end
+
+function TestGetHistory:testTotalCountsNonConversationalEntries()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'user',
+    content = 'Hi',
+    created = 1001,
+  })
+  sessions.append_message(sid, {
+    notice = 'rotated',
+    created = 1002,
+  })
+  sessions.append_message(sid, {
+    on_complete = true,
+    usage = { total_tokens = 10 },
+    created = 1003,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  -- total counts everything that carries information: the real turn plus
+  -- the notice, but not the bookkeeping marker.
+  lu.assertEquals(data.total, 2)
+end
+
+-- ─── get_history() — tool context ───────────────────────────────
+
+function TestGetHistory:testAssistantToolCallNamesOnly()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'assistant',
+    tool_calls = {
+      {
+        id = 'call_1',
+        type = 'function',
+        ['function'] = {
+          name = 'read_file',
+          arguments = '{"filepath":"./lua/chat/tools/get_history.lua"}',
+        },
+      },
+      {
+        id = 'call_2',
+        type = 'function',
+        ['function'] = {
+          name = 'git_add',
+          arguments = '{"path":"lua/chat/tools/get_history.lua"}',
+        },
+      },
+    },
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  local entry = data.messages[1]
+  lu.assertEquals(#entry.tool_calls, 2)
+  -- Names only: the model already wrote the arguments, and they can be
+  -- hundreds of bytes each.
+  lu.assertEquals(entry.tool_calls[1], 'read_file')
+  lu.assertEquals(entry.tool_calls[2], 'git_add')
+  lu.assertIsNil(entry.tool_calls[1].arguments)
+end
+
+function TestGetHistory:testToolResultCarriesToolName()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = 'No changes found.',
+    tool_call_id = 'call_1',
+    tool_call_state = { name = 'git_diff' },
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.messages[1].tool, 'git_diff')
+end
+
+function TestGetHistory:testToolResultWithoutStateDoesNotRaise()
+  local sid = sessions.new()
+  -- Older caches predate tool_call_state.
+  sessions.append_message(sid, {
+    role = 'tool',
+    content = 'legacy result',
+    tool_call_id = 'call_1',
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.returned, 1)
+  lu.assertEquals(data.messages[1].role, 'tool')
+  lu.assertIsNil(data.messages[1].tool)
+end
+
+function TestGetHistory:testToolCallNamesSkipsMalformedEntries()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'assistant',
+    tool_calls = {
+      { id = 'ok', ['function'] = { name = 'read_file' } },
+      { id = 'no_function' },
+      { ['function'] = { name = '' } },
+    },
+    created = 1001,
+  })
+
+  local result = get_history.get_history({}, { session = sid })
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(#data.messages[1].tool_calls, 1)
+  lu.assertEquals(data.messages[1].tool_calls[1], 'read_file')
+end
+
+function TestGetHistory:testSearchMatchesReasoningContent()
+  local sid = sessions.new()
+  sessions.append_message(sid, {
+    role = 'assistant',
+    content = 'The answer is 42.',
+    reasoning_content = 'I should reconsider the config default.',
+    created = 1001,
+  })
+
+  local result = get_history.get_history(
+    { search = 'config' },
+    { session = sid }
+  )
+  local data = vim.json.decode(result.content)
+
+  lu.assertEquals(data.total_matched, 1)
+  lu.assertEquals(data.returned, 1)
 end
 
 -- ─── info() tests ───────────────────────────────────────────────

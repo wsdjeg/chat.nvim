@@ -23,6 +23,15 @@ local MIN_ENTRY_BYTES = 160
 -- bytes) plus JSON punctuation, reserved before content is laid out.
 local ENVELOPE_HEADROOM = 512
 
+-- ── Entry classification ─────────────────────────────────────────────
+-- The session history is a mixed bag: real conversation turns, UI-only
+-- error/notice lines, and pure bookkeeping markers. Only the first two
+-- carry information the model can use; the bookkeeping entries
+-- (`on_complete` usage markers) have neither role nor content and would
+-- inflate `total`, consume `limit` slots and eat the byte budget for
+-- nothing.
+local CONVERSATIONAL_ROLES = { 'user', 'assistant', 'tool' }
+
 --- Normalize the max_bytes parameter.
 --- Non-number values and values <= 0 fall back to the default; the rest
 --- is clamped into [MIN_MAX_BYTES, MAX_MAX_BYTES] so every accepted value
@@ -59,6 +68,86 @@ local function encode_response(response)
     content = vim.json.encode(response)
   end
   return content
+end
+
+--- Classify a history record.
+---@param m table Message as returned by sessions.get_messages()
+---@return string|nil kind 'message' | 'error' | 'notice' | nil for
+---   bookkeeping markers, which are dropped from every result
+local function classify(m)
+  if m.role ~= nil and vim.tbl_contains(CONVERSATIONAL_ROLES, m.role) then
+    return 'message'
+  end
+  -- Error and notice lines have no role but do carry information
+  -- ("the last request failed", "the api key was rotated"); dropping them
+  -- would leave the model with a history that looks successful.
+  if m.error ~= nil then
+    return 'error'
+  end
+  if m.notice ~= nil then
+    return 'notice'
+  end
+  return nil
+end
+
+--- Collect the tool names an assistant message called.
+--- Arguments are deliberately not returned: the model wrote them, so they
+--- are already in its context, and a `read_file` call's arguments can be
+--- hundreds of bytes. What a compact history loses is WHICH tool ran.
+---@param tool_calls table|nil
+---@return string[]|nil names
+local function tool_call_names(tool_calls)
+  if type(tool_calls) ~= 'table' then
+    return nil
+  end
+  local names = {}
+  for _, tc in ipairs(tool_calls) do
+    local name = type(tc) == 'table'
+        and type(tc['function']) == 'table'
+        and tc['function'].name
+      or nil
+    if type(name) == 'string' and name ~= '' then
+      table.insert(names, name)
+    end
+  end
+  if #names == 0 then
+    return nil
+  end
+  return names
+end
+
+--- Build one working-set entry from a history record.
+---@param idx integer 1-based history index
+---@param m table Message from sessions.get_messages()
+---@param kind string classify() result, never nil
+---@return table entry
+local function build_entry(idx, m, kind)
+  local entry = {
+    index = idx - 1, -- 0-indexed for the model
+    kind = kind,
+    role = m.role,
+    content = m.content,
+    created = m.created,
+  }
+
+  if kind == 'error' then
+    entry.content = m.content or m.error
+  elseif kind == 'notice' then
+    entry.content = m.content or m.notice
+  end
+
+  local names = tool_call_names(m.tool_calls)
+  if names then
+    entry.tool_calls = names
+  end
+
+  -- A tool result is meaningless without the tool that produced it; older
+  -- caches may lack tool_call_state, so the field is optional.
+  if m.role == 'tool' and type(m.tool_call_state) == 'table' then
+    entry.tool = m.tool_call_state.name
+  end
+
+  return entry
 end
 
 --- Lay out history entries so the encoded response stays within max_bytes.
@@ -120,6 +209,7 @@ local function fit_entries(entries, offset, envelope, max_bytes)
         while cut ~= '' do
           local cut_entry = {
             index = entry.index,
+            kind = entry.kind,
             role = entry.role,
             content = cut .. note,
             created = entry.created,
@@ -206,9 +296,9 @@ Get conversation history messages from the current session.
 
 Use this tool when you need to reference earlier messages that are not in the current context window.
 
-Returns the requested messages with their role, content, and timestamp.
+Returns the requested messages with their role, content, and timestamp. Non-conversation records are labelled: `kind` is "message" for real turns, "error" or "notice" for UI-only lines (a failed request, an api key rotation). Bookkeeping markers are not returned at all. An assistant message that called tools carries the tool names in `tool_calls`, and a tool result carries the name of the tool in `tool`.
 
-When `search` is provided, only messages containing the keyword (case-insensitive) are returned. Offset and limit apply to the filtered results.
+When `search` is provided, only messages whose content or reasoning contains the keyword (case-insensitive) are returned. Offset and limit apply to the filtered results.
 
 The result is capped by bytes (max_bytes, default 32768, allowed 2048-204800), because a single tool result in the history can be very large. When the budget is exhausted the response reports `truncated: true`, `next_offset` (the position to continue from) and a `note`; a partially returned message is marked `content_truncated: true` with its `original_bytes`.
 
@@ -233,7 +323,7 @@ Examples:
           },
           search = {
             type = 'string',
-            description = 'Keyword to filter messages (case-insensitive). When provided, only matching messages are returned.',
+            description = 'Keyword to filter messages (case-insensitive, matched against content and reasoning). When provided, only matching messages are returned.',
           },
           max_bytes = {
             type = 'integer',
@@ -257,11 +347,6 @@ function M.get_history(action, ctx)
     return { error = 'No active session' }
   end
 
-  local messages = sessions.get_messages(ctx.session)
-  if not messages or #messages == 0 then
-    return { content = 'No messages in session history.' }
-  end
-
   local offset = math.max(math.floor(action.offset or 0), 0)
   local limit = math.floor(action.limit or 20)
   if limit < 1 then
@@ -270,77 +355,93 @@ function M.get_history(action, ctx)
   limit = math.min(limit, 50)
   local max_bytes = normalize_max_bytes(action.max_bytes)
   local search = action.search
+  local search_lower = search and search ~= '' and search:lower() or nil
 
-  -- Build the working set: all messages or filtered by search keyword
-  local working_set = {}
-  if search and search ~= '' then
-    local search_lower = string.lower(search)
-    for i, msg in ipairs(messages) do
-      if
-        msg.content
-        and type(msg.content) == 'string'
-        and string.find(string.lower(msg.content), search_lower, 1, true)
-      then
-        table.insert(working_set, {
-          index = i - 1, -- 0-indexed for LLM
-          role = msg.role,
-          content = msg.content,
-          created = msg.created,
-        })
-      end
-    end
-  else
-    for i, msg in ipairs(messages) do
-      table.insert(working_set, {
-        index = i - 1, -- 0-indexed for LLM
-        role = msg.role,
-        content = msg.content,
-        created = msg.created,
-      })
-    end
-  end
-
-  -- Check offset against working set size
-  if offset >= #working_set then
-    if search and search ~= '' then
-      return {
-        content = string.format(
-          'Offset %d is beyond matched message count (%d). Search keyword: "%s"',
-          offset,
-          #working_set,
-          search
-        ),
-      }
-    else
-      return {
-        content = string.format(
-          'Offset %d is beyond total message count (%d).',
-          offset,
-          #working_set
-        ),
-      }
-    end
-  end
-
-  -- Slice the working set with offset and limit
-  local picked = {}
-  for pos = offset + 1, math.min(offset + limit, #working_set) do
-    table.insert(picked, working_set[pos])
-  end
-
-  -- Response skeleton: metadata is part of the payload, so it shares the
-  -- byte budget with the messages.
+  -- Response skeleton. Every branch - empty history, offset out of range,
+  -- normal page - returns the same JSON shape, so callers parse one form
+  -- instead of `if string.find(content, "No messages")`.
   local response = {
-    total = #messages,
+    total = 0,
     offset = offset,
     limit = limit,
     max_bytes = max_bytes,
     returned = 0,
     messages = {},
   }
-  if search and search ~= '' then
+  if search_lower then
     response.search = search
+  end
+
+  local messages = sessions.get_messages(ctx.session)
+  if not messages or #messages == 0 then
+    response.note = 'No messages in session history.'
+    return { content = encode_response(response) }
+  end
+
+  -- Classify every record once: bookkeeping markers (on_complete usage
+  -- entries) have no role, no content and no meaning for the model, so
+  -- they never enter the working set.
+  local entries = {}
+  for i, msg in ipairs(messages) do
+    local kind = classify(msg)
+    if kind ~= nil then
+      table.insert(entries, build_entry(i, msg, kind))
+    end
+  end
+
+  -- Build the working set: all entries or filtered by search keyword.
+  -- Matching is delegated to sessions/messages.lua:search_messages() so
+  -- get_history and the HTTP /search endpoint agree on what "contains the
+  -- keyword" means (content OR reasoning_content). Searching only content
+  -- here would silently hide matches the API happily reports.
+  local working_set = entries
+  if search_lower then
+    local found = require('chat.sessions.messages').search_messages(
+      ctx.session,
+      search
+    )
+    local matched = {}
+    if found then
+      for _, hist_index in ipairs(found.indices) do
+        matched[hist_index - 1] = true -- entries are 0-indexed
+      end
+    end
+    working_set = {}
+    for _, entry in ipairs(entries) do
+      if matched[entry.index] then
+        table.insert(working_set, entry)
+      end
+    end
+  end
+
+  response.total = #entries
+  if search_lower then
     response.total_matched = #working_set
+  end
+
+  -- Check offset against working set size
+  if offset >= #working_set then
+    if search_lower then
+      response.note = string.format(
+        'Offset %d is beyond matched message count (%d). Search keyword: "%s"',
+        offset,
+        #working_set,
+        search
+      )
+    else
+      response.note = string.format(
+        'Offset %d is beyond total message count (%d).',
+        offset,
+        #working_set
+      )
+    end
+    return { content = encode_response(response) }
+  end
+
+  -- Slice the working set with offset and limit
+  local picked = {}
+  for pos = offset + 1, math.min(offset + limit, #working_set) do
+    table.insert(picked, working_set[pos])
   end
 
   local kept, layout = fit_entries(picked, offset, response, max_bytes)
@@ -381,11 +482,9 @@ function M.get_history(action, ctx)
       '[get_history] Retrieved %d messages (offset=%d, total=%d, bytes=%d%s%s)',
       #kept,
       offset,
-      #messages,
+      #entries,
       #content,
-      search
-          and search ~= ''
-          and (', search="' .. search .. '", matched=' .. #working_set)
+      search_lower and (', search="' .. search .. '", matched=' .. #working_set)
         or '',
       layout.truncated and ' [truncated]' or ''
     )
