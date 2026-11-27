@@ -222,6 +222,7 @@ With [picker.nvim](https://github.com/wsdjeg/picker.nvim) the following keybindi
 | `<Leader>fp` | Switch provider via picker      |
 | `<Leader>fm` | Switch model via picker         |
 | `<Leader>fr` | Browse session history via picker |
+| `<Leader>fx` | Restore or purge deleted sessions |
 
 See the [Usage Guide](https://nvim.chat/usage/) for all commands and keybindings.
 

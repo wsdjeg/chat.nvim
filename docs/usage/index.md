@@ -238,6 +238,7 @@ The following key bindings are available in the **Input** window:
 | `Normal` | `<Leader>fr` | Run `:Picker chat`                      |
 | `Normal` | `<Leader>fp` | Run `:Picker chat_provider`             |
 | `Normal` | `<Leader>fm` | Run `:Picker chat_model`                |
+| `Normal` | `<Leader>fx` | Run `:Picker chat_trash`                |
 | `Normal` | `<M-t>`      | Rename current session title            |
 
 ### Result Window Key Bindings
@@ -285,7 +286,8 @@ Search through your chat history sessions:
 **Keyboard Shortcuts:**
 
 - `<CR>` (Enter): Open selected session
-- `<C-d>`: Delete selected session
+- `<C-d>`: Delete selected session (moved to the trash)
+- `<C-t>`: Open the session cache JSON in a new tab
 - `<C-o>`: Open HTML preview in browser
 
 #### 2. `chat_provider` - Provider Switcher
@@ -301,6 +303,30 @@ Select available models for the current provider:
 
 - Lists all compatible models for your selected provider
 - Intelligent filtering based on provider capabilities
+
+#### 4. `chat_trash` - Restore or Purge Deleted Sessions
+
+Every entry here is already deleted, so the actions are the last two stops: put
+the session back, or remove the file for good.
+
+- Displays the **deletion time** and the **session title** (or the first
+  message when the session has no title)
+- Previews the full conversation before you decide
+- Open with `<Leader>fx` in the input window, or run `:Picker chat_trash`
+
+**Keyboard Shortcuts:**
+
+- `<CR>` (Enter): Restore selected session and open it
+- `<C-r>`: Restore selected session and open it
+- `<C-d>`: Permanently delete selected session (asks for confirmation)
+- `<C-t>`: Open the trash JSON file in a new tab
+
+Purging keeps the picker open and refreshes the list, so a cleanup pass can
+remove several files without reopening it. Restoring closes the picker: the
+session is being opened instead.
+
+See [Session Trash](#session-trash) for what the trash does and does not
+protect.
 
 ---
 
@@ -555,7 +581,7 @@ picker's `<C-d>` and `DELETE /session/{id}` — so all of them are reversible.
 | --- | --- |
 | List deleted sessions | `/trash` (latest 10, with deletion time and title) |
 | Restore a session | `/restore <id>`, or `/restore` with no argument for a selection UI |
-| Browse and preview | `<leader>fx` → `Picker chat_trash`; `<CR>` restores |
+| Browse and preview | `<leader>fx` → `Picker chat_trash`; `<CR>` or `<C-r>` restores |
 | Purge for good | `Picker chat_trash` → `<C-d>` (asks for confirmation) |
 | Inspect the raw JSON | `Picker chat_trash` → `<C-t>` |
 

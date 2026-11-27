@@ -217,7 +217,7 @@ the listing can be sorted by deletion time and previewed before restoring.
 | Way | How |
 | --- | --- |
 | Skill | `/trash` lists deleted sessions, `/restore <id>` restores one and opens it |
-| Picker | `<leader>fx` → `Picker chat_trash`; `<CR>` restores, `<C-d>` purges for good, `<C-t>` opens the raw JSON |
+| Picker | `<leader>fx` → `Picker chat_trash`; `<CR>` / `<C-r>` restores, `<C-d>` purges for good, `<C-t>` opens the raw JSON |
 | Manual | Move the file from `sessions-trash/` back into `sessions/` and remove the `deleted_at` field |
 
 `/restore` keeps the original session id, so it refuses (instead of
