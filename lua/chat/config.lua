@@ -33,6 +33,7 @@ local M = {}
 ---@field system_prompt? string | function
 ---@field context? table
 ---@field storage_dir? string Base storage directory for all persistent data
+---@field sessions? table Session lifecycle options (trash)
 ---@field memory? table
 ---@field user? table
 ---@field mastodon? table
@@ -121,6 +122,14 @@ local default = {
   -- Base storage directory for all persistent data (plans, sessions, scheduler, etc.)
   -- Individual sub-modules use sub-directories under this path.
   storage_dir = vim.fn.stdpath('data') .. '/chat.nvim/',
+  -- Session lifecycle options
+  sessions = {
+    -- When true, deleting a session moves its cache file into
+    -- {storage_dir}/sessions-trash/ instead of removing it permanently.
+    -- Restore with /restore, list with /trash, or move the file back by hand.
+    -- The trash is never cleaned automatically.
+    trash = true,
+  },
   memory = {
     enable = true,
     long_term = {

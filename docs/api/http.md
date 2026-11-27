@@ -748,11 +748,17 @@ curl -X POST http://127.0.0.1:7777/session/new \
 
 Delete a session.
 
+The deletion is a **soft delete** by default: the session's cache file is
+moved from `sessions/` into `sessions-trash/` (see
+[Session Trash](../../configuration/#session-trash)), so it can be brought back
+with the `/restore` skill. Set `sessions.trash = false` to delete the file for
+good.
+
 **Response Status Codes:**
 
 | Status Code | Description |
 |---|---|
-| 204 | Success - session deleted |
+| 204 | Success - session deleted (moved to the trash by default) |
 | 404 | Session not found |
 | 409 | Session is in progress, cannot delete |
 

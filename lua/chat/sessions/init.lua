@@ -93,6 +93,13 @@ M.get_cache_path = storage.get_cache_path
 M.iter_sessions = storage.iter_sessions
 M.set_cache_dir = storage.set_cache_dir
 
+-- ─── Trash (soft delete) ───────────────────────────────────────
+M.move_to_trash = storage.move_to_trash
+M.read_trash = storage.read_trash
+M.list_trash = storage.list_trash
+M.restore = storage.restore
+M.purge_trash = storage.purge_trash
+
 -- ─── Prefix Cache Observability ────────────────────────────────
 M.cache_stats = cache_probe.stats
 M.reset_cache_stats = cache_probe.reset

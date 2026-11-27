@@ -314,7 +314,9 @@ chat.nvim includes a built-in skill system that lets you type `/name [args]` in 
 | ----------------- | ---------------------------------------------------- |
 | `/clear`          | Clear all messages in current session                |
 | `/new`            | Create a new session                                 |
-| `/delete`         | Delete current session                               |
+| `/delete`         | Delete current session (moved to the trash, see [Session Trash](#session-trash)) |
+| `/trash`          | List deleted sessions that can still be restored     |
+| `/restore [id]`   | Restore a deleted session (shows selection UI if no id given) |
 | `/model [name]`   | Switch model (shows selection UI if no name given)   |
 | `/provider [name]`| Switch provider (shows selection UI if no name given); an unknown name is rejected |
 | `/cwd <path>`     | Change working directory                             |
@@ -533,6 +535,38 @@ All sessions are automatically saved to:
 ```
 stdpath('data')/chat.nvim/sessions/
 ```
+
+### Session Trash
+
+Deleting a session is a **soft delete** by default (`sessions.trash` defaults
+to `true`): the cache file moves to `sessions-trash/` next to the active
+directory instead of being removed.
+
+```
+stdpath('data')/chat.nvim/
+├── sessions/          # active sessions
+└── sessions-trash/    # deleted sessions, restorable
+```
+
+Every delete path goes through the same code — `/delete`, `:Chat delete`, the
+picker's `<C-d>` and `DELETE /session/{id}` — so all of them are reversible.
+
+| Task | How |
+| --- | --- |
+| List deleted sessions | `/trash` (latest 10, with deletion time and title) |
+| Restore a session | `/restore <id>`, or `/restore` with no argument for a selection UI |
+| Browse and preview | `<leader>fx` → `Picker chat_trash`; `<CR>` restores |
+| Purge for good | `Picker chat_trash` → `<C-d>` (asks for confirmation) |
+| Inspect the raw JSON | `Picker chat_trash` → `<C-t>` |
+
+The restored session keeps its original id, and the request history, usage
+counters and `cwd` come back with it. `sessions.delete()` still cleans up the
+session's memories, scheduled tasks and bridged integrations — the trash
+protects the conversation file only, not those other subsystems.
+
+Nothing in the trash is ever purged automatically. Set `sessions.trash = false`
+in your config to restore the old hard-delete behaviour; see
+[Session Trash](../configuration/#session-trash) for the full option.
 
 ### Session Files
 

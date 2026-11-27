@@ -158,8 +158,33 @@ function M.delete(session_id)
     progress.cancel_progress(session_id)
   end
 
-  -- Delete session data
-  vim.fn.delete(storage.cache_dir .. session_id .. '.json')
+  -- Delete session data. With sessions.trash enabled the cache file is
+  -- moved into {storage_dir}/sessions-trash/ instead of being unlinked, so
+  -- an accidental /delete can still be undone with /restore. A trash failure
+  -- falls back to the old behaviour: a half-deleted session (gone from
+  -- memory, still on disk) would be worse than losing the file.
+  local cache_file = storage.cache_dir .. session_id .. '.json'
+  local cfg = require('chat.config').config.sessions
+  if vim.uv.fs_stat(cache_file) then
+    if cfg and cfg.trash then
+      local _, err =
+        storage.move_to_trash(session_id, storage.sessions[session_id])
+      if err then
+        log.warn(
+          'failed to move session to trash, deleting instead: ' .. tostring(err)
+        )
+        -- The session is about to be lost for good, so this must not stay in
+        -- the log only.
+        log.notify(
+          'Trash failed (' .. tostring(err) .. '), session deleted permanently.',
+          'WarningMsg'
+        )
+        vim.fn.delete(cache_file)
+      end
+    else
+      vim.fn.delete(cache_file)
+    end
+  end
   storage.sessions[session_id] = nil
 
   -- Clean up associated memories

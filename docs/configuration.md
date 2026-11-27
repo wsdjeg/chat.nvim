@@ -157,11 +157,17 @@ All persistent data (sessions, plans, scheduler, memory, user profiles) is store
 
 | Module         | Config Key              | Derived Path               | Description                        |
 | -------------- | ----------------------- | -------------------------- | ---------------------------------- |
-| Sessions       | —                       | `storage_dir`              | Chat session JSON files            |
+| Sessions       | —                       | `storage_dir .. 'sessions/'` | Chat session JSON files          |
+| Session Trash  | `sessions.trash`        | `storage_dir .. 'sessions-trash/'` | Soft-deleted session JSON files |
 | Plans          | —                       | `storage_dir .. 'plans/'`  | Task plan JSON files               |
 | Scheduler      | —                       | `storage_dir .. 'scheduler/'` | Scheduled task JSON files        |
 | Memory         | `memory.storage_dir`    | `storage_dir .. 'memory/'` | Three-tier memory database         |
 | User Profiles  | `user.storage_dir`      | `storage_dir .. 'users/'`  | User profile markdown files        |
+
+The session trash is a sibling of `sessions/`, never inside it: the loader globs
+`sessions/*.json`, so a nested directory would be re-read as an active session.
+Nothing else in the tree is affected — see
+[Session Trash](#session-trash) for what is and is not protected.
 
 To override a specific module's storage path, set its `storage_dir` to a custom value:
 
@@ -180,6 +186,52 @@ require('chat').setup({
 {: .info }
 
 > If `memory.storage_dir` or `user.storage_dir` is `nil` (the default), they are automatically derived from `storage_dir`. You only need to set them if you want to use a different location for that specific module.
+
+---
+
+## Session Trash
+
+Deleting a session (`/delete`, `:Chat delete`, the picker, or
+`DELETE /session/{id}`) is a **soft delete** by default: the cache file is
+moved from `sessions/` into `sessions-trash/` instead of being unlinked, so an
+accidental delete can be undone.
+
+| Option            | Type    | Default | Description                                                     |
+| ----------------- | ------- | ------- | --------------------------------------------------------------- |
+| `sessions.trash`  | boolean | `true`  | Move deleted sessions into the trash instead of deleting them   |
+
+```lua
+require('chat').setup({
+  sessions = {
+    -- Set false to restore the old hard-delete behaviour.
+    trash = false,
+  },
+})
+```
+
+The trashed payload is the full session JSON plus a `deleted_at` timestamp, so
+the listing can be sorted by deletion time and previewed before restoring.
+
+**Restoring:**
+
+| Way | How |
+| --- | --- |
+| Skill | `/trash` lists deleted sessions, `/restore <id>` restores one and opens it |
+| Picker | `<leader>fx` → `Picker chat_trash`; `<CR>` restores, `<C-d>` purges for good, `<C-t>` opens the raw JSON |
+| Manual | Move the file from `sessions-trash/` back into `sessions/` and remove the `deleted_at` field |
+
+`/restore` keeps the original session id, so it refuses (instead of
+overwriting) when a live session with that id exists again. A session that is
+deleted twice leaves a `~N` suffixed snapshot in the trash
+(`2026-02-14-10-30-00~1.json`); both snapshots restore under the same id.
+
+{: .info }
+
+> The trash only protects the **conversation itself** (the `sessions/*.json`
+> file). Deleting a session still cleans up its memories, scheduled tasks and
+> bridged integrations — those belong to other subsystems and are not
+> restorable. Nothing in the trash is ever purged automatically; use
+> `Picker chat_trash` with `<C-d>` to remove files for good.
 
 ---
 

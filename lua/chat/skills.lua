@@ -305,11 +305,145 @@ M._builtin_delete = {
 
     -- dispatch_skill drops the output for a session that no longer exists, so
     -- this receipt only reaches the local popup in practice.
-    return M.notify(
-      ctx,
-      next_id and ('Session deleted, switched to: ' .. next_id)
-        or 'Session deleted'
-    )
+    local deleted = next_id and ('Session deleted, switched to: ' .. next_id)
+      or 'Session deleted'
+    local config = require('chat.config')
+    if config.config.sessions and config.config.sessions.trash then
+      deleted = deleted .. ' (restorable with /restore)'
+    end
+    return M.notify(ctx, deleted)
+  end,
+}
+
+--- Format a trash timestamp with the configured strftime.
+--- @param ts integer|nil Unix timestamp
+--- @return string
+local function format_deleted_at(ts)
+  if not ts or ts == 0 then
+    return 'unknown'
+  end
+  local config = require('chat.config')
+  return os.date(config.config.strftime, ts)
+end
+
+--- /trash - List sessions in the trash
+M._builtin_trash = {
+  name = 'trash',
+  description = 'List deleted sessions that can still be restored',
+  builtin = true,
+  handler = function(_, ctx)
+    local sessions = require('chat.sessions')
+    local entries = sessions.list_trash()
+    if #entries == 0 then
+      return M.notify(ctx, 'Trash is empty')
+    end
+
+    -- State-type receipt, not session content: a trash listing is a UI
+    -- affordance. Appending it would put it into the LLM history and forward
+    -- it to every bridged platform.
+    local shown = math.min(#entries, 10)
+    local lines = { string.format('Trash: %d session(s)', #entries) }
+    for i = 1, shown do
+      local entry = entries[i]
+      local title = entry.title
+      if not title or title == '' then
+        title = entry.preview or '(empty)'
+      end
+      title = title:gsub('[\r\n]+', ' ')
+      if vim.fn.strchars(title) > 40 then
+        title = vim.fn.strcharpart(title, 0, 39) .. '…'
+      end
+      table.insert(
+        lines,
+        string.format(
+          '- %s  %s  %s (%d msgs)',
+          entry.id,
+          format_deleted_at(entry.deleted_at),
+          title,
+          entry.message_count
+        )
+      )
+    end
+    if #entries > shown then
+      table.insert(lines, string.format('... and %d more', #entries - shown))
+    end
+    table.insert(lines, 'Restore with /restore <id>, purge with Picker chat_trash.')
+    return M.notify(ctx, lines)
+  end,
+}
+
+--- /restore [id] - Restore a session from the trash
+M._builtin_restore = {
+  name = 'restore',
+  description = 'Restore a deleted session (e.g. /restore 2024-01-15-10-30-00)',
+  builtin = true,
+  complete = function()
+    local ids = {}
+    for _, entry in ipairs(require('chat.sessions').list_trash()) do
+      table.insert(ids, entry.id)
+    end
+    return ids
+  end,
+  handler = function(args, ctx)
+    local sessions = require('chat.sessions')
+    local windows = require('chat.windows')
+
+    --- Restore one trashed session and switch to it locally.
+    --- @param id_or_path string Session id or trash file path
+    --- @return nil Nothing appended to the session, for every origin
+    local function apply(id_or_path)
+      local id, err = sessions.restore(id_or_path)
+      if not id then
+        return M.notify(
+          ctx,
+          err or ('Could not restore: ' .. id_or_path),
+          'WarningMsg'
+        )
+      end
+      -- Switching windows is a local UI action; a remote caller learns the
+      -- restored id from the receipt (or is silent, see M.notify).
+      if is_local(ctx) then
+        windows.open({ session = id })
+      end
+      return M.notify(ctx, 'Session restored: ' .. id)
+    end
+
+    if args and #args > 0 then
+      return apply(args)
+    end
+
+    if not is_local(ctx) then
+      -- No Neovim UI to ask, and a usage string would land in the message
+      -- list: silent, same as the other argument-less remote branches.
+      return nil
+    end
+
+    local entries = sessions.list_trash()
+    if #entries == 0 then
+      return M.notify(ctx, 'Trash is empty', 'WarningMsg')
+    end
+
+    vim.ui.select(entries, {
+      prompt = 'Restore session: ',
+      format_item = function(entry)
+        local title = entry.title
+        if not title or title == '' then
+          title = entry.preview or '(empty)'
+        end
+        return string.format(
+          '%s  %s  %s',
+          entry.id,
+          format_deleted_at(entry.deleted_at),
+          title
+        )
+      end,
+    }, function(choice)
+      -- The path, not the id: a re-deleted session leaves `id-1.json` behind,
+      -- and restoring by id would silently pick the newest snapshot instead.
+      if choice then
+        apply(choice.path)
+      end
+    end)
   end,
 }
 
@@ -636,6 +770,8 @@ function M.init()
     'clear',
     'new',
     'delete',
+    'trash',
+    'restore',
     'model',
     'provider',
     'cwd',

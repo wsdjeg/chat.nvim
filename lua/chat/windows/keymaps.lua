@@ -72,6 +72,14 @@ function M.setup_prompt_keymaps(buf, opts)
       '<cmd>Picker chat_model<Cr>',
       { noremap = true, silent = true }
     )
+    -- Deleted sessions: /trash lists them, this restores or purges one.
+    vim.api.nvim_buf_set_keymap(
+      buf,
+      'n',
+      '<leader>fx',
+      '<cmd>Picker chat_trash<Cr>',
+      { noremap = true, silent = true }
+    )
   end
 
   -- New session
