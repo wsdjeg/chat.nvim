@@ -26,6 +26,8 @@ Weixin integration for personal WeChat accounts via QR code login.
 - **Auto Credential Caching**: Login credentials saved locally
 - **Auto Reconnect**: Automatically reconnects on restart
 - **Long Message Support**: Auto-chunking for messages > 2,048 characters
+- **Voice Messages**: Answered from WeChat's speech-to-text transcript; falls
+  back to a `[voice]` placeholder when no transcript is available
 
 ---
 
@@ -81,11 +83,56 @@ Subsequent restarts will auto-connect using saved credentials.
 
 ---
 
+## Voice Messages
+
+The plugin does **not** run speech recognition itself. It uses the transcript
+that WeChat's server-side ASR attaches to the `voice_item`:
+
+```json
+{
+  "type": 3,
+  "voice_item": {
+    "text": "我下午三点到。",
+    "encode_type": 7,
+    "playtime": 1426,
+    "media": {
+      "encrypt_query_param": "...",
+      "aes_key": "..."
+    }
+  }
+}
+```
+
+Behaviour:
+
+| `voice_item.text` | What the model receives |
+| ----------------- | ----------------------- |
+| non-empty         | the transcript as-is    |
+| empty / missing   | `[voice]` placeholder   |
+
+The placeholder keeps the message deliverable. Without it the item contributes
+no text, the inbound message is dropped, and the bot silently ignores the voice
+note.
+
+{: .note }
+
+> `encode_type` / `playtime` / `sample_rate` and the CDN media reference
+> (`media.encrypt_query_param`, `media.aes_key`, `media.full_url`) are parsed
+> and kept on the item, so a downstream ASR step can be added later.
+
+---
+
 ## Technical Details
 
 - **API**: OpenClaw WeChat Gateway
 - **Authentication**: QR Code Login (auto-refresh)
 - **Message Limit**: 2,048 characters (auto-chunking)
+- **Media Parsing**: CDN references are read from `<type>_item.media`
+  (`encrypt_query_param`, `aes_key`, `full_url`); legacy payloads that put
+  these fields directly on the sub-item are still accepted. Inbound images
+  prefer the hex `image_item.aeskey` when present.
+- **Voice**: transcribed by WeChat; `[voice]` placeholder when the transcript
+  is empty
 - **Send Retry**: failed messages are retried once; a second failure is logged as error
 - **State Persistence**: `{storage_dir}/integration/weixin.json`
 - **Polling**: Long-poll every 3 seconds
@@ -93,6 +140,38 @@ Subsequent restarts will auto-connect using saved credentials.
 ---
 
 ## Troubleshooting
+
+### Voice Message Gets No Reply
+
+**Symptom**: Text messages are answered, voice messages are not.
+
+**Cause**: WeChat returned an empty `voice_item.text`. The gateway only fills
+the transcript when its own ASR succeeds; short notes, background noise, or
+voice-to-text disabled on the sender's client all produce `""`.
+
+**Check the raw payload** in the debug log — look for
+`parse raw message: ...` and inspect the `voice_item`:
+
+```json
+"voice_item": { "text": "", "encode_type": 7, "playtime": 1426, ... }
+```
+
+**Solution**:
+
+1. Upgrade to a version that emits the `[voice]` placeholder — the message is
+   then still delivered to the model.
+2. Alternatively send the note again as text; the transcript is produced by
+   WeChat, not by this plugin, so it cannot be forced from the Neovim side.
+
+### Voice Note Transcription Missing
+
+**Symptom**: The bot sees `[voice]` instead of the spoken content.
+
+**Cause**: WeChat did not transcribe the audio for this message.
+
+**Solution**: There is no plugin-side workaround yet. Running a real ASR step
+would require downloading and decrypting the audio (AES-128-ECB over the CDN
+media reference), which is not implemented.
 
 ### QR Code Not Displaying
 
@@ -144,3 +223,4 @@ Subsequent restarts will auto-connect using saved credentials.
 - [Discord Integration](./discord/) - Setup Discord bot
 - [Telegram Integration](./telegram/) - Setup Telegram bot
 - [IM Integration Overview](./) - All IM integrations
+

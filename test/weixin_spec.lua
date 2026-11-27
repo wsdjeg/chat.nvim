@@ -255,37 +255,98 @@ function TestWeixinMessage:test_parse_item_types()
   lu.assertEquals(text.type, 'text')
   lu.assertEquals(text.text, 'hi')
 
+  -- Media fields live in the nested `media` object in real payloads
   local img = self.Msg.parse_item({
     type = Types.MessageItemType.IMAGE,
-    image_item = { aes_key = 'a', encrypt_query_param = 'q' },
+    image_item = {
+      media = { aes_key = 'a', encrypt_query_param = 'q' },
+    },
   })
   lu.assertEquals(img.type, 'image')
   lu.assertEquals(img.aes_key, 'a')
+  lu.assertEquals(img.encrypt_query_param, 'q')
 
   local voice = self.Msg.parse_item({
     type = Types.MessageItemType.VOICE,
-    voice_item = { aes_key = 'v', text = 'transcript' },
+    voice_item = {
+      media = {
+        aes_key = 'v',
+        encrypt_query_param = 'vq',
+        full_url = 'https://cdn.example/v',
+      },
+      text = 'transcript',
+      encode_type = 7,
+      sample_rate = 16000,
+      playtime = 1426,
+    },
   })
   lu.assertEquals(voice.type, 'voice')
   lu.assertEquals(voice.text, 'transcript')
+  lu.assertEquals(voice.aes_key, 'v')
+  lu.assertEquals(voice.encrypt_query_param, 'vq')
+  lu.assertEquals(voice.url, 'https://cdn.example/v')
+  lu.assertEquals(voice.encode_type, 7)
+  lu.assertEquals(voice.sample_rate, 16000)
+  lu.assertEquals(voice.playtime, 1426)
 
   local file = self.Msg.parse_item({
     type = Types.MessageItemType.FILE,
-    file_item = { aes_key = 'f', encrypt_query_param = 'fq' },
+    file_item = {
+      media = { aes_key = 'f', encrypt_query_param = 'fq' },
+      file_name = 'a.pdf',
+    },
   })
   lu.assertEquals(file.type, 'file')
+  lu.assertEquals(file.aes_key, 'f')
+  lu.assertEquals(file.name, 'a.pdf')
 
   local video = self.Msg.parse_item({
     type = Types.MessageItemType.VIDEO,
-    video_item = { aes_key = 'vid' },
+    video_item = {
+      media = { aes_key = 'vid' },
+      play_length = 18320,
+    },
   })
   lu.assertEquals(video.type, 'video')
+  lu.assertEquals(video.aes_key, 'vid')
+  lu.assertEquals(video.playtime, 18320)
 
   lu.assertNil(self.Msg.parse_item({ type = 999 }))
   lu.assertNil(self.Msg.parse_item(nil))
   -- missing sub_item accessors
   lu.assertEquals(self.Msg.parse_item({ type = Types.MessageItemType.TEXT }).text, '')
   lu.assertNil(self.Msg.parse_item({ type = Types.MessageItemType.IMAGE }).aes_key)
+end
+
+function TestWeixinMessage:test_parse_item_legacy_flat_media()
+  -- Older payloads put the media fields directly on the `*_item` sub-structure.
+  local Types = require('chat.integrations.weixin.types')
+  local img = self.Msg.parse_item({
+    type = Types.MessageItemType.IMAGE,
+    image_item = { aes_key = 'a', encrypt_query_param = 'q' },
+  })
+  lu.assertEquals(img.aes_key, 'a')
+  lu.assertEquals(img.encrypt_query_param, 'q')
+
+  local voice = self.Msg.parse_item({
+    type = Types.MessageItemType.VOICE,
+    voice_item = { aes_key = 'v', text = 'transcript' },
+  })
+  lu.assertEquals(voice.aes_key, 'v')
+  lu.assertEquals(voice.text, 'transcript')
+end
+
+function TestWeixinMessage:test_parse_item_image_hex_aeskey()
+  -- Inbound images may carry `aeskey` (hex form) which wins over media.aes_key
+  local Types = require('chat.integrations.weixin.types')
+  local img = self.Msg.parse_item({
+    type = Types.MessageItemType.IMAGE,
+    image_item = {
+      media = { aes_key = 'from-media' },
+      aeskey = 'hex-key',
+    },
+  })
+  lu.assertEquals(img.aes_key, 'hex-key')
 end
 
 function TestWeixinMessage:test_parse_full()
@@ -315,11 +376,35 @@ function TestWeixinMessage:test_get_text()
   local text = self.Msg.get_text({
     items = {
       { type = 'text', text = 'a' },
-      { type = 'voice', text = 'b' },
+      { type = 'voice', text = 'b' }, -- transcribed
       { type = 'image', aes_key = 'x' }, -- no text contribution
     },
   })
   lu.assertEquals(text, 'ab')
+end
+
+function TestWeixinMessage:test_get_text_voice_without_transcript()
+  -- WeChat leaves voice_item.text empty when its ASR fails; the message must
+  -- still reach the model instead of being dropped by extract_inbound().
+  local text = self.Msg.get_text({
+    items = {
+      { type = 'voice', text = '', encode_type = 7, playtime = 1426 },
+    },
+  })
+  lu.assertEquals(text, '[voice]')
+
+  -- Mixed with text: placeholder is appended in place
+  text = self.Msg.get_text({
+    items = {
+      { type = 'text', text = 'look:' },
+      { type = 'voice', text = '', encode_type = 7 },
+      { type = 'text', text = ' end' },
+    },
+  })
+  lu.assertEquals(text, 'look:[voice] end')
+
+  -- Missing `text` key entirely behaves the same
+  lu.assertEquals(self.Msg.get_text({ items = { { type = 'voice' } } }), '[voice]')
 end
 
 function TestWeixinMessage:test_should_process()
@@ -365,6 +450,52 @@ function TestWeixinMessage:test_extract_inbound()
   lu.assertNil(context_tokens['u3'])
   lu.assertEquals(self.Msg.extract_inbound({}, context_tokens), {})
   lu.assertEquals(self.Msg.extract_inbound(nil, context_tokens), {})
+end
+
+function TestWeixinMessage:test_extract_inbound_voice()
+  local Types = require('chat.integrations.weixin.types')
+  local context_tokens = {}
+  local inbound = self.Msg.extract_inbound({
+    {
+      message_id = 'v1',
+      from_user_id = 'u1',
+      context_token = 'tok1',
+      message_type = Types.MessageType.USER,
+      item_list = {
+        {
+          type = Types.MessageItemType.VOICE,
+          voice_item = {
+            text = '我下午三点到。',
+            media = { aes_key = 'k', encrypt_query_param = 'p' },
+            encode_type = 6,
+            playtime = 4210,
+          },
+        },
+      },
+    },
+    {
+      -- Voice without transcript must still be delivered
+      message_id = 'v2',
+      from_user_id = 'u2',
+      context_token = 'tok2',
+      message_type = Types.MessageType.USER,
+      item_list = {
+        {
+          type = Types.MessageItemType.VOICE,
+          voice_item = {
+            text = '',
+            media = { aes_key = 'k2', encrypt_query_param = 'p2' },
+            encode_type = 7,
+            playtime = 1426,
+          },
+        },
+      },
+    },
+  }, context_tokens)
+  lu.assertEquals(#inbound, 2)
+  lu.assertEquals(inbound[1].content, '我下午三点到。')
+  lu.assertEquals(inbound[2].content, '[voice]')
+  lu.assertEquals(context_tokens['u2'], 'tok2')
 end
 
 -- ═════════════════════ Weixin integration flow ═════════════════════
@@ -437,6 +568,52 @@ function TestWeixinIntegration:test_poll_delivers_message()
 
   lu.assertEquals(#received, 1)
   lu.assertEquals(received[1].content, 'hello weixin')
+  lu.assertEquals(received[1].user_id, 'wx-user-1')
+end
+
+function TestWeixinIntegration:test_poll_delivers_voice_without_transcript()
+  -- Regression: a VOICE item whose voice_item.text is empty used to be dropped
+  -- by extract_inbound(), so the bot never answered voice messages.
+  local Types = require('chat.integrations.weixin.types')
+  local received = {}
+  self.wx.connect(function(msg)
+    received[#received + 1] = msg
+  end)
+  wait(300)
+  local poll_id = find_job('getupdates')
+  lu.assertNotNil(poll_id, 'long-poll started')
+
+  local voice_msg = {
+    message_id = 'voice-1',
+    from_user_id = 'wx-user-1',
+    to_user_id = 'badbd628a568@im.bot',
+    context_token = 'ctx-voice',
+    message_type = Types.MessageType.USER,
+    message_state = Types.MessageState.FINISH,
+    item_list = {
+      {
+        msg_id = 'v1:3000711681606249178',
+        type = Types.MessageItemType.VOICE,
+        voice_item = {
+          text = '',
+          bits_per_sample = 16,
+          encode_type = 7,
+          sample_rate = 16000,
+          playtime = 1426,
+          media = {
+            encrypt_query_param = 'param',
+            full_url = 'https://novac2c.cdn.weixin.qq.com/c2c/download?x=1',
+            aes_key = 'NzkzNjI2YTE5MDY4M2I2MDllNDUwYTVkOTZjOTQwOTE=',
+          },
+        },
+      },
+    },
+  }
+  feed_update(poll_id, { voice_msg }, 'buf-voice')
+  wait(300)
+
+  lu.assertEquals(#received, 1, 'voice message reaches the model')
+  lu.assertEquals(received[1].content, '[voice]')
   lu.assertEquals(received[1].user_id, 'wx-user-1')
 end
 

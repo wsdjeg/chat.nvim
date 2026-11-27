@@ -5,6 +5,36 @@ local M = {}
 local log = require('chat.log')
 local Types = require('chat.integrations.weixin.types')
 
+--- Placeholder used when a VOICE item carries no server-side transcript.
+---
+--- WeChat only fills `voice_item.text` when its own ASR succeeded. When it
+--- fails (or the sender disabled voice-to-text) `text` is an empty string and
+--- the item used to be dropped silently by `get_text()`, so the bot never
+--- answered a voice message at all. Other integrations use the same
+--- convention (`[voice]` for telegram, `[media]`/`[audio]` for lark), so the
+--- model at least knows something was sent.
+local VOICE_PLACEHOLDER = '[voice]'
+
+--------------------------------------------------
+-- Resolve the CDN media reference of an item
+--------------------------------------------------
+--- Media lives in a nested `media` object for every item type:
+---   { "voice_item": { "media": { "encrypt_query_param": ..., "aes_key": ... } } }
+--- Older payloads (and the original unit tests) put the fields directly on
+--- the sub-item, so both shapes are accepted.
+--- @param sub table|nil the `*_item` sub-structure
+--- @return table media reference (empty table when absent)
+local function media_of(sub)
+  if not sub then
+    return {}
+  end
+  local media = sub.media
+  if type(media) == 'table' then
+    return media
+  end
+  return sub
+end
+
 --------------------------------------------------
 -- Parse message item
 --------------------------------------------------
@@ -21,33 +51,50 @@ function M.parse_item(item)
       text = item.text_item and item.text_item.text or '',
     }
   elseif msg_type == Types.MessageItemType.IMAGE then
+    local image = item.image_item or {}
+    local media = media_of(image)
     return {
       type = 'image',
-      aes_key = item.image_item and item.image_item.aes_key,
-      encrypt_query_param = item.image_item
-        and item.image_item.encrypt_query_param,
+      -- `aeskey` is the 32-char hex form used by some inbound images and
+      -- takes precedence over the media reference when both are present.
+      aes_key = image.aeskey or media.aes_key,
+      encrypt_query_param = media.encrypt_query_param,
     }
   elseif msg_type == Types.MessageItemType.VOICE then
+    local voice = item.voice_item or {}
+    local media = media_of(voice)
+    local text = voice.text
     return {
       type = 'voice',
-      aes_key = item.voice_item and item.voice_item.aes_key,
-      encrypt_query_param = item.voice_item
-        and item.voice_item.encrypt_query_param,
-      text = item.voice_item and item.voice_item.text, -- Voice-to-text
+      aes_key = media.aes_key,
+      encrypt_query_param = media.encrypt_query_param,
+      -- Plain download URL, usable without the CDN base URL being rebuilt.
+      url = media.full_url,
+      -- Voice-to-text: empty when WeChat's own ASR did not produce one.
+      text = text,
+      encode_type = voice.encode_type,
+      sample_rate = voice.sample_rate,
+      playtime = voice.playtime,
     }
   elseif msg_type == Types.MessageItemType.FILE then
+    local file = item.file_item or {}
+    local media = media_of(file)
     return {
       type = 'file',
-      aes_key = item.file_item and item.file_item.aes_key,
-      encrypt_query_param = item.file_item
-        and item.file_item.encrypt_query_param,
+      aes_key = media.aes_key,
+      encrypt_query_param = media.encrypt_query_param,
+      url = media.full_url,
+      name = file.file_name,
     }
   elseif msg_type == Types.MessageItemType.VIDEO then
+    local video = item.video_item or {}
+    local media = media_of(video)
     return {
       type = 'video',
-      aes_key = item.video_item and item.video_item.aes_key,
-      encrypt_query_param = item.video_item
-        and item.video_item.encrypt_query_param,
+      aes_key = media.aes_key,
+      encrypt_query_param = media.encrypt_query_param,
+      url = media.full_url,
+      playtime = video.play_length,
     }
   end
 
@@ -95,6 +142,8 @@ end
 --------------------------------------------------
 -- Extract text from parsed message
 --------------------------------------------------
+---@param parsed_msg table parsed message
+---@return string text to hand to the model, '' when nothing is readable
 function M.get_text(parsed_msg)
   if not parsed_msg or not parsed_msg.items then
     return ''
@@ -103,10 +152,24 @@ function M.get_text(parsed_msg)
   local text = ''
   for _, item in ipairs(parsed_msg.items) do
     if item.type == 'text' then
-      text = text .. item.text
-    elseif item.type == 'voice' and item.text then
-      -- Voice-to-text
-      text = text .. item.text
+      text = text .. (item.text or '')
+    elseif item.type == 'voice' then
+      -- Voice-to-text. When WeChat did not transcribe the audio, fall back to
+      -- a placeholder instead of contributing nothing: an empty string makes
+      -- extract_inbound() drop the message, so a voice note got no reply.
+      if item.text and item.text ~= '' then
+        text = text .. item.text
+      else
+        log.debug(
+          string.format(
+            '[Weixin] Voice item without transcript (encode_type=%s, '
+              .. 'playtime=%s), using placeholder',
+            tostring(item.encode_type),
+            tostring(item.playtime)
+          )
+        )
+        text = text .. VOICE_PLACEHOLDER
+      end
     end
   end
 
@@ -193,4 +256,5 @@ function M.extract_inbound(msgs, context_tokens)
 end
 
 return M
+
 
