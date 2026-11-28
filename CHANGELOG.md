@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.13.0](https://github.com/wsdjeg/chat.nvim/compare/v1.12.0...v1.13.0) (2026-11-28)
+
+
+### Features
+
+* **config:** add icons table for the terminal UI ([a1d76e1](https://github.com/wsdjeg/chat.nvim/commit/a1d76e14118b8becc5bc1a297bbdb9010c1c8a9a))
+* **http:** expose the session trash over HTTP ([13f8517](https://github.com/wsdjeg/chat.nvim/commit/13f8517690976fe7e118a6362499d58ddddd3466))
+* **integrations:** show session cwd in /session binding confirmation ([c7242b1](https://github.com/wsdjeg/chat.nvim/commit/c7242b10092328f5bebbe1bc631b3984c3187851))
+* **picker:** keep chat_trash open while purging deleted sessions ([e7ae375](https://github.com/wsdjeg/chat.nvim/commit/e7ae375ef51f0d1d7496406afb2a1116379349f9))
+* **queue:** carry message origin through the queue ([f726fe7](https://github.com/wsdjeg/chat.nvim/commit/f726fe7ad72a5a0bbe9c1243f6fed12de663de92))
+* **sessions:** soft-delete sessions into a restorable trash ([da5afd4](https://github.com/wsdjeg/chat.nvim/commit/da5afd4ebac2d140c9684e585ba257c612c14135))
+* **tools:** cap get_history result by byte budget ([2f50660](https://github.com/wsdjeg/chat.nvim/commit/2f50660c793d165f8159e4699601fecca0dc3cb9))
+* **tools:** classify get_history records and unify response shape ([f1ba472](https://github.com/wsdjeg/chat.nvim/commit/f1ba4729660816753fc79a04429b28d9d359ef98))
+* **tools:** complete get_history result semantics ([bd02acc](https://github.com/wsdjeg/chat.nvim/commit/bd02acc2866f12c50c9af11e249b30bed27ef580))
+* **tools:** make get_history byte budget configurable ([82a2c25](https://github.com/wsdjeg/chat.nvim/commit/82a2c25a99f9842f8a4ab9d1c3cd599ebb12ac4f))
+* **windows:** complete skill names and skill args in the prompt window ([28bfc97](https://github.com/wsdjeg/chat.nvim/commit/28bfc9789c815221b313e413d890348ff2a93d32))
+
+
+### Bug Fixes
+
+* **complete:** reuse cached context in the second completefunc phase ([04d4466](https://github.com/wsdjeg/chat.nvim/commit/04d4466c4a83001f0437fb675bc0544f7086a6e4))
+* **context:** make truncation notice consistent and page backwards ([5623ff1](https://github.com/wsdjeg/chat.nvim/commit/5623ff1ce687c2ff8b56c324c44ace77cd1d0285))
+* **memory:** close implementation gaps in the three-tier memory system ([d7a1329](https://github.com/wsdjeg/chat.nvim/commit/d7a1329453d90c9d38d101c2f5c0037a1e05572f))
+* **memory:** close remaining similarity, merge, timer and load-order gaps ([27ba5f4](https://github.com/wsdjeg/chat.nvim/commit/27ba5f4507e8df269dd7a09f85c8fec7c22fd481))
+* **protocol:** support openrouter reasoning field and ignore sse comments ([7e5b472](https://github.com/wsdjeg/chat.nvim/commit/7e5b4729f4fa7e021214c237044cc9879c06f9cc))
+* **providers:** fetch ollama models asynchronously to avoid blocking ([8e77132](https://github.com/wsdjeg/chat.nvim/commit/8e77132577edca7a35d0891ffad4c1d1022be0c7))
+* **provider:** validate provider names and report the model after a switch ([6f780b6](https://github.com/wsdjeg/chat.nvim/commit/6f780b69b3b3d75466a97a011d4b546de2785c14))
+* **skills:** never append state receipts to the message list ([53ba596](https://github.com/wsdjeg/chat.nvim/commit/53ba59653f247d72639f2c5cdaa8dfc8211e14cd))
+* **skills:** redraw result title on /title and resolve /cwd against session cwd ([847bf4b](https://github.com/wsdjeg/chat.nvim/commit/847bf4bae065d8a7897d0ed0e57a7b7b14eb97c7))
+* **skills:** route receipts by origin so remote callers get feedback ([6c57eae](https://github.com/wsdjeg/chat.nvim/commit/6c57eae81c21440e6b8ef8a6511d8eca8f942b62))
+* **skills:** use a single output channel per skill ([1bf8a91](https://github.com/wsdjeg/chat.nvim/commit/1bf8a9111f7bd35087f92f2c2e9e8cff6a503a2a))
+* **weixin:** deliver voice messages when WeChat returns no transcript ([f4c117f](https://github.com/wsdjeg/chat.nvim/commit/f4c117fd7a67ce213c972bd015c4cb3aed32de8d))
+
+
+### Code Refactoring
+
+* **windows:** drop :Chat complete tracing scaffolding ([2006976](https://github.com/wsdjeg/chat.nvim/commit/2006976ffc574a4078cf237278750918abb960f0))
+
+
+### Documentation
+
+* **agents:** forbid keystroke simulation in headless tests ([9b3b1c5](https://github.com/wsdjeg/chat.nvim/commit/9b3b1c542869109bcfa3ef595050841b799de944))
+* document truncation paging and unbridge argument forms ([bb609df](https://github.com/wsdjeg/chat.nvim/commit/bb609dfa61753d57689ba11791793252a5416e8e))
+* **ideas:** drop fully shipped ideas, mark partial ones ([e750de7](https://github.com/wsdjeg/chat.nvim/commit/e750de72a8261d386e40ab34ef53736ef1f2dbed))
+
+
+### Tests
+
+* add wall-clock profile mode and cache test deps ([e232aa5](https://github.com/wsdjeg/chat.nvim/commit/e232aa521bf6c8f9cc22bd13dcbf7efebeacc560))
+
 ## [1.12.0](https://github.com/wsdjeg/chat.nvim/compare/v1.11.1...v1.12.0) (2026-11-15)
 
 
