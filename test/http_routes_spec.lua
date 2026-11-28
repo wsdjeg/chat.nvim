@@ -108,6 +108,10 @@ function TestHTTPRoutes:tearDown()
   package.loaded['logger.base'] = nil
   config.config.allowed_path = vim.fn.getcwd()
   vim.fn.delete(test_cache_dir, 'rf')
+  -- The trash is a *sibling* of the cache directory, so deleting the cache
+  -- directory leaves it behind. Clean both.
+  local storage = require('chat.sessions.storage')
+  vim.fn.delete(storage.trash_dir, 'rf')
   if test_storage_dir and vim.fn.isdirectory(test_storage_dir) == 1 then
     vim.fn.delete(test_storage_dir, 'rf')
   end
@@ -1451,5 +1455,155 @@ function TestHTTPRoutes:test_usage_stats_requires_auth()
   routes.handle_request(c, 'GET', '/usage-stats', {}, '', 0)
   lu.assertTrue(#c.written > 0)
   lu.assertStrContains(c.written[1], '401')
+end
+
+-- ─── Trash ──────────────────────────────────────────────
+
+--- Create a session, persist it, then soft-delete it into the trash.
+--- @param id string Session id
+--- @return string id
+local function make_trashed_session(id)
+  sessions.new_with_id(id)
+  sessions.append_message(id, {
+    role = 'user',
+    content = 'hello from ' .. id,
+    created = os.time(),
+  })
+  sessions.write_cache(id)
+  sessions.delete(id)
+  return id
+end
+
+function TestHTTPRoutes:test_list_trash_empty()
+  local _, status, body = req('GET', '/trash')
+  lu.assertEquals(status, 200)
+  lu.assertEquals({}, vim.json.decode(body))
+end
+
+function TestHTTPRoutes:test_list_trash_after_delete()
+  local id = make_trashed_session('2020-01-01-00-00-21')
+
+  local _, status, body = req('GET', '/trash')
+  lu.assertEquals(status, 200)
+  local entries = vim.json.decode(body)
+  lu.assertEquals(1, #entries)
+  lu.assertEquals(id, entries[1].id)
+  lu.assertEquals(id .. '.json', entries[1].file)
+  lu.assertEquals(1, entries[1].message_count)
+  lu.assertStrContains(entries[1].preview, 'hello from ' .. id)
+  lu.assertNotNil(entries[1].deleted_at)
+end
+
+function TestHTTPRoutes:test_list_trash_never_exposes_absolute_path()
+  -- The trash entry's `path` is an absolute path on the server host. The API
+  -- view must not ship it: callers address entries by id or file name.
+  local id = make_trashed_session('2020-01-01-00-00-22')
+
+  local _, status, body = req('GET', '/trash')
+  lu.assertEquals(status, 200)
+
+  local storage = require('chat.sessions.storage')
+  lu.assertNil(body:find(storage.trash_dir, 1, true))
+
+  local entries = vim.json.decode(body)
+  lu.assertNil(entries[1].path)
+  lu.assertEquals(id .. '.json', entries[1].file)
+end
+
+function TestHTTPRoutes:test_restore_trash_by_id()
+  local id = make_trashed_session('2020-01-01-00-00-23')
+
+  local _, status, body = req('POST', '/trash/' .. id .. '/restore')
+  lu.assertEquals(status, 200)
+  lu.assertEquals(id, vim.json.decode(body).id)
+
+  -- Back in the active list, and no longer listed as deleted.
+  lu.assertTrue(sessions.exists(id))
+  local _, status_sessions = req('GET', '/sessions/' .. id)
+  lu.assertEquals(status_sessions, 200)
+  local _, status_trash, body_trash = req('GET', '/trash')
+  lu.assertEquals(status_trash, 200)
+  lu.assertEquals({}, vim.json.decode(body_trash))
+end
+
+function TestHTTPRoutes:test_restore_trash_by_file_name()
+  -- A session deleted twice leaves `<id>~1.json` behind. Both snapshots share
+  -- the same id, so only the file name addresses the newer one.
+  local id = make_trashed_session('2020-01-01-00-00-24')
+  make_trashed_session(id)
+
+  local _, status, body = req('GET', '/trash')
+  lu.assertEquals(status, 200)
+  local entries = vim.json.decode(body)
+  lu.assertEquals(2, #entries)
+
+  local files = {}
+  for _, entry in ipairs(entries) do
+    files[entry.file] = true
+    lu.assertEquals(id, entry.id)
+  end
+  lu.assertTrue(files[id .. '.json'])
+  lu.assertTrue(files[id .. '~1.json'])
+
+  local _, restore_status = req('POST', '/trash/' .. id .. '~1.json/restore')
+  lu.assertEquals(restore_status, 200)
+  lu.assertTrue(sessions.exists(id))
+end
+
+function TestHTTPRoutes:test_restore_trash_percent_encoded_target()
+  -- `~` is legal in a path, but a client may still percent-encode it; the
+  -- handler decodes the segment before handing it to storage.
+  local id = make_trashed_session('2020-01-01-00-00-25')
+  make_trashed_session(id)
+
+  local _, status = req('POST', '/trash/' .. id .. '%7E1.json/restore')
+  lu.assertEquals(status, 200)
+end
+
+function TestHTTPRoutes:test_restore_trash_missing_404()
+  local _, status, body = req('POST', '/trash/no-such-session/restore')
+  lu.assertEquals(status, 404)
+  lu.assertStrContains(body, 'not found in trash')
+end
+
+function TestHTTPRoutes:test_restore_trash_conflict_409()
+  local id = make_trashed_session('2020-01-01-00-00-26')
+  -- A live session with the same id exists again: restoring must not overwrite
+  -- it, and the caller has to be told to delete that session first.
+  sessions.new_with_id(id)
+
+  local _, status, body = req('POST', '/trash/' .. id .. '/restore')
+  lu.assertEquals(status, 409)
+  lu.assertStrContains(body, 'already exists')
+end
+
+function TestHTTPRoutes:test_purge_trash()
+  local id = make_trashed_session('2020-01-01-00-00-27')
+  local entry = sessions.list_trash()[1]
+
+  local _, status = req('DELETE', '/trash/' .. id .. '.json')
+  lu.assertEquals(status, 204)
+
+  lu.assertEquals(0, vim.fn.filereadable(entry.path))
+  lu.assertEquals({}, sessions.list_trash())
+end
+
+function TestHTTPRoutes:test_purge_trash_missing_404()
+  local _, status, body = req('DELETE', '/trash/no-such-session')
+  lu.assertEquals(status, 404)
+  lu.assertStrContains(body, 'not found in trash')
+end
+
+function TestHTTPRoutes:test_trash_endpoints_require_auth()
+  for _, case in ipairs({
+    { 'GET', '/trash' },
+    { 'POST', '/trash/x/restore' },
+    { 'DELETE', '/trash/x' },
+  }) do
+    local c = make_client()
+    routes.handle_request(c, case[1], case[2], {}, '', 0)
+    lu.assertTrue(#c.written > 0)
+    lu.assertStrContains(c.written[1], '401')
+  end
 end
 

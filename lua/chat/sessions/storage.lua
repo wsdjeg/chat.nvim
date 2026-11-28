@@ -229,12 +229,18 @@ local function resolve_trash_path(id_or_path)
 
   -- A full path (or anything ending in .json) is taken as-is. Session ids are
   -- timestamp strings (`YYYY-MM-DD-HH-MM-SS`) and never contain a separator.
-  local looks_like_path = id_or_path:sub(-5) == '.json'
-    or id_or_path:find('/', 1, true)
+  local has_separator = id_or_path:find('/', 1, true)
     or id_or_path:find('\\', 1, true)
+  local looks_like_path = id_or_path:sub(-5) == '.json' or has_separator
   if looks_like_path then
-    if vim.uv.fs_stat(id_or_path) then
-      return id_or_path
+    -- A bare file name (no separator) is an entry as `list_trash()` reports
+    -- it, e.g. `2026-02-14-10-30-00~1.json`. Callers that only ever see the
+    -- name -- the HTTP API, a script that lists the directory -- must not have
+    -- to rebuild the absolute path, which differs per host. Resolving against
+    -- `trash_dir` keeps the lookup inside the trash either way.
+    local path = has_separator and id_or_path or (M.trash_dir .. id_or_path)
+    if vim.uv.fs_stat(path) then
+      return path
     end
     return nil, 'trash file not found: ' .. id_or_path
   end

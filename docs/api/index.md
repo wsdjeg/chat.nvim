@@ -38,7 +38,10 @@ chat.nvim offers HTTP API for external applications to interact with your chat s
 | `/sessions`           | GET    | Get session list with details       |
 | `/sessions/{id}`      | GET    | Get a single session's details      |
 | `/session/new`        | POST   | Create a new session                |
-| `/session/{id}`       | DELETE | Delete a session                    |
+| `/session/{id}`       | DELETE | Delete a session (soft, into trash) |
+| `/trash`              | GET    | List soft-deleted sessions          |
+| `/trash/{target}/restore` | POST | Restore a deleted session        |
+| `/trash/{target}`     | DELETE | Permanently purge a deleted session |
 | `/session/{id}/stop`  | POST   | Stop generation                     |
 | `/session/{id}/clear` | POST   | Clear session messages              |
 | `/session/{id}/retry` | POST   | Retry last message                  |

@@ -218,6 +218,7 @@ the listing can be sorted by deletion time and previewed before restoring.
 | --- | --- |
 | Skill | `/trash` lists deleted sessions, `/restore <id>` restores one and opens it |
 | Picker | `<leader>fx` → `Picker chat_trash`; `<CR>` / `<C-r>` restores, `<C-d>` purges for good, `<C-t>` opens the raw JSON |
+| HTTP | `GET /trash` lists them, `POST /trash/{target}/restore` restores, `DELETE /trash/{target}` purges — see [HTTP API](./api/http/#get-trash) |
 | Manual | Move the file from `sessions-trash/` back into `sessions/` and remove the `deleted_at` field |
 
 `/restore` keeps the original session id, so it refuses (instead of

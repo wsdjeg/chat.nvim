@@ -91,6 +91,9 @@ nvim --headless -c "luafile server.lua"
 | `/logs` | DELETE | Clear the runtime log |
 | `/usage-stats` | GET | Get per provider/model request & token statistics (supports `since`, `hours`, `days` windows) |
 | `/usage-stats` | DELETE | Clear all usage statistics |
+| `/trash` | GET | List soft-deleted sessions that can still be restored |
+| `/trash/{target}/restore` | POST | Restore a deleted session |
+| `/trash/{target}` | DELETE | Permanently purge a deleted session |
 | `/session/new` | POST | Create a new session |
 | `/session/{id}` | DELETE | Delete a session |
 | `/session/{id}/stop` | POST | Stop generation |
@@ -766,6 +769,133 @@ good.
 
 ```bash
 curl -X DELETE http://127.0.0.1:7777/session/2024-01-15-10-30-00 \
+  -H "X-API-Key: your-secret-key"
+```
+
+Because the file is only moved, a delete over HTTP is reversible through the
+trash endpoints below.
+
+---
+
+### GET `/trash`
+
+List soft-deleted sessions, newest deletion first.
+
+The response is a bare array, shaped like `GET /sessions`, so a client that
+already parses a session list needs no second envelope.
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": "2024-01-15-10-30-00",
+    "file": "2024-01-15-10-30-00.json",
+    "deleted_at": 1736500000,
+    "title": "Refactor the loader",
+    "preview": "Can you split storage.lua?",
+    "message_count": 12
+  }
+]
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Session ID; a re-deleted session reports the same id for every snapshot |
+| `file` | string | Trash file name; use it to address one snapshot of a session deleted twice (`id~1.json`) |
+| `deleted_at` | number | Unix timestamp of the deletion |
+| `title` | string\|null | Session title (may be absent for old cache files) |
+| `preview` | string\|null | First non-empty line of the conversation |
+| `message_count` | number | Number of messages in the trashed snapshot |
+
+> **Note**: the absolute trash file path is deliberately **not** exposed. It
+> is a path on the machine running the server; `id` and `file` are enough to
+> restore or purge an entry.
+
+**Example:**
+
+```bash
+curl http://127.0.0.1:7777/trash -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### POST `/trash/{target}/restore`
+
+Restore one deleted session. `{target}` is either a session `id` or one of the
+`file` names reported by `GET /trash`.
+
+The session keeps its original id, gains `cwd`/`prompt` defaults when the
+trashed payload was missing them, is loaded into memory, and the `deleted_at`
+marker is removed — so it appears in `GET /sessions` immediately.
+
+The local chat window is **not** switched to it: this route is meant for remote
+clients, and taking over the user's UI is not its job. Use `/restore <id>` in
+Neovim for that.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `target` | Session id (`2024-01-15-10-30-00`) or trash file name (`2024-01-15-10-30-00~1.json`); percent-encoding is supported |
+
+**Response (200 OK):**
+
+```json
+{ "id": "2024-01-15-10-30-00" }
+```
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 200 | Success — session restored, body carries its id |
+| 400 | Trash file exists but is unusable (invalid JSON, missing `messages`) |
+| 404 | No entry matches `target` |
+| 409 | A live session with the same id exists again; delete it first |
+
+**Examples:**
+
+```bash
+# Restore by session id
+curl -X POST http://127.0.0.1:7777/trash/2024-01-15-10-30-00/restore \
+  -H "X-API-Key: your-secret-key"
+
+# Restore a specific snapshot of a session deleted twice
+curl -X POST "http://127.0.0.1:7777/trash/2024-01-15-10-30-00~1.json/restore" \
+  -H "X-API-Key: your-secret-key"
+```
+
+---
+
+### DELETE `/trash/{target}`
+
+Permanently purge one deleted session.
+
+Unlike `DELETE /session/{id}`, this is **not** reversible: the trash file is
+unlinked. That is why it lives under a different prefix — a client can never
+confuse the two by accident.
+
+**Path Parameters:**
+
+| Parameter | Description |
+|---|---|
+| `target` | Session id or trash file name (same forms as `/restore`) |
+
+**Response Status Codes:**
+
+| Status Code | Description |
+|---|---|
+| 204 | Success — trash file removed |
+| 400 | The trash file could not be removed |
+| 404 | No entry matches `target` |
+
+**Example:**
+
+```bash
+curl -X DELETE http://127.0.0.1:7777/trash/2024-01-15-10-30-00.json \
   -H "X-API-Key: your-secret-key"
 ```
 

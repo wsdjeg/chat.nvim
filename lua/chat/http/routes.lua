@@ -430,6 +430,113 @@ local function handle_delete_session(client, path)
   response.send_response(client, 204)
 end
 
+--------------------------------------------------
+-- Trash (soft-deleted sessions)
+--------------------------------------------------
+
+--- Map a storage error message to an HTTP status.
+---
+--- `restore()` and `purge_trash()` return plain strings, so the mapping goes
+--- by message: a missing entry is a 404, a live session still owning the id is
+--- a 409 (the caller may retry after deleting that session), and anything else
+--- means the trash file itself is unusable, i.e. a 400.
+--- @param err string|nil Storage error message
+--- @return number status HTTP status code
+--- @return string message Error message to send back
+local function trash_error_status(err)
+  local message = tostring(err or 'Unknown trash error')
+  if message:find('not found', 1, true) then
+    return 404, message
+  end
+  if message:find('already exists', 1, true) then
+    return 409, message
+  end
+  return 400, message
+end
+
+--- Build the API view of one trash entry.
+---
+--- `path` is deliberately replaced by the bare `file` name: it is an absolute
+--- path on the machine running the server, which the caller neither needs
+--- (restore and purge accept the file name) nor should be able to read from a
+--- response payload.
+--- @param entry table Entry from `sessions.list_trash()`
+--- @return table info
+local function build_trash_info(entry)
+  return {
+    id = entry.id,
+    file = vim.fn.fnamemodify(entry.path, ':t'),
+    deleted_at = entry.deleted_at,
+    title = entry.title,
+    preview = entry.preview,
+    message_count = entry.message_count,
+  }
+end
+
+--- GET /trash: list deleted sessions, newest deletion first
+---
+--- Shaped like `GET /sessions` -- a bare array of entries -- so a client that
+--- already parses a session list needs no second envelope.
+local function handle_list_trash(client)
+  local entries = {}
+  for _, entry in ipairs(sessions.list_trash()) do
+    table.insert(entries, build_trash_info(entry))
+  end
+  response.send_json(client, 200, entries)
+end
+
+--- POST /trash/:target/restore: bring one deleted session back
+---
+--- `:target` is a session id (what `GET /trash` reports as `id`) or one of the
+--- trash file names (`id.json`, `id~1.json` for a session that was deleted more
+--- than once, reported as `file`).
+---
+--- The session is restored under its original id and loaded into memory, so it
+--- shows up in `GET /sessions` right away. It is not pushed into the local
+--- window: this request usually comes from a remote client, and switching the
+--- user's UI is not this endpoint's job.
+local function handle_restore_trash(client, path)
+  local target = path:match('^/trash/([^/]+)/restore$')
+  if not target then
+    response.send_response(client, 400)
+    return
+  end
+
+  target = url_decode(target)
+
+  local id, err = sessions.restore(target)
+  if not id then
+    local status, message = trash_error_status(err)
+    response.send_json(client, status, { error = message })
+    return
+  end
+
+  response.send_json(client, 200, { id = id })
+end
+
+--- DELETE /trash/:target: purge one deleted session for good
+---
+--- Unlike `DELETE /session/{id}` this is **not** reversible: the trash file is
+--- unlinked. That is why it lives under a different prefix.
+local function handle_purge_trash(client, path)
+  local target = path:match('^/trash/([^/]+)$')
+  if not target then
+    response.send_response(client, 400)
+    return
+  end
+
+  target = url_decode(target)
+
+  local ok, err = sessions.purge_trash(target)
+  if not ok then
+    local status, message = trash_error_status(err)
+    response.send_json(client, status, { error = message })
+    return
+  end
+
+  response.send_response(client, 204)
+end
+
 --- POST /session/:id/stop: stop generation
 local function handle_stop_session(client, path)
   local session_id = path:match('^/session/([^/]+)/stop$')
@@ -1253,6 +1360,12 @@ function M.handle_request(client, method, path, headers, body, content_length)
     handle_get_usage_stats(client, path)
   elseif method == 'DELETE' and path == '/usage-stats' then
     handle_reset_usage_stats(client)
+  elseif method == 'GET' and path == '/trash' then
+    handle_list_trash(client)
+  elseif method == 'POST' and path:match('^/trash/[^/]+/restore$') then
+    handle_restore_trash(client, path)
+  elseif method == 'DELETE' and path:match('^/trash/[^/]+$') then
+    handle_purge_trash(client, path)
   elseif method == 'POST' and path == '/session/new' then
     handle_new_session(client, body, content_length)
   elseif method == 'DELETE' and path:match('^/session/[^/]+$') then

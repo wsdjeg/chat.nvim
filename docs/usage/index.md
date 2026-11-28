@@ -584,6 +584,7 @@ picker's `<C-d>` and `DELETE /session/{id}` — so all of them are reversible.
 | Browse and preview | `<leader>fx` → `Picker chat_trash`; `<CR>` or `<C-r>` restores |
 | Purge for good | `Picker chat_trash` → `<C-d>` (asks for confirmation) |
 | Inspect the raw JSON | `Picker chat_trash` → `<C-t>` |
+| From a script or remote client | HTTP: `GET /trash`, `POST /trash/{target}/restore`, `DELETE /trash/{target}` — see [HTTP API](../api/http/#get-trash) |
 
 The restored session keeps its original id, and the request history, usage
 counters and `cwd` come back with it. `sessions.delete()` still cleans up the
